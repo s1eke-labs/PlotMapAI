@@ -78,8 +78,16 @@
     "fontSize": "字号",
     "singleColumn": "单列模式",
     "twoColumn": "双列模式",
-    "aiSummaryPlaceholder": "AI 总结内容暂未生成",
-    "aiSummaryHint": "此区域将展示从本章节提取的总结、角色关系和剧情要点。Phase 2（AI 分析）完成后即可使用。目前请切换回原文视图阅读。",
+    "aiSummaryPlaceholder": "AI 摘要",
+    "aiSummaryHint": "AI 正在分析此章节，摘要生成后将在此显示。",
+    "background": "背景",
+    "bgPresets": {
+      "auto": "默认",
+      "paper": "白纸",
+      "parchment": "羊皮纸",
+      "green": "护眼绿",
+      "night": "夜间"
+    },
     "exit": "退出阅读",
     "goBack": "返回"
   },

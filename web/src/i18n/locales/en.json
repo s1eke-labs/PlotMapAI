@@ -78,8 +78,16 @@
     "fontSize": "Size",
     "singleColumn": "Single Column",
     "twoColumn": "Two Columns",
-    "aiSummaryPlaceholder": "AI Summary not yet generated",
-    "aiSummaryHint": "This area will display the summary, character relationships, and plot points extracted from this chapter once Phase 2 (AI Analysis) is complete. For now, please switch back to the Original view to read.",
+    "aiSummaryPlaceholder": "AI Summary",
+    "aiSummaryHint": "AI is analyzing this chapter. Summary will appear here once ready.",
+    "background": "Background",
+    "bgPresets": {
+      "auto": "Auto",
+      "paper": "Paper",
+      "parchment": "Parchment",
+      "green": "Eye-protection",
+      "night": "Night"
+    },
     "exit": "Exit Reader",
     "goBack": "Go Back"
   },

@@ -11,6 +11,8 @@ interface ReaderToolbarProps {
   onNext: () => void;
   hasPrev: boolean;
   hasNext: boolean;
+  readerTheme: string;
+  setReaderTheme: (theme: string) => void;
 }
 
 export default function ReaderToolbar({
@@ -21,11 +23,22 @@ export default function ReaderToolbar({
   onPrev,
   onNext,
   hasPrev,
-  hasNext
+  hasNext,
+  readerTheme,
+  setReaderTheme
 }: ReaderToolbarProps) {
   const { t } = useTranslation();
+
+  const themes = [
+    { id: 'auto', color: 'transparent', label: t('reader.bgPresets.auto') },
+    { id: 'paper', color: '#ffffff', label: t('reader.bgPresets.paper') },
+    { id: 'parchment', color: '#f4ecd8', label: t('reader.bgPresets.parchment') },
+    { id: 'green', color: '#c7edcc', label: t('reader.bgPresets.green') },
+    { id: 'night', color: '#1a1a1a', label: t('reader.bgPresets.night') },
+  ];
+
   return (
-    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-bg-secondary/90 backdrop-blur-xl rounded-full px-6 py-3 flex items-center gap-6 shadow-2xl border border-border-color z-40 transition-all hover:bg-bg-secondary">
+    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-bg-secondary/90 dark:bg-brand-800/90 backdrop-blur-xl rounded-full px-6 py-3 flex items-center gap-6 shadow-2xl border border-border-color z-40 transition-all hover:bg-bg-secondary dark:hover:bg-brand-800">
       
       <div className="flex items-center gap-2 border-r border-border-color/50 pr-6">
         <button
@@ -87,6 +100,24 @@ export default function ReaderToolbar({
         >
           <Maximize2 className="w-5 h-5" />
         </button>
+      </div>
+
+      <div className="flex items-center gap-2">
+        {themes.map(theme => (
+          <button
+            key={theme.id}
+            onClick={() => setReaderTheme(theme.id)}
+            className={cn(
+              "w-6 h-6 rounded-full border transition-all flex items-center justify-center overflow-hidden",
+              readerTheme === theme.id ? "ring-2 ring-accent ring-offset-2 ring-offset-bg-secondary scale-110" : "border-border-color hover:scale-105",
+              theme.id === 'auto' && "bg-gradient-to-tr from-white to-brand-900"
+            )}
+            style={{ backgroundColor: theme.id === 'auto' ? undefined : theme.color }}
+            title={theme.label}
+          >
+            {theme.id === 'auto' && <div className="sr-only">Auto</div>}
+          </button>
+        ))}
       </div>
     </div>
   );

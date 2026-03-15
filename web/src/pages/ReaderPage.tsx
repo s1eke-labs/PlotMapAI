@@ -23,6 +23,13 @@ export default function ReaderPage() {
   const [isTwoColumn, setIsTwoColumn] = useState(false);
   const [viewMode, setViewMode] = useState<'original' | 'summary'>('original');
   const [chapterIndex, setChapterIndex] = useState<number>(0);
+  const [readerTheme, setReaderTheme] = useState<string>(() => {
+    return localStorage.getItem('readerTheme') || 'auto';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('readerTheme', readerTheme);
+  }, [readerTheme]);
 
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -110,8 +117,18 @@ export default function ReaderPage() {
   const handleNext = () => currentChapter?.hasNext && setChapterIndex(prev => prev + 1);
   const handlePrev = () => currentChapter?.hasPrev && setChapterIndex(prev => prev - 1);
 
+  const themeStyles: Record<string, string> = {
+    paper: 'bg-[#ffffff] text-[#1a1a1a]',
+    parchment: 'bg-[#f4ecd8] text-[#5b4636]',
+    green: 'bg-[#c7edcc] text-[#2c3e50]',
+    night: 'bg-[#1a1a1a] text-[#d1d1d1]',
+    auto: 'bg-bg-primary text-text-primary'
+  };
+
+  const currentThemeStyles = themeStyles[readerTheme] || themeStyles.auto;
+
   return (
-    <div className="flex h-screen w-full bg-bg-primary text-text-primary overflow-hidden">
+    <div className={cn("flex h-screen w-full overflow-hidden transition-colors duration-300", currentThemeStyles)}>
       
       {/* Mobile Sidebar Backdrop */}
       <div 
@@ -125,7 +142,8 @@ export default function ReaderPage() {
       {/* Sidebar TOC - Layout adaptive (pushes content on desktop) */}
       <aside 
         className={cn(
-          "bg-bg-secondary flex flex-col transition-all duration-300 ease-in-out overflow-hidden z-20",
+          "flex flex-col transition-all duration-300 ease-in-out overflow-hidden z-20",
+          readerTheme === 'auto' ? "bg-bg-secondary" : currentThemeStyles,
           "fixed inset-y-0 left-0 md:relative md:translate-x-0 h-full",
           isSidebarOpen 
             ? "w-72 translate-x-0 shadow-2xl md:shadow-none border-r border-border-color/30" 
@@ -211,7 +229,10 @@ export default function ReaderPage() {
           ) : currentChapter ? (
             <div className="h-full px-4 sm:px-8 md:px-12 py-8 max-w-[1200px] mx-auto w-full relative">
               
-              <h1 className="text-3xl sm:text-4xl font-bold mb-12 text-center text-text-primary leading-tight font-serif pt-8">
+              <h1 className={cn(
+                "text-3xl sm:text-4xl font-bold mb-12 text-center leading-tight font-serif pt-8 transition-colors",
+                readerTheme === 'auto' ? "text-text-primary" : ""
+              )}>
                 {currentChapter.title}
               </h1>
 
@@ -228,7 +249,8 @@ export default function ReaderPage() {
               ) : (
                 <div 
                   className={cn(
-                    "text-text-primary/90 leading-relaxed font-serif mx-auto w-full transition-all text-justify md:text-left selection:bg-accent/30 tracking-wide",
+                    "leading-relaxed font-serif mx-auto w-full transition-all text-justify md:text-left selection:bg-accent/30 tracking-wide",
+                    readerTheme === 'auto' ? "text-text-primary/90" : "",
                     isTwoColumn && "md:columns-2 md:gap-16 [column-rule:1px_solid_var(--border-color)]"
                   )}
                   style={{
@@ -270,6 +292,8 @@ export default function ReaderPage() {
             hasNext={currentChapter.hasNext}
             onPrev={handlePrev}
             onNext={handleNext}
+            readerTheme={readerTheme}
+            setReaderTheme={setReaderTheme}
           />
         )}
       </main>
