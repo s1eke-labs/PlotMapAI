@@ -32,6 +32,8 @@ export default function ReaderPage() {
   }, [readerTheme]);
 
   const contentRef = useRef<HTMLDivElement>(null);
+  const scrollKeys = useRef<Set<string>>(new Set());
+  const animationFrameId = useRef<number | null>(null);
 
   // Load TOC and Progress exactly once on mount
   useEffect(() => {
@@ -93,20 +95,55 @@ export default function ReaderPage() {
     fetchContent();
   }, [novelId, chapterIndex, viewMode]);
 
-  // Setup Keyboard Navigation
+  // Continuous scrolling animation loop
+  const scrollLoop = useCallback(() => {
+    if (!contentRef.current) return;
+    
+    let scrollAmount = 0;
+    if (scrollKeys.current.has('ArrowDown')) scrollAmount += 10;
+    if (scrollKeys.current.has('ArrowUp')) scrollAmount -= 10;
+    
+    if (scrollAmount !== 0) {
+      contentRef.current.scrollTop += scrollAmount;
+      animationFrameId.current = requestAnimationFrame(scrollLoop);
+    } else {
+      animationFrameId.current = null;
+    }
+  }, []);
+
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (!currentChapter || isLoading) return;
+    
     if (e.key === 'ArrowRight' && currentChapter.hasNext) {
       setChapterIndex(prev => prev + 1);
     } else if (e.key === 'ArrowLeft' && currentChapter.hasPrev) {
       setChapterIndex(prev => prev - 1);
+    } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (!scrollKeys.current.has(e.key)) {
+        scrollKeys.current.add(e.key);
+        if (!animationFrameId.current) {
+          animationFrameId.current = requestAnimationFrame(scrollLoop);
+        }
+      }
     }
-  }, [currentChapter, isLoading]);
+  }, [currentChapter, isLoading, scrollLoop]);
+
+  const handleKeyUp = useCallback((e: KeyboardEvent) => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      scrollKeys.current.delete(e.key);
+    }
+  }, []);
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleKeyDown]);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+      if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
+    };
+  }, [handleKeyDown, handleKeyUp]);
 
   const toggleSidebar = () => setIsSidebarOpen(prev => !prev);
   const handleSelectChapter = (idx: number) => {
