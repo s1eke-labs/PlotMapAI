@@ -132,15 +132,58 @@ def delete_toc_rule(rule_id: int):
         session.close()
 
 
-@settings_bp.route("/toc-rules/reset", methods=["POST"])
-def reset_toc_rules():
-    """Reset all TOC rules to defaults."""
+@settings_bp.route("/toc-rules/upload", methods=["POST"])
+def upload_toc_rules():
+    """Upload TOC rules JSON and replace current rules."""
+    if "file" in request.files:
+        file = request.files["file"]
+        try:
+            rules_data = json.load(file)
+        except Exception as e:
+            return jsonify({"error": f"Invalid JSON file: {e}"}), 400
+    elif request.is_json:
+        rules_data = request.get_json()
+    else:
+        return jsonify({"error": "No rules data provided"}), 400
+
+    if not isinstance(rules_data, list):
+        # Support both wrapped {"rules": [...]} and raw list
+        if isinstance(rules_data, dict) and "rules" in rules_data:
+            rules_data = rules_data["rules"]
+        else:
+            return jsonify({"error": "Rules must be a JSON array"}), 400
+
     session: Session = db_session()
     try:
+        # Clear existing rules for this user
         session.query(TocRule).filter_by(user_id=Config.DEFAULT_USER_ID).delete()
+        
+        for i, rd in enumerate(rules_data):
+            if not isinstance(rd, dict):
+                continue
+            
+            rule = TocRule(
+                name=rd.get("name", f"Imported Rule {i+1}"),
+                rule=rd.get("rule") or rd.get("pattern"), # Support both keys
+                example=rd.get("example", ""),
+                serial_number=rd.get("priority") or rd.get("serial_number") or i,
+                enable=rd.get("isEnabled") or rd.get("enable") or True,
+                is_default=rd.get("isDefault", False),
+                user_id=Config.DEFAULT_USER_ID,
+            )
+            if not rule.rule:
+                continue
+            session.add(rule)
+        
         session.commit()
-        _seed_default_toc_rules()
-        return jsonify({"message": "Rules reset to defaults"})
+        # Return the new list of rules
+        rules = (
+            session.query(TocRule)
+            .filter_by(user_id=Config.DEFAULT_USER_ID)
+            .order_by(TocRule.serial_number)
+            .all()
+        )
+        return jsonify([_toc_rule_to_dict(r) for r in rules]), 201
     except Exception as e:
         session.rollback()
         return jsonify({"error": str(e)}), 500

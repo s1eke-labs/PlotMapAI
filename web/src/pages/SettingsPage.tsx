@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Loader2, Plus, Upload, RefreshCcw, ShieldAlert } from 'lucide-react';
+import { Loader2, Plus, Upload } from 'lucide-react';
 import { settingsApi } from '../api/settings';
 import type { TocRule, PurificationRule } from '../api/settings';
 import RuleCard from '../components/RuleCard';
@@ -24,6 +24,7 @@ export default function SettingsPage() {
   const [editingPurificationRule, setEditingPurificationRule] = useState<PurificationRule | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const tocInputRef = useRef<HTMLInputElement>(null);
 
   const fetchTocRules = async () => {
     setIsTocLoading(true);
@@ -88,15 +89,18 @@ export default function SettingsPage() {
     }
   };
 
-  const handleResetTocRules = async () => {
-    if (!confirm(t('settings.toc.resetConfirm'))) return;
+  const handleUploadTocJson = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files?.length) return;
+    const file = e.target.files[0];
     setIsTocLoading(true);
     try {
-      await settingsApi.resetTocRules();
+      await settingsApi.uploadTocRulesJson(file);
       await fetchTocRules();
-    } catch (err) {
-      alert(t('settings.common.resetFailed'));
+    } catch (err: any) {
+      alert(`${t('settings.common.uploadFailed')}: ${err.message}`);
+    } finally {
       setIsTocLoading(false);
+      if (tocInputRef.current) tocInputRef.current.value = '';
     }
   };
 
@@ -194,12 +198,19 @@ export default function SettingsPage() {
                 <h2 className="text-xl font-semibold text-text-primary">{t('settings.toc.title')}</h2>
                 <p className="text-text-secondary text-sm mt-1">{t('settings.toc.subtitle')}</p>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="shrink-0 flex items-center gap-3">
+                <input
+                  type="file"
+                  ref={tocInputRef}
+                  onChange={handleUploadTocJson}
+                  accept=".json"
+                  className="hidden"
+                />
                 <button
-                  onClick={handleResetTocRules}
+                  onClick={() => tocInputRef.current?.click()}
                   className="px-4 py-2 border border-white/10 rounded-lg hover:bg-white/5 text-text-primary transition-colors flex items-center gap-2 text-sm"
                 >
-                  <RefreshCcw className="w-4 h-4" /> {t('settings.toc.resetTitle')}
+                  <Upload className="w-4 h-4" /> {t('settings.toc.importJson')}
                 </button>
                 <button
                   onClick={() => {
@@ -216,24 +227,32 @@ export default function SettingsPage() {
             {isTocLoading ? (
               <div className="py-12 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-accent" /></div>
             ) : (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                {tocRules.map(rule => (
-                  <RuleCard
-                    key={rule.id}
-                    name={rule.name}
-                    pattern={rule.rule}
-                    isEnabled={rule.isEnabled}
-                    priority={rule.priority}
-                    isDefault={rule.isDefault}
-                    isCustom={!rule.isDefault}
-                    onToggle={(checked) => handleToggleTocRule(rule.id, checked)}
-                    onEdit={() => {
-                      setEditingTocRule(rule);
-                      setIsAddTocOpen(true);
-                    }}
-                    onDelete={() => handleDeleteTocRule(rule.id)}
-                  />
-                ))}
+              <div className="space-y-8">
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold text-text-primary border-l-4 border-accent pl-3 flex items-center gap-2">
+                    {t('settings.tocRules')}
+                    <span className="text-xs font-normal text-text-secondary bg-white/5 px-2 py-0.5 rounded-full">{tocRules.length}</span>
+                  </h3>
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    {tocRules.map(rule => (
+                      <RuleCard
+                        key={rule.id}
+                        name={rule.name}
+                        pattern={rule.rule}
+                        isEnabled={rule.isEnabled}
+                        priority={rule.priority}
+                        isDefault={rule.isDefault}
+                        isCustom={!rule.isDefault}
+                        onToggle={(checked) => handleToggleTocRule(rule.id, checked)}
+                        onEdit={() => {
+                          setEditingTocRule(rule);
+                          setIsAddTocOpen(true);
+                        }}
+                        onDelete={() => handleDeleteTocRule(rule.id)}
+                      />
+                    ))}
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -245,11 +264,7 @@ export default function SettingsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-xl font-semibold text-text-primary">{t('settings.purification.title')}</h2>
-                <p className="text-text-secondary text-sm mt-1 mb-2">{t('settings.purification.subtitle')}</p>
-                <div className="flex items-start gap-2 text-xs text-amber-500/80 bg-amber-500/10 p-2 rounded max-w-lg">
-                  <ShieldAlert className="w-4 h-4 shrink-0" />
-                  <p>{t('settings.purification.securityNote')}</p>
-                </div>
+                <p className="text-text-secondary text-sm mt-1">{t('settings.purification.subtitle')}</p>
               </div>
               <div className="shrink-0 flex items-center gap-3">
                 <input

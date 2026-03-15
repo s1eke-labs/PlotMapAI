@@ -47,8 +47,12 @@ export const settingsApi = {
     return client.delete(`/settings/toc-rules/${id}`);
   },
 
-  resetTocRules: (): Promise<{ message: string }> => {
-    return client.post('/settings/toc-rules/reset');
+  uploadTocRulesJson: (file: File): Promise<TocRule[]> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return client.post('/settings/toc-rules/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
   },
 
   // Purification Rules
