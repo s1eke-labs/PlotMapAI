@@ -1,4 +1,4 @@
-import { Minimize2, Maximize2, Type, ArrowLeft, ArrowRight } from 'lucide-react';
+import { AlignJustify, Columns2, Type, ArrowLeft, ArrowRight } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '../utils/cn';
 
@@ -11,6 +11,7 @@ interface ReaderToolbarProps {
   onNext: () => void;
   hasPrev: boolean;
   hasNext: boolean;
+  navigationMode: 'chapter' | 'page';
   readerTheme: string;
   setReaderTheme: (theme: string) => void;
 }
@@ -24,6 +25,7 @@ export default function ReaderToolbar({
   onNext,
   hasPrev,
   hasNext,
+  navigationMode,
   readerTheme,
   setReaderTheme
 }: ReaderToolbarProps) {
@@ -45,7 +47,7 @@ export default function ReaderToolbar({
           onClick={onPrev}
           disabled={!hasPrev}
           className="p-2 rounded-full hover:bg-muted-bg disabled:opacity-30 disabled:hover:bg-transparent transition-colors text-text-primary"
-          title={t('reader.prev')}
+          title={t(navigationMode === 'page' ? 'reader.prevPage' : 'reader.prev')}
         >
           <ArrowLeft className="w-5 h-5" />
         </button>
@@ -53,7 +55,7 @@ export default function ReaderToolbar({
           onClick={onNext}
           disabled={!hasNext}
           className="p-2 rounded-full hover:bg-muted-bg disabled:opacity-30 disabled:hover:bg-transparent transition-colors text-text-primary"
-          title={t('reader.next')}
+          title={t(navigationMode === 'page' ? 'reader.nextPage' : 'reader.next')}
         >
           <ArrowRight className="w-5 h-5" />
         </button>
@@ -88,7 +90,7 @@ export default function ReaderToolbar({
           )}
           title={t('reader.singleColumn')}
         >
-          <Minimize2 className="w-5 h-5" />
+          <AlignJustify className="w-5 h-5" />
         </button>
         <button
           onClick={() => setIsTwoColumn(true)}
@@ -98,7 +100,7 @@ export default function ReaderToolbar({
           )}
           title={t('reader.twoColumn')}
         >
-          <Maximize2 className="w-5 h-5" />
+          <Columns2 className="w-5 h-5" />
         </button>
       </div>
 

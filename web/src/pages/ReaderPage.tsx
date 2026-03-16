@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useLayoutEffect, useRef, type WheelEvent as ReactWheelEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams, Link } from 'react-router-dom';
 import { Loader2, Menu, X, ArrowLeft, AlignLeft, Bot } from 'lucide-react';
@@ -9,101 +9,318 @@ import ReaderToolbar from '../components/ReaderToolbar';
 import { cn } from '../utils/cn';
 import { READER_THEMES } from '../constants/readerThemes';
 
+const PAGE_TURN_LOCK_MS = 280;
+const PAGE_TURN_THRESHOLD = 48;
+const TWO_COLUMN_GAP = 48;
+const MIN_COLUMN_WIDTH = 260;
+
+type PageTarget = 'start' | 'end';
+
+type StoredReaderState = {
+  chapterIndex?: number;
+  viewMode?: 'original' | 'summary';
+  isTwoColumn?: boolean;
+};
+
+function getReaderStateKey(novelId: number) {
+  return `reader-state:${novelId}`;
+}
+
+function readStoredReaderState(novelId: number): StoredReaderState | null {
+  if (!novelId) return null;
+
+  try {
+    const raw = localStorage.getItem(getReaderStateKey(novelId));
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw) as StoredReaderState;
+    return {
+      chapterIndex: typeof parsed.chapterIndex === 'number' ? parsed.chapterIndex : undefined,
+      viewMode: parsed.viewMode === 'summary' || parsed.viewMode === 'original' ? parsed.viewMode : undefined,
+      isTwoColumn: typeof parsed.isTwoColumn === 'boolean' ? parsed.isTwoColumn : undefined,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredReaderState(novelId: number, state: StoredReaderState) {
+  if (!novelId) return;
+
+  localStorage.setItem(getReaderStateKey(novelId), JSON.stringify(state));
+}
+
 export default function ReaderPage() {
   const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const novelId = Number(id);
+  const initialStoredState = readStoredReaderState(novelId);
 
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [currentChapter, setCurrentChapter] = useState<ChapterContent | null>(null);
-  
-  // Settings & State
+
   const [isLoading, setIsLoading] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [fontSize, setFontSize] = useState(18);
-  const [isTwoColumn, setIsTwoColumn] = useState(false);
-  const [viewMode, setViewMode] = useState<'original' | 'summary'>('original');
-  const [chapterIndex, setChapterIndex] = useState<number>(0);
-  const [readerTheme, setReaderTheme] = useState<string>(() => {
-    return localStorage.getItem('readerTheme') || 'auto';
+  const [isTwoColumn, setIsTwoColumn] = useState<boolean>(() => initialStoredState?.isTwoColumn ?? false);
+  const [viewMode, setViewMode] = useState<'original' | 'summary'>(() => initialStoredState?.viewMode ?? 'original');
+  const [chapterIndex, setChapterIndex] = useState<number>(() => initialStoredState?.chapterIndex ?? 0);
+  const [readerTheme, setReaderTheme] = useState<string>(() => localStorage.getItem('readerTheme') || 'auto');
+  const [isWideScreen, setIsWideScreen] = useState<boolean>(() => window.matchMedia('(min-width: 768px)').matches);
+  const [pageIndex, setPageIndex] = useState(0);
+  const [pageCount, setPageCount] = useState(1);
+  const [pagedViewportSize, setPagedViewportSize] = useState({ width: 0, height: 0 });
+  const [hasHydratedReaderState, setHasHydratedReaderState] = useState(false);
+
+  const contentRef = useRef<HTMLDivElement>(null);
+  const pagedViewportRef = useRef<HTMLDivElement>(null);
+  const pagedContentRef = useRef<HTMLDivElement>(null);
+  const scrollKeys = useRef<Set<string>>(new Set());
+  const animationFrameId = useRef<number | null>(null);
+  const pageTargetRef = useRef<PageTarget>('start');
+  const wheelDeltaRef = useRef(0);
+  const wheelUnlockTimeoutRef = useRef<number | null>(null);
+  const pageTurnLockedRef = useRef(false);
+  const latestReaderStateRef = useRef<StoredReaderState>({
+    chapterIndex: initialStoredState?.chapterIndex ?? 0,
+    viewMode: initialStoredState?.viewMode ?? 'original',
+    isTwoColumn: initialStoredState?.isTwoColumn ?? false,
   });
+  const hasUserInteractedRef = useRef(false);
+
+  const currentTheme = READER_THEMES[readerTheme] || READER_THEMES.auto;
+  const chapterParagraphs = currentChapter?.content.split('\n') ?? [];
+  const isPagedMode = isTwoColumn && viewMode === 'original' && isWideScreen;
+  const toolbarHasPrev = isPagedMode ? pageIndex > 0 || Boolean(currentChapter?.hasPrev) : Boolean(currentChapter?.hasPrev);
+  const toolbarHasNext = isPagedMode ? pageIndex < pageCount - 1 || Boolean(currentChapter?.hasNext) : Boolean(currentChapter?.hasNext);
+  const twoColumnWidth = pagedViewportSize.width
+    ? Math.max((pagedViewportSize.width - TWO_COLUMN_GAP) / 2, MIN_COLUMN_WIDTH)
+    : undefined;
+  const pageTurnStep = pagedViewportSize.width ? pagedViewportSize.width + TWO_COLUMN_GAP : 0;
+
+  const persistReaderState = useCallback((nextState: StoredReaderState) => {
+    const mergedState: StoredReaderState = {
+      chapterIndex: nextState.chapterIndex ?? latestReaderStateRef.current.chapterIndex ?? 0,
+      viewMode: nextState.viewMode ?? latestReaderStateRef.current.viewMode ?? 'original',
+      isTwoColumn: nextState.isTwoColumn ?? latestReaderStateRef.current.isTwoColumn ?? false,
+    };
+
+    latestReaderStateRef.current = mergedState;
+    writeStoredReaderState(novelId, mergedState);
+  }, [novelId]);
+
+  const handleSetIsTwoColumn = useCallback((twoColumn: boolean) => {
+    hasUserInteractedRef.current = true;
+    setIsTwoColumn(twoColumn);
+    persistReaderState({ isTwoColumn: twoColumn });
+  }, [persistReaderState]);
+
+  const handleSetViewMode = useCallback((nextViewMode: 'original' | 'summary') => {
+    hasUserInteractedRef.current = true;
+    setViewMode(nextViewMode);
+    persistReaderState({ viewMode: nextViewMode });
+  }, [persistReaderState]);
+
+  const unlockPageTurn = useCallback(() => {
+    if (wheelUnlockTimeoutRef.current) {
+      window.clearTimeout(wheelUnlockTimeoutRef.current);
+    }
+
+    wheelUnlockTimeoutRef.current = window.setTimeout(() => {
+      pageTurnLockedRef.current = false;
+      wheelUnlockTimeoutRef.current = null;
+    }, PAGE_TURN_LOCK_MS);
+  }, []);
+
+  const stopContinuousScroll = useCallback(() => {
+    scrollKeys.current.clear();
+    if (animationFrameId.current) {
+      cancelAnimationFrame(animationFrameId.current);
+      animationFrameId.current = null;
+    }
+  }, []);
 
   useEffect(() => {
     localStorage.setItem('readerTheme', readerTheme);
   }, [readerTheme]);
 
-  const contentRef = useRef<HTMLDivElement>(null);
-  const scrollKeys = useRef<Set<string>>(new Set());
-  const animationFrameId = useRef<number | null>(null);
+  useEffect(() => {
+    latestReaderStateRef.current = {
+      chapterIndex,
+      viewMode,
+      isTwoColumn,
+    };
+  }, [chapterIndex, isTwoColumn, viewMode]);
 
-  // Load TOC and Progress exactly once on mount
+  useEffect(() => {
+    if (!novelId || !hasHydratedReaderState) return;
+
+    persistReaderState({ chapterIndex, viewMode, isTwoColumn });
+  }, [chapterIndex, hasHydratedReaderState, isTwoColumn, novelId, persistReaderState, viewMode]);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(min-width: 768px)');
+    const handleMediaChange = (event: MediaQueryListEvent) => setIsWideScreen(event.matches);
+
+    setIsWideScreen(mediaQuery.matches);
+    mediaQuery.addEventListener('change', handleMediaChange);
+
+    return () => {
+      mediaQuery.removeEventListener('change', handleMediaChange);
+    };
+  }, []);
+
   useEffect(() => {
     if (!novelId) return;
 
+    let cancelled = false;
+
     const init = async () => {
       setIsLoading(true);
+      setHasHydratedReaderState(false);
+      hasUserInteractedRef.current = false;
+
+      const storedState = readStoredReaderState(novelId);
+      const nextStoredState: StoredReaderState = {
+        chapterIndex: storedState?.chapterIndex ?? 0,
+        viewMode: storedState?.viewMode ?? 'original',
+        isTwoColumn: storedState?.isTwoColumn ?? false,
+      };
+
+      latestReaderStateRef.current = nextStoredState;
+      setIsTwoColumn(nextStoredState.isTwoColumn ?? false);
+      setViewMode(nextStoredState.viewMode ?? 'original');
+      setChapterIndex(nextStoredState.chapterIndex ?? 0);
+
       try {
         const [toc, progress] = await Promise.all([
           readerApi.getChapters(novelId),
-          readerApi.getProgress(novelId).catch(() => null)
+          readerApi.getProgress(novelId).catch(() => null),
         ]);
-        
-        setChapters(toc);
-        
-        let startIdx = 0;
-        if (progress) {
-          startIdx = progress.chapterIndex;
-          setViewMode(progress.viewMode);
-        } else if (toc.length > 0) {
-          startIdx = toc[0].index;
-        }
 
-        setChapterIndex(startIdx);
-        
+        if (cancelled) return;
+
+        setChapters(toc);
+
+        if (!hasUserInteractedRef.current) {
+          const fallbackIndex = toc.length > 0 ? toc[0].index : 0;
+          const nextChapterIndex = storedState?.chapterIndex ?? progress?.chapterIndex ?? fallbackIndex;
+          const nextViewMode = storedState?.viewMode ?? progress?.viewMode ?? 'original';
+          const hasChapter = toc.some((chapter) => chapter.index === nextChapterIndex);
+          const resolvedChapterIndex = hasChapter ? nextChapterIndex : fallbackIndex;
+
+          latestReaderStateRef.current = {
+            chapterIndex: resolvedChapterIndex,
+            viewMode: nextViewMode,
+            isTwoColumn: nextStoredState.isTwoColumn,
+          };
+
+          setViewMode(nextViewMode);
+          setChapterIndex(resolvedChapterIndex);
+        }
       } catch (err) {
-        console.error('Failed to load reader init data:', err);
+        if (!cancelled) {
+          console.error('Failed to load reader init data:', err);
+        }
+      } finally {
+        if (!cancelled) {
+          setHasHydratedReaderState(true);
+        }
       }
     };
-    
+
     init();
+
+    return () => {
+      cancelled = true;
+    };
   }, [novelId]);
 
-  // Fetch chapter content when chapterIndex changes
   useEffect(() => {
     if (!novelId || chapterIndex === undefined) return;
-    
+
+    let cancelled = false;
+
     const fetchContent = async () => {
       setIsLoading(true);
       try {
         const data = await readerApi.getChapterContent(novelId, chapterIndex);
+        if (cancelled) return;
+
         setCurrentChapter(data);
-        
-        // Scroll to top when changing chapters unless we have a saved position
+        setPageIndex(0);
+        setPageCount(1);
+        wheelDeltaRef.current = 0;
+        pageTurnLockedRef.current = false;
+
         if (contentRef.current) {
           contentRef.current.scrollTop = 0;
+          contentRef.current.scrollLeft = 0;
         }
 
-        // Save progress instantly
-        readerApi.saveProgress(novelId, { chapterIndex, viewMode }).catch(console.error);
+        if (pagedViewportRef.current) {
+          pagedViewportRef.current.scrollLeft = 0;
+        }
 
+        readerApi.saveProgress(novelId, { chapterIndex, viewMode }).catch(console.error);
       } catch (err) {
-        console.error('Failed to load chapter content', err);
+        if (!cancelled) {
+          console.error('Failed to load chapter content', err);
+        }
       } finally {
-        setIsLoading(false);
+        if (!cancelled) {
+          setIsLoading(false);
+        }
       }
     };
 
     fetchContent();
+
+    return () => {
+      cancelled = true;
+    };
   }, [novelId, chapterIndex, viewMode]);
 
-  // Continuous scrolling animation loop
+  const goToChapter = useCallback((targetIndex: number, pageTarget: PageTarget = 'start') => {
+    hasUserInteractedRef.current = true;
+    pageTargetRef.current = pageTarget;
+    setChapterIndex(targetIndex);
+    persistReaderState({ chapterIndex: targetIndex });
+  }, [persistReaderState]);
+
+  const goToNextPage = useCallback(() => {
+    if (!currentChapter) return;
+
+    if (pageIndex < pageCount - 1) {
+      setPageIndex((prev) => prev + 1);
+      return;
+    }
+
+    if (currentChapter.hasNext) {
+      goToChapter(chapterIndex + 1, 'start');
+    }
+  }, [chapterIndex, currentChapter, goToChapter, pageCount, pageIndex]);
+
+  const goToPrevPage = useCallback(() => {
+    if (!currentChapter) return;
+
+    if (pageIndex > 0) {
+      setPageIndex((prev) => prev - 1);
+      return;
+    }
+
+    if (currentChapter.hasPrev) {
+      goToChapter(chapterIndex - 1, 'end');
+    }
+  }, [chapterIndex, currentChapter, goToChapter, pageIndex]);
+
   const scrollLoop = useCallback(() => {
     if (!contentRef.current) return;
-    
+
     let scrollAmount = 0;
     if (scrollKeys.current.has('ArrowDown')) scrollAmount += 10;
     if (scrollKeys.current.has('ArrowUp')) scrollAmount -= 10;
-    
+
     if (scrollAmount !== 0) {
       contentRef.current.scrollTop += scrollAmount;
       animationFrameId.current = requestAnimationFrame(scrollLoop);
@@ -114,12 +331,24 @@ export default function ReaderPage() {
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (!currentChapter || isLoading) return;
-    
+
+    if (isPagedMode && (e.key === 'ArrowDown' || e.key === 'PageDown')) {
+      e.preventDefault();
+      goToNextPage();
+      return;
+    }
+
+    if (isPagedMode && (e.key === 'ArrowUp' || e.key === 'PageUp')) {
+      e.preventDefault();
+      goToPrevPage();
+      return;
+    }
+
     if (e.key === 'ArrowRight' && currentChapter.hasNext) {
-      setChapterIndex(prev => prev + 1);
+      goToChapter(chapterIndex + 1, 'start');
     } else if (e.key === 'ArrowLeft' && currentChapter.hasPrev) {
-      setChapterIndex(prev => prev - 1);
-    } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      goToChapter(chapterIndex - 1, 'start');
+    } else if (!isPagedMode && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
       e.preventDefault();
       if (!scrollKeys.current.has(e.key)) {
         scrollKeys.current.add(e.key);
@@ -128,61 +357,168 @@ export default function ReaderPage() {
         }
       }
     }
-  }, [currentChapter, isLoading, scrollLoop]);
+  }, [chapterIndex, currentChapter, goToChapter, goToNextPage, goToPrevPage, isLoading, isPagedMode, scrollLoop]);
 
   const handleKeyUp = useCallback((e: KeyboardEvent) => {
-    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    if (!isPagedMode && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
       scrollKeys.current.delete(e.key);
     }
-  }, []);
+  }, [isPagedMode]);
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
+
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
-      if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
+      stopContinuousScroll();
     };
-  }, [handleKeyDown, handleKeyUp]);
+  }, [handleKeyDown, handleKeyUp, stopContinuousScroll]);
 
-  const toggleSidebar = () => setIsSidebarOpen(prev => !prev);
+  useEffect(() => {
+    if (!isPagedMode || isLoading || !currentChapter) {
+      if (!isPagedMode) {
+        setPagedViewportSize({ width: 0, height: 0 });
+      }
+      return;
+    }
+
+    stopContinuousScroll();
+
+    const viewport = pagedViewportRef.current;
+    if (!viewport) return;
+
+    const updateViewportSize = () => {
+      setPagedViewportSize({
+        width: viewport.clientWidth,
+        height: viewport.clientHeight,
+      });
+    };
+
+    const frameId = requestAnimationFrame(updateViewportSize);
+    const observer = new ResizeObserver(updateViewportSize);
+    observer.observe(viewport);
+
+    return () => {
+      cancelAnimationFrame(frameId);
+      observer.disconnect();
+    };
+  }, [currentChapter, isLoading, isPagedMode, stopContinuousScroll]);
+
+  useEffect(() => {
+    if (isLoading || !isPagedMode || !pagedViewportSize.width || !pagedViewportSize.height || !currentChapter) {
+      setPageCount(1);
+      return;
+    }
+
+    const frameId = requestAnimationFrame(() => {
+      const content = pagedContentRef.current;
+      if (!content || !pageTurnStep) return;
+
+      const nextPageCount = Math.max(1, Math.ceil((content.scrollWidth + TWO_COLUMN_GAP) / pageTurnStep));
+      const targetPage = pageTargetRef.current === 'end'
+        ? nextPageCount - 1
+        : Math.min(pageIndex, nextPageCount - 1);
+
+      setPageCount(nextPageCount);
+      setPageIndex(targetPage);
+      pageTargetRef.current = 'start';
+    });
+
+    return () => cancelAnimationFrame(frameId);
+  }, [currentChapter, fontSize, isLoading, isPagedMode, pageIndex, pageTurnStep, pagedViewportSize.height, pagedViewportSize.width]);
+
+  useLayoutEffect(() => {
+    if (!isPagedMode || !pagedViewportRef.current || !pageTurnStep) return;
+
+    pagedViewportRef.current.scrollLeft = pageIndex * pageTurnStep;
+  }, [isPagedMode, pageIndex, pageTurnStep]);
+
+  useEffect(() => {
+    return () => {
+      if (wheelUnlockTimeoutRef.current) {
+        window.clearTimeout(wheelUnlockTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const toggleSidebar = () => setIsSidebarOpen((prev) => !prev);
+
   const handleSelectChapter = (idx: number) => {
-    setChapterIndex(idx);
+    goToChapter(idx, 'start');
     setIsSidebarOpen(false);
   };
 
-  const handleNext = () => currentChapter?.hasNext && setChapterIndex(prev => prev + 1);
-  const handlePrev = () => currentChapter?.hasPrev && setChapterIndex(prev => prev - 1);
+  const handleNext = () => {
+    if (isPagedMode) {
+      goToNextPage();
+      return;
+    }
 
-  const currentTheme = READER_THEMES[readerTheme] || READER_THEMES.auto;
+    if (currentChapter?.hasNext) {
+      goToChapter(chapterIndex + 1, 'start');
+    }
+  };
+
+  const handlePrev = () => {
+    if (isPagedMode) {
+      goToPrevPage();
+      return;
+    }
+
+    if (currentChapter?.hasPrev) {
+      goToChapter(chapterIndex - 1, 'start');
+    }
+  };
+
+  const handlePagedWheel = useCallback((e: ReactWheelEvent<HTMLDivElement>) => {
+    if (!isPagedMode) return;
+
+    if (Math.abs(e.deltaY) < Math.abs(e.deltaX)) return;
+
+    e.preventDefault();
+    wheelDeltaRef.current += e.deltaY;
+
+    if (pageTurnLockedRef.current || Math.abs(wheelDeltaRef.current) < PAGE_TURN_THRESHOLD) {
+      return;
+    }
+
+    pageTurnLockedRef.current = true;
+
+    if (wheelDeltaRef.current > 0) {
+      goToNextPage();
+    } else {
+      goToPrevPage();
+    }
+
+    wheelDeltaRef.current = 0;
+    unlockPageTurn();
+  }, [goToNextPage, goToPrevPage, isPagedMode, unlockPageTurn]);
 
   return (
-    <div className={cn("flex h-screen w-full overflow-hidden transition-colors duration-300", currentTheme.bg)}>
-      
-      {/* Mobile Sidebar Backdrop */}
-      <div 
+    <div className={cn('flex h-screen w-full overflow-hidden transition-colors duration-300', currentTheme.bg)}>
+      <div
         className={cn(
-          "fixed inset-0 bg-black/40 z-40 backdrop-blur-[2px] transition-all duration-300 md:hidden",
-          isSidebarOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+          'fixed inset-0 bg-black/40 z-40 backdrop-blur-[2px] transition-all duration-300 md:hidden',
+          isSidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none',
         )}
         onClick={() => setIsSidebarOpen(false)}
       />
 
-      {/* Sidebar TOC - Layout adaptive (pushes content on desktop) */}
-      <aside 
+      <aside
         className={cn(
-          "flex flex-col transition-all duration-300 ease-in-out overflow-hidden z-20 text-text-primary",
+          'flex flex-col transition-all duration-300 ease-in-out overflow-hidden z-20 text-text-primary',
           currentTheme.sidebarBg,
-          "fixed inset-y-0 left-0 md:relative md:translate-x-0 h-full",
-          isSidebarOpen 
-            ? "w-72 translate-x-0 shadow-2xl md:shadow-none border-r border-border-color/30" 
-            : "w-0 -translate-x-full md:translate-x-0 border-r-0"
+          'fixed inset-y-0 left-0 md:relative md:translate-x-0 h-full',
+          isSidebarOpen
+            ? 'w-72 translate-x-0 shadow-2xl md:shadow-none border-r border-border-color/30'
+            : 'w-0 -translate-x-full md:translate-x-0 border-r-0',
         )}
       >
         <div className="w-72 flex flex-col h-full shrink-0">
           <header className="h-14 flex items-center justify-between px-4 border-b border-border-color/20 shrink-0 glass z-10">
-            <button 
+            <button
               onClick={() => setIsSidebarOpen(false)}
               className="font-semibold text-lg text-text-primary flex items-center gap-2 hover:opacity-70 transition-opacity cursor-pointer text-left"
               title={t('reader.contents')}
@@ -194,23 +530,21 @@ export default function ReaderPage() {
             </button>
           </header>
           <div className="flex-1 overflow-hidden min-h-0">
-             <ChapterList 
-                chapters={chapters} 
-                currentIndex={chapterIndex} 
-                onSelect={handleSelectChapter} 
-                contentTextColor={currentTheme.text}
-             />
+            <ChapterList
+              chapters={chapters}
+              currentIndex={chapterIndex}
+              onSelect={handleSelectChapter}
+              contentTextColor={currentTheme.text}
+            />
           </div>
         </div>
       </aside>
 
-      {/* Main Content Area */}
       <main className="flex-1 flex flex-col min-w-0 relative text-text-primary">
-        {/* Top Header */}
         <header className="h-14 flex items-center justify-between px-4 sm:px-6 shrink-0 border-b border-border-color/20 glass z-10 sticky top-0">
           <div className="flex items-center gap-3">
-            <button 
-              onClick={toggleSidebar} 
+            <button
+              onClick={toggleSidebar}
               className="p-2 rounded-full hover:bg-white/10 transition-colors text-text-primary"
               title={t('reader.contents')}
             >
@@ -223,19 +557,19 @@ export default function ReaderPage() {
 
           <div className="flex bg-muted-bg rounded-lg p-1 border border-border-color/50 shadow-inner">
             <button
-              onClick={() => setViewMode('original')}
+              onClick={() => handleSetViewMode('original')}
               className={cn(
-                "px-3 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-2",
-                viewMode === 'original' ? "bg-accent text-white shadow" : "text-text-secondary hover:text-text-primary"
+                'px-3 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-2',
+                viewMode === 'original' ? 'bg-accent text-white shadow' : 'text-text-secondary hover:text-text-primary',
               )}
             >
               <AlignLeft className="w-4 h-4" /> {t('reader.original')}
             </button>
             <button
-              onClick={() => setViewMode('summary')}
+              onClick={() => handleSetViewMode('summary')}
               className={cn(
-                "px-3 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-2",
-                viewMode === 'summary' ? "bg-accent text-white shadow" : "text-text-secondary hover:text-text-primary"
+                'px-3 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-2',
+                viewMode === 'summary' ? 'bg-accent text-white shadow' : 'text-text-secondary hover:text-text-primary',
               )}
             >
               <Bot className="w-4 h-4" /> {t('reader.summary')}
@@ -243,85 +577,129 @@ export default function ReaderPage() {
           </div>
         </header>
 
-        {/* Scrollable Reading Area */}
-        <div 
+        <div
           ref={contentRef}
-          className="flex-1 overflow-y-auto w-full relative pb-32"
+          className={cn('flex-1 w-full relative', isPagedMode ? 'overflow-hidden' : 'overflow-y-auto pb-32')}
           onScroll={() => {
-             // Save scroll position for returning later (throttled/debounced in full impl)
-             if (!contentRef.current) return;
-             // readerApi.saveProgress(novelId, { scrollPosition: contentRef.current.scrollTop })
+            if (isPagedMode || !contentRef.current) return;
           }}
+          onWheel={isPagedMode ? handlePagedWheel : undefined}
         >
           {isLoading ? (
             <div className="absolute inset-0 flex items-center justify-center">
-               <Loader2 className="w-8 h-8 animate-spin text-accent" />
+              <Loader2 className="w-8 h-8 animate-spin text-accent" />
             </div>
           ) : currentChapter ? (
-            <div className={cn("h-full px-4 sm:px-8 md:px-12 py-8 max-w-[1200px] mx-auto w-full relative", currentTheme.text)}>
-              
-              <h1 className={cn(
-                "text-3xl sm:text-4xl font-bold mb-12 text-center leading-tight font-serif pt-8 transition-colors",
-                readerTheme === 'auto' ? "text-text-primary" : ""
-              )}>
-                {currentChapter.title}
-              </h1>
-
-              {viewMode === 'summary' ? (
-                <div className="max-w-3xl mx-auto bg-card-bg rounded-2xl p-8 border border-border-color/20 text-center animate-fade-in shadow-xl">
-                  <div className="w-16 h-16 bg-muted-bg rounded-full flex items-center justify-center mx-auto mb-6">
-                    <Bot className="w-8 h-8 text-accent opacity-80" />
-                  </div>
-                  <h3 className="text-xl font-medium mb-4 text-text-primary">{t('reader.aiSummaryPlaceholder')}</h3>
-                  <p className="text-text-secondary leading-relaxed max-w-xl mx-auto">
-                    {t('reader.aiSummaryHint')}
-                  </p>
-                </div>
-              ) : (
-                <div 
-                  className={cn(
-                    "leading-relaxed font-serif mx-auto w-full transition-all text-justify md:text-left selection:bg-accent/30 tracking-wide opacity-90",
-                    isTwoColumn && "md:columns-2 md:gap-16 [column-rule:1px_solid_var(--border-color)]"
+            isPagedMode ? (
+              <div className={cn('h-full max-w-[1400px] mx-auto w-full px-4 sm:px-8 md:px-12 py-8 flex flex-col', currentTheme.text)}>
+                <div className="flex items-start justify-between gap-4 mb-8 shrink-0">
+                  <h1
+                    className={cn(
+                      'text-3xl sm:text-4xl font-bold leading-tight font-serif transition-colors flex-1 min-w-0',
+                      readerTheme === 'auto' ? 'text-text-primary' : '',
+                    )}
+                  >
+                    {currentChapter.title}
+                  </h1>
+                  {pageCount > 1 && (
+                    <div className="text-sm font-medium text-text-secondary whitespace-nowrap pt-2">
+                      {pageIndex + 1} / {pageCount}
+                    </div>
                   )}
-                  style={{
-                     fontSize: `${fontSize}px`,
-                     maxWidth: isTwoColumn ? '100%' : '800px',
-                     lineHeight: '1.8'
-                  }}
-                >
-                  {currentChapter.content.split('\n').map((paragraph, i) => (
-                    paragraph.trim() ? (
-                       <p key={i} className={cn("indent-8 mb-4 sm:mb-6", isTwoColumn && "break-inside-avoid")}>
-                         {paragraph}
-                       </p>
-                    ) : (
-                       <div key={i} className="h-4 sm:h-6" aria-hidden="true" />
-                    )
-                  ))}
                 </div>
-              )}
-            </div>
+
+                <div
+                  ref={pagedViewportRef}
+                  className="flex-1 min-h-0 overflow-hidden"
+                >
+                  <div
+                    ref={pagedContentRef}
+                    className="h-full font-serif text-justify md:text-left selection:bg-accent/30 tracking-wide opacity-90 pb-24"
+                    style={{
+                      fontSize: `${fontSize}px`,
+                      lineHeight: '1.8',
+                      columnGap: `${TWO_COLUMN_GAP}px`,
+                      columnWidth: twoColumnWidth ? `${twoColumnWidth}px` : undefined,
+                      columnFill: 'auto',
+                      columnRule: '1px solid var(--border-color)',
+                    }}
+                  >
+                    {chapterParagraphs.map((paragraph, i) => (
+                      paragraph.trim() ? (
+                        <p key={i} className="indent-8 mb-4 sm:mb-6 break-inside-avoid">
+                          {paragraph}
+                        </p>
+                      ) : (
+                        <div key={i} className="h-4 sm:h-6 break-inside-avoid" aria-hidden="true" />
+                      )
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className={cn('px-4 sm:px-8 md:px-12 py-8 max-w-[1200px] mx-auto w-full relative', currentTheme.text)}>
+                <h1
+                  className={cn(
+                    'text-3xl sm:text-4xl font-bold mb-12 text-center leading-tight font-serif pt-8 transition-colors',
+                    readerTheme === 'auto' ? 'text-text-primary' : '',
+                  )}
+                >
+                  {currentChapter.title}
+                </h1>
+
+                {viewMode === 'summary' ? (
+                  <div className="max-w-3xl mx-auto bg-card-bg rounded-2xl p-8 border border-border-color/20 text-center animate-fade-in shadow-xl">
+                    <div className="w-16 h-16 bg-muted-bg rounded-full flex items-center justify-center mx-auto mb-6">
+                      <Bot className="w-8 h-8 text-accent opacity-80" />
+                    </div>
+                    <h3 className="text-xl font-medium mb-4 text-text-primary">{t('reader.aiSummaryPlaceholder')}</h3>
+                    <p className="text-text-secondary leading-relaxed max-w-xl mx-auto">
+                      {t('reader.aiSummaryHint')}
+                    </p>
+                  </div>
+                ) : (
+                  <div
+                    className="leading-relaxed font-serif mx-auto w-full transition-all text-justify md:text-left selection:bg-accent/30 tracking-wide opacity-90"
+                    style={{
+                      fontSize: `${fontSize}px`,
+                      maxWidth: '800px',
+                      lineHeight: '1.8',
+                    }}
+                  >
+                    {chapterParagraphs.map((paragraph, i) => (
+                      paragraph.trim() ? (
+                        <p key={i} className="indent-8 mb-4 sm:mb-6">
+                          {paragraph}
+                        </p>
+                      ) : (
+                        <div key={i} className="h-4 sm:h-6" aria-hidden="true" />
+                      )
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
           ) : (
             <div className="absolute inset-0 flex flex-col items-center justify-center text-text-secondary">
-               <p>{t('reader.noChapters')}</p>
-               <Link to={`/novel/${novelId}`} className="text-accent underline mt-4 flex items-center gap-2">
-                 <ArrowLeft className="w-4 h-4" /> {t('reader.goBack')}
-               </Link>
+              <p>{t('reader.noChapters')}</p>
+              <Link to={`/novel/${novelId}`} className="text-accent underline mt-4 flex items-center gap-2">
+                <ArrowLeft className="w-4 h-4" /> {t('reader.goBack')}
+              </Link>
             </div>
           )}
         </div>
 
-        {/* Floating Toolbar */}
         {currentChapter && (
-          <ReaderToolbar 
+          <ReaderToolbar
             fontSize={fontSize}
             setFontSize={setFontSize}
             isTwoColumn={isTwoColumn}
-            setIsTwoColumn={setIsTwoColumn}
-            hasPrev={currentChapter.hasPrev}
-            hasNext={currentChapter.hasNext}
+            setIsTwoColumn={handleSetIsTwoColumn}
+            hasPrev={toolbarHasPrev}
+            hasNext={toolbarHasNext}
             onPrev={handlePrev}
             onNext={handleNext}
+            navigationMode={isPagedMode ? 'page' : 'chapter'}
             readerTheme={readerTheme}
             setReaderTheme={setReaderTheme}
           />

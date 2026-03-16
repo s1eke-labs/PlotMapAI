@@ -115,7 +115,7 @@ def get_progress(novel_id: int):
             return jsonify({
                 "chapterIndex": 0,
                 "scrollPosition": 0,
-                "viewMode": "summary",
+                "viewMode": "original",
             })
 
         return jsonify({
