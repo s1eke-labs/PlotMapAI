@@ -29,8 +29,24 @@ export interface PurificationRule {
   createdAt?: string;
 }
 
+export interface AiProviderSettings {
+  apiBaseUrl: string;
+  modelName: string;
+  contextSize: number;
+  hasApiKey: boolean;
+  maskedApiKey: string;
+  updatedAt?: string | null;
+}
+
+export interface AiProviderSettingsPayload {
+  apiBaseUrl: string;
+  apiKey?: string;
+  modelName: string;
+  contextSize: number;
+  keepExistingApiKey?: boolean;
+}
+
 export const settingsApi = {
-  // TOC Rules
   getTocRules: (): Promise<TocRule[]> => {
     return client.get('/settings/toc-rules');
   },
@@ -55,7 +71,6 @@ export const settingsApi = {
     });
   },
 
-  // Purification Rules
   getPurificationRules: (): Promise<PurificationRule[]> => {
     return client.get('/settings/purification-rules');
   },
@@ -78,5 +93,17 @@ export const settingsApi = {
     return client.post('/settings/purification-rules/upload', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
-  }
+  },
+
+  getAiProviderSettings: (): Promise<AiProviderSettings> => {
+    return client.get('/settings/ai-provider');
+  },
+
+  updateAiProviderSettings: (payload: AiProviderSettingsPayload): Promise<AiProviderSettings> => {
+    return client.put('/settings/ai-provider', payload);
+  },
+
+  testAiProviderSettings: (payload: Partial<AiProviderSettingsPayload>): Promise<{ message: string; preview: string }> => {
+    return client.post('/settings/ai-provider/test', payload);
+  },
 };

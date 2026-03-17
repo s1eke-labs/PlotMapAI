@@ -36,7 +36,8 @@ def init_db():
         Path(db_path).parent.mkdir(parents=True, exist_ok=True)
 
     Base.metadata.create_all(bind=engine)
-    
+    _apply_schema_updates()
+
     # Use a single session for all seeding
     with db_session() as session:
         _seed_default_user(session)
@@ -135,6 +136,27 @@ def _seed_default_purification_rules(session):
     except Exception as e:
         print(f"Error seeding default purification rules: {e}")
         session.rollback()
+
+
+def _apply_schema_updates():
+    """Apply lightweight schema upgrades for SQLite deployments without migrations."""
+    if "sqlite" not in Config.DATABASE_URL:
+        return
+
+    with engine.begin() as conn:
+        _ensure_sqlite_column(conn, "novel_analysis_jobs", "pause_requested", "BOOLEAN NOT NULL DEFAULT 0")
+        _ensure_sqlite_column(conn, "novel_analysis_jobs", "last_heartbeat", "DATETIME")
+        _ensure_sqlite_column(conn, "novel_analysis_overviews", "book_intro", "TEXT NOT NULL DEFAULT ''")
+
+
+
+def _ensure_sqlite_column(conn, table_name: str, column_name: str, column_sql: str):
+    rows = conn.exec_driver_sql(f"PRAGMA table_info({table_name})").fetchall()
+    existing_columns = {row[1] for row in rows}
+    if column_name in existing_columns:
+        return
+    conn.exec_driver_sql(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_sql}")
+
 
 
 def get_db():

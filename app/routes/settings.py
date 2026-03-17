@@ -6,7 +6,15 @@ from sqlalchemy.orm import Session
 
 from config import Config
 from database import db_session, _seed_default_toc_rules
-from models import TocRule, PurificationRuleSet, PurificationRule
+from models import AiProviderConfig, TocRule, PurificationRuleSet, PurificationRule
+from services.ai_analysis import (
+    AnalysisConfigError,
+    AnalysisExecutionError,
+    build_runtime_config,
+    save_ai_provider_config,
+    serialize_ai_provider_config,
+    test_ai_provider_connection,
+)
 from services.purifier import load_rules_from_json
 
 settings_bp = Blueprint("settings", __name__)
@@ -164,11 +172,11 @@ def upload_toc_rules():
             
             rule = TocRule(
                 name=rd.get("name", f"Imported Rule {i+1}"),
-                rule=rd.get("rule") or rd.get("pattern"), # Support both keys
+                rule=rd.get("rule") or rd.get("pattern"),
                 example=rd.get("example", ""),
-                serial_number=rd.get("priority") or rd.get("serial_number") or i,
-                enable=rd.get("isEnabled") or rd.get("enable") or True,
-                is_default=rd.get("isDefault", False),
+                serial_number=_first_present(rd, "priority", "serial_number", "serialNumber", default=i),
+                enable=_first_present(rd, "isEnabled", "enable", default=True),
+                is_default=_first_present(rd, "isDefault", "is_default", default=False),
                 user_id=Config.DEFAULT_USER_ID,
             )
             if not rule.rule:
@@ -218,8 +226,13 @@ def upload_purification_rules():
         file = request.files["file"]
         json_str = file.read().decode("utf-8")
     elif request.is_json:
-        data = request.get_json()
-        json_str = json.dumps(data.get("rules", []), ensure_ascii=False)
+        data = request.get_json(silent=True)
+        if isinstance(data, list):
+            json_str = json.dumps(data, ensure_ascii=False)
+        elif isinstance(data, dict) and isinstance(data.get("rules", []), list):
+            json_str = json.dumps(data.get("rules", []), ensure_ascii=False)
+        else:
+            return jsonify({"error": "Rules must be a JSON array or an object with a 'rules' field"}), 400
     else:
         return jsonify({"error": "No rules data provided"}), 400
 
@@ -362,8 +375,71 @@ def delete_purification_rule(rule_id: int):
 
 
 # ---------------------------------------------------------------------------
+# AI Provider Settings
+# ---------------------------------------------------------------------------
+
+@settings_bp.route("/ai-provider", methods=["GET"])
+def get_ai_provider_settings():
+    """Get saved AI provider settings without exposing the raw API key."""
+    session: Session = db_session()
+    try:
+        config = session.query(AiProviderConfig).filter_by(user_id=Config.DEFAULT_USER_ID).first()
+        return jsonify(serialize_ai_provider_config(config))
+    finally:
+        session.close()
+
+
+@settings_bp.route("/ai-provider", methods=["PUT"])
+def update_ai_provider_settings():
+    """Save AI provider settings. API key is accepted only from the client and never returned raw."""
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No data provided"}), 400
+
+    session: Session = db_session()
+    try:
+        config = save_ai_provider_config(session, data)
+        session.commit()
+        return jsonify(serialize_ai_provider_config(config))
+    except AnalysisConfigError as e:
+        session.rollback()
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        session.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        session.close()
+
+
+@settings_bp.route("/ai-provider/test", methods=["POST"])
+def test_ai_provider_settings():
+    """Test AI provider connectivity using the provided or saved configuration."""
+    data = request.get_json(silent=True) or {}
+
+    session: Session = db_session()
+    try:
+        saved_config = session.query(AiProviderConfig).filter_by(user_id=Config.DEFAULT_USER_ID).first()
+        runtime_config = build_runtime_config(saved_config, data)
+        result = test_ai_provider_connection(runtime_config)
+        return jsonify(result)
+    except (AnalysisConfigError, AnalysisExecutionError) as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        session.close()
+
+
+# ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+def _first_present(data: dict, *keys, default=None):
+    for key in keys:
+        if key in data:
+            return data[key]
+    return default
+
 
 def _toc_rule_to_dict(rule: TocRule) -> dict:
     return {

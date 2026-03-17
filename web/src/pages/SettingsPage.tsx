@@ -1,27 +1,43 @@
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Loader2, Plus, Upload } from 'lucide-react';
+import { Loader2, Plus, Save, Shield, Upload, Wifi } from 'lucide-react';
 import { settingsApi } from '../api/settings';
-import type { TocRule, PurificationRule } from '../api/settings';
+import type {
+  AiProviderSettings,
+  AiProviderSettingsPayload,
+  PurificationRule,
+  TocRule,
+} from '../api/settings';
+import PurificationRuleModal from '../components/PurificationRuleModal';
 import RuleCard from '../components/RuleCard';
 import TocRuleModal from '../components/TocRuleModal';
-import PurificationRuleModal from '../components/PurificationRuleModal';
 
 export default function SettingsPage() {
   const { t } = useTranslation();
-  const [activeTab, setActiveTab] = useState<'toc' | 'purification'>('toc');
+  const [activeTab, setActiveTab] = useState<'toc' | 'purification' | 'ai'>('toc');
 
-  // TOC Rules State
   const [tocRules, setTocRules] = useState<TocRule[]>([]);
   const [isTocLoading, setIsTocLoading] = useState(false);
   const [isAddTocOpen, setIsAddTocOpen] = useState(false);
   const [editingTocRule, setEditingTocRule] = useState<TocRule | null>(null);
 
-  // Purification Rules State
   const [purificationRules, setPurificationRules] = useState<PurificationRule[]>([]);
   const [isPurificationLoading, setIsPurificationLoading] = useState(false);
   const [isAddPurificationOpen, setIsAddPurificationOpen] = useState(false);
   const [editingPurificationRule, setEditingPurificationRule] = useState<PurificationRule | null>(null);
+
+  const [aiSettings, setAiSettings] = useState<AiProviderSettings | null>(null);
+  const [aiForm, setAiForm] = useState<AiProviderSettingsPayload>({
+    apiBaseUrl: '',
+    apiKey: '',
+    modelName: '',
+    contextSize: 32000,
+    keepExistingApiKey: true,
+  });
+  const [isAiLoading, setIsAiLoading] = useState(false);
+  const [isAiSaving, setIsAiSaving] = useState(false);
+  const [isAiTesting, setIsAiTesting] = useState(false);
+  const [aiMessage, setAiMessage] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const tocInputRef = useRef<HTMLInputElement>(null);
@@ -50,12 +66,36 @@ export default function SettingsPage() {
     }
   };
 
+  const syncAiForm = (data: AiProviderSettings) => {
+    setAiForm({
+      apiBaseUrl: data.apiBaseUrl,
+      apiKey: '',
+      modelName: data.modelName,
+      contextSize: data.contextSize,
+      keepExistingApiKey: data.hasApiKey,
+    });
+  };
+
+  const fetchAiSettings = async () => {
+    setIsAiLoading(true);
+    try {
+      const data = await settingsApi.getAiProviderSettings();
+      setAiSettings(data);
+      syncAiForm(data);
+    } catch (err) {
+      console.error('Failed to load AI settings', err);
+      setAiMessage(t('settings.ai.loadFailed'));
+    } finally {
+      setIsAiLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchTocRules();
     fetchPurificationRules();
+    fetchAiSettings();
   }, []);
 
-  // Handlers for TOC Rules
   const handleSaveTocRule = async (data: Partial<TocRule>) => {
     try {
       if (editingTocRule) {
@@ -64,17 +104,17 @@ export default function SettingsPage() {
         await settingsApi.createTocRule(data as Omit<TocRule, 'id' | 'isDefault'>);
       }
       await fetchTocRules();
-    } catch (err) {
+    } catch {
       alert(t('settings.common.updateFailed'));
     }
   };
 
   const handleToggleTocRule = async (id: number, isEnabled: boolean) => {
-    setTocRules((prev: TocRule[]) => prev.map(r => r.id === id ? { ...r, isEnabled } : r));
+    setTocRules((prev) => prev.map((rule) => (rule.id === id ? { ...rule, isEnabled } : rule)));
     try {
       await settingsApi.updateTocRule(id, { isEnabled });
-    } catch (err) {
-      setTocRules((prev: TocRule[]) => prev.map(r => r.id === id ? { ...r, isEnabled: !isEnabled } : r));
+    } catch {
+      setTocRules((prev) => prev.map((rule) => (rule.id === id ? { ...rule, isEnabled: !isEnabled } : rule)));
       alert(t('settings.common.updateFailed'));
     }
   };
@@ -83,15 +123,15 @@ export default function SettingsPage() {
     if (!confirm(t('settings.toc.deleteConfirm') || 'Are you sure you want to delete this rule?')) return;
     try {
       await settingsApi.deleteTocRule(id);
-      setTocRules((prev: TocRule[]) => prev.filter(r => r.id !== id));
-    } catch (err) {
+      setTocRules((prev) => prev.filter((rule) => rule.id !== id));
+    } catch {
       alert(t('settings.common.deleteFailed'));
     }
   };
 
-  const handleUploadTocJson = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files?.length) return;
-    const file = e.target.files[0];
+  const handleUploadTocJson = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (!event.target.files?.length) return;
+    const file = event.target.files[0];
     setIsTocLoading(true);
     try {
       await settingsApi.uploadTocRulesJson(file);
@@ -104,7 +144,6 @@ export default function SettingsPage() {
     }
   };
 
-  // Handlers for Purification Rules
   const handleSavePurificationRule = async (data: Partial<PurificationRule>) => {
     try {
       if (editingPurificationRule) {
@@ -113,17 +152,17 @@ export default function SettingsPage() {
         await settingsApi.createPurificationRule(data);
       }
       await fetchPurificationRules();
-    } catch (err) {
+    } catch {
       alert(t('settings.common.updateFailed'));
     }
   };
 
   const handleTogglePurificationRule = async (id: number, isEnabled: boolean) => {
-    setPurificationRules((prev: PurificationRule[]) => prev.map(r => r.id === id ? { ...r, isEnabled } : r));
+    setPurificationRules((prev) => prev.map((rule) => (rule.id === id ? { ...rule, isEnabled } : rule)));
     try {
       await settingsApi.updatePurificationRule(id, { isEnabled });
-    } catch (err) {
-      setPurificationRules((prev: PurificationRule[]) => prev.map(r => r.id === id ? { ...r, isEnabled: !isEnabled } : r));
+    } catch {
+      setPurificationRules((prev) => prev.map((rule) => (rule.id === id ? { ...rule, isEnabled: !isEnabled } : rule)));
       alert(t('settings.common.updateFailed'));
     }
   };
@@ -132,15 +171,15 @@ export default function SettingsPage() {
     if (!confirm(t('settings.purification.deleteConfirm'))) return;
     try {
       await settingsApi.deletePurificationRule(id);
-      setPurificationRules((prev: PurificationRule[]) => prev.filter(r => r.id !== id));
-    } catch (err) {
+      setPurificationRules((prev) => prev.filter((rule) => rule.id !== id));
+    } catch {
       alert(t('settings.common.deleteFailed'));
     }
   };
 
-  const handleUploadPurificationJson = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files?.length) return;
-    const file = e.target.files[0];
+  const handleUploadPurificationJson = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (!event.target.files?.length) return;
+    const file = event.target.files[0];
     setIsPurificationLoading(true);
     try {
       await settingsApi.uploadPurificationRulesJson(file);
@@ -153,8 +192,52 @@ export default function SettingsPage() {
     }
   };
 
-  // Group rules by 'group' field
-  const groupedPurificationRules = purificationRules.reduce((acc: Record<string, PurificationRule[]>, rule: PurificationRule) => {
+  const handleAiFieldChange = <K extends keyof AiProviderSettingsPayload>(key: K, value: AiProviderSettingsPayload[K]) => {
+    setAiMessage(null);
+    setAiForm((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const buildAiPayload = (): AiProviderSettingsPayload => {
+    const apiKey = aiForm.apiKey?.trim() ?? '';
+
+    return {
+      apiBaseUrl: aiForm.apiBaseUrl.trim(),
+      apiKey,
+      modelName: aiForm.modelName.trim(),
+      contextSize: Number(aiForm.contextSize),
+      keepExistingApiKey: apiKey ? false : Boolean(aiSettings?.hasApiKey),
+    };
+  };
+
+  const handleSaveAiSettings = async () => {
+    setIsAiSaving(true);
+    setAiMessage(null);
+    try {
+      const data = await settingsApi.updateAiProviderSettings(buildAiPayload());
+      setAiSettings(data);
+      syncAiForm(data);
+      setAiMessage(t('settings.ai.saveSuccess'));
+    } catch (err: any) {
+      setAiMessage(err.message || t('settings.ai.saveFailed'));
+    } finally {
+      setIsAiSaving(false);
+    }
+  };
+
+  const handleTestAiSettings = async () => {
+    setIsAiTesting(true);
+    setAiMessage(null);
+    try {
+      const result = await settingsApi.testAiProviderSettings(buildAiPayload());
+      setAiMessage(`${result.message} ${result.preview ? t('settings.ai.testPreviewPrefix', { preview: result.preview }) : ''}`.trim());
+    } catch (err: any) {
+      setAiMessage(err.message || t('settings.ai.testFailed'));
+    } finally {
+      setIsAiTesting(false);
+    }
+  };
+
+  const groupedPurificationRules = purificationRules.reduce((acc: Record<string, PurificationRule[]>, rule) => {
     const groupName = rule.group || t('settings.purification.ungrouped');
     if (!acc[groupName]) acc[groupName] = [];
     acc[groupName].push(rule);
@@ -165,32 +248,37 @@ export default function SettingsPage() {
     <div className="flex-1 flex flex-col p-6 max-w-5xl mx-auto w-full">
       <h1 className="text-3xl font-bold text-text-primary tracking-tight mb-8">{t('settings.title')}</h1>
 
-      {/* Tabs */}
-      <div className="flex space-x-1 glass p-1 rounded-xl mb-8 w-fit shrink-0 gap-2">
+      <div className="flex flex-wrap space-x-1 glass p-1 rounded-xl mb-8 w-fit shrink-0 gap-2">
         <button
           onClick={() => setActiveTab('toc')}
           className={`px-6 py-2.5 rounded-lg text-sm font-medium transition-all ${activeTab === 'toc'
-              ? 'bg-brand-700 shadow text-white'
-              : 'text-text-secondary hover:text-text-primary hover:bg-white/5'
-            }`}
+            ? 'bg-brand-700 shadow text-white'
+            : 'text-text-secondary hover:text-text-primary hover:bg-white/5'
+          }`}
         >
           {t('settings.tocRules')}
         </button>
         <button
           onClick={() => setActiveTab('purification')}
           className={`px-6 py-2.5 rounded-lg text-sm font-medium transition-all ${activeTab === 'purification'
-              ? 'bg-brand-700 shadow text-white'
-              : 'text-text-secondary hover:text-text-primary hover:bg-white/5'
-            }`}
+            ? 'bg-brand-700 shadow text-white'
+            : 'text-text-secondary hover:text-text-primary hover:bg-white/5'
+          }`}
         >
           {t('settings.purificationRules')}
         </button>
+        <button
+          onClick={() => setActiveTab('ai')}
+          className={`px-6 py-2.5 rounded-lg text-sm font-medium transition-all ${activeTab === 'ai'
+            ? 'bg-brand-700 shadow text-white'
+            : 'text-text-secondary hover:text-text-primary hover:bg-white/5'
+          }`}
+        >
+          {t('settings.ai.tab')}
+        </button>
       </div>
 
-      {/* Tab Content */}
       <div className="flex-1 glass border border-white/5 shadow-sm rounded-2xl p-6 md:p-8">
-
-        {/* TOC Rules Tab */}
         {activeTab === 'toc' && (
           <div className="space-y-6">
             <div className="flex items-center justify-between">
@@ -234,7 +322,7 @@ export default function SettingsPage() {
                     <span className="text-xs font-normal text-text-secondary bg-white/5 px-2 py-0.5 rounded-full">{tocRules.length}</span>
                   </h3>
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                    {tocRules.map(rule => (
+                    {tocRules.map((rule) => (
                       <RuleCard
                         key={rule.id}
                         name={rule.name}
@@ -258,7 +346,6 @@ export default function SettingsPage() {
           </div>
         )}
 
-        {/* Purification Rules Tab */}
         {activeTab === 'purification' && (
           <div className="space-y-6">
             <div className="flex items-center justify-between">
@@ -307,7 +394,7 @@ export default function SettingsPage() {
                       <span className="text-xs font-normal text-text-secondary bg-white/5 px-2 py-0.5 rounded-full">{rules.length}</span>
                     </h3>
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                      {rules.map(rule => (
+                      {rules.map((rule) => (
                         <RuleCard
                           key={rule.id}
                           name={rule.name}
@@ -317,7 +404,7 @@ export default function SettingsPage() {
                           type={rule.isRegex ? 'regex' : 'text'}
                           scopes={[
                             rule.scopeTitle ? 'Title' : '',
-                            rule.scopeContent ? 'Content' : ''
+                            rule.scopeContent ? 'Content' : '',
                           ].filter(Boolean)}
                           onToggle={(checked) => handleTogglePurificationRule(rule.id, checked)}
                           onEdit={() => {
@@ -334,9 +421,112 @@ export default function SettingsPage() {
             )}
           </div>
         )}
+
+        {activeTab === 'ai' && (
+          <div className="space-y-6">
+            <div className="flex flex-col gap-2">
+              <h2 className="text-xl font-semibold text-text-primary">{t('settings.ai.title')}</h2>
+              <p className="text-sm text-text-secondary">{t('settings.ai.subtitle')}</p>
+            </div>
+
+            {isAiLoading ? (
+              <div className="py-12 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-accent" /></div>
+            ) : (
+              <div className="space-y-6">
+                <div className="rounded-2xl border border-border-color/20 bg-muted-bg/40 p-5">
+                  <div className="flex items-start gap-3">
+                    <Shield className="w-5 h-5 text-accent mt-0.5" />
+                    <div className="space-y-2 text-sm text-text-secondary leading-6">
+                      <p>{t('settings.ai.securityTitle')}</p>
+                      <ul className="list-disc pl-5 space-y-1">
+                        <li>{t('settings.ai.securityItem1')}</li>
+                        <li>{t('settings.ai.securityItem2')}</li>
+                        <li>{t('settings.ai.securityItem3')}</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-5">
+                  <label className="space-y-2">
+                    <span className="text-sm font-medium text-text-primary">{t('settings.ai.apiBaseUrlLabel')}</span>
+                    <input
+                      value={aiForm.apiBaseUrl}
+                      onChange={(event) => handleAiFieldChange('apiBaseUrl', event.target.value)}
+                      placeholder="https://api.openai.com/v1"
+                      className="w-full rounded-xl border border-border-color/20 bg-muted-bg/50 px-4 py-3 text-text-primary outline-none focus:border-accent"
+                    />
+                  </label>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <label className="space-y-2">
+                      <span className="text-sm font-medium text-text-primary">{t('settings.ai.modelNameLabel')}</span>
+                      <input
+                        value={aiForm.modelName}
+                        onChange={(event) => handleAiFieldChange('modelName', event.target.value)}
+                        placeholder="gpt-4.1-mini"
+                        className="w-full rounded-xl border border-border-color/20 bg-muted-bg/50 px-4 py-3 text-text-primary outline-none focus:border-accent"
+                      />
+                    </label>
+
+                    <label className="space-y-2">
+                      <span className="text-sm font-medium text-text-primary">{t('settings.ai.contextSizeLabel')}</span>
+                      <input
+                        type="number"
+                        min={12000}
+                        step={1000}
+                        value={aiForm.contextSize}
+                        onChange={(event) => handleAiFieldChange('contextSize', Number(event.target.value))}
+                        className="w-full rounded-xl border border-border-color/20 bg-muted-bg/50 px-4 py-3 text-text-primary outline-none focus:border-accent"
+                      />
+                    </label>
+                  </div>
+
+                  <label className="space-y-2">
+                    <span className="text-sm font-medium text-text-primary">{t('settings.ai.apiTokenLabel')}</span>
+                    <input
+                      type="password"
+                      value={aiForm.apiKey}
+                      onChange={(event) => handleAiFieldChange('apiKey', event.target.value)}
+                      placeholder={aiSettings?.hasApiKey ? t('settings.ai.apiTokenPlaceholderKeep') : t('settings.ai.apiTokenPlaceholderEmpty')}
+                      className="w-full rounded-xl border border-border-color/20 bg-muted-bg/50 px-4 py-3 text-text-primary outline-none focus:border-accent"
+                    />
+                    {aiSettings?.hasApiKey && (
+                      <p className="text-xs text-text-secondary">{t('settings.ai.savedTokenLabel', { maskedApiKey: aiSettings.maskedApiKey })}</p>
+                    )}
+                  </label>
+                </div>
+
+                {aiMessage && (
+                  <div className="rounded-xl border border-border-color/20 bg-muted-bg/40 px-4 py-3 text-sm text-text-secondary leading-6">
+                    {aiMessage}
+                  </div>
+                )}
+
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    onClick={handleSaveAiSettings}
+                    disabled={isAiSaving}
+                    className="px-4 py-2.5 rounded-xl bg-accent hover:bg-accent-hover text-white transition-colors flex items-center gap-2 disabled:opacity-60"
+                  >
+                    {isAiSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                    {t('settings.ai.saveButton')}
+                  </button>
+                  <button
+                    onClick={handleTestAiSettings}
+                    disabled={isAiTesting}
+                    className="px-4 py-2.5 rounded-xl border border-border-color/20 hover:bg-white/5 text-text-primary transition-colors flex items-center gap-2 disabled:opacity-60"
+                  >
+                    {isAiTesting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wifi className="w-4 h-4" />}
+                    {t('settings.ai.testButton')}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
-      {/* Modals */}
       <TocRuleModal
         isOpen={isAddTocOpen}
         onClose={() => setIsAddTocOpen(false)}

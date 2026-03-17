@@ -25,15 +25,20 @@ def create_app():
 
     # Initialize database
     from database import init_db
+    from services.analysis_runner import recover_interrupted_jobs
+
     init_db()
+    recover_interrupted_jobs()
 
     # Register blueprints
+    from routes.analysis import analysis_bp
     from routes.novels import novels_bp
     from routes.reader import reader_bp
     from routes.settings import settings_bp
 
     app.register_blueprint(novels_bp, url_prefix="/api")
     app.register_blueprint(reader_bp, url_prefix="/api")
+    app.register_blueprint(analysis_bp, url_prefix="/api")
     app.register_blueprint(settings_bp, url_prefix="/api/settings")
 
     # Serve frontend static files in production

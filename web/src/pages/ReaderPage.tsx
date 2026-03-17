@@ -2,8 +2,11 @@ import { useState, useEffect, useCallback, useLayoutEffect, useRef, type WheelEv
 import { useTranslation } from 'react-i18next';
 import { useParams, Link } from 'react-router-dom';
 import { Loader2, Menu, X, ArrowLeft, AlignLeft, Bot } from 'lucide-react';
+import { analysisApi } from '../api/analysis';
+import type { AnalysisStatusResponse, ChapterAnalysisResult } from '../api/analysis';
 import { readerApi } from '../api/reader';
 import type { Chapter, ChapterContent } from '../api/reader';
+import ChapterAnalysisPanel from '../components/ChapterAnalysisPanel';
 import ChapterList from '../components/ChapterList';
 import ReaderToolbar from '../components/ReaderToolbar';
 import { cn } from '../utils/cn';
@@ -58,8 +61,11 @@ export default function ReaderPage() {
 
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [currentChapter, setCurrentChapter] = useState<ChapterContent | null>(null);
+  const [analysisStatus, setAnalysisStatus] = useState<AnalysisStatusResponse | null>(null);
+  const [chapterAnalysis, setChapterAnalysis] = useState<ChapterAnalysisResult | null>(null);
 
   const [isLoading, setIsLoading] = useState(true);
+  const [isChapterAnalysisLoading, setIsChapterAnalysisLoading] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [fontSize, setFontSize] = useState(18);
   const [isTwoColumn, setIsTwoColumn] = useState<boolean>(() => initialStoredState?.isTwoColumn ?? false);
@@ -120,6 +126,33 @@ export default function ReaderPage() {
     setViewMode(nextViewMode);
     persistReaderState({ viewMode: nextViewMode });
   }, [persistReaderState]);
+
+  const loadAnalysisStatus = useCallback(async () => {
+    if (!novelId) return;
+
+    try {
+      const data = await analysisApi.getStatus(novelId);
+      setAnalysisStatus(data);
+    } catch (err) {
+      console.error('Failed to load analysis status', err);
+      setAnalysisStatus(null);
+    }
+  }, [novelId]);
+
+  const loadChapterAnalysis = useCallback(async (silent = false) => {
+    if (!novelId || chapterIndex === undefined) return;
+
+    if (!silent) setIsChapterAnalysisLoading(true);
+    try {
+      const data = await analysisApi.getChapterAnalysis(novelId, chapterIndex);
+      setChapterAnalysis(data.analysis);
+    } catch (err) {
+      console.error('Failed to load chapter analysis', err);
+      setChapterAnalysis(null);
+    } finally {
+      if (!silent) setIsChapterAnalysisLoading(false);
+    }
+  }, [chapterIndex, novelId]);
 
   const unlockPageTurn = useCallback(() => {
     if (wheelUnlockTimeoutRef.current) {
@@ -280,6 +313,30 @@ export default function ReaderPage() {
       cancelled = true;
     };
   }, [novelId, chapterIndex, viewMode]);
+
+  useEffect(() => {
+    if (!novelId) return;
+    loadAnalysisStatus();
+  }, [loadAnalysisStatus, novelId]);
+
+  useEffect(() => {
+    if (!novelId || chapterIndex === undefined) return;
+    loadChapterAnalysis();
+  }, [chapterIndex, loadChapterAnalysis, novelId]);
+
+  useEffect(() => {
+    const status = analysisStatus?.job.status;
+    if (!novelId || (status !== 'running' && status !== 'pausing')) return;
+
+    const timer = window.setInterval(() => {
+      loadAnalysisStatus();
+      loadChapterAnalysis(true);
+    }, 3000);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [analysisStatus?.job.status, loadAnalysisStatus, loadChapterAnalysis, novelId]);
 
   const goToChapter = useCallback((targetIndex: number, pageTarget: PageTarget = 'start') => {
     hasUserInteractedRef.current = true;
@@ -648,15 +705,12 @@ export default function ReaderPage() {
                 </h1>
 
                 {viewMode === 'summary' ? (
-                  <div className="max-w-3xl mx-auto bg-card-bg rounded-2xl p-8 border border-border-color/20 text-center animate-fade-in shadow-xl">
-                    <div className="w-16 h-16 bg-muted-bg rounded-full flex items-center justify-center mx-auto mb-6">
-                      <Bot className="w-8 h-8 text-accent opacity-80" />
-                    </div>
-                    <h3 className="text-xl font-medium mb-4 text-text-primary">{t('reader.aiSummaryPlaceholder')}</h3>
-                    <p className="text-text-secondary leading-relaxed max-w-xl mx-auto">
-                      {t('reader.aiSummaryHint')}
-                    </p>
-                  </div>
+                  <ChapterAnalysisPanel
+                    novelId={novelId}
+                    analysis={chapterAnalysis}
+                    job={analysisStatus?.job ?? null}
+                    isLoading={isChapterAnalysisLoading}
+                  />
                 ) : (
                   <div
                     className="leading-relaxed font-serif mx-auto w-full transition-all text-justify md:text-left selection:bg-accent/30 tracking-wide opacity-90"

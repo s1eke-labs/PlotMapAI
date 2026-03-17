@@ -6,7 +6,7 @@ Organization-related tables are placeholder for future group sharing feature.
 from datetime import datetime, timezone
 
 from sqlalchemy import (
-    Column, Integer, String, Text, Boolean, DateTime, Float, ForeignKey, Index,
+    Column, Integer, String, Text, Boolean, DateTime, Float, ForeignKey, Index, UniqueConstraint,
 )
 from sqlalchemy.orm import DeclarativeBase, relationship
 
@@ -191,5 +191,116 @@ class ReadingProgress(Base):
     chapter_index = Column(Integer, default=0)
     scroll_position = Column(Float, default=0.0)
     view_mode = Column(String(16), default="summary")  # "summary" | "original"
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
+                        onupdate=lambda: datetime.now(timezone.utc))
+
+
+# ---------------------------------------------------------------------------
+# AI Analysis
+# ---------------------------------------------------------------------------
+
+class AiProviderConfig(Base):
+    __tablename__ = "ai_provider_configs"
+    __table_args__ = (
+        Index("ix_ai_provider_config_user", "user_id", unique=True),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, default=1)
+    api_base_url = Column(String(512), default="")
+    api_key = Column(Text, default="")
+    model_name = Column(String(128), default="")
+    context_size = Column(Integer, default=32000)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
+                        onupdate=lambda: datetime.now(timezone.utc))
+
+
+class NovelAnalysisJob(Base):
+    __tablename__ = "novel_analysis_jobs"
+    __table_args__ = (
+        Index("ix_novel_analysis_job_user_novel", "user_id", "novel_id", unique=True),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, default=1)
+    novel_id = Column(Integer, ForeignKey("novels.id", ondelete="CASCADE"), nullable=False)
+    status = Column(String(32), default="idle")
+    total_chapters = Column(Integer, default=0)
+    analyzed_chapters = Column(Integer, default=0)
+    total_chunks = Column(Integer, default=0)
+    completed_chunks = Column(Integer, default=0)
+    current_chunk_index = Column(Integer, default=0)
+    pause_requested = Column(Boolean, default=False)
+    last_error = Column(Text, default="")
+    started_at = Column(DateTime, nullable=True)
+    completed_at = Column(DateTime, nullable=True)
+    last_heartbeat = Column(DateTime, nullable=True)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
+                        onupdate=lambda: datetime.now(timezone.utc))
+
+
+class NovelAnalysisChunk(Base):
+    __tablename__ = "novel_analysis_chunks"
+    __table_args__ = (
+        UniqueConstraint("novel_id", "chunk_index", name="uq_novel_analysis_chunk"),
+        Index("ix_novel_analysis_chunk_novel", "novel_id"),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, default=1)
+    novel_id = Column(Integer, ForeignKey("novels.id", ondelete="CASCADE"), nullable=False)
+    chunk_index = Column(Integer, nullable=False)
+    start_chapter_index = Column(Integer, default=0)
+    end_chapter_index = Column(Integer, default=0)
+    chapter_indices_json = Column(Text, default="[]")
+    status = Column(String(32), default="pending")
+    chunk_summary = Column(Text, default="")
+    response_json = Column(Text, default="{}")
+    error_message = Column(Text, default="")
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
+                        onupdate=lambda: datetime.now(timezone.utc))
+
+
+class ChapterAnalysis(Base):
+    __tablename__ = "chapter_analyses"
+    __table_args__ = (
+        UniqueConstraint("novel_id", "chapter_index", name="uq_chapter_analysis_novel_chapter"),
+        Index("ix_chapter_analysis_novel", "novel_id"),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, default=1)
+    novel_id = Column(Integer, ForeignKey("novels.id", ondelete="CASCADE"), nullable=False)
+    chapter_index = Column(Integer, nullable=False)
+    chapter_title = Column(String(256), default="")
+    summary = Column(Text, default="")
+    key_points_json = Column(Text, default="[]")
+    characters_json = Column(Text, default="[]")
+    relationships_json = Column(Text, default="[]")
+    tags_json = Column(Text, default="[]")
+    chunk_index = Column(Integer, default=0)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
+                        onupdate=lambda: datetime.now(timezone.utc))
+
+
+class NovelAnalysisOverview(Base):
+    __tablename__ = "novel_analysis_overviews"
+    __table_args__ = (
+        Index("ix_novel_analysis_overview_user_novel", "user_id", "novel_id", unique=True),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, default=1)
+    novel_id = Column(Integer, ForeignKey("novels.id", ondelete="CASCADE"), nullable=False)
+    book_intro = Column(Text, default="")
+    global_summary = Column(Text, default="")
+    themes_json = Column(Text, default="[]")
+    character_stats_json = Column(Text, default="[]")
+    relationship_graph_json = Column(Text, default="[]")
+    total_chapters = Column(Integer, default=0)
+    analyzed_chapters = Column(Integer, default=0)
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
                         onupdate=lambda: datetime.now(timezone.utc))
