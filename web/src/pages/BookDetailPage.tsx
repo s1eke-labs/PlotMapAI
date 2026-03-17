@@ -157,12 +157,13 @@ export default function BookDetailPage() {
 
   return (
     <div className="flex-1 flex flex-col p-6 max-w-5xl mx-auto w-full">
-      <Link to="/" className="inline-flex items-center gap-2 text-text-secondary hover:text-text-primary transition-colors mb-6 w-fit">
-        <ArrowLeft className="w-4 h-4" />
-        <span>{t('common.actions.back')}</span>
-      </Link>
+      <div className="glass rounded-2xl p-6 md:p-8">
+        <Link to="/" className="inline-flex items-center gap-2 text-text-secondary hover:text-text-primary transition-colors mb-6 w-fit">
+          <ArrowLeft className="w-4 h-4" />
+          <span>{t('common.actions.back')}</span>
+        </Link>
 
-      <div className="glass rounded-2xl p-6 md:p-8 flex flex-col md:flex-row gap-8 mt-2">
+        <div className="flex flex-col md:flex-row gap-8">
         <div className="w-full md:w-64 shrink-0 flex flex-col gap-6">
           <div className="aspect-[2/3] w-full max-w-[240px] mx-auto overflow-hidden rounded-xl shadow-xl bg-muted-bg border border-border-color/20">
             {novel.hasCover ? (
@@ -396,6 +397,7 @@ export default function BookDetailPage() {
             </div>
           </div>
         </div>
+      </div>
       </div>
 
       <Modal

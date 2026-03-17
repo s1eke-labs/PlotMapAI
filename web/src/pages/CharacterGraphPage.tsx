@@ -636,7 +636,7 @@ export default function CharacterGraphPage() {
               const isFocused = focusNodeId === node.id;
               const isActive = isSelected || isFocused;
               const isVisible = !focusNodeId || highlightedNodeIds.has(node.id);
-              const displayName = getNodeDisplayName(node.name);
+              const labelLayout = getNodeLabelLayout(node.name, node.radius);
               const nodeMetaText = node.sharePercent > 0
                 ? `${node.sharePercent.toFixed(1)}%`
                 : t('characterGraph.connectionsShort', { count: node.degree });
@@ -689,18 +689,26 @@ export default function CharacterGraphPage() {
                       transition: 'fill 220ms ease, stroke 220ms ease',
                     }}
                   />
-                  <text
-                    y="4"
-                    textAnchor="middle"
-                    fontSize={getNodeLabelSize(node.radius, displayName.length)}
-                    fontWeight="700"
-                    style={{
-                      fill: node.isCore ? '#ffffff' : '#18202a',
-                      transition: 'fill 220ms ease, opacity 220ms ease',
-                    }}
-                  >
-                    {displayName}
-                  </text>
+                  <g pointerEvents="none">
+                    {labelLayout.lines.map((line, index) => (
+                      <text
+                        key={`${node.id}-${index}`}
+                        y={(index - (labelLayout.lines.length - 1) / 2) * labelLayout.lineHeight}
+                        textAnchor="middle"
+                        dominantBaseline="middle"
+                        fontSize={labelLayout.fontSize}
+                        fontWeight="700"
+                        lengthAdjust="spacingAndGlyphs"
+                        textLength={Math.min(labelLayout.maxTextWidth, estimateTextUnits(line) * labelLayout.fontSize)}
+                        style={{
+                          fill: node.isCore ? '#ffffff' : '#18202a',
+                          transition: 'fill 220ms ease, opacity 220ms ease',
+                        }}
+                      >
+                        {line}
+                      </text>
+                    ))}
+                  </g>
                   <g
                     transform={`translate(0 ${node.radius + 18})`}
                     pointerEvents="none"
@@ -908,16 +916,102 @@ function getNodeRadius(score: number, isCenter: boolean) {
 }
 
 function getNodeDisplayName(name: string) {
-  const clean = name.trim();
-  return clean.length <= 3 ? clean : clean.slice(0, 3);
+  return name.trim().replace(/\s+/g, ' ');
 }
 
-function getNodeLabelSize(radius: number, length: number) {
-  const base = radius * 0.42;
-  if (length <= 2) {
-    return Math.max(12, Math.min(18, base));
+function getNodeLabelLayout(name: string, radius: number) {
+  const displayName = getNodeDisplayName(name);
+  const innerRadius = Math.max(16, radius - 8);
+  const maxTextWidth = innerRadius * 1.68;
+  const maxFontSize = Math.max(12, Math.min(18, innerRadius * 0.48));
+  const minFontSize = Math.max(8, Math.min(11, innerRadius * 0.28));
+
+  for (let lineCount = 1; lineCount <= 3; lineCount += 1) {
+    for (let fontSize = maxFontSize; fontSize >= minFontSize; fontSize -= 1) {
+      const lineHeight = Math.max(10, fontSize * 0.94);
+      const totalHeight = fontSize + (lineCount - 1) * lineHeight;
+      if (totalHeight > innerRadius * 1.6) {
+        continue;
+      }
+
+      const maxUnitsPerLine = maxTextWidth / fontSize;
+      const lines = splitLabelIntoLines(displayName, maxUnitsPerLine, lineCount);
+      if (!lines) {
+        continue;
+      }
+
+      return {
+        lines,
+        fontSize: Number(fontSize.toFixed(1)),
+        lineHeight: Number(lineHeight.toFixed(1)),
+        maxTextWidth: Number(maxTextWidth.toFixed(2)),
+      };
+    }
   }
-  return Math.max(10, Math.min(15, base - 1.4));
+
+  const fallbackFontSize = Math.max(8, Math.min(10, innerRadius * 0.26));
+  const fallbackLineHeight = Math.max(9, fallbackFontSize * 0.94);
+  return {
+    lines: splitLabelByUnits(displayName, Math.max(1.8, maxTextWidth / fallbackFontSize), 3),
+    fontSize: Number(fallbackFontSize.toFixed(1)),
+    lineHeight: Number(fallbackLineHeight.toFixed(1)),
+    maxTextWidth: Number(maxTextWidth.toFixed(2)),
+  };
+}
+
+function splitLabelIntoLines(name: string, maxUnitsPerLine: number, maxLines: number) {
+  const lines = splitLabelByUnits(name, maxUnitsPerLine, maxLines);
+  if (lines.length > maxLines) {
+    return null;
+  }
+  if (lines.some((line) => estimateTextUnits(line) > maxUnitsPerLine + 0.05)) {
+    return null;
+  }
+  return lines;
+}
+
+function splitLabelByUnits(name: string, maxUnitsPerLine: number, maxLines: number) {
+  const lines: string[] = [];
+  let currentLine = '';
+  let currentUnits = 0;
+
+  for (const char of name) {
+    const charUnits = estimateCharacterUnits(char);
+    if (currentLine && currentUnits + charUnits > maxUnitsPerLine && lines.length < maxLines - 1) {
+      lines.push(currentLine);
+      currentLine = char;
+      currentUnits = charUnits;
+      continue;
+    }
+    currentLine += char;
+    currentUnits += charUnits;
+  }
+
+  if (currentLine) {
+    lines.push(currentLine);
+  }
+
+  return lines;
+}
+
+function estimateTextUnits(value: string) {
+  return Array.from(value).reduce((total, char) => total + estimateCharacterUnits(char), 0);
+}
+
+function estimateCharacterUnits(char: string) {
+  if (/\s/.test(char)) {
+    return 0.36;
+  }
+  if (/[A-Z]/.test(char)) {
+    return 0.72;
+  }
+  if (/[a-z0-9]/.test(char)) {
+    return 0.58;
+  }
+  if (/[^\u0000-\u00ff]/.test(char)) {
+    return 1;
+  }
+  return 0.66;
 }
 
 function viewportPointToGraphPoint(point: { x: number; y: number }, zoomState: ZoomState) {

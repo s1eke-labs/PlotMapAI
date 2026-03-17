@@ -42,7 +42,7 @@ def init_db():
     with db_session() as session:
         _seed_default_user(session)
         _seed_default_toc_rules(session)
-        _seed_default_purification_rules(session)
+        _remove_legacy_default_purification_rules(session)
 
 
 def _seed_default_user(session):
@@ -88,53 +88,36 @@ def _seed_default_toc_rules(session):
         session.rollback()
 
 
-def _seed_default_purification_rules(session):
-    """Seed sample/default purification rules if the table is empty."""
-    if session.query(PurificationRule).count() > 0:
-        return
-
-    # Basic sample rules if no JSON file exists
-    defaults = [
-        {
-            "name": "去除空白行",
-            "group": "格式",
-            "pattern": "^\\s*$",
-            "replacement": "",
-            "is_regex": True,
-            "order": 1,
-            "scope_title": False,
-            "scope_content": True
-        },
-        {
-            "name": "去除行首尾空格",
-            "group": "格式",
-            "pattern": "^\\s+|\\s+$",
-            "replacement": "",
-            "is_regex": True,
-            "order": 2,
-            "scope_title": True,
-            "scope_content": True
-        }
-    ]
+def _remove_legacy_default_purification_rules(session):
+    """Remove legacy auto-seeded purification rules that are no longer desired."""
+    legacy_signatures = {
+        ("去除空白行", "格式", "^\\s*$", "", True, 1, False, True),
+        ("去除行首尾空格", "格式", "^\\s+|\\s+$", "", True, 2, True, True),
+    }
 
     try:
-        for rd in defaults:
-            rule = PurificationRule(
-                user_id=Config.DEFAULT_USER_ID,
-                name=rd["name"],
-                group=rd["group"],
-                pattern=rd["pattern"],
-                replacement=rd["replacement"],
-                is_regex=rd["is_regex"],
-                is_enabled=True,
-                order=rd["order"],
-                scope_title=rd["scope_title"],
-                scope_content=rd["scope_content"]
-            )
-            session.add(rule)
+        rules = session.query(PurificationRule).filter_by(user_id=Config.DEFAULT_USER_ID).all()
+        stale_rules = [
+            rule for rule in rules
+            if (
+                rule.name,
+                rule.group,
+                rule.pattern,
+                rule.replacement,
+                rule.is_regex,
+                rule.order,
+                rule.scope_title,
+                rule.scope_content,
+            ) in legacy_signatures
+        ]
+        if not stale_rules:
+            return
+
+        for rule in stale_rules:
+            session.delete(rule)
         session.commit()
     except Exception as e:
-        print(f"Error seeding default purification rules: {e}")
+        print(f"Error removing legacy purification rules: {e}")
         session.rollback()
 
 
