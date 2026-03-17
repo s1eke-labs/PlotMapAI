@@ -46,6 +46,8 @@ export interface AnalysisOverview {
     type: string;
     weight: number;
     mentionCount: number;
+    chapterCount?: number;
+    chapters?: number[];
     description: string;
   }>;
   totalChapters: number;
@@ -93,6 +95,45 @@ export interface AnalysisStatusResponse {
   chunks: AnalysisChunkStatus[];
 }
 
+export interface CharacterGraphNode {
+  id: string;
+  name: string;
+  role: string;
+  description: string;
+  weight: number;
+  sharePercent: number;
+  chapterCount: number;
+  chapters: number[];
+  isCore: boolean;
+}
+
+export interface CharacterGraphEdge {
+  id: string;
+  source: string;
+  target: string;
+  type: string;
+  description: string;
+  weight: number;
+  mentionCount: number;
+  chapterCount: number;
+  chapters: number[];
+}
+
+export interface CharacterGraphResponse {
+  nodes: CharacterGraphNode[];
+  edges: CharacterGraphEdge[];
+  meta: {
+    totalChapters: number;
+    analyzedChapters: number;
+    nodeCount: number;
+    edgeCount: number;
+    hasOverview: boolean;
+    hasData: boolean;
+    isComplete: boolean;
+    generatedAt?: string | null;
+  };
+}
+
 export const analysisApi = {
   getStatus: (novelId: number): Promise<AnalysisStatusResponse> => {
     return client.get(`/novels/${novelId}/analysis/status`);
@@ -120,5 +161,9 @@ export const analysisApi = {
 
   getChapterAnalysis: (novelId: number, chapterIndex: number): Promise<{ analysis: ChapterAnalysisResult | null }> => {
     return client.get(`/novels/${novelId}/analysis/chapters/${chapterIndex}`);
+  },
+
+  getCharacterGraph: (novelId: number): Promise<CharacterGraphResponse> => {
+    return client.get(`/novels/${novelId}/analysis/character-graph`);
   },
 };

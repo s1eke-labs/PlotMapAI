@@ -7,7 +7,7 @@ from typing import Any
 from urllib import error, request
 
 from config import Config
-from models import AiProviderConfig, ChapterAnalysis, NovelAnalysisChunk, NovelAnalysisOverview
+from models import AiProviderConfig, Chapter, ChapterAnalysis, NovelAnalysisChunk, NovelAnalysisOverview
 
 PROMPT_RESERVE_BUDGET = 6000
 MIN_CONTEXT_SIZE = 12000
@@ -426,6 +426,100 @@ def serialize_overview(overview: NovelAnalysisOverview | None) -> dict[str, Any]
 
 
 
+def build_character_graph_payload(session, novel_id: int) -> dict[str, Any]:
+    total_chapters = session.query(Chapter).filter_by(novel_id=novel_id).count()
+    chapter_rows = session.query(ChapterAnalysis).filter_by(
+        user_id=Config.DEFAULT_USER_ID,
+        novel_id=novel_id,
+    ).order_by(ChapterAnalysis.chapter_index.asc()).all()
+    overview = session.query(NovelAnalysisOverview).filter_by(
+        user_id=Config.DEFAULT_USER_ID,
+        novel_id=novel_id,
+    ).first()
+    overview_payload = serialize_overview(overview)
+
+    aggregates = _collect_analysis_aggregates(chapter_rows) if chapter_rows else {
+        "allCharacterStats": [],
+        "relationshipGraph": [],
+        "analyzedChapters": 0,
+    }
+    aggregate_character_map = {
+        item["name"]: item
+        for item in aggregates.get("allCharacterStats", [])
+        if isinstance(item, dict) and _clean_text(item.get("name"), 80)
+    }
+    overview_character_stats = overview_payload.get("characterStats", []) if overview_payload else []
+    overview_character_map = {
+        item["name"]: item
+        for item in overview_character_stats
+        if isinstance(item, dict) and _clean_text(item.get("name"), 80)
+    }
+    relationship_graph = [item for item in aggregates.get("relationshipGraph", []) if isinstance(item, dict)]
+
+    selected_names = _select_character_graph_names(
+        aggregates.get("allCharacterStats", []),
+        overview_character_stats,
+        relationship_graph,
+    )
+    selected_name_set = set(selected_names)
+
+    nodes = []
+    for name in selected_names:
+        aggregate_item = aggregate_character_map.get(name, {})
+        overview_item = overview_character_map.get(name, {})
+        nodes.append({
+            "id": name,
+            "name": name,
+            "role": _clean_text(overview_item.get("role"), 80) or _clean_text(aggregate_item.get("role"), 80),
+            "description": _clean_text(overview_item.get("description"), 200) or _clean_text(aggregate_item.get("description"), 200),
+            "weight": round(float(aggregate_item.get("weight") or 0.0), 2),
+            "sharePercent": round(float(overview_item.get("sharePercent") or aggregate_item.get("sharePercent") or 0.0), 2),
+            "chapterCount": int(aggregate_item.get("chapterCount") or 0),
+            "chapters": aggregate_item.get("chapters") or [],
+            "isCore": name in overview_character_map,
+        })
+
+    edges = []
+    for edge in relationship_graph:
+        source = _clean_text(edge.get("source"), 80)
+        target = _clean_text(edge.get("target"), 80)
+        if source not in selected_name_set or target not in selected_name_set:
+            continue
+        relation_type = _clean_text(edge.get("type"), 80) or "未分类"
+        edges.append({
+            "id": f"{source}::{target}::{relation_type}",
+            "source": source,
+            "target": target,
+            "type": relation_type,
+            "description": _clean_text(edge.get("description"), 240),
+            "weight": round(float(edge.get("weight") or 0.0), 2),
+            "mentionCount": int(edge.get("mentionCount") or 0),
+            "chapterCount": int(edge.get("chapterCount") or 0),
+            "chapters": edge.get("chapters") or [],
+        })
+
+    generated_at = overview.updated_at.isoformat() if overview and overview.updated_at else None
+    if not generated_at and chapter_rows:
+        latest_row = max((row.updated_at for row in chapter_rows if row.updated_at), default=None)
+        generated_at = latest_row.isoformat() if latest_row else None
+
+    return {
+        "nodes": nodes,
+        "edges": edges,
+        "meta": {
+            "totalChapters": total_chapters,
+            "analyzedChapters": aggregates.get("analyzedChapters", 0),
+            "nodeCount": len(nodes),
+            "edgeCount": len(edges),
+            "hasOverview": bool(overview_payload),
+            "hasData": bool(nodes or edges),
+            "isComplete": is_overview_complete(overview, total_chapters),
+            "generatedAt": generated_at,
+        },
+    }
+
+
+
 def serialize_chapter_analysis(chapter_analysis: ChapterAnalysis | None) -> dict[str, Any] | None:
     if not chapter_analysis:
         return None
@@ -766,9 +860,11 @@ def _collect_analysis_aggregates(chapter_rows: list[ChapterAnalysis]) -> dict[st
                 "weight": 0.0,
                 "mentionCount": 0,
                 "descriptions": [],
+                "chapters": set(),
             })
             edge["weight"] += _coerce_weight(item.get("weight"))
             edge["mentionCount"] += 1
+            edge["chapters"].add(row.chapter_index)
             description = _clean_text(item.get("description"), 160)
             if description and description not in edge["descriptions"] and len(edge["descriptions"]) < 3:
                 edge["descriptions"].append(description)
@@ -794,6 +890,8 @@ def _collect_analysis_aggregates(chapter_rows: list[ChapterAnalysis]) -> dict[st
             "type": item["type"],
             "weight": round(item["weight"], 2),
             "mentionCount": item["mentionCount"],
+            "chapterCount": len(item["chapters"]),
+            "chapters": sorted(item["chapters"]),
             "description": "；".join(item["descriptions"]),
         }
         for item in relationship_map.values()
@@ -807,6 +905,42 @@ def _collect_analysis_aggregates(chapter_rows: list[ChapterAnalysis]) -> dict[st
         "relationshipGraph": relationship_graph[:30],
         "analyzedChapters": len(chapter_rows),
     }
+
+
+
+def _select_character_graph_names(
+    all_character_stats: list[dict[str, Any]],
+    overview_character_stats: list[dict[str, Any]],
+    relationship_graph: list[dict[str, Any]],
+    limit: int = 14,
+) -> list[str]:
+    ordered_names: list[str] = []
+
+    def _append(name: Any) -> None:
+        normalized = _clean_text(name, 80)
+        if not normalized or normalized in ordered_names or len(ordered_names) >= limit:
+            return
+        ordered_names.append(normalized)
+
+    for item in overview_character_stats[:8]:
+        if isinstance(item, dict):
+            _append(item.get("name"))
+
+    for edge in relationship_graph:
+        if len(ordered_names) >= limit:
+            break
+        if not isinstance(edge, dict):
+            continue
+        _append(edge.get("source"))
+        _append(edge.get("target"))
+
+    for item in all_character_stats:
+        if len(ordered_names) >= limit:
+            break
+        if isinstance(item, dict):
+            _append(item.get("name"))
+
+    return ordered_names
 
 
 

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, BookOpen, Bot, Loader2, Pause, Play, RefreshCw, Trash2, Hash, FileText, AlertTriangle } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, BookOpen, Bot, FileText, Hash, Loader2, Pause, Play, RefreshCw, Share2, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { analysisApi } from '../api/analysis';
 import type { AnalysisStatusResponse } from '../api/analysis';
@@ -184,6 +184,14 @@ export default function BookDetailPage() {
             >
               <BookOpen className="w-5 h-5" />
               {t('common.actions.startReading')}
+            </Link>
+
+            <Link
+              to={`/novel/${novel.id}/graph`}
+              className="w-full py-3 px-4 bg-brand-700 hover:bg-brand-600 text-white font-medium rounded-xl flex items-center justify-center gap-2 transition-colors"
+            >
+              <Share2 className="w-5 h-5" />
+              {t('bookDetail.characterGraphEntry')}
             </Link>
 
             {job?.status === 'running' || job?.status === 'pausing' ? (

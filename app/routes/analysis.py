@@ -5,7 +5,13 @@ from sqlalchemy.orm import Session
 from config import Config
 from database import db_session
 from models import ChapterAnalysis, Novel, NovelAnalysisOverview
-from services.ai_analysis import AnalysisConfigError, ChunkingError, serialize_chapter_analysis, serialize_overview
+from services.ai_analysis import (
+    AnalysisConfigError,
+    ChunkingError,
+    build_character_graph_payload,
+    serialize_chapter_analysis,
+    serialize_overview,
+)
 from services.analysis_runner import (
     AnalysisJobStateError,
     get_analysis_status,
@@ -59,6 +65,18 @@ def get_chapter_analysis(novel_id: int, chapter_index: int):
             chapter_index=chapter_index,
         ).first()
         return jsonify({"analysis": serialize_chapter_analysis(chapter_analysis)})
+    except Exception as exc:
+        return _handle_analysis_error(exc)
+    finally:
+        session.close()
+
+
+@analysis_bp.route("/novels/<int:novel_id>/analysis/character-graph", methods=["GET"])
+def get_novel_character_graph(novel_id: int):
+    session: Session = db_session()
+    try:
+        _ensure_novel_exists(session, novel_id)
+        return jsonify(build_character_graph_payload(session, novel_id))
     except Exception as exc:
         return _handle_analysis_error(exc)
     finally:
