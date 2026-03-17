@@ -15,6 +15,29 @@ LLM_TIMEOUT_SECONDS = 120
 LLM_MAX_OUTPUT_TOKENS = 4000
 ANALYSIS_RETRY_LIMIT = 3
 
+_RELATION_TAG_CANONICAL_PATTERNS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("父女", ("父女",)),
+    ("父子", ("父子",)),
+    ("母女", ("母女",)),
+    ("母子", ("母子",)),
+    ("兄妹", ("兄妹",)),
+    ("姐弟", ("姐弟",)),
+    ("姐妹", ("姐妹",)),
+    ("兄弟", ("兄弟",)),
+    ("夫妻", ("夫妻", "夫妇")),
+    ("恋人", ("恋人", "情侣", "爱人", "相恋", "相爱")),
+    ("亲情", ("亲情", "家人", "亲人", "血亲", "骨肉")),
+    ("师徒", ("师徒", "师生")),
+    ("君臣", ("君臣", "忠臣", "臣子", "臣属")),
+    ("主仆", ("主仆", "仆从", "侍从")),
+    ("盟友", ("盟友", "同盟")),
+    ("同伴", ("同伴", "伙伴", "搭档")),
+    ("朋友", ("朋友", "友人", "友情")),
+    ("对立", ("对立", "敌对", "宿敌", "仇敌", "仇人", "敌人", "死敌")),
+    ("利用", ("利用", "操控")),
+    ("暧昧", ("暧昧",)),
+)
+
 
 class AnalysisConfigError(ValueError):
     """Raised when the AI config is invalid."""
@@ -426,6 +449,132 @@ def serialize_overview(overview: NovelAnalysisOverview | None) -> dict[str, Any]
 
 
 
+def _normalize_character_pair(source: Any, target: Any) -> tuple[str, str] | None:
+    first = _clean_text(source, 80)
+    second = _clean_text(target, 80)
+    if not first or not second or first == second:
+        return None
+    return tuple(sorted([first, second]))
+
+
+
+def _normalize_relation_tags(*values: Any) -> list[str]:
+    results: list[str] = []
+    for value in values:
+        candidates = value if isinstance(value, list) else [value]
+        for item in candidates:
+            raw_tag = _clean_text(item, 80)
+            if not raw_tag:
+                continue
+            split_candidates = [
+                _clean_text(fragment, 80)
+                for fragment in re.split(r"[\\/|｜；;，,、]+", raw_tag)
+            ]
+            for candidate in split_candidates:
+                tag = _canonicalize_relation_tag(candidate)
+                if tag and tag not in results:
+                    results.append(tag)
+    return results
+
+
+
+def _canonicalize_relation_tag(tag: str) -> str:
+    cleaned = _clean_text(re.sub(r"[\(\（][^\)\）]{0,20}[\)\）]", "", tag), 80)
+    cleaned = re.sub(r"^(疑似|疑为|疑|可能是|可能为|可能|似乎是|似乎|或为|像是|看似|表面上)", "", cleaned)
+    compact = re.sub(r"\s+", "", cleaned)
+    if not compact:
+        return ""
+
+    for canonical, patterns in _RELATION_TAG_CANONICAL_PATTERNS:
+        if any(pattern in compact for pattern in patterns):
+            return canonical
+    return compact
+
+
+
+def _build_overview_relationship_map(raw_relationship_graph: Any) -> dict[tuple[str, str], dict[str, Any]]:
+    results: dict[tuple[str, str], dict[str, Any]] = {}
+    if not isinstance(raw_relationship_graph, list):
+        return results
+
+    for item in raw_relationship_graph:
+        if not isinstance(item, dict):
+            continue
+        pair = _normalize_character_pair(item.get("source"), item.get("target"))
+        if not pair:
+            continue
+        target = results.setdefault(pair, {
+            "source": pair[0],
+            "target": pair[1],
+            "relationTags": [],
+            "description": "",
+        })
+        for tag in _normalize_relation_tags(item.get("relationTags"), item.get("type")):
+            if tag not in target["relationTags"] and len(target["relationTags"]) < 6:
+                target["relationTags"].append(tag)
+        description = _clean_text(item.get("description"), 280)
+        if description and len(description) > len(target["description"]):
+            target["description"] = description
+    return results
+
+
+
+def _build_character_graph_node_description(
+    name: str,
+    role: str,
+    share_percent: float,
+    _chapter_count: int,
+    related_edges: list[dict[str, Any]],
+) -> str:
+    counterpart_names: list[str] = []
+    relation_tags: list[str] = []
+    for edge in sorted(related_edges, key=lambda item: (-float(item.get("weight") or 0.0), item.get("target") if item.get("source") == name else item.get("source"))):
+        counterpart = edge.get("target") if edge.get("source") == name else edge.get("source")
+        counterpart_name = _clean_text(counterpart, 80)
+        if counterpart_name and counterpart_name not in counterpart_names and len(counterpart_names) < 3:
+            counterpart_names.append(counterpart_name)
+        for tag in _normalize_relation_tags(edge.get("relationTags"), edge.get("type")):
+            if tag not in relation_tags and len(relation_tags) < 4:
+                relation_tags.append(tag)
+
+    fragments = [f"{name}{f'以{role}身份参与主要剧情' if role else '在故事里占有一席之地'}"]
+    if share_percent >= 15:
+        fragments.append("是推动主线的重要人物")
+    elif share_percent >= 7:
+        fragments.append("会持续影响关键情节的发展")
+    elif share_percent > 0:
+        fragments.append("会在重要情节里带来明显影响")
+    if counterpart_names:
+        if relation_tags:
+            fragments.append(f"与{'、'.join(counterpart_names)}之间的{'、'.join(relation_tags)}，构成了最值得关注的关系线")
+        else:
+            fragments.append(f"与{'、'.join(counterpart_names)}的互动是理解这个人物的关键")
+    return _clean_text("，".join(fragments) + "。", 220)
+
+
+
+def _build_character_graph_edge_description(
+    source: str,
+    target: str,
+    relation_tags: list[str],
+    _chapter_count: int,
+    mention_count: int,
+) -> str:
+    fragments = [f"{source}和{target}之间的关系是故事里的重要线索"]
+    if relation_tags:
+        fragments.append(f"整体更接近{'、'.join(relation_tags)}")
+    else:
+        fragments.append("会持续影响彼此的选择")
+    if mention_count >= 8:
+        fragments.append("这条关系会在多段情节中反复推动剧情")
+    elif mention_count >= 3:
+        fragments.append("这条关系会在关键时刻左右剧情走向")
+    else:
+        fragments.append("这条关系会对人物冲突和选择产生影响")
+    return _clean_text("，".join(fragments) + "。", 260)
+
+
+
 def build_character_graph_payload(session, novel_id: int) -> dict[str, Any]:
     total_chapters = session.query(Chapter).filter_by(novel_id=novel_id).count()
     chapter_rows = session.query(ChapterAnalysis).filter_by(
@@ -444,58 +593,102 @@ def build_character_graph_payload(session, novel_id: int) -> dict[str, Any]:
         "analyzedChapters": 0,
     }
     aggregate_character_map = {
-        item["name"]: item
+        _clean_text(item.get("name"), 80): item
         for item in aggregates.get("allCharacterStats", [])
         if isinstance(item, dict) and _clean_text(item.get("name"), 80)
     }
     overview_character_stats = overview_payload.get("characterStats", []) if overview_payload else []
+    overview_relationship_graph = overview_payload.get("relationshipGraph", []) if overview_payload else []
     overview_character_map = {
-        item["name"]: item
+        _clean_text(item.get("name"), 80): item
         for item in overview_character_stats
         if isinstance(item, dict) and _clean_text(item.get("name"), 80)
     }
     relationship_graph = [item for item in aggregates.get("relationshipGraph", []) if isinstance(item, dict)]
+    local_relationship_map = _build_local_relationship_graph_map(relationship_graph)
+    overview_relationship_map = _build_overview_relationship_map(
+        overview_relationship_graph
+    )
+    graph_seed_edges = [
+        *[item for item in overview_relationship_graph if isinstance(item, dict)],
+        *relationship_graph,
+    ]
 
     selected_names = _select_character_graph_names(
         aggregates.get("allCharacterStats", []),
         overview_character_stats,
-        relationship_graph,
+        graph_seed_edges,
     )
     selected_name_set = set(selected_names)
+
+    merged_pairs: list[tuple[str, str]] = []
+    for edge in graph_seed_edges:
+        pair = _normalize_character_pair(edge.get("source"), edge.get("target")) if isinstance(edge, dict) else None
+        if not pair or pair in merged_pairs:
+            continue
+        merged_pairs.append(pair)
+
+    edges = []
+    for pair in merged_pairs:
+        source, target = pair
+        if source not in selected_name_set or target not in selected_name_set:
+            continue
+        overview_edge = overview_relationship_map.get(pair, {})
+        local_edge = local_relationship_map.get(pair, {})
+        relation_tags = _normalize_relation_tags(
+            overview_edge.get("relationTags"),
+            overview_edge.get("type"),
+            local_edge.get("relationTags"),
+            local_edge.get("type"),
+        ) or ["未分类"]
+        chapter_count = int(local_edge.get("chapterCount") or 0)
+        mention_count = int(local_edge.get("mentionCount") or 0)
+        edges.append({
+            "id": f"{source}::{target}",
+            "source": source,
+            "target": target,
+            "type": relation_tags[0],
+            "relationTags": relation_tags,
+            "description": _clean_text(overview_edge.get("description"), 280)
+            or _build_character_graph_edge_description(source, target, relation_tags, chapter_count, mention_count),
+            "weight": round(float(local_edge.get("weight") or 0.0), 2),
+            "mentionCount": mention_count,
+            "chapterCount": chapter_count,
+            "chapters": local_edge.get("chapters") or [],
+        })
+    edges.sort(key=lambda item: (-item["weight"], -item["mentionCount"], item["source"], item["target"]))
+
+    related_edge_map: dict[str, list[dict[str, Any]]] = {name: [] for name in selected_names}
+    for edge in edges:
+        related_edge_map.setdefault(edge["source"], []).append(edge)
+        related_edge_map.setdefault(edge["target"], []).append(edge)
 
     nodes = []
     for name in selected_names:
         aggregate_item = aggregate_character_map.get(name, {})
         overview_item = overview_character_map.get(name, {})
+        role = _clean_text(overview_item.get("role"), 80) or _clean_text(aggregate_item.get("role"), 80)
+        share_percent = round(float(overview_item.get("sharePercent") or aggregate_item.get("sharePercent") or 0.0), 2)
+        chapter_count = int(aggregate_item.get("chapterCount") or 0)
+        description = _clean_text(overview_item.get("description"), 220)
+        if not description:
+            description = _build_character_graph_node_description(
+                name,
+                role,
+                share_percent,
+                chapter_count,
+                related_edge_map.get(name, []),
+            )
         nodes.append({
             "id": name,
             "name": name,
-            "role": _clean_text(overview_item.get("role"), 80) or _clean_text(aggregate_item.get("role"), 80),
-            "description": _clean_text(overview_item.get("description"), 200) or _clean_text(aggregate_item.get("description"), 200),
+            "role": role,
+            "description": description,
             "weight": round(float(aggregate_item.get("weight") or 0.0), 2),
-            "sharePercent": round(float(overview_item.get("sharePercent") or aggregate_item.get("sharePercent") or 0.0), 2),
-            "chapterCount": int(aggregate_item.get("chapterCount") or 0),
+            "sharePercent": share_percent,
+            "chapterCount": chapter_count,
             "chapters": aggregate_item.get("chapters") or [],
             "isCore": name in overview_character_map,
-        })
-
-    edges = []
-    for edge in relationship_graph:
-        source = _clean_text(edge.get("source"), 80)
-        target = _clean_text(edge.get("target"), 80)
-        if source not in selected_name_set or target not in selected_name_set:
-            continue
-        relation_type = _clean_text(edge.get("type"), 80) or "未分类"
-        edges.append({
-            "id": f"{source}::{target}::{relation_type}",
-            "source": source,
-            "target": target,
-            "type": relation_type,
-            "description": _clean_text(edge.get("description"), 240),
-            "weight": round(float(edge.get("weight") or 0.0), 2),
-            "mentionCount": int(edge.get("mentionCount") or 0),
-            "chapterCount": int(edge.get("chapterCount") or 0),
-            "chapters": edge.get("chapters") or [],
         })
 
     generated_at = overview.updated_at.isoformat() if overview and overview.updated_at else None
@@ -733,6 +926,7 @@ def _normalize_overview_result(raw: dict[str, Any], aggregates: dict[str, Any], 
     global_summary = _clean_text(raw.get("globalSummary"), 2400)
     raw_themes = raw.get("themes")
     raw_character_stats = raw.get("characterStats")
+    raw_relationship_graph = raw.get("relationshipGraph")
 
     if not book_intro:
         raise AnalysisExecutionError("AI 返回的 bookIntro 为空。")
@@ -742,11 +936,14 @@ def _normalize_overview_result(raw: dict[str, Any], aggregates: dict[str, Any], 
         raise AnalysisExecutionError("AI 返回缺少有效的 themes 数组。")
     if not isinstance(raw_character_stats, list):
         raise AnalysisExecutionError("AI 返回缺少有效的 characterStats 数组。")
+    if not isinstance(raw_relationship_graph, list):
+        raise AnalysisExecutionError("AI 返回缺少有效的 relationshipGraph 数组。")
 
     local_character_map = {
         item["name"]: item
         for item in (aggregates.get("allCharacterStats") or aggregates["characterStats"])
     }
+    local_relationship_map = _build_overview_relationship_map(aggregates.get("allRelationshipGraph", []))
     character_stats = []
     seen_names: set[str] = set()
     raw_share_percents: list[float] = []
@@ -784,12 +981,39 @@ def _normalize_overview_result(raw: dict[str, Any], aggregates: dict[str, Any], 
         character_stats[index]["sharePercent"] = share_percent
     character_stats.sort(key=lambda item: (-item["sharePercent"], -item["weight"], item["name"]))
 
+    relationship_graph = []
+    seen_pairs: set[tuple[str, str]] = set()
+    for item in raw_relationship_graph[:24]:
+        if not isinstance(item, dict):
+            raise AnalysisExecutionError("AI 返回的 relationshipGraph 项不是对象。")
+        pair = _normalize_character_pair(item.get("source"), item.get("target"))
+        if not pair or pair in seen_pairs:
+            continue
+        source, target = pair
+        if source not in local_character_map or target not in local_character_map:
+            raise AnalysisExecutionError(f"AI 返回了未在章节分析中出现的关系人物：{source} / {target}。")
+        local_edge = local_relationship_map.get(pair, {})
+        relation_tags = _normalize_relation_tags(item.get("relationTags"), item.get("type"))
+        if not relation_tags:
+            relation_tags = _normalize_relation_tags(local_edge.get("relationTags"), local_edge.get("type"))
+        if not relation_tags:
+            raise AnalysisExecutionError(f"AI 返回的关系 {source} / {target} 缺少有效的 relationTags。")
+        description = _clean_text(item.get("description"), 280) or _clean_text(local_edge.get("description"), 280)
+        relationship_graph.append({
+            "source": source,
+            "target": target,
+            "type": relation_tags[0],
+            "relationTags": relation_tags[:6],
+            "description": description,
+        })
+        seen_pairs.add(pair)
+
     return {
         "bookIntro": book_intro,
         "globalSummary": global_summary,
         "themes": _normalize_string_list(raw_themes, limit=12, max_length=40),
         "characterStats": character_stats,
-        "relationshipGraph": aggregates["relationshipGraph"],
+        "relationshipGraph": relationship_graph,
         "totalChapters": total_chapters,
         "analyzedChapters": aggregates["analyzedChapters"],
     }
@@ -799,7 +1023,7 @@ def _normalize_overview_result(raw: dict[str, Any], aggregates: dict[str, Any], 
 def _collect_analysis_aggregates(chapter_rows: list[ChapterAnalysis]) -> dict[str, Any]:
     theme_counter: Counter[str] = Counter()
     character_map: dict[str, dict[str, Any]] = {}
-    relationship_map: dict[tuple[str, str, str], dict[str, Any]] = {}
+    relationship_map: dict[tuple[str, str], dict[str, Any]] = {}
     chapters_payload: list[dict[str, Any]] = []
 
     for row in chapter_rows:
@@ -828,53 +1052,58 @@ def _collect_analysis_aggregates(chapter_rows: list[ChapterAnalysis]) -> dict[st
             if not name:
                 continue
             weight = _coerce_weight(item.get("weight"))
+            role = _clean_text(item.get("role"), 80)
+            description = _clean_text(item.get("description"), 200)
             target = character_map.setdefault(name, {
                 "name": name,
-                "role": "",
-                "description": "",
                 "weight": 0.0,
                 "chapters": set(),
-                "peakWeight": 0.0,
+                "roles": Counter(),
+                "descriptions": [],
             })
             target["weight"] += weight
             target["chapters"].add(row.chapter_index)
-            if weight >= target["peakWeight"]:
-                target["peakWeight"] = weight
-                target["role"] = _clean_text(item.get("role"), 80)
-                target["description"] = _clean_text(item.get("description"), 200)
+            if role:
+                target["roles"][role] += max(weight, 1.0)
+            if description and description not in target["descriptions"] and len(target["descriptions"]) < 6:
+                target["descriptions"].append(description)
 
         for item in relationships:
             if not isinstance(item, dict):
                 continue
             source = _clean_text(item.get("source"), 80)
             target_name = _clean_text(item.get("target"), 80)
-            relation_type = _clean_text(item.get("type"), 80) or "未分类"
+            relation_tags = _normalize_relation_tags(item.get("relationTags"), item.get("type")) or ["未分类"]
             if not source or not target_name or source == target_name:
                 continue
             source_name, normalized_target_name = sorted([source, target_name])
-            key = (source_name, normalized_target_name, relation_type)
+            key = (source_name, normalized_target_name)
+            relation_weight = _coerce_weight(item.get("weight"))
             edge = relationship_map.setdefault(key, {
                 "source": source_name,
                 "target": normalized_target_name,
-                "type": relation_type,
                 "weight": 0.0,
                 "mentionCount": 0,
                 "descriptions": [],
                 "chapters": set(),
+                "relationTypes": Counter(),
             })
-            edge["weight"] += _coerce_weight(item.get("weight"))
+            edge["weight"] += relation_weight
             edge["mentionCount"] += 1
             edge["chapters"].add(row.chapter_index)
+            for relation_tag in relation_tags:
+                edge["relationTypes"][relation_tag] += max(relation_weight, 1.0)
             description = _clean_text(item.get("description"), 160)
-            if description and description not in edge["descriptions"] and len(edge["descriptions"]) < 3:
+            if description and description not in edge["descriptions"] and len(edge["descriptions"]) < 6:
                 edge["descriptions"].append(description)
 
     total_weight = sum(item["weight"] for item in character_map.values()) or 1.0
     all_character_stats = sorted([
         {
             "name": item["name"],
-            "role": item["role"],
-            "description": item["description"],
+            "role": sorted(item["roles"].items(), key=lambda pair: (-pair[1], pair[0]))[0][0] if item["roles"] else "",
+            "description": item["descriptions"][0] if item["descriptions"] else "",
+            "descriptionFragments": item["descriptions"][:4],
             "weight": round(item["weight"], 2),
             "sharePercent": round(item["weight"] / total_weight * 100, 2),
             "chapters": sorted(item["chapters"]),
@@ -887,14 +1116,20 @@ def _collect_analysis_aggregates(chapter_rows: list[ChapterAnalysis]) -> dict[st
         {
             "source": item["source"],
             "target": item["target"],
-            "type": item["type"],
+            "type": relation_tags[0] if relation_tags else "未分类",
+            "relationTags": relation_tags,
             "weight": round(item["weight"], 2),
             "mentionCount": item["mentionCount"],
             "chapterCount": len(item["chapters"]),
             "chapters": sorted(item["chapters"]),
-            "description": "；".join(item["descriptions"]),
+            "description": "；".join(item["descriptions"][:3]),
+            "descriptionFragments": item["descriptions"][:4],
         }
         for item in relationship_map.values()
+        for relation_tags in [[
+            relation_type
+            for relation_type, _ in sorted(item["relationTypes"].items(), key=lambda pair: (-pair[1], pair[0]))[:6]
+        ]]
     ], key=lambda value: (-value["weight"], value["source"], value["target"]))
 
     return {
@@ -902,6 +1137,7 @@ def _collect_analysis_aggregates(chapter_rows: list[ChapterAnalysis]) -> dict[st
         "themes": [item for item, _ in theme_counter.most_common(12)],
         "characterStats": all_character_stats[:20],
         "allCharacterStats": all_character_stats,
+        "allRelationshipGraph": relationship_graph,
         "relationshipGraph": relationship_graph[:30],
         "analyzedChapters": len(chapter_rows),
     }
@@ -943,6 +1179,21 @@ def _select_character_graph_names(
     return ordered_names
 
 
+def _build_local_relationship_graph_map(raw_relationship_graph: Any) -> dict[tuple[str, str], dict[str, Any]]:
+    results: dict[tuple[str, str], dict[str, Any]] = {}
+    if not isinstance(raw_relationship_graph, list):
+        return results
+
+    for item in raw_relationship_graph:
+        if not isinstance(item, dict):
+            continue
+        pair = _normalize_character_pair(item.get("source"), item.get("target"))
+        if not pair:
+            continue
+        results[pair] = item
+    return results
+
+
 
 def _build_overview_prompt(
     novel_title: str,
@@ -970,15 +1221,23 @@ def _build_overview_prompt(
 2. globalSummary：全书概览，突出主线、关键冲突、人物变化与结局走向，避免逐章列清单；
 3. themes：3~12 个主题标签，应体现整本书的核心主题，而不是单纯重复高频章节标签；
 4. characterStats：最多 8 个核心角色，必须复用输入 localCharacterStats 中已统计的角色名称，并输出 name、role、description、sharePercent；其中 sharePercent 为 0~100 的数值，表示该角色在整本书中的篇幅/存在感占比，请基于全部章节分析统一判断。
+5. relationshipGraph：输出 6~24 条人物关系，只保留真正重要、稳定或对主线关键的关系；请综合章节 summary、characters、relationships 与 localRelationshipGraph 重新判断，不要简单照抄局部标签。
 
 返回要求：
 - 只能返回 JSON 对象；
 - bookIntro 和 globalSummary 必须为非空字符串；
-- themes、characterStats 必须为数组；
+- themes、characterStats、relationshipGraph 必须为数组；
 - characterStats 中不要输出未在 localCharacterStats 里出现的角色；
 - 每个 characterStats 项都必须包含非空 name 和有效的 sharePercent；
 - sharePercent 建议保留 1~2 位小数，全部角色的 sharePercent 总和不要超过 100；
+- relationshipGraph 中的 source / target 必须来自输入里已出现的人物；
+- relationshipGraph 每项都必须包含 source、target、relationTags、description；
+- relationTags 为 1~4 个短标签，例如“师徒”“盟友”“对立”“亲情”“利用”“暧昧”；
+- relationTags 必须使用已经读完全书后的明确关系，不要写“疑似父女”“父女（承认）”“父女感应”这类阶段性或变体标签；如果最终关系明确为“父女”，就统一写“父女”；
+- 优先保留能代表全书结构的关系，不要把同一对人物拆成多条；
 - 不要输出 weight、chapters、chapterCount 等额外字段；
+- characterStats.description 和 relationshipGraph.description 都要写成面向普通读者的自然表达，突出人物在剧情中的位置、冲突和变化；
+- description 不要出现“在全书已分析内容中”“覆盖X章”“提及X次”“篇幅占比约X%”这类系统口吻或统计口吻；
 - 不要输出 markdown、解释文字或代码块。
 
 JSON 结构示例：
@@ -988,6 +1247,9 @@ JSON 结构示例：
   "themes": ["江湖", "成长", "家国"],
   "characterStats": [
     {{"name": "紫薇", "role": "核心主角", "description": "推动主线与情感冲突的关键人物", "sharePercent": 28.5}}
+  ],
+  "relationshipGraph": [
+    {{"source": "紫薇", "target": "小燕子", "relationTags": ["同伴", "姐妹情谊"], "description": "两人长期并肩推进主线，并在身份与情感压力中互相扶持。"}}
   ]
 }}
 

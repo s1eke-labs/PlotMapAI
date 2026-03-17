@@ -21,7 +21,7 @@ export default function BookDetailPage() {
   const [isAnalysisLoading, setIsAnalysisLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [analysisMessage, setAnalysisMessage] = useState<string | null>(null);
-  const [analysisAction, setAnalysisAction] = useState<'start' | 'pause' | 'resume' | 'restart' | null>(null);
+  const [analysisAction, setAnalysisAction] = useState<'start' | 'pause' | 'resume' | 'restart' | 'refreshOverview' | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
@@ -108,7 +108,14 @@ export default function BookDetailPage() {
     }
   };
 
-  const runAnalysisAction = async (action: 'start' | 'pause' | 'resume' | 'restart') => {
+  const canRefreshOverview = Boolean(
+    job
+    && !isJobRunning
+    && job.analyzedChapters > 0
+    && job.analyzedChapters === job.totalChapters
+  );
+
+  const runAnalysisAction = async (action: 'start' | 'pause' | 'resume' | 'restart' | 'refreshOverview') => {
     if (!novelId) return;
     setAnalysisAction(action);
     setAnalysisMessage(null);
@@ -119,6 +126,8 @@ export default function BookDetailPage() {
           ? analysisApi.pause(novelId)
           : action === 'resume'
             ? analysisApi.resume(novelId)
+            : action === 'refreshOverview'
+              ? analysisApi.refreshOverview(novelId)
             : analysisApi.restart(novelId));
       setAnalysisStatus(result);
       setAnalysisMessage(
@@ -126,6 +135,8 @@ export default function BookDetailPage() {
           ? t('bookDetail.analysisActionPauseRequested')
           : action === 'resume'
             ? t('bookDetail.analysisActionResumed')
+            : action === 'refreshOverview'
+              ? t('bookDetail.analysisActionOverviewRefreshed')
             : action === 'restart'
               ? t('bookDetail.analysisActionRestarted')
               : t('bookDetail.analysisActionStarted')
@@ -231,6 +242,17 @@ export default function BookDetailPage() {
               >
                 {analysisAction === 'restart' ? <Loader2 className="w-5 h-5 animate-spin" /> : <RefreshCw className="w-5 h-5" />}
                 {t('bookDetail.restartAnalysis')}
+              </button>
+            )}
+
+            {canRefreshOverview && (
+              <button
+                onClick={() => runAnalysisAction('refreshOverview')}
+                disabled={analysisAction !== null}
+                className="w-full py-3 px-4 bg-brand-700/15 hover:bg-brand-700/20 text-brand-300 font-medium rounded-xl flex items-center justify-center gap-2 transition-colors border border-brand-500/20 disabled:opacity-60"
+              >
+                {analysisAction === 'refreshOverview' ? <Loader2 className="w-5 h-5 animate-spin" /> : <Share2 className="w-5 h-5" />}
+                {t('bookDetail.refreshCharacterGraph')}
               </button>
             )}
 

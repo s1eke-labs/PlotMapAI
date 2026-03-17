@@ -16,6 +16,7 @@ from services.analysis_runner import (
     AnalysisJobStateError,
     get_analysis_status,
     pause_analysis,
+    refresh_overview,
     restart_analysis,
     resume_analysis,
     start_analysis,
@@ -101,6 +102,11 @@ def resume_novel_analysis(novel_id: int):
 @analysis_bp.route("/novels/<int:novel_id>/analysis/restart", methods=["POST"])
 def restart_novel_analysis(novel_id: int):
     return _run_action(lambda: restart_analysis(novel_id))
+
+
+@analysis_bp.route("/novels/<int:novel_id>/analysis/refresh-overview", methods=["POST"])
+def refresh_novel_analysis_overview(novel_id: int):
+    return _run_action(lambda: refresh_overview(novel_id))
 
 
 

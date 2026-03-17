@@ -234,6 +234,76 @@ def restart_analysis(novel_id: int) -> dict[str, Any]:
 
 
 
+def refresh_overview(novel_id: int) -> dict[str, Any]:
+    session = db_session()
+    try:
+        _ensure_novel(session, novel_id)
+        config = session.query(AiProviderConfig).filter_by(user_id=Config.DEFAULT_USER_ID).first()
+        build_runtime_config(config)
+        chapters = _load_ordered_chapters(session, novel_id)
+        total_chapters = len(chapters)
+
+        job = session.query(NovelAnalysisJob).filter_by(
+            user_id=Config.DEFAULT_USER_ID,
+            novel_id=novel_id,
+        ).first()
+        if job and job.status in RUNNING_STATUSES:
+            raise AnalysisJobStateError("当前小说正在分析中，请稍后再试。")
+
+        chunk_rows = session.query(NovelAnalysisChunk).filter_by(
+            user_id=Config.DEFAULT_USER_ID,
+            novel_id=novel_id,
+        ).order_by(NovelAnalysisChunk.chunk_index.asc()).all()
+        if not chunk_rows:
+            raise AnalysisJobStateError("尚无可复用的章节分析结果，请先完成一次分析。")
+
+        incomplete_chunk_indices = _find_incomplete_chunk_indices(session, novel_id, chunk_rows)
+        if incomplete_chunk_indices:
+            raise AnalysisJobStateError("章节分析结果尚未完整，暂时无法只重跑人物图谱汇总。")
+
+        chapter_rows = session.query(ChapterAnalysis).filter_by(
+            user_id=Config.DEFAULT_USER_ID,
+            novel_id=novel_id,
+        ).order_by(ChapterAnalysis.chapter_index.asc()).all()
+        if len(chapter_rows) < total_chapters or any(not is_chapter_analysis_complete(row) for row in chapter_rows):
+            raise AnalysisJobStateError("章节分析结果尚未完整，暂时无法只重跑人物图谱汇总。")
+
+        overview = session.query(NovelAnalysisOverview).filter_by(
+            user_id=Config.DEFAULT_USER_ID,
+            novel_id=novel_id,
+        ).first()
+        if overview:
+            session.delete(overview)
+
+        if not job:
+            job = NovelAnalysisJob(
+                user_id=Config.DEFAULT_USER_ID,
+                novel_id=novel_id,
+            )
+            session.add(job)
+
+        job.status = "running"
+        job.pause_requested = False
+        job.completed_at = None
+        job.last_error = ""
+        job.total_chunks = len(chunk_rows)
+        job.completed_chunks = len(chunk_rows)
+        job.total_chapters = total_chapters
+        job.analyzed_chapters = len(chapter_rows)
+        job.current_chunk_index = len(chunk_rows)
+        job.last_heartbeat = _now()
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+
+    _spawn_runner(novel_id)
+    return get_analysis_status(novel_id)
+
+
+
 def _spawn_runner(novel_id: int) -> None:
     with _ACTIVE_RUNNERS_LOCK:
         active_thread = _ACTIVE_RUNNERS.get(novel_id)

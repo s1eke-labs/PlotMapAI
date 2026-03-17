@@ -44,8 +44,9 @@ export interface AnalysisOverview {
     source: string;
     target: string;
     type: string;
-    weight: number;
-    mentionCount: number;
+    relationTags?: string[];
+    weight?: number;
+    mentionCount?: number;
     chapterCount?: number;
     chapters?: number[];
     description: string;
@@ -112,6 +113,7 @@ export interface CharacterGraphEdge {
   source: string;
   target: string;
   type: string;
+  relationTags: string[];
   description: string;
   weight: number;
   mentionCount: number;
@@ -153,6 +155,10 @@ export const analysisApi = {
 
   restart: (novelId: number): Promise<AnalysisStatusResponse> => {
     return client.post(`/novels/${novelId}/analysis/restart`);
+  },
+
+  refreshOverview: (novelId: number): Promise<AnalysisStatusResponse> => {
+    return client.post(`/novels/${novelId}/analysis/refresh-overview`);
   },
 
   getOverview: (novelId: number): Promise<{ overview: AnalysisOverview | null }> => {
