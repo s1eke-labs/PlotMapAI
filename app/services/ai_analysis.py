@@ -1217,8 +1217,8 @@ def _build_overview_prompt(
 以下是小说《{novel_title}》全部章节的 AI 分析数据，请基于这些现成分析结果统一汇总简介、全书概览、主题标签和核心角色篇幅占比，不要逐章罗列，不要回退成章节摘要拼接，也不要机械照搬局部统计结果。
 
 输出目标：
-1. bookIntro：用于书籍详情页简介的文字，80~180 字；
-2. globalSummary：全书概览，突出主线、关键冲突、人物变化与结局走向，避免逐章列清单；
+1. bookIntro：用于书籍详情页简介的文字，80~160 字，更像读者在详情页看到的导读或封底文案，重点交代故事设定、主角关系与核心悬念，尽量不要展开结局；
+2. globalSummary：全书概览，220~500 字，完整概括主线推进、关键冲突、人物变化与结局走向，避免逐章列清单；
 3. themes：3~12 个主题标签，应体现整本书的核心主题，而不是单纯重复高频章节标签；
 4. characterStats：最多 8 个核心角色，必须复用输入 localCharacterStats 中已统计的角色名称，并输出 name、role、description、sharePercent；其中 sharePercent 为 0~100 的数值，表示该角色在整本书中的篇幅/存在感占比，请基于全部章节分析统一判断。
 5. relationshipGraph：输出 6~24 条人物关系，只保留真正重要、稳定或对主线关键的关系；请综合章节 summary、characters、relationships 与 localRelationshipGraph 重新判断，不要简单照抄局部标签。
@@ -1226,6 +1226,8 @@ def _build_overview_prompt(
 返回要求：
 - 只能返回 JSON 对象；
 - bookIntro 和 globalSummary 必须为非空字符串；
+- bookIntro 和 globalSummary 必须明显区分层级，不能只是长短不同的同一段改写；
+- bookIntro 应该更短、更像导读；globalSummary 才负责完整展开剧情与人物变化；
 - themes、characterStats、relationshipGraph 必须为数组；
 - characterStats 中不要输出未在 localCharacterStats 里出现的角色；
 - 每个 characterStats 项都必须包含非空 name 和有效的 sharePercent；

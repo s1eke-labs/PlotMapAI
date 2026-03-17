@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type WheelEvent as ReactWheelEvent } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { AlertTriangle, ArrowLeft, Loader2, Maximize2, Minimize2, RotateCcw, Sparkles, X } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Loader2, Maximize2, Minimize2, RefreshCw, RotateCcw, Sparkles, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { analysisApi } from '../api/analysis';
 import type { CharacterGraphEdge, CharacterGraphNode, CharacterGraphResponse } from '../api/analysis';
@@ -74,6 +74,8 @@ export default function CharacterGraphPage() {
   const [nodePositions, setNodePositions] = useState<Record<string, { x: number; y: number }>>({});
   const [zoomState, setZoomState] = useState<ZoomState>(DEFAULT_ZOOM_STATE);
   const [isPanning, setIsPanning] = useState(false);
+  const [isRefreshingOverview, setIsRefreshingOverview] = useState(false);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     if (!Number.isFinite(novelId) || novelId <= 0) {
@@ -205,6 +207,7 @@ export default function CharacterGraphPage() {
   const canPanCanvas = zoomState.scale !== DEFAULT_ZOOM_STATE.scale
     || zoomState.offsetX !== DEFAULT_ZOOM_STATE.offsetX
     || zoomState.offsetY !== DEFAULT_ZOOM_STATE.offsetY;
+  const canRefreshOverview = Boolean(graph && graph.meta.totalChapters > 0 && graph.meta.analyzedChapters === graph.meta.totalChapters);
 
   const resetLayout = useCallback(() => {
     setNodePositions(
@@ -369,6 +372,20 @@ export default function CharacterGraphPage() {
     }
   }, []);
 
+  const handleRefreshOverview = useCallback(async () => {
+    if (!canRefreshOverview || !novelId) return;
+    setIsRefreshingOverview(true);
+    setActionMessage(null);
+    try {
+      await analysisApi.refreshOverview(novelId);
+      setActionMessage(t('characterGraph.refreshStarted'));
+    } catch (err: any) {
+      setActionMessage(err.message || t('characterGraph.refreshFailed'));
+    } finally {
+      setIsRefreshingOverview(false);
+    }
+  }, [canRefreshOverview, novelId, t]);
+
   if (isLoading) {
     return (
       <div className="flex flex-1 items-center justify-center bg-[#f5f2eb]">
@@ -446,6 +463,17 @@ export default function CharacterGraphPage() {
           ))}
           <StatusPill text={graph.meta.isComplete ? t('characterGraph.metaComplete') : t('characterGraph.metaPartial')} accent />
           {graph.meta.generatedAt && <StatusPill text={t('characterGraph.metaGeneratedAt', { time: new Date(graph.meta.generatedAt).toLocaleString() })} />}
+          {canRefreshOverview && (
+            <button
+              type="button"
+              onClick={handleRefreshOverview}
+              disabled={isRefreshingOverview}
+              className="inline-flex items-center gap-2 rounded-full border border-[#ddd7cc] bg-[#fffdfa]/94 px-4 py-2 text-xs text-[#5f6b79] backdrop-blur transition hover:border-[#cfc7b9] hover:text-[#18202a] disabled:opacity-60"
+            >
+              {isRefreshingOverview ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              {t('characterGraph.refreshGraph')}
+            </button>
+          )}
           <button
             type="button"
             onClick={resetLayout}
@@ -470,6 +498,11 @@ export default function CharacterGraphPage() {
             <span className="rounded-full bg-[#f4f2ed] px-3 py-1 text-[#697384]">{t('characterGraph.legendRelation')}</span>
           </div>
           <p className="mt-3 leading-6">{t('characterGraph.dragHint')}</p>
+          {actionMessage && (
+            <div className="mt-3 rounded-2xl border border-[#d7deea] bg-[#f8fafc] px-3 py-2 text-[#5f6b79]">
+              {actionMessage}
+            </div>
+          )}
           {!graph.meta.isComplete && (
             <div className="mt-3 flex gap-2 rounded-2xl border border-[#ffd6a5] bg-[#fff5e8] px-3 py-2 text-[#a06528]">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
