@@ -7,7 +7,6 @@ services:
       - ./data:/app/data
       - ./uploads:/app/uploads
     environment:
-      - SECRET_KEY=${SECRET_KEY:-dev_secret_key_change_me_in_prod}
       - DATABASE_URL=sqlite:////app/data/plotmap.db
       - UPLOAD_DIR=/app/uploads
       - MAX_CONTENT_LENGTH=104857600

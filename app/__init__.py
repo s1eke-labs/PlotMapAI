@@ -9,6 +9,8 @@ from config import Config
 
 def create_app():
     """Create and configure the Flask application."""
+    Config.validate_required_settings()
+
     app = Flask(__name__)
     app.config.from_object(Config)
     app.config["MAX_CONTENT_LENGTH"] = Config.MAX_CONTENT_LENGTH
