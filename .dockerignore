@@ -1,23 +1,7 @@
-# Python
-**/__pycache__/
-*.py[cod]
-*$py.class
-**/.venv
-**/venv
-**/.pytest_cache
-**/.coverage
-**/htmlcov
-
-# Node.js
+# Node
 **/node_modules
 **/dist
-
-# Data & Config
-**/.env
-**/*.db
-# /data/  # Avoid ignoring package data like app/app/data
-app/data/
-uploads/
+*.tsbuildinfo
 
 # Docker
 Dockerfile
@@ -26,3 +10,10 @@ docker-compose.yml
 .github
 .gitignore
 README.md
+AGENTS.md
+LICENSE
+docs/
+
+# Coverage & env
+coverage/
+.env*

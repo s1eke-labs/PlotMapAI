@@ -1,0 +1,385 @@
+import yaml from 'js-yaml';
+import { db } from '../services/db';
+
+function unescapeReplacement(raw: string): string {
+  return raw.replace(/\\([nrt\\])/g, (_, ch: string) => {
+    if (ch === 'n') return '\n';
+    if (ch === 'r') return '\r';
+    if (ch === 't') return '\t';
+    return '\\';
+  });
+}
+
+import {
+  maskApiKey,
+  normalizeBaseUrl,
+  validateAnalysisConfig,
+  testAiProviderConnection,
+  type RuntimeAnalysisConfig,
+} from '../services/aiAnalysis';
+import { debugLog } from '../services/debug';
+
+export interface TocRule {
+  id: number;
+  name: string;
+  rule: string;
+  example: string;
+  priority: number;
+  isEnabled: boolean;
+  isDefault: boolean;
+  createdAt?: string;
+}
+
+export interface PurificationRule {
+  id: number;
+  externalId?: number;
+  name: string;
+  group: string;
+  pattern: string;
+  replacement: string;
+  isRegex: boolean;
+  isEnabled: boolean;
+  order: number;
+  scopeTitle: boolean;
+  scopeContent: boolean;
+  bookScope?: string;
+  excludeBookScope?: string;
+  timeoutMs: number;
+  createdAt?: string;
+}
+
+export interface AiProviderSettings {
+  apiBaseUrl: string;
+  modelName: string;
+  contextSize: number;
+  hasApiKey: boolean;
+  maskedApiKey: string;
+  updatedAt?: string | null;
+}
+
+export interface AiProviderSettingsPayload {
+  apiBaseUrl: string;
+  apiKey?: string;
+  modelName: string;
+  contextSize: number;
+  keepExistingApiKey?: boolean;
+}
+
+const AI_CONFIG_KEY = 'plotmapai_ai_config';
+
+function getAiConfig(): { apiBaseUrl: string; apiKey: string; modelName: string; contextSize: number } | null {
+  const raw = localStorage.getItem(AI_CONFIG_KEY);
+  if (!raw) return null;
+  try { return JSON.parse(raw); } catch { return null; }
+}
+
+function setAiConfig(config: { apiBaseUrl: string; apiKey: string; modelName: string; contextSize: number }): void {
+  localStorage.setItem(AI_CONFIG_KEY, JSON.stringify(config));
+}
+
+function tocRuleToApi(rule: import('../services/db').TocRule): TocRule {
+  return {
+    id: rule.id,
+    name: rule.name,
+    rule: rule.rule,
+    example: rule.example,
+    priority: rule.serialNumber,
+    isEnabled: rule.enable,
+    isDefault: rule.isDefault,
+    createdAt: rule.createdAt,
+  };
+}
+
+function purRuleToApi(rule: import('../services/db').PurificationRule): PurificationRule {
+  return {
+    id: rule.id,
+    externalId: rule.externalId ?? undefined,
+    name: rule.name,
+    group: rule.group,
+    pattern: rule.pattern,
+    replacement: rule.replacement,
+    isRegex: rule.isRegex,
+    isEnabled: rule.isEnabled,
+    order: rule.order,
+    scopeTitle: rule.scopeTitle,
+    scopeContent: rule.scopeContent,
+    bookScope: rule.bookScope || undefined,
+    excludeBookScope: rule.excludeBookScope || undefined,
+    timeoutMs: rule.timeoutMs,
+    createdAt: rule.createdAt,
+  };
+}
+
+export const settingsApi = {
+  getTocRules: async (): Promise<TocRule[]> => {
+    const rules = await db.tocRules.orderBy('serialNumber').toArray();
+    return rules.map(tocRuleToApi);
+  },
+
+  createTocRule: async (data: Omit<TocRule, 'id' | 'isDefault'>): Promise<TocRule> => {
+    const now = new Date().toISOString();
+    const last = await db.tocRules.orderBy('serialNumber').last();
+    const id = await db.tocRules.add({
+      id: undefined as unknown as number,
+      name: data.name,
+      rule: data.rule,
+      example: data.example || '',
+      serialNumber: data.priority ?? (last?.serialNumber ?? -1) + 1,
+      enable: data.isEnabled ?? true,
+      isDefault: false,
+      createdAt: now,
+    });
+    const rule = await db.tocRules.get(id);
+    return tocRuleToApi(rule!);
+  },
+
+  updateTocRule: async (id: number, data: Partial<TocRule>): Promise<TocRule> => {
+    const updates: Record<string, unknown> = {};
+    if (data.name !== undefined) updates.name = data.name;
+    if (data.rule !== undefined) updates.rule = data.rule;
+    if (data.example !== undefined) updates.example = data.example;
+    if (data.isEnabled !== undefined) updates.enable = data.isEnabled;
+    if (data.priority !== undefined) updates.serialNumber = data.priority;
+    await db.tocRules.update(id, updates);
+    const rule = await db.tocRules.get(id);
+    if (!rule) throw new Error('Rule not found');
+    return tocRuleToApi(rule);
+  },
+
+  deleteTocRule: async (id: number): Promise<{ message: string }> => {
+    const rule = await db.tocRules.get(id);
+    if (!rule) throw new Error('Rule not found');
+    if (rule.isDefault) throw new Error('Cannot delete default rules');
+    await db.tocRules.delete(id);
+    return { message: 'Rule deleted' };
+  },
+
+  uploadTocRulesYaml: async (file: File): Promise<TocRule[]> => {
+    const text = await file.text();
+    let rules: Array<Record<string, unknown>>;
+    try {
+      const parsed = yaml.load(text);
+      rules = Array.isArray(parsed) ? parsed : ((parsed as Record<string, unknown>)?.rules as Array<Record<string, unknown>>) || [];
+    } catch (e) {
+      throw new Error(`Invalid YAML file: ${e instanceof Error ? e.message : String(e)}`);
+    }
+    if (!Array.isArray(rules)) throw new Error('Rules must be a YAML array');
+
+    const existing = await db.tocRules.toArray();
+    const existingRules = new Set(existing.map(r => r.rule));
+    const now = new Date().toISOString();
+    let added = 0;
+    for (let i = 0; i < rules.length; i++) {
+      const r = rules[i];
+      if (typeof r !== 'object' || r === null) continue;
+      const obj = r as Record<string, unknown>;
+      const ruleText = (obj.rule || obj.pattern) as string;
+      if (!ruleText || existingRules.has(ruleText)) continue;
+      existingRules.add(ruleText);
+      await db.tocRules.add({
+        id: undefined as unknown as number,
+        name: (obj.name as string) || `Imported Rule ${i}`,
+        rule: ruleText,
+        example: (obj.example as string) || '',
+        serialNumber: (obj.serialNumber ?? obj.priority ?? obj.serial_number ?? i) as number,
+        enable: (obj.enable ?? obj.isEnabled ?? true) as boolean,
+        isDefault: false,
+        createdAt: now,
+      });
+      added++;
+    }
+    debugLog('Settings', `uploadTocRulesYaml: ${rules.length} parsed, ${added} added`);
+    return settingsApi.getTocRules();
+  },
+
+  exportTocRulesYaml: async (): Promise<string> => {
+    const rules = await db.tocRules.toArray();
+    const exportData = rules.map((r, i) => ({
+      name: r.name,
+      rule: r.rule,
+      example: r.example || '',
+      serialNumber: r.serialNumber ?? i,
+      enable: r.enable,
+    }));
+    return yaml.dump(exportData, { lineWidth: 200, noRefs: true });
+  },
+
+  getPurificationRules: async (): Promise<PurificationRule[]> => {
+    const rules = await db.purificationRules.orderBy('order').toArray();
+    return rules.map(purRuleToApi);
+  },
+
+  createPurificationRule: async (data: Partial<PurificationRule>): Promise<PurificationRule> => {
+    if (!data.name || !data.pattern) throw new Error('Missing field: name or pattern');
+    const now = new Date().toISOString();
+    const id = await db.purificationRules.add({
+      id: undefined as unknown as number,
+      externalId: null,
+      name: data.name,
+      group: data.group || '默认',
+      pattern: data.pattern,
+      replacement: unescapeReplacement(data.replacement || ''),
+      isRegex: data.isRegex ?? true,
+      isEnabled: data.isEnabled ?? true,
+      order: data.order ?? 10,
+      scopeTitle: data.scopeTitle ?? true,
+      scopeContent: data.scopeContent ?? true,
+      bookScope: data.bookScope || '',
+      excludeBookScope: data.excludeBookScope || '',
+      timeoutMs: data.timeoutMs ?? 3000,
+      createdAt: now,
+    });
+    const rule = await db.purificationRules.get(id);
+    return purRuleToApi(rule!);
+  },
+
+  updatePurificationRule: async (id: number, data: Partial<PurificationRule>): Promise<PurificationRule> => {
+    const updates: Record<string, unknown> = {};
+    const fields = ['name', 'group', 'pattern', 'isRegex', 'isEnabled',
+      'order', 'scopeTitle', 'scopeContent', 'bookScope', 'excludeBookScope', 'timeoutMs'] as const;
+    for (const f of fields) {
+      if (data[f] !== undefined) updates[f] = data[f];
+    }
+    if (data.replacement !== undefined) {
+      updates.replacement = unescapeReplacement(data.replacement);
+    }
+    await db.purificationRules.update(id, updates);
+    const rule = await db.purificationRules.get(id);
+    if (!rule) throw new Error('Rule not found');
+    return purRuleToApi(rule);
+  },
+
+  deletePurificationRule: async (id: number): Promise<{ message: string }> => {
+    const rule = await db.purificationRules.get(id);
+    if (!rule) throw new Error('Rule not found');
+    await db.purificationRules.delete(id);
+    return { message: 'Rule deleted' };
+  },
+
+  clearAllPurificationRules: async (): Promise<{ message: string }> => {
+    await db.purificationRules.clear();
+    return { message: 'All rules cleared' };
+  },
+
+  uploadPurificationRulesYaml: async (file: File): Promise<PurificationRule[]> => {
+    const text = await file.text();
+    debugLog('Settings', `upload purify rules file: ${file.name}, size=${file.size}, text length=${text.length}`);
+    let parsed: unknown[];
+    try {
+      const loaded = yaml.load(text);
+      parsed = Array.isArray(loaded) ? loaded : [];
+    } catch (e) {
+      throw new Error(`Invalid YAML file: ${e instanceof Error ? e.message : String(e)}`);
+    }
+    debugLog('Settings', `parsed ${parsed.length} rules`);
+    const existing = await db.purificationRules.toArray();
+    const existingKeys = new Set(existing.map(r => `${r.pattern}\u0000${r.isRegex}`));
+    const now = new Date().toISOString();
+    let added = 0;
+    for (let i = 0; i < parsed.length; i++) {
+      const r = parsed[i];
+      if (typeof r !== 'object' || r === null) continue;
+      const obj = r as Record<string, unknown>;
+      const pattern = (obj.pattern as string) || '';
+      const isRegex = (obj.is_regex ?? obj.isRegex ?? true) as boolean;
+      const name = (obj.name as string) || `Imported Rule ${i}`;
+      const key = `${pattern}\u0000${isRegex}`;
+      if (!pattern || existingKeys.has(key)) {
+        debugLog('Settings', `    skip duplicate: "${name}"`);
+        continue;
+      }
+      existingKeys.add(key);
+      const record = {
+        id: undefined as unknown as number,
+        externalId: null,
+        name,
+        group: (obj.group as string) || '默认',
+        pattern,
+        replacement: unescapeReplacement((obj.replacement as string) || ''),
+        isRegex,
+        isEnabled: (obj.is_enabled ?? obj.isEnabled ?? true) as boolean,
+        order: (obj.order as number) ?? 10,
+        scopeTitle: (obj.scope_title ?? obj.scopeTitle ?? true) as boolean,
+        scopeContent: (obj.scope_content ?? obj.scopeContent ?? true) as boolean,
+        bookScope: (obj.book_scope ?? obj.bookScope ?? '') as string,
+        excludeBookScope: (obj.exclude_book_scope ?? obj.excludeBookScope ?? '') as string,
+        timeoutMs: 3000,
+        createdAt: now,
+      };
+      await db.purificationRules.add(record);
+      added++;
+    }
+    debugLog('Settings', `uploadPurificationRulesYaml: ${parsed.length} parsed, ${added} added`);
+    return settingsApi.getPurificationRules();
+  },
+
+  exportPurificationRulesYaml: async (): Promise<string> => {
+    const rules = await db.purificationRules.orderBy('order').toArray();
+    const exportData = rules.map(r => ({
+      name: r.name,
+      group: r.group || '默认',
+      pattern: r.pattern,
+      replacement: r.replacement,
+      is_regex: r.isRegex,
+      is_enabled: r.isEnabled,
+      order: r.order,
+      scope_title: r.scopeTitle,
+      scope_content: r.scopeContent,
+      book_scope: r.bookScope || '',
+      exclude_book_scope: r.excludeBookScope || '',
+    }));
+    return yaml.dump(exportData, { lineWidth: 200, noRefs: true });
+  },
+
+  getAiProviderSettings: async (): Promise<AiProviderSettings> => {
+    const config = getAiConfig();
+    if (!config) {
+      return {
+        apiBaseUrl: '',
+        modelName: '',
+        contextSize: 32000,
+        hasApiKey: false,
+        maskedApiKey: '',
+        updatedAt: null,
+      };
+    }
+    return {
+      apiBaseUrl: config.apiBaseUrl,
+      modelName: config.modelName,
+      contextSize: config.contextSize,
+      hasApiKey: !!config.apiKey,
+      maskedApiKey: maskApiKey(config.apiKey),
+      updatedAt: null,
+    };
+  },
+
+  updateAiProviderSettings: async (payload: AiProviderSettingsPayload): Promise<AiProviderSettings> => {
+    const existing = getAiConfig();
+    const keepExisting = payload.keepExistingApiKey !== false;
+    let apiKey = payload.apiKey || '';
+    if (!apiKey && keepExisting && existing) {
+      apiKey = existing.apiKey;
+    }
+    const config: RuntimeAnalysisConfig = {
+      apiBaseUrl: normalizeBaseUrl(payload.apiBaseUrl || existing?.apiBaseUrl || ''),
+      apiKey,
+      modelName: payload.modelName || existing?.modelName || '',
+      contextSize: payload.contextSize || existing?.contextSize || 32000,
+    };
+    validateAnalysisConfig(config);
+    setAiConfig(config);
+    return settingsApi.getAiProviderSettings();
+  },
+
+  testAiProviderSettings: async (payload: Partial<AiProviderSettingsPayload>): Promise<{ message: string; preview: string }> => {
+    const existing = getAiConfig();
+    const config: RuntimeAnalysisConfig = {
+      apiBaseUrl: normalizeBaseUrl(payload.apiBaseUrl || existing?.apiBaseUrl || ''),
+      apiKey: payload.apiKey || existing?.apiKey || '',
+      modelName: payload.modelName || existing?.modelName || '',
+      contextSize: payload.contextSize || existing?.contextSize || 32000,
+    };
+    validateAnalysisConfig(config);
+    return testAiProviderConnection(config);
+  },
+};

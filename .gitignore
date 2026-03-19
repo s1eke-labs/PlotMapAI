@@ -1,34 +1,24 @@
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.egg-info/
-.venv/
+# Build output
 dist/
-build/
-.pytest_cache/
-venv/
+*.tsbuildinfo
 
-# Database
-*.db
-*.sqlite3
+# Dependencies
+node_modules/
 
-# Uploads
-uploads/
-data/
+# Coverage
+coverage/
 
 # Environment
 .env
-
-# Node
-node_modules/
-
+.env.local
+.env.*.local
 
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
+AGENTS.md
 
 # OS
 .DS_Store
