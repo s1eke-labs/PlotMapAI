@@ -12,7 +12,7 @@ import { isDebugMode } from './services/debug';
 function App() {
   return (
     <ThemeProvider>
-      <Router>
+      <Router basename={import.meta.env.BASE_URL}>
         <Layout>
         <Routes>
           <Route path="/" element={<BookshelfPage />} />
