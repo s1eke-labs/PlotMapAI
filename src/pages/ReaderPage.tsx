@@ -195,7 +195,19 @@ export default function ReaderPage() {
 
   const currentTheme = READER_THEMES[readerTheme] || READER_THEMES.auto;
   const chapterParagraphs = currentChapter?.content.split('\n') ?? [];
+  const firstHeadingIndex = chapterParagraphs.findIndex(p => p.trim().length > 0);
+  const hasBodyHeading = firstHeadingIndex !== -1
+    && currentChapter
+    && chapterParagraphs[firstHeadingIndex].trim() === currentChapter.title.trim();
   const isPagedMode = isTwoColumn && viewMode === 'original' && isWideScreen;
+  const HEADER_BG_MAP: Record<string, string> = {
+    auto: 'bg-bg-primary',
+    paper: 'bg-white',
+    parchment: 'bg-[#f4ecd8]',
+    green: 'bg-[#c7edcc]',
+    night: 'bg-[#1a1a1a]',
+  };
+  const headerBg = HEADER_BG_MAP[readerTheme] || HEADER_BG_MAP.auto;
   const toolbarHasPrev = isPagedMode ? pageIndex > 0 || Boolean(currentChapter?.hasPrev) : Boolean(currentChapter?.hasPrev);
   const toolbarHasNext = isPagedMode ? pageIndex < pageCount - 1 || Boolean(currentChapter?.hasNext) : Boolean(currentChapter?.hasNext);
   const twoColumnWidth = pagedViewportSize.width
@@ -777,18 +789,18 @@ export default function ReaderPage() {
             </div>
           ) : currentChapter ? (
             isPagedMode ? (
-              <div className={cn('h-full max-w-[1400px] mx-auto w-full px-4 sm:px-8 md:px-12 py-8 flex flex-col', currentTheme.text)}>
-                <div className="flex items-start justify-between gap-4 mb-8 shrink-0">
+              <div className={cn('h-full max-w-[1400px] mx-auto w-full px-4 sm:px-8 md:px-12 flex flex-col', currentTheme.text)}>
+                <div className={cn('flex items-center justify-between gap-4 py-3 mb-4 shrink-0 border-b border-border-color/20', headerBg)}>
                   <h1
                     className={cn(
-                      'text-3xl sm:text-4xl font-bold leading-tight font-serif transition-colors flex-1 min-w-0',
-                      readerTheme === 'auto' ? 'text-text-primary' : '',
+                      'text-sm font-medium truncate transition-colors',
+                      readerTheme === 'auto' ? 'text-text-secondary' : 'opacity-60',
                     )}
                   >
                     {currentChapter.title}
                   </h1>
                   {pageCount > 1 && (
-                    <div className="text-sm font-medium text-text-secondary whitespace-nowrap pt-2">
+                    <div className="text-xs font-medium text-text-secondary whitespace-nowrap">
                       {pageIndex + 1} / {pageCount}
                     </div>
                   )}
@@ -810,8 +822,22 @@ export default function ReaderPage() {
                       columnRule: '1px solid var(--border-color)',
                     }}
                   >
-                    {chapterParagraphs.map((paragraph, i) => (
-                      paragraph.trim() ? (
+                    {chapterParagraphs.map((paragraph, i) => {
+                      if (!paragraph.trim()) {
+                        return <div key={i} className="break-inside-avoid" style={{ height: paragraphSpacing }} aria-hidden="true" />;
+                      }
+                      if (hasBodyHeading && i === firstHeadingIndex) {
+                        return (
+                          <h2
+                            key={i}
+                            className="text-xl sm:text-2xl font-bold text-center mb-8 mt-2 break-inside-avoid"
+                            style={{ lineHeight: '1.4' }}
+                          >
+                            {paragraph.trim()}
+                          </h2>
+                        );
+                      }
+                      return (
                         <ChapterParagraph
                           key={i}
                           text={paragraph}
@@ -819,23 +845,24 @@ export default function ReaderPage() {
                           marginBottom={paragraphSpacing}
                           className="indent-8 break-inside-avoid"
                         />
-                      ) : (
-                        <div key={i} className="break-inside-avoid" style={{ height: paragraphSpacing }} aria-hidden="true" />
-                      )
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               </div>
             ) : (
-              <div className={cn('px-4 sm:px-8 md:px-12 py-8 max-w-[1200px] mx-auto w-full relative', currentTheme.text)}>
-                <h1
-                  className={cn(
-                    'text-3xl sm:text-4xl font-bold mb-12 text-center leading-tight font-serif pt-8 transition-colors',
-                    readerTheme === 'auto' ? 'text-text-primary' : '',
-                  )}
-                >
-                  {currentChapter.title}
-                </h1>
+              <div className={cn('px-4 sm:px-8 md:px-12 max-w-[1200px] mx-auto w-full relative', currentTheme.text)}>
+                <div className={cn('sticky top-0 z-10 -mx-4 sm:-mx-8 md:-mx-12 px-4 sm:px-8 md:px-12 py-3 border-b border-border-color/20 backdrop-blur-sm', headerBg)}>
+                  <h1
+                    className={cn(
+                      'text-sm font-medium truncate transition-colors',
+                      readerTheme === 'auto' ? 'text-text-secondary' : 'opacity-60',
+                    )}
+                  >
+                    {currentChapter.title}
+                  </h1>
+                </div>
+                <div className="pt-6 pb-32">
 
                 {viewMode === 'summary' ? (
                   <ChapterAnalysisPanel
@@ -855,8 +882,22 @@ export default function ReaderPage() {
                       lineHeight: String(lineSpacing),
                     }}
                   >
-                    {chapterParagraphs.map((paragraph, i) => (
-                      paragraph.trim() ? (
+                    {chapterParagraphs.map((paragraph, i) => {
+                      if (!paragraph.trim()) {
+                        return <div key={i} style={{ height: paragraphSpacing }} aria-hidden="true" />;
+                      }
+                      if (hasBodyHeading && i === firstHeadingIndex) {
+                        return (
+                          <h2
+                            key={i}
+                            className="text-xl sm:text-2xl font-bold text-center mb-8 mt-2"
+                            style={{ lineHeight: '1.4' }}
+                          >
+                            {paragraph.trim()}
+                          </h2>
+                        );
+                      }
+                      return (
                         <ChapterParagraph
                           key={i}
                           text={paragraph}
@@ -864,12 +905,11 @@ export default function ReaderPage() {
                           marginBottom={paragraphSpacing}
                           className="indent-8"
                         />
-                      ) : (
-                        <div key={i} style={{ height: paragraphSpacing }} aria-hidden="true" />
-                      )
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
+                </div>
               </div>
             )
           ) : (
