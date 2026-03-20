@@ -4,6 +4,7 @@ import { HashRouter as Router, Routes, Route } from 'react-router-dom';
 import Layout from './components/Layout';
 import { ThemeProvider } from './context/ThemeContext';
 import DebugPanel from './components/DebugPanel';
+import ReloadPrompt from './components/ReloadPrompt';
 import { isDebugMode } from './services/debug';
 
 const BookshelfPage = lazy(() => import('./pages/BookshelfPage'));
@@ -37,6 +38,7 @@ function App() {
         </Layout>
       </Router>
       {isDebugMode() && <DebugPanel />}
+      <ReloadPrompt />
     </ThemeProvider>
   );
 }

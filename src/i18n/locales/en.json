@@ -343,5 +343,9 @@
       "enabled": "Enabled",
       "disabled": "Disabled"
     }
+  },
+  "pwa": {
+    "updateAvailable": "A new version is available",
+    "reload": "Refresh"
   }
 }
