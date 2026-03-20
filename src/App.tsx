@@ -23,7 +23,7 @@ function RouteFallback() {
 function App() {
   return (
     <ThemeProvider>
-      <Router basename={import.meta.env.BASE_URL}>
+      <Router>
         <Layout>
           <Suspense fallback={<RouteFallback />}>
             <Routes>
