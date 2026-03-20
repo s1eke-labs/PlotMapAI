@@ -599,7 +599,7 @@ export default function ReaderPage() {
       const content = pagedContentRef.current;
       if (!content || !pageTurnStep) return;
 
-      const nextPageCount = Math.max(1, Math.ceil((content.scrollWidth + TWO_COLUMN_GAP) / pageTurnStep));
+      const nextPageCount = Math.max(1, Math.ceil((content.scrollWidth + (fitsTwoColumns ? TWO_COLUMN_GAP : 0)) / pageTurnStep));
       const targetPage = pageTargetRef.current === 'end'
         ? nextPageCount - 1
         : Math.min(pageIndex, nextPageCount - 1);
@@ -610,7 +610,7 @@ export default function ReaderPage() {
     });
 
     return () => cancelAnimationFrame(frameId);
-  }, [currentChapter, fontSize, lineSpacing, isLoading, isPagedMode, pageIndex, pageTurnStep, pagedViewportSize.height, pagedViewportSize.width]);
+  }, [currentChapter, fitsTwoColumns, fontSize, lineSpacing, isLoading, isPagedMode, pageIndex, pageTurnStep, pagedViewportSize.height, pagedViewportSize.width]);
 
   useLayoutEffect(() => {
     if (!isPagedMode || !pagedViewportRef.current || !pageTurnStep) return;
