@@ -1,6 +1,6 @@
 import { lazy, Suspense } from 'react';
 import { Loader2 } from 'lucide-react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { HashRouter as Router, Routes, Route } from 'react-router-dom';
 import Layout from './components/Layout';
 import { ThemeProvider } from './context/ThemeContext';
 import DebugPanel from './components/DebugPanel';
