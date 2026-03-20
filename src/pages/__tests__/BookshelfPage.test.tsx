@@ -120,7 +120,7 @@ describe('BookshelfPage', () => {
       },
     ]);
     await user.click(screen.getAllByRole('button', { name: 'common.actions.upload' })[0]);
-    expect(screen.getByTestId('upload-modal')).toBeInTheDocument();
+    expect(await screen.findByTestId('upload-modal')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'mock-upload-success' }));
 

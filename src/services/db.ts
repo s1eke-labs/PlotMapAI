@@ -1,6 +1,4 @@
 import Dexie, { type EntityTable } from 'dexie';
-import yaml from 'js-yaml';
-import defaultTocRulesRaw from './defaultTocRules.yaml?raw';
 
 interface DefaultTocRule {
   name: string;
@@ -9,8 +7,6 @@ interface DefaultTocRule {
   serialNumber: number;
   enable: boolean;
 }
-
-const defaultTocRules: DefaultTocRule[] = yaml.load(defaultTocRulesRaw) as DefaultTocRule[];
 
 export interface Novel {
   id: number;
@@ -183,9 +179,18 @@ db.version(4).stores({
   chapterImages: '++id, novelId, [novelId+imageKey]',
 });
 
+async function loadDefaultTocRules(): Promise<DefaultTocRule[]> {
+  const [{ default: yaml }, { default: defaultTocRulesRaw }] = await Promise.all([
+    import('js-yaml'),
+    import('./defaultTocRules.yaml?raw'),
+  ]);
+  return yaml.load(defaultTocRulesRaw) as DefaultTocRule[];
+}
+
 export async function ensureDefaultTocRules(): Promise<void> {
   const count = await db.tocRules.count();
   if (count > 0) return;
+  const defaultTocRules = await loadDefaultTocRules();
   const now = new Date().toISOString();
   for (const rule of defaultTocRules) {
     await db.tocRules.add({

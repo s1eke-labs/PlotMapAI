@@ -1,5 +1,4 @@
 import { db, ensureDefaultTocRules } from '../services/db';
-import { parseBook } from '../services/bookParser';
 import { debugLog } from '../services/debug';
 
 export interface Novel {
@@ -87,6 +86,7 @@ export const novelsApi = {
     const ruleDtos = tocRules.map(r => ({ rule: r.rule }));
     debugLog('Upload', `file="${filename}", tocRules=${tocRules.length}`);
 
+    const { parseBook } = await import('../services/bookParser');
     const parsed = await parseBook(file, ruleDtos);
     const id = await getNextId();
     const now = new Date().toISOString();

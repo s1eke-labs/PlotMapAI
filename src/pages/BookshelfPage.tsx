@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
+import { lazy, Suspense, useState, useEffect, useCallback } from 'react';
 import { Loader2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { novelsApi } from '../api/novels';
 import type { Novel } from '../api/novels';
 import BookCard from '../components/BookCard';
-import UploadModal from '../components/UploadModal';
+
+const UploadModal = lazy(() => import('../components/UploadModal'));
 
 export default function BookshelfPage() {
   const { t } = useTranslation();
@@ -83,11 +84,15 @@ export default function BookshelfPage() {
         </div>
       )}
 
-      <UploadModal 
-        isOpen={isUploadModalOpen} 
-        onClose={() => setIsUploadModalOpen(false)} 
-        onSuccess={fetchNovels}
-      />
+      {isUploadModalOpen && (
+        <Suspense fallback={null}>
+          <UploadModal
+            isOpen={isUploadModalOpen}
+            onClose={() => setIsUploadModalOpen(false)}
+            onSuccess={fetchNovels}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }
