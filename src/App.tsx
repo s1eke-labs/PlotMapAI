@@ -1,11 +1,12 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
 import { HashRouter as Router, Routes, Route } from 'react-router-dom';
 import Layout from './components/Layout';
 import { ThemeProvider } from './context/ThemeContext';
 import DebugPanel from './components/DebugPanel';
+import InstallPrompt from './components/InstallPrompt';
 import ReloadPrompt from './components/ReloadPrompt';
-import { isDebugMode } from './services/debug';
+import { isDebugMode, registerDebugHelpers } from './services/debug';
 
 const BookshelfPage = lazy(() => import('./pages/BookshelfPage'));
 const BookDetailPage = lazy(() => import('./pages/BookDetailPage'));
@@ -22,6 +23,14 @@ function RouteFallback() {
 }
 
 function App() {
+  useEffect(() => {
+    if (!isDebugMode()) {
+      return undefined;
+    }
+
+    return registerDebugHelpers();
+  }, []);
+
   return (
     <ThemeProvider>
       <Router>
@@ -38,6 +47,7 @@ function App() {
         </Layout>
       </Router>
       {isDebugMode() && <DebugPanel />}
+      <InstallPrompt />
       <ReloadPrompt />
     </ThemeProvider>
   );

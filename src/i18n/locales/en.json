@@ -345,7 +345,14 @@
     }
   },
   "pwa": {
+    "installTitle": "Install PlotMapAI",
+    "installDescription": "Add PlotMapAI to your device for faster access, a cleaner fullscreen reader, and offline-ready support.",
+    "installIosHint": "On iPhone or iPad, open the share menu in Safari and choose Add to Home Screen.",
+    "install": "Install",
     "updateAvailable": "A new version is available",
-    "reload": "Refresh"
+    "updateDescription": "Refresh now to apply the latest fixes and improvements without losing your local reading progress.",
+    "reload": "Refresh now",
+    "updating": "Refreshing...",
+    "later": "Later"
   }
 }
