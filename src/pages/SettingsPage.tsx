@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Download, Loader2, Lock, Plus, Save, Shield, Trash2, Upload, Wifi } from 'lucide-react';
+import { Download, Loader2, Lock, MoreVertical, Plus, Save, Shield, Trash2, Upload, Wifi } from 'lucide-react';
 import { settingsApi } from '../api/settings';
 import type {
   AiProviderSettings,
@@ -21,6 +22,114 @@ function downloadFile(content: string, filename: string, mimeType: string): void
   a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+interface OverflowAction {
+  label: string;
+  icon: ReactNode;
+  onClick: () => void;
+  variant?: 'default' | 'danger';
+}
+
+interface ActionOverflowMenuProps {
+  primary: OverflowAction[];
+  overflow: OverflowAction[];
+}
+
+function ActionOverflowMenu({ primary, overflow }: ActionOverflowMenuProps) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  if (overflow.length === 0) {
+    return (
+      <div className="flex items-center gap-2">
+        {primary.map((action) => (
+          <button
+            key={action.label}
+            onClick={action.onClick}
+            className={`px-3 sm:px-4 py-2 rounded-lg transition-colors flex items-center gap-2 text-sm ${
+              action.variant === 'danger'
+                ? 'border border-red-500/30 hover:bg-red-500/10 text-red-400'
+                : 'bg-accent hover:bg-accent-hover text-white font-medium'
+            }`}
+          >
+            {action.icon} {action.label}
+          </button>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      {primary.map((action) => (
+        <button
+          key={action.label}
+          onClick={action.onClick}
+          className={`px-3 sm:px-4 py-2 rounded-lg transition-colors flex items-center gap-2 text-sm ${
+            action.variant === 'danger'
+              ? 'border border-red-500/30 hover:bg-red-500/10 text-red-400'
+              : 'bg-accent hover:bg-accent-hover text-white font-medium'
+          }`}
+        >
+          {action.icon} <span className="hidden sm:inline">{action.label}</span>
+        </button>
+      ))}
+
+      {/* Desktop: show overflow actions inline */}
+      <div className="hidden sm:flex items-center gap-2">
+        {overflow.map((action) => (
+          <button
+            key={action.label}
+            onClick={action.onClick}
+            className={`px-3 sm:px-4 py-2 rounded-lg transition-colors flex items-center gap-2 text-sm ${
+              action.variant === 'danger'
+                ? 'border border-red-500/30 hover:bg-red-500/10 text-red-400'
+                : 'border border-white/10 hover:bg-white/5 text-text-primary'
+            }`}
+          >
+            {action.icon} {action.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Mobile: overflow dropdown */}
+      <div className="relative sm:hidden">
+        <button
+          onClick={() => setIsOpen(!isOpen)}
+          className="p-2 rounded-lg border border-white/10 hover:bg-white/5 text-text-primary transition-colors"
+          aria-label="More actions"
+          aria-expanded={isOpen}
+          aria-haspopup="menu"
+        >
+          <MoreVertical className="w-4 h-4" />
+        </button>
+        {isOpen && (
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
+            <div
+              role="menu"
+              className="absolute right-0 top-full mt-1 z-50 min-w-[160px] rounded-xl glass shadow-xl border border-white/10 py-1 animate-slide-up"
+            >
+              {overflow.map((action) => (
+                <button
+                  key={action.label}
+                  role="menuitem"
+                  onClick={() => { action.onClick(); setIsOpen(false); }}
+                  className={`w-full text-left px-4 py-2.5 text-sm flex items-center gap-2.5 transition-colors ${
+                    action.variant === 'danger'
+                      ? 'text-red-400 hover:bg-red-500/10'
+                      : 'text-text-primary hover:bg-white/5'
+                  }`}
+                >
+                  {action.icon} {action.label}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
 }
 
 export default function SettingsPage() {
@@ -117,7 +226,7 @@ export default function SettingsPage() {
     fetchTocRules();
     fetchPurificationRules();
     fetchAiSettings();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleSaveTocRule = async (data: Partial<TocRule>) => {
@@ -304,8 +413,8 @@ export default function SettingsPage() {
       const msg = err instanceof Error ? err.message : '';
       setExportAiMsg(
         msg.includes('No AI config') ? t('settings.ai.errorNoConfig') :
-        msg.includes('at least 4') ? t('settings.ai.errorPasswordShort') :
-        t('settings.ai.errorExport'),
+          msg.includes('at least 4') ? t('settings.ai.errorPasswordShort') :
+            t('settings.ai.errorExport'),
       );
     } finally {
       setIsExportingAi(false);
@@ -336,12 +445,12 @@ export default function SettingsPage() {
       const msg = err instanceof Error ? err.message : '';
       setImportAiMsg(
         msg.includes('Password is required') ? t('settings.ai.errorPasswordRequired') :
-        msg.includes('Invalid config file format') ? t('settings.ai.errorFileFormat') :
-        msg.includes('Invalid config file structure') ? t('settings.ai.errorFileStructure') :
-        msg.includes('Decryption failed') ? t('settings.ai.errorDecryptFailed') :
-        msg.includes('not valid JSON') ? t('settings.ai.errorInvalidJson') :
-        msg.includes('missing required fields') ? t('settings.ai.errorMissingFields') :
-        t('settings.ai.errorImport'),
+          msg.includes('Invalid config file format') ? t('settings.ai.errorFileFormat') :
+            msg.includes('Invalid config file structure') ? t('settings.ai.errorFileStructure') :
+              msg.includes('Decryption failed') ? t('settings.ai.errorDecryptFailed') :
+                msg.includes('not valid JSON') ? t('settings.ai.errorInvalidJson') :
+                  msg.includes('missing required fields') ? t('settings.ai.errorMissingFields') :
+                    t('settings.ai.errorImport'),
       );
     } finally {
       setIsImportingAi(false);
@@ -356,48 +465,45 @@ export default function SettingsPage() {
   }, {} as Record<string, PurificationRule[]>);
 
   return (
-    <div className="flex-1 flex flex-col p-6 max-w-5xl mx-auto w-full">
-      <h1 className="text-3xl font-bold text-text-primary tracking-tight mb-8">{t('settings.title')}</h1>
+    <div className="flex-1 flex flex-col p-4 sm:p-6 max-w-5xl mx-auto w-full">
+      <h1 className="text-2xl sm:text-3xl font-bold text-text-primary tracking-tight mb-6 sm:mb-8">{t('settings.title')}</h1>
 
-      <div className="flex flex-wrap space-x-1 glass p-1 rounded-xl mb-8 w-fit shrink-0 gap-2">
+      <div className="flex space-x-1 glass p-1 rounded-xl mb-8 w-full sm:w-fit shrink-0">
         <button
           onClick={() => setActiveTab('toc')}
-          className={`px-6 py-2.5 rounded-lg text-sm font-medium transition-all ${activeTab === 'toc'
+          className={`flex-1 sm:flex-none px-3 sm:px-6 py-2.5 rounded-lg text-sm font-medium transition-all ${activeTab === 'toc'
             ? 'bg-brand-700 shadow text-white'
             : 'text-text-secondary hover:text-text-primary hover:bg-white/5'
-          }`}
+            }`}
         >
           {t('settings.tocRules')}
         </button>
         <button
           onClick={() => setActiveTab('purification')}
-          className={`px-6 py-2.5 rounded-lg text-sm font-medium transition-all ${activeTab === 'purification'
+          className={`flex-1 sm:flex-none px-3 sm:px-6 py-2.5 rounded-lg text-sm font-medium transition-all ${activeTab === 'purification'
             ? 'bg-brand-700 shadow text-white'
             : 'text-text-secondary hover:text-text-primary hover:bg-white/5'
-          }`}
+            }`}
         >
           {t('settings.purificationRules')}
         </button>
         <button
           onClick={() => setActiveTab('ai')}
-          className={`px-6 py-2.5 rounded-lg text-sm font-medium transition-all ${activeTab === 'ai'
+          className={`flex-1 sm:flex-none px-3 sm:px-6 py-2.5 rounded-lg text-sm font-medium transition-all ${activeTab === 'ai'
             ? 'bg-brand-700 shadow text-white'
             : 'text-text-secondary hover:text-text-primary hover:bg-white/5'
-          }`}
+            }`}
         >
           {t('settings.ai.tab')}
         </button>
       </div>
 
-      <div className="flex-1 glass border border-white/5 shadow-sm rounded-2xl p-6 md:p-8">
+      <div className="flex-1 glass border border-white/5 shadow-sm rounded-2xl p-4 sm:p-6 md:p-8">
         {activeTab === 'toc' && (
           <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
+            <div>
+              <div className="flex items-center justify-between gap-3">
                 <h2 className="text-xl font-semibold text-text-primary">{t('settings.toc.title')}</h2>
-                <p className="text-text-secondary text-sm mt-1">{t('settings.toc.subtitle')}</p>
-              </div>
-              <div className="shrink-0 flex items-center gap-3">
                 <input
                   type="file"
                   ref={tocInputRef}
@@ -405,28 +511,29 @@ export default function SettingsPage() {
                   accept=".yaml,.yml"
                   className="hidden"
                 />
-                <button
-                  onClick={() => tocInputRef.current?.click()}
-                  className="px-4 py-2 border border-white/10 rounded-lg hover:bg-white/5 text-text-primary transition-colors flex items-center gap-2 text-sm"
-                >
-                  <Upload className="w-4 h-4" /> {t('settings.common.import')}
-                </button>
-                <button
-                  onClick={handleExportTocYaml}
-                  className="px-4 py-2 border border-white/10 rounded-lg hover:bg-white/5 text-text-primary transition-colors flex items-center gap-2 text-sm"
-                >
-                  <Download className="w-4 h-4" /> {t('settings.common.export')}
-                </button>
-                <button
-                  onClick={() => {
-                    setEditingTocRule(null);
-                    setIsAddTocOpen(true);
-                  }}
-                  className="px-4 py-2 bg-accent hover:bg-accent-hover text-white rounded-lg transition-colors flex items-center gap-2 text-sm font-medium"
-                >
-                  <Plus className="w-4 h-4" /> {t('settings.toc.addRule')}
-                </button>
+                <ActionOverflowMenu
+                primary={[
+                  {
+                    label: t('settings.toc.addRule'),
+                    icon: <Plus className="w-4 h-4" />,
+                    onClick: () => { setEditingTocRule(null); setIsAddTocOpen(true); },
+                  },
+                ]}
+                overflow={[
+                  {
+                    label: t('settings.common.import'),
+                    icon: <Upload className="w-4 h-4" />,
+                    onClick: () => tocInputRef.current?.click(),
+                  },
+                  {
+                    label: t('settings.common.export'),
+                    icon: <Download className="w-4 h-4" />,
+                    onClick: handleExportTocYaml,
+                  },
+                ]}
+              />
               </div>
+              <p className="text-text-secondary text-sm mt-1">{t('settings.toc.subtitle')}</p>
             </div>
 
             {isTocLoading ? (
@@ -465,12 +572,9 @@ export default function SettingsPage() {
 
         {activeTab === 'purification' && (
           <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
+            <div>
+              <div className="flex items-center justify-between gap-3">
                 <h2 className="text-xl font-semibold text-text-primary">{t('settings.purification.title')}</h2>
-                <p className="text-text-secondary text-sm mt-1">{t('settings.purification.subtitle')}</p>
-              </div>
-              <div className="shrink-0 flex items-center gap-3">
                 <input
                   type="file"
                   ref={fileInputRef}
@@ -478,36 +582,37 @@ export default function SettingsPage() {
                   accept=".yaml,.yml"
                   className="hidden"
                 />
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="px-4 py-2 border border-white/10 rounded-lg hover:bg-white/5 text-text-primary transition-colors flex items-center gap-2 text-sm"
-                >
-                  <Upload className="w-4 h-4" /> {t('settings.common.import')}
-                </button>
-                <button
-                  onClick={handleExportPurificationYaml}
-                  className="px-4 py-2 border border-white/10 rounded-lg hover:bg-white/5 text-text-primary transition-colors flex items-center gap-2 text-sm"
-                >
-                  <Download className="w-4 h-4" /> {t('settings.common.export')}
-                </button>
-                <button
-                  onClick={() => {
-                    setEditingPurificationRule(null);
-                    setIsAddPurificationOpen(true);
-                  }}
-                  className="px-4 py-2 bg-accent hover:bg-accent-hover text-white rounded-lg transition-colors flex items-center gap-2 text-sm font-medium"
-                >
-                  <Plus className="w-4 h-4" /> {t('settings.purification.addRule')}
-                </button>
-                {purificationRules.length > 0 && (
-                  <button
-                    onClick={() => setIsClearPurificationModalOpen(true)}
-                    className="px-4 py-2 border border-red-500/30 hover:bg-red-500/10 text-red-400 rounded-lg transition-colors flex items-center gap-2 text-sm"
-                  >
-                    <Trash2 className="w-4 h-4" /> {t('settings.purification.clearAll')}
-                  </button>
-                )}
+                <ActionOverflowMenu
+                  primary={[
+                    {
+                      label: t('settings.purification.addRule'),
+                      icon: <Plus className="w-4 h-4" />,
+                      onClick: () => { setEditingPurificationRule(null); setIsAddPurificationOpen(true); },
+                    },
+                  ]}
+                  overflow={[
+                    {
+                      label: t('settings.common.import'),
+                      icon: <Upload className="w-4 h-4" />,
+                      onClick: () => fileInputRef.current?.click(),
+                    },
+                    {
+                      label: t('settings.common.export'),
+                      icon: <Download className="w-4 h-4" />,
+                      onClick: handleExportPurificationYaml,
+                    },
+                    ...(purificationRules.length > 0
+                      ? [{
+                          label: t('settings.purification.clearAll'),
+                          icon: <Trash2 className="w-4 h-4" />,
+                          onClick: () => setIsClearPurificationModalOpen(true),
+                          variant: 'danger' as const,
+                        }]
+                      : []),
+                  ]}
+                />
               </div>
+              <p className="text-text-secondary text-sm mt-1">{t('settings.purification.subtitle')}</p>
             </div>
 
             {isPurificationLoading ? (
@@ -555,12 +660,9 @@ export default function SettingsPage() {
 
         {activeTab === 'ai' && (
           <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
+            <div>
+              <div className="flex items-center justify-between gap-3">
                 <h2 className="text-xl font-semibold text-text-primary">{t('settings.ai.title')}</h2>
-                <p className="text-sm text-text-secondary mt-1">{t('settings.ai.subtitle')}</p>
-              </div>
-              <div className="shrink-0 flex items-center gap-3">
                 <input
                   type="file"
                   ref={aiFileRef}
@@ -568,21 +670,23 @@ export default function SettingsPage() {
                   accept=".enc,.json"
                   className="hidden"
                 />
-                <button
-                  onClick={() => aiFileRef.current?.click()}
-                  className="px-4 py-2 border border-white/10 rounded-lg hover:bg-white/5 text-text-primary transition-colors flex items-center gap-2 text-sm"
-                >
-                  <Upload className="w-4 h-4" /> {t('settings.common.import')}
-                </button>
-                <button
-                  onClick={() => { setExportPassword(''); setExportAiMsg(null); setIsExportAiOpen(true); }}
-                  disabled={!aiSettings?.hasApiKey}
-                  className="px-4 py-2 border border-white/10 rounded-lg hover:bg-white/5 text-text-primary transition-colors flex items-center gap-2 text-sm disabled:opacity-40"
-                  title={!aiSettings?.hasApiKey ? t('settings.ai.apiTokenPlaceholderEmpty') : ''}
-                >
-                  <Download className="w-4 h-4" /> {t('settings.common.export')}
-                </button>
+                <ActionOverflowMenu
+                  primary={[]}
+                  overflow={[
+                    {
+                      label: t('settings.common.import'),
+                      icon: <Upload className="w-4 h-4" />,
+                      onClick: () => aiFileRef.current?.click(),
+                    },
+                    {
+                      label: t('settings.common.export'),
+                      icon: <Download className="w-4 h-4" />,
+                      onClick: () => { setExportPassword(''); setExportAiMsg(null); setIsExportAiOpen(true); },
+                    },
+                  ]}
+                />
               </div>
+              <p className="text-sm text-text-secondary mt-1">{t('settings.ai.subtitle')}</p>
             </div>
 
             {isAiLoading ? (

@@ -81,10 +81,10 @@ export default function ReaderToolbar({
     step: number;
     onChange: (v: number) => void;
   }> = [
-    { key: 'fontSize', icon: Type, label: t('reader.fontSize'), value: fontSize, display: `${fontSize}px`, min: 14, max: 32, step: 1, onChange: setFontSize },
-    { key: 'lineSpacing', icon: AlignJustify, label: t('reader.lineSpacing'), value: lineSpacing, display: lineSpacing.toFixed(1), min: 1.0, max: 3.0, step: 0.1, onChange: setLineSpacing },
-    { key: 'paragraphSpacing', icon: AlignVerticalSpaceAround, label: t('reader.paragraphSpacing'), value: paragraphSpacing, display: `${paragraphSpacing}px`, min: 0, max: 32, step: 2, onChange: setParagraphSpacing },
-  ];
+      { key: 'fontSize', icon: Type, label: t('reader.fontSize'), value: fontSize, display: `${fontSize}px`, min: 14, max: 32, step: 1, onChange: setFontSize },
+      { key: 'lineSpacing', icon: AlignJustify, label: t('reader.lineSpacing'), value: lineSpacing, display: lineSpacing.toFixed(1), min: 1.0, max: 3.0, step: 0.1, onChange: setLineSpacing },
+      { key: 'paragraphSpacing', icon: AlignVerticalSpaceAround, label: t('reader.paragraphSpacing'), value: paragraphSpacing, display: `${paragraphSpacing}px`, min: 0, max: 32, step: 2, onChange: setParagraphSpacing },
+    ];
 
   return (
     <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-bg-secondary/90 dark:bg-brand-800/90 backdrop-blur-xl rounded-full px-6 py-3 flex items-center gap-4 shadow-2xl border border-border-color z-40 transition-all hover:bg-bg-secondary dark:hover:bg-brand-800">

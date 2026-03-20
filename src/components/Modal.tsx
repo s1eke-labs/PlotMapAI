@@ -27,7 +27,7 @@ export default function Modal({ isOpen, onClose, title, children, className }: M
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 opacity-100 transition-opacity">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 opacity-100 transition-opacity">
       {/* Backdrop */}
       <div 
         className="absolute inset-0 bg-brand-900/80 backdrop-blur-sm"
@@ -36,7 +36,7 @@ export default function Modal({ isOpen, onClose, title, children, className }: M
 
       {/* Modal panel */}
       <div className={cn(
-        "relative w-full max-w-2xl transform rounded-2xl glass p-6 text-left shadow-2xl transition-all flex flex-col max-h-[90vh]",
+        "relative w-[calc(100%-1rem)] sm:w-full max-w-2xl transform rounded-2xl glass p-4 sm:p-6 text-left shadow-2xl transition-all flex flex-col max-h-[90vh]",
         className
       )}>
         <div className="flex items-center justify-between mb-5 shrink-0">
