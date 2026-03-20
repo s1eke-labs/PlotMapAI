@@ -189,10 +189,22 @@ export default function ReaderToolbar({
       </div>
 
       <div className="flex items-center gap-2 border-r border-border-color/50 pr-3 sm:pr-5">
+        {/* Mobile: single toggle button */}
+        <button
+          onClick={() => setIsTwoColumn(!isTwoColumn)}
+          className={cn(
+            "p-2 rounded-full transition-colors sm:hidden",
+            isTwoColumn ? "bg-accent text-white shadow-sm" : "text-text-secondary hover:text-text-primary hover:bg-muted-bg"
+          )}
+          title={isTwoColumn ? t('reader.singleColumn') : t('reader.twoColumn')}
+        >
+          {isTwoColumn ? <Columns2 className="w-5 h-5" /> : <AlignJustify className="w-5 h-5" />}
+        </button>
+        {/* Desktop: two separate buttons */}
         <button
           onClick={() => setIsTwoColumn(false)}
           className={cn(
-            "p-2 rounded-full transition-colors",
+            "p-2 rounded-full transition-colors hidden sm:block",
             !isTwoColumn ? "bg-accent text-white shadow-sm" : "text-text-secondary hover:text-text-primary hover:bg-muted-bg"
           )}
           title={t('reader.singleColumn')}
@@ -202,7 +214,7 @@ export default function ReaderToolbar({
         <button
           onClick={() => setIsTwoColumn(true)}
           className={cn(
-            "p-2 rounded-full transition-colors hidden md:block",
+            "p-2 rounded-full transition-colors hidden sm:block",
             isTwoColumn ? "bg-accent text-white shadow-sm" : "text-text-secondary hover:text-text-primary hover:bg-muted-bg"
           )}
           title={t('reader.twoColumn')}

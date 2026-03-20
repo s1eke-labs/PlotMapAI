@@ -171,7 +171,6 @@ export default function ReaderPage() {
     const saved = localStorage.getItem('readerParagraphSpacing');
     return saved ? Number(saved) : 16;
   });
-  const [isWideScreen, setIsWideScreen] = useState<boolean>(() => window.matchMedia('(min-width: 768px)').matches);
   const [pageIndex, setPageIndex] = useState(0);
   const [pageCount, setPageCount] = useState(1);
   const [pagedViewportSize, setPagedViewportSize] = useState({ width: 0, height: 0 });
@@ -199,7 +198,7 @@ export default function ReaderPage() {
   const hasBodyHeading = firstHeadingIndex !== -1
     && currentChapter
     && chapterParagraphs[firstHeadingIndex].trim() === currentChapter.title.trim();
-  const isPagedMode = isTwoColumn && viewMode === 'original' && isWideScreen;
+  const isPagedMode = isTwoColumn && viewMode === 'original';
   const HEADER_BG_MAP: Record<string, string> = {
     auto: 'bg-bg-primary',
     paper: 'bg-white',
@@ -211,9 +210,16 @@ export default function ReaderPage() {
   const toolbarHasPrev = isPagedMode ? pageIndex > 0 || Boolean(currentChapter?.hasPrev) : Boolean(currentChapter?.hasPrev);
   const toolbarHasNext = isPagedMode ? pageIndex < pageCount - 1 || Boolean(currentChapter?.hasNext) : Boolean(currentChapter?.hasNext);
   const twoColumnWidth = pagedViewportSize.width
-    ? Math.max((pagedViewportSize.width - TWO_COLUMN_GAP) / 2, MIN_COLUMN_WIDTH)
+    ? (pagedViewportSize.width >= 2 * MIN_COLUMN_WIDTH + TWO_COLUMN_GAP
+      ? Math.max((pagedViewportSize.width - TWO_COLUMN_GAP) / 2, MIN_COLUMN_WIDTH)
+      : pagedViewportSize.width)
     : undefined;
-  const pageTurnStep = pagedViewportSize.width ? pagedViewportSize.width + TWO_COLUMN_GAP : 0;
+  const fitsTwoColumns = twoColumnWidth
+    ? pagedViewportSize.width >= 2 * twoColumnWidth + TWO_COLUMN_GAP
+    : false;
+  const pageTurnStep = pagedViewportSize.width
+    ? pagedViewportSize.width + (fitsTwoColumns ? TWO_COLUMN_GAP : 0)
+    : 0;
 
   const persistReaderState = useCallback((nextState: StoredReaderState) => {
     const mergedState: StoredReaderState = {
@@ -322,18 +328,6 @@ export default function ReaderPage() {
 
     persistReaderState({ chapterIndex, viewMode, isTwoColumn });
   }, [chapterIndex, hasHydratedReaderState, isTwoColumn, novelId, persistReaderState, viewMode]);
-
-  useEffect(() => {
-    const mediaQuery = window.matchMedia('(min-width: 768px)');
-    const handleMediaChange = (event: MediaQueryListEvent) => setIsWideScreen(event.matches);
-
-    setIsWideScreen(mediaQuery.matches);
-    mediaQuery.addEventListener('change', handleMediaChange);
-
-    return () => {
-      mediaQuery.removeEventListener('change', handleMediaChange);
-    };
-  }, []);
 
   useEffect(() => {
     if (!novelId) return;
@@ -816,10 +810,10 @@ export default function ReaderPage() {
                     style={{
                       fontSize: `${fontSize}px`,
                       lineHeight: String(lineSpacing),
-                      columnGap: `${TWO_COLUMN_GAP}px`,
+                      columnGap: fitsTwoColumns ? `${TWO_COLUMN_GAP}px` : '0px',
                       columnWidth: twoColumnWidth ? `${twoColumnWidth}px` : undefined,
                       columnFill: 'auto',
-                      columnRule: '1px solid var(--border-color)',
+                      columnRule: fitsTwoColumns ? '1px solid var(--border-color)' : undefined,
                     }}
                   >
                     {chapterParagraphs.map((paragraph, i) => {
