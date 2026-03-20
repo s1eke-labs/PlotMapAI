@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Bug, ChevronDown, Download, RefreshCw, RotateCcw, Smartphone, Trash2 } from 'lucide-react';
+import { ArrowLeft, Bug, ChevronDown, Download, RefreshCw, RotateCcw, Smartphone, Trash2 } from 'lucide-react';
 import {
   debugSubscribe,
   getRecentLogs,
@@ -100,6 +100,13 @@ export default function DebugPanel() {
         </div>
       </div>
       <div className="grid grid-cols-2 gap-2 border-b border-border-color/50 p-2">
+        <button
+          onClick={() => window.history.back()}
+          className="flex items-center justify-center gap-2 rounded-lg border border-border-color/50 px-3 py-2 text-xs font-medium text-text-primary transition-colors hover:bg-white/10"
+        >
+          <ArrowLeft className="h-3.5 w-3.5" />
+          Go Back
+        </button>
         <button
           onClick={triggerDebugInstallPrompt}
           className="flex items-center justify-center gap-2 rounded-lg border border-border-color/50 px-3 py-2 text-xs font-medium text-text-primary transition-colors hover:bg-white/10"
