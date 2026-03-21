@@ -1,6 +1,7 @@
 import { db } from './db';
 import type { Novel, Chapter, AnalysisJob, AnalysisChunk, ChapterAnalysis, AnalysisOverview } from './db';
 import { loadAndPurifyChapters } from '../api/reader';
+import { getAiConfig } from '../api/settings';
 import { debugLog } from './debug';
 import {
   buildAnalysisChunks,
@@ -29,15 +30,6 @@ import type {
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
-const AI_CONFIG_STORAGE_KEY = 'plotmapai_ai_config';
-
-interface StoredAiConfig {
-  apiBaseUrl: string;
-  apiKey: string;
-  modelName: string;
-  contextSize: number;
-}
-
 const RUNNING_STATUSES = new Set(['running', 'pausing']);
 const RESUMABLE_STATUSES = new Set(['paused', 'failed']);
 
@@ -56,20 +48,14 @@ class AnalysisJobStateError extends Error {
 
 // ── AI config helpers ─────────────────────────────────────────────────────
 
-function loadRuntimeConfig(): RuntimeAnalysisConfig {
-  const raw = localStorage.getItem(AI_CONFIG_STORAGE_KEY);
-  if (!raw) throw new AnalysisConfigError('请先在设置中完成 AI 接口配置。');
-  let parsed: StoredAiConfig;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    throw new AnalysisConfigError('AI 接口配置格式无效，请重新配置。');
-  }
+async function loadRuntimeConfig(): Promise<RuntimeAnalysisConfig> {
+  const stored = await getAiConfig();
+  if (!stored) throw new AnalysisConfigError('请先在设置中完成 AI 接口配置。');
   const config: RuntimeAnalysisConfig = {
-    apiBaseUrl: normalizeBaseUrl(parsed.apiBaseUrl),
-    apiKey: cleanText(parsed.apiKey),
-    modelName: cleanText(parsed.modelName),
-    contextSize: Number(parsed.contextSize) || 0,
+    apiBaseUrl: normalizeBaseUrl(stored.apiBaseUrl),
+    apiKey: cleanText(stored.apiKey),
+    modelName: cleanText(stored.modelName),
+    contextSize: Number(stored.contextSize) || 0,
   };
   if (!config.apiBaseUrl) throw new AnalysisConfigError('AI 接口地址不能为空。');
   if (!config.apiKey) throw new AnalysisConfigError('AI Token 未配置，请先在设置中保存。');
@@ -574,7 +560,7 @@ function spawnRunner(novelId: number): AbortController {
 async function runAnalysisJob(novelId: number, signal: AbortSignal): Promise<void> {
   try {
     const novel = await loadNovel(novelId);
-    const runtimeConfig = loadRuntimeConfig();
+    const runtimeConfig = await loadRuntimeConfig();
     const chapters = await loadPurifiedChaptersForAnalysis(novelId);
     const chapterMap = new Map<number, Chapter>();
     for (const ch of chapters) chapterMap.set(ch.chapterIndex, ch);
@@ -790,7 +776,7 @@ export async function getAnalysisStatus(novelId: number): Promise<AnalysisStatus
 
 export async function startAnalysis(novelId: number): Promise<AnalysisStatusResponse> {
   await loadNovel(novelId);
-  const runtimeConfig = loadRuntimeConfig();
+  const runtimeConfig = await loadRuntimeConfig();
   const chapters = await loadPurifiedChaptersForAnalysis(novelId);
   const chunks = buildAnalysisChunks(chapters, runtimeConfig.contextSize);
 
@@ -830,7 +816,7 @@ export async function pauseAnalysis(novelId: number): Promise<AnalysisStatusResp
 
 export async function resumeAnalysis(novelId: number): Promise<AnalysisStatusResponse> {
   await loadNovel(novelId);
-  loadRuntimeConfig();
+  await loadRuntimeConfig();
   const chapters = await loadPurifiedChaptersForAnalysis(novelId);
   const totalChapters = chapters.length;
 
@@ -892,7 +878,7 @@ export async function resumeAnalysis(novelId: number): Promise<AnalysisStatusRes
 
 export async function restartAnalysis(novelId: number): Promise<AnalysisStatusResponse> {
   await loadNovel(novelId);
-  const runtimeConfig = loadRuntimeConfig();
+  const runtimeConfig = await loadRuntimeConfig();
   const chapters = await loadPurifiedChaptersForAnalysis(novelId);
   const chunks = buildAnalysisChunks(chapters, runtimeConfig.contextSize);
 
@@ -908,7 +894,7 @@ export async function restartAnalysis(novelId: number): Promise<AnalysisStatusRe
 
 export async function refreshOverview(novelId: number): Promise<AnalysisStatusResponse> {
   await loadNovel(novelId);
-  loadRuntimeConfig();
+  await loadRuntimeConfig();
   const chapters = await loadPurifiedChaptersForAnalysis(novelId);
   const totalChapters = chapters.length;
 
@@ -980,7 +966,7 @@ export async function analyzeSingleChapter(
   novelId: number,
   chapterIndex: number,
 ): Promise<ChapterAnalysisResult | null> {
-  const runtimeConfig = loadRuntimeConfig();
+  const runtimeConfig = await loadRuntimeConfig();
   const novel = await loadNovel(novelId);
   const chapters = await loadPurifiedChaptersForAnalysis(novelId);
   const chapter = chapters.find(ch => ch.chapterIndex === chapterIndex);

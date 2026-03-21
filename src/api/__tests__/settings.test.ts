@@ -1,12 +1,13 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { db } from '../../services/db';
-import { settingsApi } from '../settings';
+import { settingsApi, resetDeviceKeyForTesting } from '../settings';
 
 describe('settingsApi', () => {
   beforeEach(async () => {
     await db.delete();
     await db.open();
     localStorage.clear();
+    resetDeviceKeyForTesting();
   });
 
   describe('TOC rules', () => {
@@ -173,13 +174,13 @@ describe('settingsApi', () => {
   });
 
   describe('AI config export/import', () => {
-    beforeEach(() => {
-      localStorage.setItem('plotmapai_ai_config', JSON.stringify({
+    beforeEach(async () => {
+      await settingsApi.updateAiProviderSettings({
         apiBaseUrl: 'http://localhost:5000',
         apiKey: 'sk-test-secret-key-12345',
         modelName: 'gpt-4',
         contextSize: 32000,
-      }));
+      });
     });
 
     it('exportAiConfig throws without config', async () => {
@@ -202,18 +203,18 @@ describe('settingsApi', () => {
 
     it('export and import round-trip works', async () => {
       const exported = await settingsApi.exportAiConfig('mypassword123');
-      localStorage.removeItem('plotmapai_ai_config');
+      localStorage.clear();
+      resetDeviceKeyForTesting();
 
       const file = new File([exported], 'config.enc', { type: 'application/octet-stream' });
       await settingsApi.importAiConfig(file, 'mypassword123');
 
-      const raw = localStorage.getItem('plotmapai_ai_config');
-      expect(raw).not.toBeNull();
-      const config = JSON.parse(raw!);
-      expect(config.apiBaseUrl).toBe('http://localhost:5000');
-      expect(config.apiKey).toBe('sk-test-secret-key-12345');
-      expect(config.modelName).toBe('gpt-4');
-      expect(config.contextSize).toBe(32000);
+      const settings = await settingsApi.getAiProviderSettings();
+      expect(settings.apiBaseUrl).toBe('http://localhost:5000');
+      expect(settings.hasApiKey).toBe(true);
+      expect(settings.maskedApiKey).toContain('sk-t');
+      expect(settings.modelName).toBe('gpt-4');
+      expect(settings.contextSize).toBe(32000);
     });
 
     it('import fails with wrong password', async () => {

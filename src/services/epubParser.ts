@@ -65,23 +65,297 @@ async function extractChapterImages(
   return { html: doc.documentElement.outerHTML, images };
 }
 
-const NAV_LINE_PATTERN = /^(?:chapter\s+\d+\s*[-–—]\s*\d+|第\s*\d+\s*[章节页]\s*[-–—]?\s*(?:第\s*\d+\s*[页节]?)?|(?:上一[章回页节篇]|下一[章回页节篇]|返回目录|目录|首页|末页|back|next|prev(?:ious)?|home|toc|contents?)(?:\s*[|｜|]\s*(?:上一[章回页节篇]|下一[章回页节篇]|返回目录|目录|首页|末页|back|next|prev(?:ious)?|home|toc|contents?))*)$/iu;
+const NAV_LINE_PATTERN = /^(?:chapter\s+\d+\s*[-–—]\s*\d+|第\s*\d+\s*[章节页]\s*[-–—]?\s*(?:第\s*\d+\s*[页节]?)?|(?:上一[章回页节篇]|下一[章回页节篇]|返回目录|目录|首页|末页|back|next|prev(?:ious)?|home|toc|contents?)(?:\s*[｜|]\s*(?:上一[章回页节篇]|下一[章回页节篇]|返回目录|目录|首页|末页|back|next|prev(?:ious)?|home|toc|contents?))*)$/iu;
 
 const NON_CONTENT_TITLE = /^(?:cover|封面|table\s+of\s+contents?|目录|contents?|copyright|版权|title\s*page|书名页|half\s*title|dedication|献词|acknowledg?ments?|致谢|foreword|序言|preface|前言|about\s+the\s+author|关于作者|colophon|出版信息|imprint)$/iu;
 
 const NON_CONTENT_HREF = /(?:^|\/)(?:cover|toc|title|copyright|dedication|front|back|acknowledg|preface|foreword|colophon|about)[^/]*$/iu;
+const BLOCK_TAG_NAMES = new Set(['script', 'style', 'nav', 'header', 'footer']);
+const STRUCTURAL_TAG_NAMES = new Set(['article', 'br', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li', 'ol', 'p', 'section', 'table', 'td', 'th', 'tr', 'ul']);
 
 function isNonContentPage(title: string, href: string): boolean {
   return NON_CONTENT_TITLE.test(title.trim()) || NON_CONTENT_HREF.test(href);
 }
 
-function htmlToText(html: string): string {
-  const doc = new DOMParser().parseFromString(html, 'text/html');
-  doc.querySelectorAll('script, style, nav, header, footer, [class*="nav"], [class*="Nav"], [id*="nav"], [id*="Nav"]').forEach(el => el.remove());
-  doc.querySelectorAll('p, div, br, li, h1, h2, h3, h4, h5, h6, tr').forEach(el => {
-    el.insertAdjacentText('afterend', '\n');
-  });
-  const text = doc.body.textContent || '';
+function isHtmlWhitespace(char: string): boolean {
+  return char === ' ' || char === '\n' || char === '\r' || char === '\t' || char === '\f';
+}
+
+function isTagNameStartChar(char: string): boolean {
+  const code = char.charCodeAt(0);
+  return (code >= 65 && code <= 90) || (code >= 97 && code <= 122);
+}
+
+function isTagNameChar(char: string): boolean {
+  const code = char.charCodeAt(0);
+  return isTagNameStartChar(char)
+    || (code >= 48 && code <= 57)
+    || char === ':'
+    || char === '_'
+    || char === '-';
+}
+
+function findTagEnd(html: string, start: number): number {
+  let quote: '"' | '\'' | null = null;
+
+  for (let index = start + 1; index < html.length; index++) {
+    const char = html[index];
+
+    if (quote) {
+      if (char === quote) quote = null;
+      continue;
+    }
+
+    if (char === '"' || char === '\'') {
+      quote = char;
+      continue;
+    }
+
+    if (char === '>') return index;
+  }
+
+  return -1;
+}
+
+function hasNavMarker(rawTagContent: string): boolean {
+  let index = 0;
+
+  while (index < rawTagContent.length) {
+    while (index < rawTagContent.length && (isHtmlWhitespace(rawTagContent[index]) || rawTagContent[index] === '/')) {
+      index++;
+    }
+
+    const nameStart = index;
+    if (!isTagNameStartChar(rawTagContent[index] ?? '')) {
+      index++;
+      continue;
+    }
+
+    index++;
+    while (index < rawTagContent.length && isTagNameChar(rawTagContent[index])) {
+      index++;
+    }
+
+    const attributeName = rawTagContent.slice(nameStart, index).toLowerCase();
+    while (index < rawTagContent.length && isHtmlWhitespace(rawTagContent[index])) {
+      index++;
+    }
+
+    if (rawTagContent[index] !== '=') {
+      continue;
+    }
+
+    index++;
+    while (index < rawTagContent.length && isHtmlWhitespace(rawTagContent[index])) {
+      index++;
+    }
+
+    let value = '';
+    const quote = rawTagContent[index];
+
+    if (quote === '"' || quote === '\'') {
+      index++;
+      const valueStart = index;
+      while (index < rawTagContent.length && rawTagContent[index] !== quote) {
+        index++;
+      }
+      value = rawTagContent.slice(valueStart, index);
+      if (index < rawTagContent.length) index++;
+    } else {
+      const valueStart = index;
+      while (
+        index < rawTagContent.length
+        && !isHtmlWhitespace(rawTagContent[index])
+        && rawTagContent[index] !== '/'
+      ) {
+        index++;
+      }
+      value = rawTagContent.slice(valueStart, index);
+    }
+
+    if ((attributeName === 'class' || attributeName === 'id') && value.toLowerCase().includes('nav')) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+interface ParsedHtmlTag {
+  name: string;
+  isClosing: boolean;
+  isSelfClosing: boolean;
+  hasNavMarker: boolean;
+  isSpecial: boolean;
+}
+
+function parseHtmlTag(rawTagContent: string): ParsedHtmlTag | null {
+  let index = 0;
+  while (index < rawTagContent.length && isHtmlWhitespace(rawTagContent[index])) {
+    index++;
+  }
+
+  const marker = rawTagContent[index];
+  if (!marker) return null;
+  if (marker === '!' || marker === '?') {
+    return {
+      name: '',
+      isClosing: false,
+      isSelfClosing: true,
+      hasNavMarker: false,
+      isSpecial: true,
+    };
+  }
+
+  let isClosing = false;
+  if (marker === '/') {
+    isClosing = true;
+    index++;
+    while (index < rawTagContent.length && isHtmlWhitespace(rawTagContent[index])) {
+      index++;
+    }
+  }
+
+  if (!isTagNameStartChar(rawTagContent[index] ?? '')) {
+    return null;
+  }
+
+  const nameStart = index;
+  index++;
+  while (index < rawTagContent.length && isTagNameChar(rawTagContent[index])) {
+    index++;
+  }
+
+  const name = rawTagContent.slice(nameStart, index).toLowerCase();
+  let tail = rawTagContent.length - 1;
+  while (tail >= index && isHtmlWhitespace(rawTagContent[tail])) {
+    tail--;
+  }
+
+  return {
+    name,
+    isClosing,
+    isSelfClosing: !isClosing && rawTagContent[tail] === '/',
+    hasNavMarker: !isClosing && hasNavMarker(rawTagContent.slice(index)),
+    isSpecial: false,
+  };
+}
+
+function skipBlockedElement(html: string, tagEnd: number, tagName: string): number {
+  let depth = 1;
+  let index = tagEnd + 1;
+
+  while (index < html.length) {
+    const nextTagStart = html.indexOf('<', index);
+    if (nextTagStart === -1) return html.length;
+
+    if (html.startsWith('<!--', nextTagStart)) {
+      const commentEnd = html.indexOf('-->', nextTagStart + 4);
+      index = commentEnd === -1 ? html.length : commentEnd + 3;
+      continue;
+    }
+
+    const nextTagEnd = findTagEnd(html, nextTagStart);
+    if (nextTagEnd === -1) return html.length;
+
+    const tag = parseHtmlTag(html.slice(nextTagStart + 1, nextTagEnd));
+    if (tag && !tag.isSpecial && tag.name === tagName) {
+      if (tag.isClosing) {
+        depth--;
+        if (depth === 0) return nextTagEnd + 1;
+      } else if (!tag.isSelfClosing) {
+        depth++;
+      }
+    }
+
+    index = nextTagEnd + 1;
+  }
+
+  return html.length;
+}
+
+function decodeHtmlEntities(input: string): string {
+  const namedEntities: Record<string, string> = {
+    amp: '&',
+    apos: '\'',
+    gt: '>',
+    lt: '<',
+    nbsp: ' ',
+    quot: '"',
+  };
+
+  return input
+    .replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/giu, (match, entity: string) => {
+      if (entity.startsWith('#x')) {
+        const codePoint = Number.parseInt(entity.slice(2), 16);
+        if (Number.isNaN(codePoint) || codePoint < 0 || codePoint > 0x10FFFF) return match;
+        return String.fromCodePoint(codePoint);
+      }
+
+      if (entity.startsWith('#')) {
+        const codePoint = Number.parseInt(entity.slice(1), 10);
+        if (Number.isNaN(codePoint) || codePoint < 0 || codePoint > 0x10FFFF) return match;
+        return String.fromCodePoint(codePoint);
+      }
+
+      return namedEntities[entity.toLowerCase()] ?? match;
+    })
+    .replace(/\u00a0/gu, ' ');
+}
+
+export function htmlToText(html: string): string {
+  const textParts: string[] = [];
+  let index = 0;
+
+  while (index < html.length) {
+    const nextTagStart = html.indexOf('<', index);
+    if (nextTagStart === -1) {
+      textParts.push(html.slice(index));
+      break;
+    }
+
+    textParts.push(html.slice(index, nextTagStart));
+
+    if (html.startsWith('<!--', nextTagStart)) {
+      const commentEnd = html.indexOf('-->', nextTagStart + 4);
+      index = commentEnd === -1 ? html.length : commentEnd + 3;
+      continue;
+    }
+
+    const tagEnd = findTagEnd(html, nextTagStart);
+    if (tagEnd === -1) {
+      textParts.push(html.slice(nextTagStart));
+      break;
+    }
+
+    const tag = parseHtmlTag(html.slice(nextTagStart + 1, tagEnd));
+    if (tag?.isSpecial) {
+      index = tagEnd + 1;
+      continue;
+    }
+
+    if (!tag) {
+      textParts.push(html.slice(nextTagStart, tagEnd + 1));
+      index = tagEnd + 1;
+      continue;
+    }
+
+    if (!tag.isClosing && (BLOCK_TAG_NAMES.has(tag.name) || tag.hasNavMarker)) {
+      index = tag.isSelfClosing ? tagEnd + 1 : skipBlockedElement(html, tagEnd, tag.name);
+      continue;
+    }
+
+    if (STRUCTURAL_TAG_NAMES.has(tag.name) && (tag.name === 'br' || tag.isClosing || tag.isSelfClosing)) {
+      textParts.push('\n');
+    }
+
+    index = tagEnd + 1;
+  }
+
+  const text = decodeHtmlEntities(textParts.join(''))
+    .replace(/\r\n?/gu, '\n')
+    .replace(/[^\S\n]+/gu, ' ')
+    .replace(/ *\n */gu, '\n');
   const lines = text.split('\n');
   const filtered = lines.filter(line => {
     const trimmed = line.trim();
@@ -89,7 +363,7 @@ function htmlToText(html: string): string {
     if (NAV_LINE_PATTERN.test(trimmed)) return false;
     return true;
   });
-  return filtered.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+  return filtered.join('\n').replace(/\n{3,}/gu, '\n\n').trim();
 }
 
 async function fileHash(file: File): Promise<string> {
