@@ -75,7 +75,7 @@ export default function PurificationRuleModal({ isOpen, onClose, onSave, rule }:
     >
       <form onSubmit={handleSubmit} className="space-y-5 py-2 max-h-[70vh] overflow-y-auto custom-scrollbar">
         {/* Basic Info */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-2">
             <label className="text-sm font-medium text-text-primary px-1">{t('settings.purification.ruleName')}</label>
             <input
@@ -134,7 +134,7 @@ export default function PurificationRuleModal({ isOpen, onClose, onSave, rule }:
         </div>
 
         {/* Switches */}
-        <div className="grid grid-cols-2 gap-6 bg-muted-bg/50 p-4 rounded-xl border border-white/5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-muted-bg/50 p-4 rounded-xl border border-white/5">
           <div className="flex items-center justify-between">
             <span className="text-sm text-text-primary">{t('settings.purification.useRegex')}</span>
             <Toggle checked={formData.isRegex || false} onChange={checked => setFormData({ ...formData, isRegex: checked })} />
@@ -171,7 +171,7 @@ export default function PurificationRuleModal({ isOpen, onClose, onSave, rule }:
         </div>
 
         {/* Book Scopes */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-2">
             <label className="text-sm font-medium text-text-primary px-1">{t('settings.purification.bookScope')}</label>
             <input
@@ -195,7 +195,7 @@ export default function PurificationRuleModal({ isOpen, onClose, onSave, rule }:
         </div>
 
         {/* Order & Timeout */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-2">
             <label className="text-sm font-medium text-text-primary px-1">{t('settings.purification.order')}</label>
             <input

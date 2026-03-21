@@ -85,7 +85,7 @@ export default function TocRuleModal({ isOpen, onClose, onSave, rule }: TocRuleM
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-2">
             <label className="text-sm font-medium text-text-primary px-1">{t('settings.toc.priority')}</label>
             <input

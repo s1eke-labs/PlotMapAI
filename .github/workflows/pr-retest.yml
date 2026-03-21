@@ -1,0 +1,82 @@
+name: PR Retest
+
+on:
+  issue_comment:
+    types:
+      - created
+
+permissions:
+  actions: write
+  contents: read
+  issues: write
+  pull-requests: read
+
+jobs:
+  retest:
+    name: Re-run CI and CodeQL
+    if: >-
+      github.event.issue.pull_request &&
+      startsWith(github.event.comment.body, '/retest') &&
+      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Re-run matching workflow runs
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const pull_number = context.payload.issue.number;
+
+            const { data: pullRequest } = await github.rest.pulls.get({
+              owner,
+              repo,
+              pull_number,
+            });
+
+            const workflowIds = ['ci.yml', 'codeql.yml'];
+            const rerunIds = [];
+
+            for (const workflow_id of workflowIds) {
+              const workflowRuns = await github.paginate(github.rest.actions.listWorkflowRuns, {
+                owner,
+                repo,
+                workflow_id,
+                per_page: 100,
+              });
+
+              const matchingRuns = workflowRuns.filter((run) => {
+                return run.head_sha === pullRequest.head.sha;
+              });
+
+              if (matchingRuns.length === 0) {
+                core.warning(`No workflow runs found for ${workflow_id} on ${pullRequest.head.sha}.`);
+                continue;
+              }
+
+              for (const run of matchingRuns) {
+                if (rerunIds.includes(run.id)) {
+                  continue;
+                }
+
+                await github.request('POST /repos/{owner}/{repo}/actions/runs/{run_id}/rerun', {
+                  owner,
+                  repo,
+                  run_id: run.id,
+                });
+
+                rerunIds.push(run.id);
+              }
+            }
+
+            const body = rerunIds.length > 0
+              ? `Requested a re-run for ${rerunIds.length} workflow run(s) on \`${pullRequest.head.sha.slice(0, 7)}\`.`
+              : `No matching workflow runs were found for \`${pullRequest.head.sha.slice(0, 7)}\`.`;
+
+            await github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number: pull_number,
+              body,
+            });

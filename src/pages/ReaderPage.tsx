@@ -171,9 +171,9 @@ export default function ReaderPage() {
     const saved = localStorage.getItem('readerParagraphSpacing');
     return saved ? Number(saved) : 16;
   });
-  const [isWideScreen, setIsWideScreen] = useState<boolean>(() => window.matchMedia('(min-width: 768px)').matches);
   const [pageIndex, setPageIndex] = useState(0);
   const [pageCount, setPageCount] = useState(1);
+  const [isChromeVisible, setIsChromeVisible] = useState(false);
   const [pagedViewportSize, setPagedViewportSize] = useState({ width: 0, height: 0 });
   const [hasHydratedReaderState, setHasHydratedReaderState] = useState(false);
 
@@ -195,13 +195,32 @@ export default function ReaderPage() {
 
   const currentTheme = READER_THEMES[readerTheme] || READER_THEMES.auto;
   const chapterParagraphs = currentChapter?.content.split('\n') ?? [];
-  const isPagedMode = isTwoColumn && viewMode === 'original' && isWideScreen;
+  const firstHeadingIndex = chapterParagraphs.findIndex(p => p.trim().length > 0);
+  const hasBodyHeading = firstHeadingIndex !== -1
+    && currentChapter
+    && chapterParagraphs[firstHeadingIndex].trim() === currentChapter.title.trim();
+  const isPagedMode = isTwoColumn && viewMode === 'original';
+  const HEADER_BG_MAP: Record<string, string> = {
+    auto: 'bg-bg-primary',
+    paper: 'bg-white',
+    parchment: 'bg-[#f4ecd8]',
+    green: 'bg-[#c7edcc]',
+    night: 'bg-[#1a1a1a]',
+  };
+  const headerBg = HEADER_BG_MAP[readerTheme] || HEADER_BG_MAP.auto;
   const toolbarHasPrev = isPagedMode ? pageIndex > 0 || Boolean(currentChapter?.hasPrev) : Boolean(currentChapter?.hasPrev);
   const toolbarHasNext = isPagedMode ? pageIndex < pageCount - 1 || Boolean(currentChapter?.hasNext) : Boolean(currentChapter?.hasNext);
   const twoColumnWidth = pagedViewportSize.width
-    ? Math.max((pagedViewportSize.width - TWO_COLUMN_GAP) / 2, MIN_COLUMN_WIDTH)
+    ? (pagedViewportSize.width >= 2 * MIN_COLUMN_WIDTH + TWO_COLUMN_GAP
+      ? Math.max((pagedViewportSize.width - TWO_COLUMN_GAP) / 2, MIN_COLUMN_WIDTH)
+      : pagedViewportSize.width)
     : undefined;
-  const pageTurnStep = pagedViewportSize.width ? pagedViewportSize.width + TWO_COLUMN_GAP : 0;
+  const fitsTwoColumns = twoColumnWidth
+    ? pagedViewportSize.width >= 2 * twoColumnWidth + TWO_COLUMN_GAP
+    : false;
+  const pageTurnStep = pagedViewportSize.width
+    ? pagedViewportSize.width + (fitsTwoColumns ? TWO_COLUMN_GAP : 0)
+    : 0;
 
   const persistReaderState = useCallback((nextState: StoredReaderState) => {
     const mergedState: StoredReaderState = {
@@ -312,18 +331,6 @@ export default function ReaderPage() {
   }, [chapterIndex, hasHydratedReaderState, isTwoColumn, novelId, persistReaderState, viewMode]);
 
   useEffect(() => {
-    const mediaQuery = window.matchMedia('(min-width: 768px)');
-    const handleMediaChange = (event: MediaQueryListEvent) => setIsWideScreen(event.matches);
-
-    setIsWideScreen(mediaQuery.matches);
-    mediaQuery.addEventListener('change', handleMediaChange);
-
-    return () => {
-      mediaQuery.removeEventListener('change', handleMediaChange);
-    };
-  }, []);
-
-  useEffect(() => {
     if (!novelId) return;
 
     let cancelled = false;
@@ -403,6 +410,7 @@ export default function ReaderPage() {
         setCurrentChapter(data);
         setPageIndex(0);
         setPageCount(1);
+        setIsChromeVisible(false);
         wheelDeltaRef.current = 0;
         pageTurnLockedRef.current = false;
 
@@ -593,7 +601,7 @@ export default function ReaderPage() {
       const content = pagedContentRef.current;
       if (!content || !pageTurnStep) return;
 
-      const nextPageCount = Math.max(1, Math.ceil((content.scrollWidth + TWO_COLUMN_GAP) / pageTurnStep));
+      const nextPageCount = Math.max(1, Math.ceil((content.scrollWidth + (fitsTwoColumns ? TWO_COLUMN_GAP : 0)) / pageTurnStep));
       const targetPage = pageTargetRef.current === 'end'
         ? nextPageCount - 1
         : Math.min(pageIndex, nextPageCount - 1);
@@ -604,7 +612,7 @@ export default function ReaderPage() {
     });
 
     return () => cancelAnimationFrame(frameId);
-  }, [currentChapter, fontSize, lineSpacing, isLoading, isPagedMode, pageIndex, pageTurnStep, pagedViewportSize.height, pagedViewportSize.width]);
+  }, [currentChapter, fitsTwoColumns, fontSize, lineSpacing, isLoading, isPagedMode, pageIndex, pageTurnStep, pagedViewportSize.height, pagedViewportSize.width]);
 
   useLayoutEffect(() => {
     if (!isPagedMode || !pagedViewportRef.current || !pageTurnStep) return;
@@ -627,7 +635,7 @@ export default function ReaderPage() {
     setIsSidebarOpen(false);
   };
 
-  const handleNext = () => {
+  const handleNext = useCallback(() => {
     if (isPagedMode) {
       goToNextPage();
       return;
@@ -636,9 +644,9 @@ export default function ReaderPage() {
     if (currentChapter?.hasNext) {
       goToChapter(chapterIndex + 1, 'start');
     }
-  };
+  }, [isPagedMode, goToNextPage, currentChapter, goToChapter, chapterIndex]);
 
-  const handlePrev = () => {
+  const handlePrev = useCallback(() => {
     if (isPagedMode) {
       goToPrevPage();
       return;
@@ -647,7 +655,7 @@ export default function ReaderPage() {
     if (currentChapter?.hasPrev) {
       goToChapter(chapterIndex - 1, 'start');
     }
-  };
+  }, [isPagedMode, goToPrevPage, currentChapter, goToChapter, chapterIndex]);
 
   const isPagedModeRef = useRef(isPagedMode);
   isPagedModeRef.current = isPagedMode;
@@ -683,6 +691,22 @@ export default function ReaderPage() {
     return () => el.removeEventListener('wheel', handlePagedWheel);
   }, [handlePagedWheel]);
 
+  const handleContentClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isPagedMode) return;
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const ratio = x / rect.width;
+
+    if (ratio < 0.25) {
+      handlePrev();
+    } else if (ratio > 0.75) {
+      handleNext();
+    } else {
+      setIsChromeVisible(prev => !prev);
+    }
+  }, [isPagedMode, handlePrev, handleNext]);
+
   return (
     <div className={cn('flex h-screen w-full overflow-hidden transition-colors duration-300', currentTheme.bg)}>
       <div
@@ -695,7 +719,7 @@ export default function ReaderPage() {
 
       <aside
         className={cn(
-          'flex flex-col transition-all duration-300 ease-in-out overflow-hidden z-20 text-text-primary',
+          'flex flex-col transition-all duration-300 ease-in-out overflow-hidden z-50 text-text-primary',
           currentTheme.sidebarBg,
           'fixed inset-y-0 left-0 md:relative md:translate-x-0 h-full',
           isSidebarOpen
@@ -728,7 +752,10 @@ export default function ReaderPage() {
       </aside>
 
       <main className="flex-1 flex flex-col min-w-0 relative text-text-primary">
-        <header className="h-14 flex items-center justify-between px-4 sm:px-6 shrink-0 border-b border-border-color/20 glass z-10 sticky top-0">
+        <header className={cn(
+          'h-14 flex items-center justify-between px-4 sm:px-6 shrink-0 border-b border-border-color/20 glass z-10 sticky top-0 transition-all duration-300',
+          isPagedMode && !isChromeVisible && '-translate-y-full opacity-0 pointer-events-none',
+        )}>
           <div className="flex items-center gap-3">
             <button
               onClick={toggleSidebar}
@@ -766,7 +793,8 @@ export default function ReaderPage() {
 
         <div
           ref={contentRef}
-          className={cn('flex-1 w-full relative', isPagedMode ? 'overflow-hidden' : 'overflow-y-auto pb-32')}
+          className={cn('flex-1 w-full relative', isPagedMode ? 'overflow-hidden cursor-pointer' : 'overflow-y-auto pb-32')}
+          onClick={handleContentClick}
           onScroll={() => {
             if (isPagedMode || !contentRef.current) return;
           }}
@@ -777,18 +805,18 @@ export default function ReaderPage() {
             </div>
           ) : currentChapter ? (
             isPagedMode ? (
-              <div className={cn('h-full max-w-[1400px] mx-auto w-full px-4 sm:px-8 md:px-12 py-8 flex flex-col', currentTheme.text)}>
-                <div className="flex items-start justify-between gap-4 mb-8 shrink-0">
+              <div className={cn('h-full max-w-[1400px] mx-auto w-full px-4 sm:px-8 md:px-12 flex flex-col', currentTheme.text)}>
+                <div className={cn('flex items-center justify-between gap-4 py-3 mb-4 shrink-0 border-b border-border-color/20', headerBg)}>
                   <h1
                     className={cn(
-                      'text-3xl sm:text-4xl font-bold leading-tight font-serif transition-colors flex-1 min-w-0',
-                      readerTheme === 'auto' ? 'text-text-primary' : '',
+                      'text-sm font-medium truncate transition-colors',
+                      readerTheme === 'auto' ? 'text-text-secondary' : 'opacity-60',
                     )}
                   >
                     {currentChapter.title}
                   </h1>
                   {pageCount > 1 && (
-                    <div className="text-sm font-medium text-text-secondary whitespace-nowrap pt-2">
+                    <div className="text-xs font-medium text-text-secondary whitespace-nowrap">
                       {pageIndex + 1} / {pageCount}
                     </div>
                   )}
@@ -804,14 +832,28 @@ export default function ReaderPage() {
                     style={{
                       fontSize: `${fontSize}px`,
                       lineHeight: String(lineSpacing),
-                      columnGap: `${TWO_COLUMN_GAP}px`,
+                      columnGap: fitsTwoColumns ? `${TWO_COLUMN_GAP}px` : '0px',
                       columnWidth: twoColumnWidth ? `${twoColumnWidth}px` : undefined,
                       columnFill: 'auto',
-                      columnRule: '1px solid var(--border-color)',
+                      columnRule: fitsTwoColumns ? '1px solid var(--border-color)' : undefined,
                     }}
                   >
-                    {chapterParagraphs.map((paragraph, i) => (
-                      paragraph.trim() ? (
+                    {chapterParagraphs.map((paragraph, i) => {
+                      if (!paragraph.trim()) {
+                        return <div key={i} className="break-inside-avoid" style={{ height: paragraphSpacing }} aria-hidden="true" />;
+                      }
+                      if (hasBodyHeading && i === firstHeadingIndex) {
+                        return (
+                          <h2
+                            key={i}
+                            className="text-xl sm:text-2xl font-bold text-center mb-8 mt-2 break-inside-avoid"
+                            style={{ lineHeight: '1.4' }}
+                          >
+                            {paragraph.trim()}
+                          </h2>
+                        );
+                      }
+                      return (
                         <ChapterParagraph
                           key={i}
                           text={paragraph}
@@ -819,23 +861,24 @@ export default function ReaderPage() {
                           marginBottom={paragraphSpacing}
                           className="indent-8 break-inside-avoid"
                         />
-                      ) : (
-                        <div key={i} className="break-inside-avoid" style={{ height: paragraphSpacing }} aria-hidden="true" />
-                      )
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               </div>
             ) : (
-              <div className={cn('px-4 sm:px-8 md:px-12 py-8 max-w-[1200px] mx-auto w-full relative', currentTheme.text)}>
-                <h1
-                  className={cn(
-                    'text-3xl sm:text-4xl font-bold mb-12 text-center leading-tight font-serif pt-8 transition-colors',
-                    readerTheme === 'auto' ? 'text-text-primary' : '',
-                  )}
-                >
-                  {currentChapter.title}
-                </h1>
+              <div className={cn('px-4 sm:px-8 md:px-12 max-w-[1200px] mx-auto w-full relative', currentTheme.text)}>
+                <div className={cn('sticky top-0 z-10 -mx-4 sm:-mx-8 md:-mx-12 px-4 sm:px-8 md:px-12 py-3 border-b border-border-color/20 backdrop-blur-sm', headerBg)}>
+                  <h1
+                    className={cn(
+                      'text-sm font-medium truncate transition-colors',
+                      readerTheme === 'auto' ? 'text-text-secondary' : 'opacity-60',
+                    )}
+                  >
+                    {currentChapter.title}
+                  </h1>
+                </div>
+                <div className="pt-6 pb-32">
 
                 {viewMode === 'summary' ? (
                   <ChapterAnalysisPanel
@@ -855,8 +898,22 @@ export default function ReaderPage() {
                       lineHeight: String(lineSpacing),
                     }}
                   >
-                    {chapterParagraphs.map((paragraph, i) => (
-                      paragraph.trim() ? (
+                    {chapterParagraphs.map((paragraph, i) => {
+                      if (!paragraph.trim()) {
+                        return <div key={i} style={{ height: paragraphSpacing }} aria-hidden="true" />;
+                      }
+                      if (hasBodyHeading && i === firstHeadingIndex) {
+                        return (
+                          <h2
+                            key={i}
+                            className="text-xl sm:text-2xl font-bold text-center mb-8 mt-2"
+                            style={{ lineHeight: '1.4' }}
+                          >
+                            {paragraph.trim()}
+                          </h2>
+                        );
+                      }
+                      return (
                         <ChapterParagraph
                           key={i}
                           text={paragraph}
@@ -864,12 +921,11 @@ export default function ReaderPage() {
                           marginBottom={paragraphSpacing}
                           className="indent-8"
                         />
-                      ) : (
-                        <div key={i} style={{ height: paragraphSpacing }} aria-hidden="true" />
-                      )
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
+                </div>
               </div>
             )
           ) : (
@@ -899,6 +955,7 @@ export default function ReaderPage() {
             navigationMode={isPagedMode ? 'page' : 'chapter'}
             readerTheme={readerTheme}
             setReaderTheme={setReaderTheme}
+            hidden={isPagedMode && !isChromeVisible}
           />
         )}
       </main>
