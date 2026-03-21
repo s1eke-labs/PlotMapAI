@@ -65,7 +65,7 @@ async function extractChapterImages(
   return { html: doc.documentElement.outerHTML, images };
 }
 
-const NAV_LINE_PATTERN = /^(?:chapter\s+\d+\s*[-–—]\s*\d+|第\s*\d+\s*[章节页]\s*[-–—]?\s*(?:第\s*\d+\s*[页节]?)?|(?:上一[章回页节篇]|下一[章回页节篇]|返回目录|目录|首页|末页|back|next|prev(?:ious)?|home|toc|contents?)(?:\s*[|｜|]\s*(?:上一[章回页节篇]|下一[章回页节篇]|返回目录|目录|首页|末页|back|next|prev(?:ious)?|home|toc|contents?))*)$/iu;
+const NAV_LINE_PATTERN = /^(?:chapter\s+\d+\s*[-–—]\s*\d+|第\s*\d+\s*[章节页]\s*[-–—]?\s*(?:第\s*\d+\s*[页节]?)?|(?:上一[章回页节篇]|下一[章回页节篇]|返回目录|目录|首页|末页|back|next|prev(?:ious)?|home|toc|contents?)(?:\s*[｜|]\s*(?:上一[章回页节篇]|下一[章回页节篇]|返回目录|目录|首页|末页|back|next|prev(?:ious)?|home|toc|contents?))*)$/iu;
 
 const NON_CONTENT_TITLE = /^(?:cover|封面|table\s+of\s+contents?|目录|contents?|copyright|版权|title\s*page|书名页|half\s*title|dedication|献词|acknowledg?ments?|致谢|foreword|序言|preface|前言|about\s+the\s+author|关于作者|colophon|出版信息|imprint)$/iu;
 
@@ -76,7 +76,8 @@ function isNonContentPage(title: string, href: string): boolean {
 }
 
 function htmlToText(html: string): string {
-  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const sanitized = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+  const doc = new DOMParser().parseFromString(sanitized, 'text/html');
   doc.querySelectorAll('script, style, nav, header, footer, [class*="nav"], [class*="Nav"], [id*="nav"], [id*="Nav"]').forEach(el => el.remove());
   doc.querySelectorAll('p, div, br, li, h1, h2, h3, h4, h5, h6, tr').forEach(el => {
     el.insertAdjacentText('afterend', '\n');

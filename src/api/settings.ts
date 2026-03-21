@@ -66,15 +66,33 @@ export interface AiProviderSettingsPayload {
 }
 
 const AI_CONFIG_KEY = 'plotmapai_ai_config';
+let apiKeyMemory: string | null = null;
 
 function getAiConfig(): { apiBaseUrl: string; apiKey: string; modelName: string; contextSize: number } | null {
   const raw = localStorage.getItem(AI_CONFIG_KEY);
   if (!raw) return null;
-  try { return JSON.parse(raw); } catch { return null; }
+  try {
+    const stored = JSON.parse(raw);
+    return {
+      apiBaseUrl: stored.apiBaseUrl ?? '',
+      apiKey: apiKeyMemory ?? stored.apiKey ?? '',
+      modelName: stored.modelName ?? '',
+      contextSize: stored.contextSize ?? 32000,
+    };
+  } catch {
+    return null;
+  }
 }
 
 function setAiConfig(config: { apiBaseUrl: string; apiKey: string; modelName: string; contextSize: number }): void {
-  localStorage.setItem(AI_CONFIG_KEY, JSON.stringify(config));
+  apiKeyMemory = config.apiKey || null;
+  const { apiKey: _ignored, ...rest } = config;
+  void _ignored;
+  localStorage.setItem(AI_CONFIG_KEY, JSON.stringify(rest));
+}
+
+export function clearApiKeyMemory(): void {
+  apiKeyMemory = null;
 }
 
 function tocRuleToApi(rule: import('../services/db').TocRule): TocRule {
