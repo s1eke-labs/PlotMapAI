@@ -76,8 +76,8 @@ function isNonContentPage(title: string, href: string): boolean {
 }
 
 function htmlToText(html: string): string {
-  const sanitized = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
-  const doc = new DOMParser().parseFromString(sanitized, 'text/html');
+  const doc = new DOMParser().parseFromString(html, 'text/xml');
+  doc.querySelectorAll('script, style, nav, header, footer, [class*="nav"], [class*="Nav"], [id*="nav"], [id*="Nav"]').forEach(el => el.remove());
   doc.querySelectorAll('script, style, nav, header, footer, [class*="nav"], [class*="Nav"], [id*="nav"], [id*="Nav"]').forEach(el => el.remove());
   doc.querySelectorAll('p, div, br, li, h1, h2, h3, h4, h5, h6, tr').forEach(el => {
     el.insertAdjacentText('afterend', '\n');

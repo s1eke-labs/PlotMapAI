@@ -68,7 +68,7 @@ export interface AiProviderSettingsPayload {
 const AI_CONFIG_KEY = 'plotmapai_ai_config';
 let apiKeyMemory: string | null = null;
 
-function getAiConfig(): { apiBaseUrl: string; apiKey: string; modelName: string; contextSize: number } | null {
+export function getAiConfig(): { apiBaseUrl: string; apiKey: string; modelName: string; contextSize: number } | null {
   const raw = localStorage.getItem(AI_CONFIG_KEY);
   if (!raw) return null;
   try {
