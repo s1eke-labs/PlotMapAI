@@ -62,7 +62,6 @@ export default function ReaderPage() {
   const [currentChapter, setCurrentChapter] = useState<ChapterContent | null>(null);
 
   const [isLoading, setIsLoading] = useState(true);
-  const [fontSize, setFontSize] = useState(18);
   const [isTwoColumn, setIsTwoColumn] = useState<boolean>(() => initialStoredState?.isTwoColumn ?? false);
   const [viewMode, setViewMode] = useState<'original' | 'summary'>(() => initialStoredState?.viewMode ?? 'original');
   const [chapterIndex, setChapterIndex] = useState<number>(() => initialStoredState?.chapterIndex ?? 0);
@@ -365,7 +364,7 @@ export default function ReaderPage() {
       pageTargetRef.current = 'start';
     });
     return () => cancelAnimationFrame(frameId);
-  }, [currentChapter, fitsTwoColumns, fontSize, isLoading, isPagedMode, pageIndex, pageTurnStep, pagedViewportSize.height, pagedViewportSize.width]);
+  }, [currentChapter, fitsTwoColumns, preferences.fontSize, isLoading, isPagedMode, pageIndex, pageTurnStep, pagedViewportSize.height, pagedViewportSize.width]);
 
   // Scroll left sync
   useLayoutEffect(() => {
@@ -571,7 +570,7 @@ export default function ReaderPage() {
 
         {currentChapter && (
           <ReaderToolbar
-            sliders={{ fontSize, setFontSize, lineSpacing: preferences.lineSpacing, setLineSpacing: preferences.setLineSpacing, paragraphSpacing: preferences.paragraphSpacing, setParagraphSpacing: preferences.setParagraphSpacing }}
+            sliders={{ fontSize: preferences.fontSize, setFontSize: preferences.setFontSize, lineSpacing: preferences.lineSpacing, setLineSpacing: preferences.setLineSpacing, paragraphSpacing: preferences.paragraphSpacing, setParagraphSpacing: preferences.setParagraphSpacing }}
             isTwoColumn={isTwoColumn} setIsTwoColumn={handleSetIsTwoColumn}
             hasPrev={toolbarHasPrev} hasNext={toolbarHasNext}
             onPrev={navigation.handlePrev} onNext={navigation.handleNext}

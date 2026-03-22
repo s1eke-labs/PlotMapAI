@@ -10,7 +10,10 @@ const HEADER_BG_MAP: Record<string, string> = {
 };
 
 export function useReaderPreferences() {
-  const [fontSize, setFontSize] = useState(18);
+  const [fontSize, setFontSize] = useState<number>(() => {
+    const saved = localStorage.getItem('readerFontSize');
+    return saved ? Number(saved) : 18;
+  });
   const [readerTheme, setReaderTheme] = useState<string>(() => localStorage.getItem('readerTheme') || 'auto');
   const [lineSpacing, setLineSpacing] = useState<number>(() => {
     const saved = localStorage.getItem('readerLineSpacing');
@@ -20,6 +23,10 @@ export function useReaderPreferences() {
     const saved = localStorage.getItem('readerParagraphSpacing');
     return saved ? Number(saved) : 16;
   });
+
+  useEffect(() => {
+    localStorage.setItem('readerFontSize', String(fontSize));
+  }, [fontSize]);
 
   useEffect(() => {
     localStorage.setItem('readerTheme', readerTheme);
