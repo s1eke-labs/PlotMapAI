@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import ReaderPage from '../ReaderPage';
 import { analysisApi } from '../../api/analysis';
@@ -71,6 +71,33 @@ const completedAnalysis = {
   updatedAt: null,
 };
 
+const originalOffsetHeightDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetHeight');
+const originalClientWidthDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'clientWidth');
+const originalClientHeightDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'clientHeight');
+const originalScrollWidthDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollWidth');
+
+function setPrototypeNumberGetter(
+  property: 'offsetHeight' | 'clientWidth' | 'clientHeight' | 'scrollWidth',
+  value: number,
+) {
+  Object.defineProperty(HTMLElement.prototype, property, {
+    configurable: true,
+    get: () => value,
+  });
+}
+
+function restorePrototypeDescriptor(
+  property: 'offsetHeight' | 'clientWidth' | 'clientHeight' | 'scrollWidth',
+  descriptor: PropertyDescriptor | undefined,
+) {
+  if (descriptor) {
+    Object.defineProperty(HTMLElement.prototype, property, descriptor);
+    return;
+  }
+
+  Reflect.deleteProperty(HTMLElement.prototype, property);
+}
+
 function createJob(overrides: Partial<AnalysisJobStatus> = {}): AnalysisJobStatus {
   return {
     status: 'idle',
@@ -118,6 +145,8 @@ describe('ReaderPage', () => {
       chapterIndex: 0,
       scrollPosition: 0,
       viewMode: 'original',
+      chapterProgress: 0,
+      isTwoColumn: false,
     });
     vi.mocked(readerApi.getChapterContent).mockImplementation(async (_novelId, chapterIndex) => chapterContent[chapterIndex]);
     vi.mocked(readerApi.saveProgress).mockResolvedValue({ message: 'Progress saved' });
@@ -129,6 +158,13 @@ describe('ReaderPage', () => {
     });
     vi.mocked(analysisApi.getChapterAnalysis).mockResolvedValue({ analysis: null });
     vi.mocked(analysisApi.analyzeChapter).mockResolvedValue({ analysis: completedAnalysis });
+  });
+
+  afterEach(() => {
+    restorePrototypeDescriptor('offsetHeight', originalOffsetHeightDescriptor);
+    restorePrototypeDescriptor('clientWidth', originalClientWidthDescriptor);
+    restorePrototypeDescriptor('clientHeight', originalClientHeightDescriptor);
+    restorePrototypeDescriptor('scrollWidth', originalScrollWidthDescriptor);
   });
 
   it('restores the stored chapter and summary view from reader state', async () => {
@@ -144,7 +180,11 @@ describe('ReaderPage', () => {
     expect(await screen.findByText('Summary for chapter 2')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Chapter 2', level: 3 })).toBeInTheDocument();
     expect(readerApi.getChapterContent).toHaveBeenCalledWith(1, 1);
-    expect(readerApi.saveProgress).toHaveBeenCalledWith(1, { chapterIndex: 1, viewMode: 'summary' });
+    expect(JSON.parse(localStorage.getItem('reader-state:1')!)).toMatchObject({
+      chapterIndex: 1,
+      viewMode: 'summary',
+      isTwoColumn: false,
+    });
   });
 
   it('loads the selected chapter and persists progress when a chapter is chosen', async () => {
@@ -158,7 +198,12 @@ describe('ReaderPage', () => {
       expect(readerApi.getChapterContent).toHaveBeenLastCalledWith(1, 1);
     });
     expect(await screen.findByRole('heading', { name: 'Chapter 2', level: 1 })).toBeInTheDocument();
-    expect(readerApi.saveProgress).toHaveBeenLastCalledWith(1, { chapterIndex: 1, viewMode: 'original' });
+    expect(JSON.parse(localStorage.getItem('reader-state:1')!)).toEqual({
+      chapterIndex: 1,
+      viewMode: 'original',
+      isTwoColumn: false,
+      chapterProgress: 0,
+    });
   });
 
   it('switches to summary view and shows queued analysis state when chapter analysis is missing', async () => {
@@ -197,8 +242,66 @@ describe('ReaderPage', () => {
 
     expect(await screen.findByText('reader.analysisPanel.statusQueued')).toBeInTheDocument();
     expect(screen.getByText('reader.analysisPanel.progressTitle')).toBeInTheDocument();
+    expect(JSON.parse(localStorage.getItem('reader-state:1')!)).toMatchObject({
+      chapterIndex: 0,
+      viewMode: 'summary',
+      isTwoColumn: false,
+    });
+  });
+
+  it('restores legacy scrollPosition in scroll mode', async () => {
+    setPrototypeNumberGetter('offsetHeight', 400);
+    localStorage.setItem('reader-state:1', JSON.stringify({
+      chapterIndex: 0,
+      viewMode: 'original',
+      isTwoColumn: false,
+      scrollPosition: 240,
+    }));
+
+    const { container } = renderPage();
+
+    expect(await screen.findByRole('heading', { name: 'Chapter 1', level: 1 })).toBeInTheDocument();
+    const readerContainer = container.querySelector('main .overflow-y-auto.hide-scrollbar') as HTMLDivElement | null;
+    expect(readerContainer).not.toBeNull();
+
     await waitFor(() => {
-      expect(readerApi.saveProgress).toHaveBeenLastCalledWith(1, { chapterIndex: 0, viewMode: 'summary' });
+      expect(readerContainer?.scrollTop).toBe(240);
+    });
+  });
+
+  it('restores paged progress from chapterProgress', async () => {
+    setPrototypeNumberGetter('clientWidth', 600);
+    setPrototypeNumberGetter('clientHeight', 800);
+    setPrototypeNumberGetter('scrollWidth', 1500);
+    localStorage.setItem('reader-state:1', JSON.stringify({
+      chapterIndex: 0,
+      viewMode: 'original',
+      isTwoColumn: true,
+      chapterProgress: 0.5,
+    }));
+
+    renderPage();
+
+    expect(await screen.findByRole('heading', { name: 'Chapter 1', level: 2 })).toBeInTheDocument();
+    expect(await screen.findByText('2 / 3')).toBeInTheDocument();
+  });
+
+  it('flushes the latest reading state on pagehide', async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    expect(await screen.findByRole('heading', { name: 'Chapter 1', level: 1 })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /Chapter 2/ }));
+
+    window.dispatchEvent(new Event('pagehide'));
+
+    await waitFor(() => {
+      expect(readerApi.saveProgress).toHaveBeenCalledWith(1, expect.objectContaining({
+        chapterIndex: 1,
+        viewMode: 'original',
+        chapterProgress: 0,
+        isTwoColumn: false,
+      }));
     });
   });
 

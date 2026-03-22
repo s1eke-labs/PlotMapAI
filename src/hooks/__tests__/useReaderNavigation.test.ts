@@ -34,6 +34,8 @@ function setupHook(overrides: {
   const persistReaderState = vi.fn();
   const pageTargetRef = { current: 'start' as PageTarget };
   const hasUserInteractedRef = { current: false };
+  const chapterChangeSourceRef = { current: null as 'navigation' | 'scroll' | 'restore' | null };
+  const beforeChapterChange = vi.fn();
 
   const chapterIndex = overrides.chapterIndex ?? 0;
   const currentChapter = overrides.chapter !== undefined ? overrides.chapter : makeChapter();
@@ -56,6 +58,8 @@ function setupHook(overrides: {
       chapters,
       scrollModeChapters,
       hasUserInteractedRef,
+      chapterChangeSourceRef,
+      beforeChapterChange,
     )
   );
 
@@ -66,23 +70,35 @@ function setupHook(overrides: {
     persistReaderState,
     pageTargetRef,
     hasUserInteractedRef,
+    chapterChangeSourceRef,
+    beforeChapterChange,
   };
 }
 
 describe('useReaderNavigation', () => {
   describe('goToChapter', () => {
     it('sets chapter index and persists state', () => {
-      const { result, setChapterIndex, persistReaderState, hasUserInteractedRef } = setupHook();
+      const {
+        result,
+        setChapterIndex,
+        persistReaderState,
+        hasUserInteractedRef,
+        chapterChangeSourceRef,
+        beforeChapterChange,
+      } = setupHook();
       result.current.goToChapter(2);
+      expect(beforeChapterChange).toHaveBeenCalled();
       expect(hasUserInteractedRef.current).toBe(true);
+      expect(chapterChangeSourceRef.current).toBe('navigation');
       expect(setChapterIndex).toHaveBeenCalledWith(2);
-      expect(persistReaderState).toHaveBeenCalledWith({ chapterIndex: 2 });
+      expect(persistReaderState).toHaveBeenCalledWith({ chapterIndex: 2, chapterProgress: 0 });
     });
 
     it('sets pageTargetRef', () => {
-      const { result, pageTargetRef } = setupHook();
+      const { result, pageTargetRef, persistReaderState } = setupHook();
       result.current.goToChapter(1, 'end');
       expect(pageTargetRef.current).toBe('end');
+      expect(persistReaderState).toHaveBeenCalledWith({ chapterIndex: 1, chapterProgress: 1 });
     });
   });
 
@@ -226,16 +242,17 @@ describe('useReaderNavigation', () => {
     it('toolbarHasPrev in scroll mode uses scrollModeChapters[0] > 0', () => {
       const { result } = setupHook({
         isPagedMode: false,
+        chapterIndex: 1,
         scrollModeChapters: [1, 2],
       });
       expect(result.current.toolbarHasPrev).toBe(true);
     });
 
-    it('toolbarHasPrev in scroll mode falls back to hasPrev when no scroll chapters', () => {
+    it('toolbarHasPrev in scroll mode follows the active chapter index when no scroll chapters', () => {
       const { result } = setupHook({
         isPagedMode: false,
+        chapterIndex: 1,
         scrollModeChapters: [],
-        chapter: makeChapter({ hasPrev: true }),
       });
       expect(result.current.toolbarHasPrev).toBe(true);
     });
@@ -251,6 +268,7 @@ describe('useReaderNavigation', () => {
     it('toolbarHasNext in scroll mode is false when all chapters loaded', () => {
       const { result } = setupHook({
         isPagedMode: false,
+        chapterIndex: 2,
         scrollModeChapters: [0, 1, 2],
       });
       expect(result.current.toolbarHasNext).toBe(false);

@@ -10,7 +10,8 @@ import ChapterParagraph from '../components/ChapterParagraph';
 import ReaderToolbar from '../components/ReaderToolbar';
 import { cn } from '../utils/cn';
 import { useReaderPreferences } from '../hooks/useReaderPreferences';
-import type { PageTarget } from '../hooks/useReaderStatePersistence';
+import { useReaderStatePersistence } from '../hooks/useReaderStatePersistence';
+import type { PageTarget, StoredReaderState } from '../hooks/useReaderStatePersistence';
 import { useSidebarDrag } from '../hooks/useSidebarDrag';
 import { useChapterAnalysis } from '../hooks/useChapterAnalysis';
 import { useReaderNavigation } from '../hooks/useReaderNavigation';
@@ -21,40 +22,41 @@ import { useContentClick } from '../hooks/useContentClick';
 const TWO_COLUMN_GAP = 48;
 const MIN_COLUMN_WIDTH = 260;
 
-type StoredReaderState = {
-  chapterIndex?: number;
-  viewMode?: 'original' | 'summary';
-  isTwoColumn?: boolean;
-};
+type ChapterChangeSource = 'navigation' | 'scroll' | 'restore' | null;
 
-function getReaderStateKey(novelId: number) {
-  return `reader-state:${novelId}`;
+function clampProgress(value: number | undefined): number {
+  if (typeof value !== 'number' || Number.isNaN(value)) return 0;
+  return Math.max(0, Math.min(1, value));
 }
 
-function readStoredReaderState(novelId: number): StoredReaderState | null {
-  if (!novelId) return null;
-  try {
-    const raw = localStorage.getItem(getReaderStateKey(novelId));
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as StoredReaderState;
-    return {
-      chapterIndex: typeof parsed.chapterIndex === 'number' ? parsed.chapterIndex : undefined,
-      viewMode: parsed.viewMode === 'summary' || parsed.viewMode === 'original' ? parsed.viewMode : undefined,
-      isTwoColumn: typeof parsed.isTwoColumn === 'boolean' ? parsed.isTwoColumn : undefined,
-    };
-  } catch { return null; }
+function getContainerProgress(element: HTMLDivElement | null): number {
+  if (!element) return 0;
+
+  const maxScroll = element.scrollHeight - element.clientHeight;
+  if (maxScroll <= 0) return 0;
+
+  return clampProgress(element.scrollTop / maxScroll);
 }
 
-function writeStoredReaderState(novelId: number, state: StoredReaderState) {
-  if (!novelId) return;
-  localStorage.setItem(getReaderStateKey(novelId), JSON.stringify(state));
+function getPageIndexFromProgress(progress: number | undefined, totalPages: number): number {
+  if (totalPages <= 1) return 0;
+  return Math.max(0, Math.min(totalPages - 1, Math.round(clampProgress(progress) * (totalPages - 1))));
 }
 
 export default function ReaderPage() {
   const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const novelId = Number(id);
-  const initialStoredState = readStoredReaderState(novelId);
+  const {
+    hasHydratedReaderState,
+    setHasHydratedReaderState,
+    latestReaderStateRef,
+    hasUserInteractedRef,
+    markUserInteracted,
+    persistReaderState,
+    loadPersistedReaderState,
+    initialStoredState,
+  } = useReaderStatePersistence(novelId);
 
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [currentChapter, setCurrentChapter] = useState<ChapterContent | null>(null);
@@ -67,7 +69,7 @@ export default function ReaderPage() {
   const [pageCount, setPageCount] = useState(1);
   const [scrollModeChapters, setScrollModeChapters] = useState<number[]>([]);
   const [pagedViewportSize, setPagedViewportSize] = useState({ width: 0, height: 0 });
-  const [hasHydratedReaderState, setHasHydratedReaderState] = useState(false);
+  const [sidebarOpenSignal, setSidebarOpenSignal] = useState(0);
 
   const contentRef = useRef<HTMLDivElement>(null);
   const pagedViewportRef = useRef<HTMLDivElement>(null);
@@ -75,80 +77,44 @@ export default function ReaderPage() {
   const pageTargetRef = useRef<PageTarget>('start');
   const wheelDeltaRef = useRef(0);
   const pageTurnLockedRef = useRef(false);
-  const latestReaderStateRef = useRef<StoredReaderState>({
-    chapterIndex: initialStoredState?.chapterIndex ?? 0,
-    viewMode: initialStoredState?.viewMode ?? 'original',
-    isTwoColumn: initialStoredState?.isTwoColumn ?? false,
-  });
-  const hasUserInteractedRef = useRef(false);
   const chapterCacheRef = useRef<Map<number, ChapterContent>>(new Map());
+  const chapterChangeSourceRef = useRef<ChapterChangeSource>(null);
+  const pendingRestoreStateRef = useRef<StoredReaderState | null>(null);
+  const summaryProgressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Use extracted hooks
   const preferences = useReaderPreferences();
   const sidebar = useSidebarDrag();
-  const scrollMode = useScrollModeChapters(
-    contentRef, isTwoColumn && viewMode === 'original', viewMode,
-    chapters, chapterCacheRef,
-    async (idx: number) => {
-      const cached = chapterCacheRef.current.get(idx);
-      if (cached) return cached;
-      const data = await readerApi.getChapterContent(novelId, idx);
-      chapterCacheRef.current.set(idx, data);
-      return data;
-    },
-    (idx: number, prune = true) => {
-      const toPreload: number[] = [];
-      for (let offset = -3; offset <= 3; offset++) {
-        if (offset === 0) continue;
-        const adj = idx + offset;
-        if (adj < 0 || adj >= chapters.length) continue;
-        if (chapterCacheRef.current.has(adj)) continue;
-        toPreload.push(adj);
-      }
-      let delay = 50;
-      for (const adjIdx of toPreload) {
-        window.setTimeout(() => {
-          if (chapterCacheRef.current.has(adjIdx)) return;
-          readerApi.getChapterContent(novelId, adjIdx).then(d => chapterCacheRef.current.set(adjIdx, d)).catch(() => {});
-        }, delay);
-        delay += 80;
-      }
-      if (prune) {
-        for (const key of chapterCacheRef.current.keys()) {
-          if (Math.abs(key - idx) > 3) chapterCacheRef.current.delete(key);
-        }
-      }
-    },
-    scrollModeChapters,
-    setScrollModeChapters,
-  );
 
   const isPagedMode = isTwoColumn && viewMode === 'original';
-  const chapterParagraphs = currentChapter?.content.split('\n') ?? [];
-  const firstNonEmptyIndex = chapterParagraphs.findIndex(p => p.trim().length > 0);
-  const skipLineIndex = firstNonEmptyIndex !== -1 && currentChapter && chapterParagraphs[firstNonEmptyIndex].trim() === currentChapter.title.trim() ? firstNonEmptyIndex : -1;
 
-  const persistReaderState = useCallback((nextState: StoredReaderState) => {
-    const mergedState: StoredReaderState = {
-      chapterIndex: nextState.chapterIndex ?? latestReaderStateRef.current.chapterIndex ?? 0,
-      viewMode: nextState.viewMode ?? latestReaderStateRef.current.viewMode ?? 'original',
-      isTwoColumn: nextState.isTwoColumn ?? latestReaderStateRef.current.isTwoColumn ?? false,
-    };
-    latestReaderStateRef.current = mergedState;
-    writeStoredReaderState(novelId, mergedState);
+  // Signal ChapterList to scroll when sidebar opens
+  useEffect(() => {
+    if (sidebar.isSidebarOpen) setSidebarOpenSignal(prev => prev + 1);
+  }, [sidebar.isSidebarOpen]);
+
+  const setPendingRestoreState = useCallback((nextState: StoredReaderState | null) => {
+    if (!nextState) {
+      pendingRestoreStateRef.current = null;
+      return;
+    }
+
+    const hasChapterProgress = typeof nextState.chapterProgress === 'number' && nextState.chapterProgress > 0;
+    const hasLegacyScrollPosition = typeof nextState.scrollPosition === 'number' && nextState.scrollPosition > 0;
+    pendingRestoreStateRef.current = hasChapterProgress || hasLegacyScrollPosition ? nextState : null;
+  }, []);
+
+  const clearPendingRestoreState = useCallback(() => {
+    pendingRestoreStateRef.current = null;
+  }, []);
+
+  const fetchChapterContent = useCallback(async (idx: number) => {
+    const cached = chapterCacheRef.current.get(idx);
+    if (cached) return cached;
+    const data = await readerApi.getChapterContent(novelId, idx);
+    chapterCacheRef.current.set(idx, data);
+    return data;
   }, [novelId]);
-
-  const handleSetIsTwoColumn = useCallback((twoColumn: boolean) => {
-    hasUserInteractedRef.current = true;
-    setIsTwoColumn(twoColumn);
-    persistReaderState({ isTwoColumn: twoColumn });
-  }, [persistReaderState]);
-
-  const handleSetViewMode = useCallback((nextViewMode: 'original' | 'summary') => {
-    hasUserInteractedRef.current = true;
-    setViewMode(nextViewMode);
-    persistReaderState({ viewMode: nextViewMode });
-  }, [persistReaderState]);
 
   const preloadAdjacent = useCallback((idx: number, prune = true) => {
     const toPreload: number[] = [];
@@ -174,40 +140,159 @@ export default function ReaderPage() {
     }
   }, [novelId, chapters.length]);
 
+  const handleReadingAnchorChange = useCallback((anchor: { chapterIndex: number; chapterProgress: number }) => {
+    if (isPagedMode || viewMode !== 'original') return;
+
+    persistReaderState({
+      chapterIndex: anchor.chapterIndex,
+      chapterProgress: clampProgress(anchor.chapterProgress),
+    });
+
+    if (anchor.chapterIndex === chapterIndex) return;
+    chapterChangeSourceRef.current = 'scroll';
+    setChapterIndex(anchor.chapterIndex);
+  }, [chapterIndex, isPagedMode, persistReaderState, viewMode]);
+
+  const scrollMode = useScrollModeChapters(
+    contentRef, isPagedMode, viewMode,
+    chapters, chapterCacheRef,
+    fetchChapterContent,
+    preloadAdjacent,
+    scrollModeChapters,
+    setScrollModeChapters,
+    handleReadingAnchorChange,
+  );
+  const chapterParagraphs = currentChapter?.content.split('\n') ?? [];
+  const firstNonEmptyIndex = chapterParagraphs.findIndex(p => p.trim().length > 0);
+  const skipLineIndex = firstNonEmptyIndex !== -1 && currentChapter && chapterParagraphs[firstNonEmptyIndex].trim() === currentChapter.title.trim() ? firstNonEmptyIndex : -1;
+
+  const getPagedProgress = useCallback(() => {
+    if (pageCount <= 1) return 0;
+    return clampProgress(pageIndex / (pageCount - 1));
+  }, [pageCount, pageIndex]);
+
+  const captureCurrentReaderPosition = useCallback((options?: { flush?: boolean }): StoredReaderState => {
+    let nextState: StoredReaderState = {
+      chapterIndex,
+      viewMode,
+      isTwoColumn,
+    };
+
+    if (isPagedMode) {
+      nextState.chapterProgress = getPagedProgress();
+    } else if (viewMode === 'summary') {
+      nextState.chapterProgress = getContainerProgress(contentRef.current);
+    } else {
+      const anchor = scrollMode.getCurrentAnchor();
+      if (anchor) {
+        nextState = {
+          ...nextState,
+          chapterIndex: anchor.chapterIndex,
+          chapterProgress: clampProgress(anchor.chapterProgress),
+        };
+      } else if (typeof latestReaderStateRef.current.chapterProgress === 'number') {
+        nextState.chapterProgress = latestReaderStateRef.current.chapterProgress;
+      }
+    }
+
+    persistReaderState(nextState, { flush: options?.flush });
+    return {
+      ...latestReaderStateRef.current,
+      ...nextState,
+    };
+  }, [chapterIndex, getPagedProgress, isPagedMode, isTwoColumn, latestReaderStateRef, persistReaderState, scrollMode, viewMode]);
+
+  const handleSetIsTwoColumn = useCallback((twoColumn: boolean) => {
+    if (twoColumn === isTwoColumn) return;
+
+    const currentReaderState = captureCurrentReaderPosition();
+    markUserInteracted();
+    setPendingRestoreState({
+      ...currentReaderState,
+      isTwoColumn: twoColumn,
+    });
+    setIsTwoColumn(twoColumn);
+    persistReaderState({
+      ...currentReaderState,
+      isTwoColumn: twoColumn,
+    });
+  }, [captureCurrentReaderPosition, isTwoColumn, markUserInteracted, persistReaderState, setPendingRestoreState]);
+
+  const handleSetViewMode = useCallback((nextViewMode: 'original' | 'summary') => {
+    if (nextViewMode === viewMode) return;
+
+    const currentReaderState = captureCurrentReaderPosition();
+    markUserInteracted();
+    setPendingRestoreState({
+      ...currentReaderState,
+      viewMode: nextViewMode,
+    });
+    setViewMode(nextViewMode);
+    persistReaderState({
+      ...currentReaderState,
+      viewMode: nextViewMode,
+    });
+  }, [captureCurrentReaderPosition, markUserInteracted, persistReaderState, setPendingRestoreState, viewMode]);
+
   // Original init effect
   useEffect(() => {
     if (!novelId) return;
     let cancelled = false;
+
     const init = async () => {
       setIsLoading(true);
       setHasHydratedReaderState(false);
       hasUserInteractedRef.current = false;
-      const storedState = readStoredReaderState(novelId);
+      chapterChangeSourceRef.current = null;
+      chapterCacheRef.current.clear();
+      setChapters([]);
+      setCurrentChapter(null);
+      setScrollModeChapters([]);
+      setPageIndex(0);
+      setPageCount(1);
+      clearPendingRestoreState();
+
+      const storedState = await loadPersistedReaderState();
+      if (cancelled) return;
+
       const nextStoredState: StoredReaderState = {
-        chapterIndex: storedState?.chapterIndex ?? 0,
-        viewMode: storedState?.viewMode ?? 'original',
-        isTwoColumn: storedState?.isTwoColumn ?? false,
+        chapterIndex: storedState.chapterIndex ?? 0,
+        viewMode: storedState.viewMode ?? 'original',
+        isTwoColumn: storedState.isTwoColumn ?? false,
+        chapterProgress: storedState.chapterProgress,
+        scrollPosition: storedState.scrollPosition,
       };
+
       latestReaderStateRef.current = nextStoredState;
       setIsTwoColumn(nextStoredState.isTwoColumn ?? false);
       setViewMode(nextStoredState.viewMode ?? 'original');
       setChapterIndex(nextStoredState.chapterIndex ?? 0);
+
       try {
-        const [toc, progress] = await Promise.all([
-          readerApi.getChapters(novelId),
-          readerApi.getProgress(novelId).catch(() => null),
-        ]);
+        const toc = await readerApi.getChapters(novelId);
         if (cancelled) return;
         setChapters(toc);
+
         if (!hasUserInteractedRef.current) {
           const fallbackIndex = toc.length > 0 ? toc[0].index : 0;
-          const nextChapterIndex = storedState?.chapterIndex ?? progress?.chapterIndex ?? fallbackIndex;
-          const nextViewMode = storedState?.viewMode ?? progress?.viewMode ?? 'original';
+          const nextChapterIndex = nextStoredState.chapterIndex ?? fallbackIndex;
+          const nextViewMode = nextStoredState.viewMode ?? 'original';
           const hasChapter = toc.some((chapter) => chapter.index === nextChapterIndex);
           const resolvedChapterIndex = hasChapter ? nextChapterIndex : fallbackIndex;
-          latestReaderStateRef.current = { chapterIndex: resolvedChapterIndex, viewMode: nextViewMode, isTwoColumn: nextStoredState.isTwoColumn };
+
+          const resolvedState: StoredReaderState = {
+            chapterIndex: resolvedChapterIndex,
+            viewMode: nextViewMode,
+            isTwoColumn: nextStoredState.isTwoColumn,
+            chapterProgress: hasChapter ? nextStoredState.chapterProgress : 0,
+            scrollPosition: hasChapter ? nextStoredState.scrollPosition : undefined,
+          };
+
+          latestReaderStateRef.current = resolvedState;
+          setIsTwoColumn(resolvedState.isTwoColumn ?? false);
           setViewMode(nextViewMode);
           setChapterIndex(resolvedChapterIndex);
+          setPendingRestoreState(resolvedState);
         }
       } catch (err) {
         if (!cancelled) console.error('Failed to load reader init data:', err);
@@ -215,14 +300,54 @@ export default function ReaderPage() {
         if (!cancelled) setHasHydratedReaderState(true);
       }
     };
+
     init();
     return () => { cancelled = true; };
-  }, [novelId]);
+  }, [
+    clearPendingRestoreState,
+    hasUserInteractedRef,
+    latestReaderStateRef,
+    loadPersistedReaderState,
+    novelId,
+    setHasHydratedReaderState,
+    setPendingRestoreState,
+  ]);
 
   // Original fetch effect
   useEffect(() => {
     if (!novelId || chapterIndex === undefined) return;
+    if (!isPagedMode && viewMode === 'original' && chapterChangeSourceRef.current === 'scroll') {
+      chapterChangeSourceRef.current = null;
+      return;
+    }
+
     let cancelled = false;
+
+    const initScrollModeChapters = () => {
+      const window: number[] = [];
+      for (let i = chapterIndex - 2; i <= chapterIndex + 2; i++) {
+        if (i >= 0 && i < chapters.length) window.push(i);
+      }
+      setScrollModeChapters(window);
+      for (const idx of window) {
+        if (!chapterCacheRef.current.has(idx)) {
+          fetchChapterContent(idx)
+            .then(data => { if (!cancelled) chapterCacheRef.current.set(idx, data); })
+            .catch(() => {});
+        }
+      }
+    };
+
+    const resetViewportPosition = () => {
+      if (contentRef.current) {
+        contentRef.current.scrollTop = 0;
+        contentRef.current.scrollLeft = 0;
+      }
+      if (pagedViewportRef.current) {
+        pagedViewportRef.current.scrollLeft = 0;
+      }
+    };
+
     const fetchContent = async () => {
       const cached = chapterCacheRef.current.get(chapterIndex);
       if (cached) {
@@ -232,14 +357,16 @@ export default function ReaderPage() {
         setPageCount(1);
         wheelDeltaRef.current = 0;
         pageTurnLockedRef.current = false;
-        if (!isPagedMode) setScrollModeChapters([chapterIndex]);
-        if (contentRef.current) { contentRef.current.scrollTop = 0; contentRef.current.scrollLeft = 0; }
-        if (pagedViewportRef.current) pagedViewportRef.current.scrollLeft = 0;
+        if (viewMode === 'original' && !isPagedMode) {
+          initScrollModeChapters();
+        }
+        resetViewportPosition();
         preloadAdjacent(chapterIndex);
-        readerApi.saveProgress(novelId, { chapterIndex, viewMode }).catch(console.error);
+        chapterChangeSourceRef.current = null;
+        setIsLoading(false);
         return;
       }
-      setIsLoading(true);
+      if (isPagedMode) setIsLoading(true);
       try {
         const data = await readerApi.getChapterContent(novelId, chapterIndex);
         if (cancelled) return;
@@ -249,11 +376,12 @@ export default function ReaderPage() {
         setPageCount(1);
         wheelDeltaRef.current = 0;
         pageTurnLockedRef.current = false;
-        if (!isPagedMode) setScrollModeChapters([chapterIndex]);
-        if (contentRef.current) { contentRef.current.scrollTop = 0; contentRef.current.scrollLeft = 0; }
-        if (pagedViewportRef.current) pagedViewportRef.current.scrollLeft = 0;
+        if (viewMode === 'original' && !isPagedMode) {
+          initScrollModeChapters();
+        }
+        resetViewportPosition();
         preloadAdjacent(chapterIndex);
-        readerApi.saveProgress(novelId, { chapterIndex, viewMode }).catch(console.error);
+        chapterChangeSourceRef.current = null;
       } catch (err) {
         if (!cancelled) console.error('Failed to load chapter content', err);
       } finally {
@@ -262,10 +390,73 @@ export default function ReaderPage() {
     };
     fetchContent();
     return () => { cancelled = true; };
-  }, [novelId, chapterIndex, viewMode, isPagedMode, preloadAdjacent]);
+  }, [novelId, chapterIndex, viewMode, isPagedMode, preloadAdjacent, chapters.length, fetchChapterContent]);
+
+  useEffect(() => {
+    if (isLoading || viewMode !== 'original' || isPagedMode) return;
+
+    const pendingRestoreState = pendingRestoreStateRef.current;
+    if (!pendingRestoreState) return;
+
+    const targetIndex = pendingRestoreState.chapterIndex ?? chapterIndex;
+    const targetElement = scrollMode.scrollChapterElementsRef.current.get(targetIndex);
+    const container = contentRef.current;
+    if (!container || !targetElement) return;
+
+    const frameId = requestAnimationFrame(() => {
+      if (typeof pendingRestoreState.chapterProgress === 'number') {
+        container.scrollTop = Math.round(
+          targetElement.offsetTop + targetElement.offsetHeight * clampProgress(pendingRestoreState.chapterProgress),
+        );
+      } else if (typeof pendingRestoreState.scrollPosition === 'number') {
+        container.scrollTop = pendingRestoreState.scrollPosition;
+      }
+      clearPendingRestoreState();
+    });
+
+    return () => cancelAnimationFrame(frameId);
+  }, [
+    chapterIndex,
+    clearPendingRestoreState,
+    currentChapter,
+    isLoading,
+    isPagedMode,
+    scrollMode.scrollChapterElementsRef,
+    scrollModeChapters,
+    viewMode,
+  ]);
 
   // Analysis effects
-  const analysis = useChapterAnalysis(novelId, chapterIndex);
+  const analysis = useChapterAnalysis(novelId, viewMode === 'summary' ? chapterIndex : -1);
+
+  useEffect(() => {
+    if (isLoading || viewMode !== 'summary') return;
+
+    const pendingRestoreState = pendingRestoreStateRef.current;
+    if (!pendingRestoreState || !contentRef.current) return;
+
+    const container = contentRef.current;
+    const frameId = requestAnimationFrame(() => {
+      if (typeof pendingRestoreState.chapterProgress === 'number') {
+        const maxScroll = container.scrollHeight - container.clientHeight;
+        if (maxScroll <= 0) return;
+        container.scrollTop = Math.round(maxScroll * clampProgress(pendingRestoreState.chapterProgress));
+      } else if (typeof pendingRestoreState.scrollPosition === 'number') {
+        container.scrollTop = pendingRestoreState.scrollPosition;
+      }
+      clearPendingRestoreState();
+    });
+
+    return () => cancelAnimationFrame(frameId);
+  }, [
+    analysis.chapterAnalysis,
+    analysis.isChapterAnalysisLoading,
+    chapterIndex,
+    clearPendingRestoreState,
+    currentChapter,
+    isLoading,
+    viewMode,
+  ]);
 
   // Persist effect
   useEffect(() => {
@@ -273,16 +464,57 @@ export default function ReaderPage() {
     persistReaderState({ chapterIndex, viewMode, isTwoColumn });
   }, [chapterIndex, hasHydratedReaderState, isTwoColumn, novelId, persistReaderState, viewMode]);
 
-  // Sync ref
   useEffect(() => {
-    latestReaderStateRef.current = { chapterIndex, viewMode, isTwoColumn };
-  }, [chapterIndex, isTwoColumn, viewMode]);
+    if (!isPagedMode || isLoading || pendingRestoreStateRef.current) return;
+    persistReaderState({
+      chapterIndex,
+      chapterProgress: getPagedProgress(),
+    });
+  }, [chapterIndex, getPagedProgress, isLoading, isPagedMode, pageIndex, pageCount, persistReaderState]);
+
+  useEffect(() => {
+    const handlePageHide = () => {
+      captureCurrentReaderPosition({ flush: true });
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        captureCurrentReaderPosition({ flush: true });
+      }
+    };
+
+    window.addEventListener('pagehide', handlePageHide);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('pagehide', handlePageHide);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [captureCurrentReaderPosition]);
+
+  useEffect(() => {
+    return () => {
+      if (summaryProgressTimerRef.current) {
+        clearTimeout(summaryProgressTimerRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (summaryProgressTimerRef.current) {
+      clearTimeout(summaryProgressTimerRef.current);
+      summaryProgressTimerRef.current = null;
+    }
+  }, [chapterIndex, isPagedMode, viewMode]);
+
+  const handleBeforeChapterChange = useCallback(() => {
+    clearPendingRestoreState();
+  }, [clearPendingRestoreState]);
 
   // Navigation
   const navigation = useReaderNavigation(
     chapterIndex, setChapterIndex, currentChapter, isPagedMode,
     pageIndex, setPageIndex, pageCount, persistReaderState, pageTargetRef,
-    chapters, scrollModeChapters, hasUserInteractedRef,
+    chapters, scrollModeChapters, hasUserInteractedRef, chapterChangeSourceRef, handleBeforeChapterChange,
   );
 
   // Input
@@ -291,17 +523,36 @@ export default function ReaderPage() {
   // Content click
   const contentClick = useContentClick(isPagedMode, navigation.handlePrev, navigation.handleNext);
 
+  const handleContentScroll = useCallback(() => {
+    if (viewMode === 'original' && !isPagedMode) {
+      scrollMode.handleScroll();
+      return;
+    }
+
+    if (isPagedMode || viewMode !== 'summary' || pendingRestoreStateRef.current) return;
+
+    if (summaryProgressTimerRef.current) {
+      clearTimeout(summaryProgressTimerRef.current);
+    }
+
+    summaryProgressTimerRef.current = setTimeout(() => {
+      persistReaderState({
+        chapterIndex,
+        chapterProgress: getContainerProgress(contentRef.current),
+      });
+    }, 150);
+  }, [chapterIndex, isPagedMode, persistReaderState, scrollMode, viewMode]);
+
   // Sidebar drag (already extracted above)
 
   // Toolbar state
-  const toolbarHasPrev = isPagedMode
-    ? pageIndex > 0 || Boolean(currentChapter?.hasPrev)
-    : scrollModeChapters.length > 0 ? scrollModeChapters[0] > 0 : Boolean(currentChapter?.hasPrev);
-  const toolbarHasNext = isPagedMode
-    ? pageIndex < pageCount - 1 || Boolean(currentChapter?.hasNext)
-    : scrollModeChapters.length > 0 ? scrollModeChapters[scrollModeChapters.length - 1] < chapters.length - 1 : Boolean(currentChapter?.hasNext);
+  const toolbarHasPrev = navigation.toolbarHasPrev;
+  const toolbarHasNext = navigation.toolbarHasNext;
 
-  const handleSelectChapter = (idx: number) => { navigation.goToChapter(idx, 'start'); sidebar.setIsSidebarOpen(false); };
+  const handleSelectChapter = useCallback((idx: number) => {
+    navigation.goToChapter(idx, 'start');
+    sidebar.setIsSidebarOpen(false);
+  }, [navigation, sidebar]);
 
   // Paged helpers
   const twoColumnWidth = pagedViewportSize.width ? (pagedViewportSize.width >= 2 * MIN_COLUMN_WIDTH + TWO_COLUMN_GAP ? Math.max((pagedViewportSize.width - TWO_COLUMN_GAP) / 2, MIN_COLUMN_WIDTH) : pagedViewportSize.width) : undefined;
@@ -330,13 +581,36 @@ export default function ReaderPage() {
       const content = pagedContentRef.current;
       if (!content || !pageTurnStep) return;
       const nextPageCount = Math.max(1, Math.ceil((content.scrollWidth + (fitsTwoColumns ? TWO_COLUMN_GAP : 0)) / pageTurnStep));
-      const targetPage = pageTargetRef.current === 'end' ? nextPageCount - 1 : Math.min(pageIndex, nextPageCount - 1);
+      const pendingRestoreState = pendingRestoreStateRef.current;
+      const hasRestorablePage = pendingRestoreState?.chapterIndex === chapterIndex
+        && typeof pendingRestoreState.chapterProgress === 'number';
+      const targetPage = hasRestorablePage
+        ? getPageIndexFromProgress(pendingRestoreState?.chapterProgress, nextPageCount)
+        : pageTargetRef.current === 'end'
+          ? nextPageCount - 1
+          : Math.min(pageIndex, nextPageCount - 1);
       setPageCount(nextPageCount);
       setPageIndex(targetPage);
       pageTargetRef.current = 'start';
+      if (hasRestorablePage || pendingRestoreState) {
+        clearPendingRestoreState();
+      }
     });
     return () => cancelAnimationFrame(frameId);
-  }, [currentChapter, fitsTwoColumns, preferences.fontSize, preferences.lineSpacing, isLoading, isPagedMode, pageIndex, pageTurnStep, pagedViewportSize.height, pagedViewportSize.width]);
+  }, [
+    chapterIndex,
+    clearPendingRestoreState,
+    currentChapter,
+    fitsTwoColumns,
+    pageIndex,
+    pageTurnStep,
+    pagedViewportSize.height,
+    pagedViewportSize.width,
+    preferences.fontSize,
+    preferences.lineSpacing,
+    isLoading,
+    isPagedMode,
+  ]);
 
   // Scroll left sync
   useLayoutEffect(() => {
@@ -384,7 +658,7 @@ export default function ReaderPage() {
             </button>
           </header>
           <div className="flex-1 overflow-hidden min-h-0">
-            <ChapterList chapters={chapters} currentIndex={chapterIndex} onSelect={handleSelectChapter} contentTextColor={preferences.currentTheme.text} />
+            <ChapterList chapters={chapters} currentIndex={chapterIndex} onSelect={handleSelectChapter} contentTextColor={preferences.currentTheme.text} scrollSignal={sidebarOpenSignal} />
           </div>
         </div>
       </aside>
@@ -419,9 +693,9 @@ export default function ReaderPage() {
           ref={contentRef}
           className={cn('h-full w-full relative cursor-pointer', isPagedMode ? 'overflow-hidden' : 'overflow-y-auto hide-scrollbar')}
           onClick={contentClick.handleContentClick}
-          onScroll={scrollMode.handleScroll}
+          onScroll={handleContentScroll}
         >
-          {isLoading ? (
+          {isLoading && isPagedMode ? (
             <div className="absolute inset-0 flex items-center justify-center">
               <Loader2 className="w-8 h-8 animate-spin text-accent" />
             </div>

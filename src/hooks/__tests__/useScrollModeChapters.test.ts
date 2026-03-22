@@ -52,11 +52,13 @@ function setupHook(opts: {
   scrollModeChapters?: number[];
   fetchChapterContent?: Mock;
   preloadAdjacent?: Mock;
+  onReadingAnchorChange?: Mock;
 } = {}) {
   const contentRef = { current: makeMockElement() };
   const chapterCacheRef = { current: new Map<number, ChapterContent>() };
   const fetchChapterContent = opts.fetchChapterContent ?? vi.fn().mockResolvedValue(makeChapterContent(0));
   const preloadAdjacent = opts.preloadAdjacent ?? vi.fn();
+  const onReadingAnchorChange = opts.onReadingAnchorChange ?? vi.fn();
   const scrollModeChapters = opts.scrollModeChapters ?? [0];
   const setScrollModeChapters = vi.fn();
 
@@ -71,6 +73,7 @@ function setupHook(opts: {
       preloadAdjacent,
       scrollModeChapters,
       setScrollModeChapters,
+      onReadingAnchorChange,
     )
   );
 
@@ -81,6 +84,7 @@ function setupHook(opts: {
     fetchChapterContent,
     preloadAdjacent,
     setScrollModeChapters,
+    onReadingAnchorChange,
   };
 }
 
@@ -98,6 +102,7 @@ describe('useScrollModeChapters', () => {
     const { result } = setupHook();
     expect(result.current.scrollChapterElementsRef).toBeDefined();
     expect(typeof result.current.handleScroll).toBe('function');
+    expect(typeof result.current.getCurrentAnchor).toBe('function');
   });
 
   describe('handleScroll guards', () => {
@@ -138,6 +143,22 @@ describe('useScrollModeChapters', () => {
   });
 
   describe('forward chapter loading', () => {
+    it('reports the current reading anchor', () => {
+      const onReadingAnchorChange = vi.fn();
+      const { result, contentRef } = setupHook({
+        scrollModeChapters: [0],
+        onReadingAnchorChange,
+      });
+
+      populateElements(result.current.scrollChapterElementsRef, [0]);
+      contentRef.current.scrollTop = 150;
+
+      act(() => { result.current.handleScroll(); });
+
+      expect(onReadingAnchorChange).toHaveBeenCalledWith({ chapterIndex: 0, chapterProgress: 0.5 });
+      expect(result.current.getCurrentAnchor()).toEqual({ chapterIndex: 0, chapterProgress: 0.5 });
+    });
+
     it('fetches next chapter when scroll progress >= 50%', async () => {
       const fetchFn = vi.fn().mockResolvedValue(makeChapterContent(1));
       const { result, contentRef } = setupHook({

@@ -2,6 +2,8 @@ import { useCallback } from 'react';
 import type { Chapter, ChapterContent } from '../api/reader';
 import type { PageTarget, StoredReaderState } from './useReaderStatePersistence';
 
+type ChapterChangeSource = 'navigation' | 'scroll' | 'restore' | null;
+
 export function useReaderNavigation(
   chapterIndex: number,
   setChapterIndex: (idx: number) => void,
@@ -15,13 +17,28 @@ export function useReaderNavigation(
   chapters: Chapter[],
   scrollModeChapters: number[],
   hasUserInteractedRef: React.MutableRefObject<boolean>,
-) {
+  chapterChangeSourceRef: React.MutableRefObject<ChapterChangeSource>,
+  beforeChapterChange?: () => void,
+): {
+  goToChapter: (targetIndex: number, pageTarget?: PageTarget) => void;
+  goToNextPage: () => void;
+  goToPrevPage: () => void;
+  handleNext: () => void;
+  handlePrev: () => void;
+  toolbarHasPrev: boolean;
+  toolbarHasNext: boolean;
+} {
   const goToChapter = useCallback((targetIndex: number, pageTarget: PageTarget = 'start') => {
+    beforeChapterChange?.();
     hasUserInteractedRef.current = true;
+    chapterChangeSourceRef.current = 'navigation';
     pageTargetRef.current = pageTarget;
     setChapterIndex(targetIndex);
-    persistReaderState({ chapterIndex: targetIndex });
-  }, [persistReaderState, pageTargetRef, setChapterIndex, hasUserInteractedRef]);
+    persistReaderState({
+      chapterIndex: targetIndex,
+      chapterProgress: pageTarget === 'end' ? 1 : 0,
+    });
+  }, [beforeChapterChange, chapterChangeSourceRef, hasUserInteractedRef, pageTargetRef, persistReaderState, setChapterIndex]);
 
   const goToNextPage = useCallback(() => {
     if (!currentChapter) return;
@@ -55,10 +72,10 @@ export function useReaderNavigation(
       return;
     }
 
-    if (currentChapter?.hasNext) {
+    if (chapterIndex < chapters.length - 1) {
       goToChapter(chapterIndex + 1, 'start');
     }
-  }, [isPagedMode, goToNextPage, currentChapter, goToChapter, chapterIndex]);
+  }, [chapterIndex, chapters.length, goToChapter, goToNextPage, isPagedMode]);
 
   const handlePrev = useCallback(() => {
     if (isPagedMode) {
@@ -66,21 +83,21 @@ export function useReaderNavigation(
       return;
     }
 
-    if (currentChapter?.hasPrev) {
+    if (chapterIndex > 0) {
       goToChapter(chapterIndex - 1, 'start');
     }
-  }, [isPagedMode, goToPrevPage, currentChapter, goToChapter, chapterIndex]);
+  }, [chapterIndex, goToChapter, goToPrevPage, isPagedMode]);
 
   const toolbarHasPrev = isPagedMode
     ? pageIndex > 0 || Boolean(currentChapter?.hasPrev)
     : scrollModeChapters.length > 0
-      ? scrollModeChapters[0] > 0
-      : Boolean(currentChapter?.hasPrev);
+      ? chapterIndex > 0
+      : chapterIndex > 0;
   const toolbarHasNext = isPagedMode
     ? pageIndex < pageCount - 1 || Boolean(currentChapter?.hasNext)
     : scrollModeChapters.length > 0
-      ? scrollModeChapters[scrollModeChapters.length - 1] < chapters.length - 1
-      : Boolean(currentChapter?.hasNext);
+      ? chapterIndex < chapters.length - 1
+      : chapterIndex < chapters.length - 1;
 
   return {
     goToChapter,

@@ -21,7 +21,7 @@ export function useChapterAnalysis(novelId: number, chapterIndex: number) {
   }, [novelId]);
 
   const loadChapterAnalysis = useCallback(async (silent = false) => {
-    if (!novelId || chapterIndex === undefined) return;
+    if (!novelId || chapterIndex < 0) return;
 
     if (!silent) setIsChapterAnalysisLoading(true);
     try {
@@ -36,7 +36,7 @@ export function useChapterAnalysis(novelId: number, chapterIndex: number) {
   }, [chapterIndex, novelId]);
 
   const handleAnalyzeChapter = useCallback(async () => {
-    if (!novelId || chapterIndex === undefined) return;
+    if (!novelId || chapterIndex < 0) return;
     setIsAnalyzingChapter(true);
     try {
       const result = await analysisApi.analyzeChapter(novelId, chapterIndex);
@@ -54,7 +54,7 @@ export function useChapterAnalysis(novelId: number, chapterIndex: number) {
   }, [loadAnalysisStatus, novelId]);
 
   useEffect(() => {
-    if (!novelId || chapterIndex === undefined) return;
+    if (!novelId || chapterIndex < 0) return;
     loadChapterAnalysis();
   }, [chapterIndex, loadChapterAnalysis, novelId]);
 

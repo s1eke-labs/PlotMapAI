@@ -7,9 +7,10 @@ interface ChapterListProps {
   currentIndex: number;
   onSelect: (index: number) => void;
   contentTextColor?: string;
+  scrollSignal?: number;
 }
 
-export default function ChapterList({ chapters, currentIndex, onSelect, contentTextColor }: ChapterListProps) {
+export default function ChapterList({ chapters, currentIndex, onSelect, contentTextColor, scrollSignal }: ChapterListProps) {
   const listRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll to active chapter
@@ -20,7 +21,7 @@ export default function ChapterList({ chapters, currentIndex, onSelect, contentT
         activeEl.scrollIntoView({ block: 'center', behavior: 'smooth' });
       }
     }
-  }, [currentIndex]);
+  }, [currentIndex, scrollSignal]);
 
   return (
     <div 
