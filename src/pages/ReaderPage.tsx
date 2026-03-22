@@ -81,6 +81,8 @@ export default function ReaderPage() {
   const chapterChangeSourceRef = useRef<ChapterChangeSource>(null);
   const pendingRestoreStateRef = useRef<StoredReaderState | null>(null);
   const summaryProgressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const suppressScrollSyncRef = useRef(false);
+  const scrollSyncReleaseFrameRef = useRef<number | null>(null);
 
   // Use extracted hooks
   const preferences = useReaderPreferences();
@@ -93,9 +95,14 @@ export default function ReaderPage() {
     if (sidebar.isSidebarOpen) setSidebarOpenSignal(prev => prev + 1);
   }, [sidebar.isSidebarOpen]);
 
-  const setPendingRestoreState = useCallback((nextState: StoredReaderState | null) => {
+  const setPendingRestoreState = useCallback((nextState: StoredReaderState | null, options?: { force?: boolean }) => {
     if (!nextState) {
       pendingRestoreStateRef.current = null;
+      return;
+    }
+
+    if (options?.force) {
+      pendingRestoreStateRef.current = nextState;
       return;
     }
 
@@ -106,6 +113,24 @@ export default function ReaderPage() {
 
   const clearPendingRestoreState = useCallback(() => {
     pendingRestoreStateRef.current = null;
+  }, []);
+
+  const suppressScrollSyncTemporarily = useCallback(() => {
+    suppressScrollSyncRef.current = true;
+
+    if (scrollSyncReleaseFrameRef.current !== null) {
+      cancelAnimationFrame(scrollSyncReleaseFrameRef.current);
+      scrollSyncReleaseFrameRef.current = null;
+    }
+
+    const releaseAfterLayout = () => {
+      scrollSyncReleaseFrameRef.current = requestAnimationFrame(() => {
+        suppressScrollSyncRef.current = false;
+        scrollSyncReleaseFrameRef.current = null;
+      });
+    };
+
+    scrollSyncReleaseFrameRef.current = requestAnimationFrame(releaseAfterLayout);
   }, []);
 
   const fetchChapterContent = useCallback(async (idx: number) => {
@@ -142,6 +167,9 @@ export default function ReaderPage() {
 
   const handleReadingAnchorChange = useCallback((anchor: { chapterIndex: number; chapterProgress: number }) => {
     if (isPagedMode || viewMode !== 'original') return;
+    if (pendingRestoreStateRef.current) return;
+    if (suppressScrollSyncRef.current) return;
+    if (chapterChangeSourceRef.current === 'navigation' || chapterChangeSourceRef.current === 'restore') return;
 
     persistReaderState({
       chapterIndex: anchor.chapterIndex,
@@ -210,7 +238,7 @@ export default function ReaderPage() {
     setPendingRestoreState({
       ...currentReaderState,
       isTwoColumn: twoColumn,
-    });
+    }, { force: true });
     setIsTwoColumn(twoColumn);
     persistReaderState({
       ...currentReaderState,
@@ -226,7 +254,7 @@ export default function ReaderPage() {
     setPendingRestoreState({
       ...currentReaderState,
       viewMode: nextViewMode,
-    });
+    }, { force: true });
     setViewMode(nextViewMode);
     persistReaderState({
       ...currentReaderState,
@@ -292,7 +320,7 @@ export default function ReaderPage() {
           setIsTwoColumn(resolvedState.isTwoColumn ?? false);
           setViewMode(nextViewMode);
           setChapterIndex(resolvedChapterIndex);
-          setPendingRestoreState(resolvedState);
+          setPendingRestoreState(resolvedState, { force: true });
         }
       } catch (err) {
         if (!cancelled) console.error('Failed to load reader init data:', err);
@@ -339,6 +367,7 @@ export default function ReaderPage() {
     };
 
     const resetViewportPosition = () => {
+      suppressScrollSyncTemporarily();
       if (contentRef.current) {
         contentRef.current.scrollTop = 0;
         contentRef.current.scrollLeft = 0;
@@ -349,6 +378,10 @@ export default function ReaderPage() {
     };
 
     const fetchContent = async () => {
+      const shouldRestoreNavigatedChapter = chapterChangeSourceRef.current === 'navigation'
+        && viewMode === 'original'
+        && !isPagedMode;
+
       const cached = chapterCacheRef.current.get(chapterIndex);
       if (cached) {
         if (cancelled) return;
@@ -359,6 +392,14 @@ export default function ReaderPage() {
         pageTurnLockedRef.current = false;
         if (viewMode === 'original' && !isPagedMode) {
           initScrollModeChapters();
+        }
+        if (shouldRestoreNavigatedChapter) {
+          setPendingRestoreState({
+            chapterIndex,
+            viewMode,
+            isTwoColumn,
+            chapterProgress: pageTargetRef.current === 'end' ? 1 : 0,
+          }, { force: true });
         }
         resetViewportPosition();
         preloadAdjacent(chapterIndex);
@@ -379,6 +420,14 @@ export default function ReaderPage() {
         if (viewMode === 'original' && !isPagedMode) {
           initScrollModeChapters();
         }
+        if (shouldRestoreNavigatedChapter) {
+          setPendingRestoreState({
+            chapterIndex,
+            viewMode,
+            isTwoColumn,
+            chapterProgress: pageTargetRef.current === 'end' ? 1 : 0,
+          }, { force: true });
+        }
         resetViewportPosition();
         preloadAdjacent(chapterIndex);
         chapterChangeSourceRef.current = null;
@@ -390,7 +439,18 @@ export default function ReaderPage() {
     };
     fetchContent();
     return () => { cancelled = true; };
-  }, [novelId, chapterIndex, viewMode, isPagedMode, preloadAdjacent, chapters.length, fetchChapterContent]);
+  }, [
+    novelId,
+    chapterIndex,
+    viewMode,
+    isPagedMode,
+    preloadAdjacent,
+    chapters.length,
+    fetchChapterContent,
+    isTwoColumn,
+    setPendingRestoreState,
+    suppressScrollSyncTemporarily,
+  ]);
 
   useEffect(() => {
     if (isLoading || viewMode !== 'original' || isPagedMode) return;
@@ -404,6 +464,8 @@ export default function ReaderPage() {
     if (!container || !targetElement) return;
 
     const frameId = requestAnimationFrame(() => {
+      chapterChangeSourceRef.current = 'restore';
+      suppressScrollSyncTemporarily();
       if (typeof pendingRestoreState.chapterProgress === 'number') {
         container.scrollTop = Math.round(
           targetElement.offsetTop + targetElement.offsetHeight * clampProgress(pendingRestoreState.chapterProgress),
@@ -411,6 +473,7 @@ export default function ReaderPage() {
       } else if (typeof pendingRestoreState.scrollPosition === 'number') {
         container.scrollTop = pendingRestoreState.scrollPosition;
       }
+      chapterChangeSourceRef.current = null;
       clearPendingRestoreState();
     });
 
@@ -423,6 +486,7 @@ export default function ReaderPage() {
     isPagedMode,
     scrollMode.scrollChapterElementsRef,
     scrollModeChapters,
+    suppressScrollSyncTemporarily,
     viewMode,
   ]);
 
@@ -437,13 +501,17 @@ export default function ReaderPage() {
 
     const container = contentRef.current;
     const frameId = requestAnimationFrame(() => {
+      chapterChangeSourceRef.current = 'restore';
+      suppressScrollSyncTemporarily();
       if (typeof pendingRestoreState.chapterProgress === 'number') {
         const maxScroll = container.scrollHeight - container.clientHeight;
-        if (maxScroll <= 0) return;
-        container.scrollTop = Math.round(maxScroll * clampProgress(pendingRestoreState.chapterProgress));
+        if (maxScroll > 0) {
+          container.scrollTop = Math.round(maxScroll * clampProgress(pendingRestoreState.chapterProgress));
+        }
       } else if (typeof pendingRestoreState.scrollPosition === 'number') {
         container.scrollTop = pendingRestoreState.scrollPosition;
       }
+      chapterChangeSourceRef.current = null;
       clearPendingRestoreState();
     });
 
@@ -455,6 +523,7 @@ export default function ReaderPage() {
     clearPendingRestoreState,
     currentChapter,
     isLoading,
+    suppressScrollSyncTemporarily,
     viewMode,
   ]);
 
@@ -496,6 +565,9 @@ export default function ReaderPage() {
       if (summaryProgressTimerRef.current) {
         clearTimeout(summaryProgressTimerRef.current);
       }
+      if (scrollSyncReleaseFrameRef.current !== null) {
+        cancelAnimationFrame(scrollSyncReleaseFrameRef.current);
+      }
     };
   }, []);
 
@@ -508,7 +580,8 @@ export default function ReaderPage() {
 
   const handleBeforeChapterChange = useCallback(() => {
     clearPendingRestoreState();
-  }, [clearPendingRestoreState]);
+    suppressScrollSyncTemporarily();
+  }, [clearPendingRestoreState, suppressScrollSyncTemporarily]);
 
   // Navigation
   const navigation = useReaderNavigation(
@@ -524,6 +597,8 @@ export default function ReaderPage() {
   const contentClick = useContentClick(isPagedMode, navigation.handlePrev, navigation.handleNext);
 
   const handleContentScroll = useCallback(() => {
+    if (suppressScrollSyncRef.current) return;
+
     if (viewMode === 'original' && !isPagedMode) {
       scrollMode.handleScroll();
       return;

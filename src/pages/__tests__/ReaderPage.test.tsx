@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -72,6 +72,7 @@ const completedAnalysis = {
 };
 
 const originalOffsetHeightDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetHeight');
+const originalOffsetTopDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetTop');
 const originalClientWidthDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'clientWidth');
 const originalClientHeightDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'clientHeight');
 const originalScrollWidthDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollWidth');
@@ -96,6 +97,21 @@ function restorePrototypeDescriptor(
   }
 
   Reflect.deleteProperty(HTMLElement.prototype, property);
+}
+
+function setOffsetTopByChapterTitle(offsetMap: Record<string, number>) {
+  Object.defineProperty(HTMLElement.prototype, 'offsetTop', {
+    configurable: true,
+    get() {
+      const text = this.textContent ?? '';
+      for (const [title, offset] of Object.entries(offsetMap)) {
+        if (text.includes(title)) {
+          return offset;
+        }
+      }
+      return 0;
+    },
+  });
 }
 
 function createJob(overrides: Partial<AnalysisJobStatus> = {}): AnalysisJobStatus {
@@ -134,6 +150,15 @@ function renderPage() {
   );
 }
 
+function createDeferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  const promise = new Promise<T>((res) => {
+    resolve = res;
+  });
+
+  return { promise, resolve };
+}
+
 describe('ReaderPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -162,6 +187,7 @@ describe('ReaderPage', () => {
 
   afterEach(() => {
     restorePrototypeDescriptor('offsetHeight', originalOffsetHeightDescriptor);
+    restorePrototypeDescriptor('offsetTop', originalOffsetTopDescriptor);
     restorePrototypeDescriptor('clientWidth', originalClientWidthDescriptor);
     restorePrototypeDescriptor('clientHeight', originalClientHeightDescriptor);
     restorePrototypeDescriptor('scrollWidth', originalScrollWidthDescriptor);
@@ -203,6 +229,103 @@ describe('ReaderPage', () => {
       viewMode: 'original',
       isTwoColumn: false,
       chapterProgress: 0,
+    });
+  });
+
+  it('does not let stale scroll anchor override chapter selection from the table of contents', async () => {
+    const user = userEvent.setup();
+    const longChapters = Array.from({ length: 6 }, (_, index) => ({
+      index,
+      title: `Chapter ${index + 1}`,
+      wordCount: 100 + index,
+    }));
+    const longChapterContent = longChapters.map((chapter, index) => ({
+      ...chapter,
+      content: `${chapter.title} content`,
+      totalChapters: longChapters.length,
+      hasPrev: index > 0,
+      hasNext: index < longChapters.length - 1,
+    }));
+    const deferredTargetChapter = createDeferred<(typeof longChapterContent)[number]>();
+
+    localStorage.setItem('reader-state:1', JSON.stringify({
+      chapterIndex: 2,
+      viewMode: 'original',
+      isTwoColumn: false,
+    }));
+    vi.mocked(readerApi.getChapters).mockResolvedValueOnce(longChapters);
+    vi.mocked(readerApi.getChapterContent).mockImplementation(async (_novelId, chapterIndex) => {
+      if (chapterIndex === 5) {
+        return deferredTargetChapter.promise;
+      }
+      return longChapterContent[chapterIndex];
+    });
+
+    const { container } = renderPage();
+
+    await waitFor(() => {
+      expect(readerApi.getChapterContent).toHaveBeenCalledWith(1, 2);
+    });
+
+    await user.click(screen.getByRole('button', { name: /Chapter 6/i }));
+
+    const readerContainer = container.querySelector('main .overflow-y-auto.hide-scrollbar') as HTMLDivElement | null;
+    expect(readerContainer).not.toBeNull();
+
+    readerContainer!.scrollTop = 12;
+    fireEvent.scroll(readerContainer!);
+
+    deferredTargetChapter.resolve(longChapterContent[5]);
+
+    await waitFor(() => {
+      expect(JSON.parse(localStorage.getItem('reader-state:1')!)).toMatchObject({
+        chapterIndex: 5,
+        viewMode: 'original',
+      });
+    });
+    expect(screen.getByRole('button', { name: /Chapter 6/i })).toHaveAttribute('data-active', 'true');
+  });
+
+  it('scrolls to the selected chapter itself in scroll mode navigation', async () => {
+    const user = userEvent.setup();
+    const longChapters = Array.from({ length: 12 }, (_, index) => ({
+      index,
+      title: `Chapter ${index + 1}`,
+      wordCount: 100 + index,
+    }));
+    const longChapterContent = longChapters.map((chapter, index) => ({
+      ...chapter,
+      content: `${chapter.title} content`,
+      totalChapters: longChapters.length,
+      hasPrev: index > 0,
+      hasNext: index < longChapters.length - 1,
+    }));
+
+    setPrototypeNumberGetter('offsetHeight', 200);
+    setOffsetTopByChapterTitle({
+      'Chapter 8': 0,
+      'Chapter 9': 220,
+      'Chapter 10': 440,
+      'Chapter 11': 660,
+      'Chapter 12': 880,
+    });
+    vi.mocked(readerApi.getChapters).mockResolvedValueOnce(longChapters);
+    vi.mocked(readerApi.getChapterContent).mockImplementation(async (_novelId, chapterIndex) => longChapterContent[chapterIndex]);
+
+    const { container } = renderPage();
+
+    expect(await screen.findByRole('heading', { name: 'Chapter 1', level: 1 })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /Chapter 10/i }));
+
+    const readerContainer = container.querySelector('main .overflow-y-auto.hide-scrollbar') as HTMLDivElement | null;
+    expect(readerContainer).not.toBeNull();
+
+    await waitFor(() => {
+      expect(readerContainer?.scrollTop).toBe(440);
+    });
+    expect(JSON.parse(localStorage.getItem('reader-state:1')!)).toMatchObject({
+      chapterIndex: 9,
+      viewMode: 'original',
     });
   });
 
