@@ -96,10 +96,10 @@ describe('ReaderViewport', () => {
   });
 
   it('renders the loading overlay instead of the empty state', () => {
-    const { container } = renderViewport({ showLoadingOverlay: true });
+    renderViewport({ showLoadingOverlay: true });
 
     expect(screen.queryByText('No chapters')).not.toBeInTheDocument();
-    expect(container.querySelector('.animate-spin')).toBeInTheDocument();
+    expect(screen.getByRole('status', { name: 'Loading reader content' })).toBeInTheDocument();
   });
 
   it('switches between paged, scroll, and summary content branches', () => {

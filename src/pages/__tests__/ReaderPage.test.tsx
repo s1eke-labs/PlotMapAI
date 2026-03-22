@@ -440,17 +440,17 @@ describe('ReaderPage', () => {
     const cancelAnimationFrameSpy = vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined);
 
     try {
-      const { container } = renderPage();
+      renderPage();
 
       expect(await screen.findByRole('heading', { name: 'Chapter 1', level: 2 })).toBeInTheDocument();
-      expect(container.querySelector('.animate-spin')).toBeInTheDocument();
+      expect(screen.getByRole('status', { name: 'Loading reader content' })).toBeInTheDocument();
       expect(screen.queryByText('2 / 3')).not.toBeInTheDocument();
 
       await flushAnimationFrames();
 
       expect(await screen.findByText('2 / 3')).toBeInTheDocument();
       await waitFor(() => {
-        expect(container.querySelector('.animate-spin')).not.toBeInTheDocument();
+        expect(screen.queryByRole('status', { name: 'Loading reader content' })).not.toBeInTheDocument();
       });
     } finally {
       requestAnimationFrameSpy.mockRestore();
@@ -462,13 +462,13 @@ describe('ReaderPage', () => {
     const deferredChapter = createDeferred<(typeof chapterContent)[number]>();
     vi.mocked(readerApi.getChapterContent).mockImplementationOnce(async () => deferredChapter.promise);
 
-    const { container } = renderPage();
+    renderPage();
 
     await waitFor(() => {
       expect(readerApi.getChapterContent).toHaveBeenCalledWith(1, 0);
     });
     expect(screen.queryByText('reader.noChapters')).not.toBeInTheDocument();
-    expect(container.querySelector('.animate-spin')).toBeInTheDocument();
+    expect(screen.getByRole('status', { name: 'Loading reader content' })).toBeInTheDocument();
 
     deferredChapter.resolve(chapterContent[0]);
 

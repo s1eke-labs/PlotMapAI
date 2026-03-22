@@ -66,7 +66,11 @@ export default function ReaderViewport({
         </div>
       ) : null}
       {showLoadingOverlay && (
-        <div className="absolute inset-0 flex items-center justify-center">
+        <div
+          role="status"
+          aria-label="Loading reader content"
+          className="absolute inset-0 flex items-center justify-center"
+        >
           <Loader2 className="w-8 h-8 animate-spin text-accent" />
         </div>
       )}
