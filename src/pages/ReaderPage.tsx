@@ -18,8 +18,6 @@ import { useReaderInput } from '../hooks/useReaderInput';
 import { useScrollModeChapters } from '../hooks/useScrollModeChapters';
 import { useContentClick } from '../hooks/useContentClick';
 
-const PAGE_TURN_LOCK_MS = 280;
-const PAGE_TURN_THRESHOLD = 48;
 const TWO_COLUMN_GAP = 48;
 const MIN_COLUMN_WIDTH = 260;
 
@@ -74,11 +72,8 @@ export default function ReaderPage() {
   const contentRef = useRef<HTMLDivElement>(null);
   const pagedViewportRef = useRef<HTMLDivElement>(null);
   const pagedContentRef = useRef<HTMLDivElement>(null);
-  const scrollKeys = useRef<Set<string>>(new Set());
-  const animationFrameId = useRef<number | null>(null);
   const pageTargetRef = useRef<PageTarget>('start');
   const wheelDeltaRef = useRef(0);
-  const wheelUnlockTimeoutRef = useRef<number | null>(null);
   const pageTurnLockedRef = useRef(false);
   const latestReaderStateRef = useRef<StoredReaderState>({
     chapterIndex: initialStoredState?.chapterIndex ?? 0,
@@ -178,28 +173,6 @@ export default function ReaderPage() {
       }
     }
   }, [novelId, chapters.length]);
-
-  const stopContinuousScroll = useCallback(() => {
-    scrollKeys.current.clear();
-    if (animationFrameId.current) { cancelAnimationFrame(animationFrameId.current); animationFrameId.current = null; }
-  }, []);
-
-  const unlockPageTurn = useCallback(() => {
-    if (wheelUnlockTimeoutRef.current) window.clearTimeout(wheelUnlockTimeoutRef.current);
-    wheelUnlockTimeoutRef.current = window.setTimeout(() => {
-      pageTurnLockedRef.current = false;
-      wheelUnlockTimeoutRef.current = null;
-    }, PAGE_TURN_LOCK_MS);
-  }, []);
-
-  const scrollLoop = useCallback(() => {
-    if (!contentRef.current) return;
-    let scrollAmount = 0;
-    if (scrollKeys.current.has('ArrowDown')) scrollAmount += 10;
-    if (scrollKeys.current.has('ArrowUp')) scrollAmount -= 10;
-    if (scrollAmount !== 0) { contentRef.current.scrollTop += scrollAmount; animationFrameId.current = requestAnimationFrame(scrollLoop); }
-    else { animationFrameId.current = null; }
-  }, []);
 
   // Original init effect
   useEffect(() => {
@@ -341,7 +314,6 @@ export default function ReaderPage() {
       if (!isPagedMode) setPagedViewportSize({ width: 0, height: 0 });
       return;
     }
-    stopContinuousScroll();
     const viewport = pagedViewportRef.current;
     if (!viewport) return;
     const updateViewportSize = () => setPagedViewportSize({ width: viewport.clientWidth, height: viewport.clientHeight });
@@ -349,7 +321,7 @@ export default function ReaderPage() {
     const observer = new ResizeObserver(updateViewportSize);
     observer.observe(viewport);
     return () => { cancelAnimationFrame(frameId); observer.disconnect(); };
-  }, [currentChapter, isLoading, isPagedMode, stopContinuousScroll]);
+  }, [currentChapter, isLoading, isPagedMode]);
 
   // Page count effect
   useEffect(() => {
@@ -371,52 +343,6 @@ export default function ReaderPage() {
     if (!isPagedMode || !pagedViewportRef.current || !pageTurnStep) return;
     pagedViewportRef.current.scrollLeft = pageIndex * pageTurnStep;
   }, [isPagedMode, pageIndex, pageTurnStep]);
-
-  // Keyboard/wheel effects (from original)
-  const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    if (!currentChapter || isLoading) return;
-    if (isPagedMode && (e.key === 'ArrowDown' || e.key === 'PageDown')) { e.preventDefault(); navigation.goToNextPage(); return; }
-    if (isPagedMode && (e.key === 'ArrowUp' || e.key === 'PageUp')) { e.preventDefault(); navigation.goToPrevPage(); return; }
-    if (e.key === 'ArrowRight' && currentChapter.hasNext) { navigation.goToChapter(chapterIndex + 1, 'start'); }
-    else if (e.key === 'ArrowLeft' && currentChapter.hasPrev) { navigation.goToChapter(chapterIndex - 1, 'start'); }
-    else if (!isPagedMode && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
-      e.preventDefault();
-      if (!scrollKeys.current.has(e.key)) { scrollKeys.current.add(e.key); if (!animationFrameId.current) animationFrameId.current = requestAnimationFrame(scrollLoop); }
-    }
-  }, [chapterIndex, currentChapter, isPagedMode, isLoading, navigation, scrollLoop]);
-
-  const handleKeyUp = useCallback((e: KeyboardEvent) => {
-    if (!isPagedMode && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) scrollKeys.current.delete(e.key);
-  }, [isPagedMode]);
-
-  useEffect(() => {
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
-    return () => { window.removeEventListener('keydown', handleKeyDown); window.removeEventListener('keyup', handleKeyUp); stopContinuousScroll(); };
-  }, [handleKeyDown, handleKeyUp, stopContinuousScroll]);
-
-  const isPagedModeRef = useRef(isPagedMode);
-  isPagedModeRef.current = isPagedMode;
-  const handlePagedWheel = useCallback((e: WheelEvent) => {
-    if (!isPagedModeRef.current) return;
-    if (Math.abs(e.deltaY) < Math.abs(e.deltaX)) return;
-    e.preventDefault();
-    wheelDeltaRef.current += e.deltaY;
-    if (pageTurnLockedRef.current || Math.abs(wheelDeltaRef.current) < PAGE_TURN_THRESHOLD) return;
-    pageTurnLockedRef.current = true;
-    if (wheelDeltaRef.current > 0) navigation.goToNextPage(); else navigation.goToPrevPage();
-    wheelDeltaRef.current = 0;
-    unlockPageTurn();
-  }, [navigation, unlockPageTurn]);
-
-  useEffect(() => {
-    const el = contentRef.current;
-    if (!el) return;
-    el.addEventListener('wheel', handlePagedWheel, { passive: false });
-    return () => el.removeEventListener('wheel', handlePagedWheel);
-  }, [handlePagedWheel]);
-
-  useEffect(() => { return () => { if (wheelUnlockTimeoutRef.current) window.clearTimeout(wheelUnlockTimeoutRef.current); }; }, []);
 
   // Touch drag (from sidebar hook, used inline for the sidebar header)
   const handleDragStart = sidebar.handleDragStart;
