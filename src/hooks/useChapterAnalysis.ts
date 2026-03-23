@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { analysisApi } from '../api/analysis';
 import type { AnalysisStatusResponse, ChapterAnalysisResult } from '../api/analysis';
 
@@ -7,6 +7,7 @@ export function useChapterAnalysis(novelId: number, chapterIndex: number) {
   const [chapterAnalysis, setChapterAnalysis] = useState<ChapterAnalysisResult | null>(null);
   const [isChapterAnalysisLoading, setIsChapterAnalysisLoading] = useState(false);
   const [isAnalyzingChapter, setIsAnalyzingChapter] = useState(false);
+  const chapterAnalysisCacheRef = useRef<Map<number, ChapterAnalysisResult | null>>(new Map());
 
   const loadAnalysisStatus = useCallback(async () => {
     if (!novelId) return;
@@ -23,23 +24,39 @@ export function useChapterAnalysis(novelId: number, chapterIndex: number) {
   const loadChapterAnalysis = useCallback(async (silent = false) => {
     if (!novelId || chapterIndex < 0) return;
 
-    if (!silent) setIsChapterAnalysisLoading(true);
+    const hasCachedAnalysis = chapterAnalysisCacheRef.current.has(chapterIndex);
+    const cachedAnalysis = chapterAnalysisCacheRef.current.get(chapterIndex) ?? null;
+    const shouldRefreshCachedAnalysis = analysisStatus?.job.status === 'running' || analysisStatus?.job.status === 'pausing';
+
+    if (hasCachedAnalysis) {
+      setChapterAnalysis(cachedAnalysis);
+      if (!shouldRefreshCachedAnalysis) {
+        setIsChapterAnalysisLoading(false);
+        return;
+      }
+    }
+
+    if (!silent && !hasCachedAnalysis) setIsChapterAnalysisLoading(true);
     try {
       const data = await analysisApi.getChapterAnalysis(novelId, chapterIndex);
+      chapterAnalysisCacheRef.current.set(chapterIndex, data.analysis);
       setChapterAnalysis(data.analysis);
     } catch (err) {
       console.error('Failed to load chapter analysis', err);
-      setChapterAnalysis(null);
+      if (!hasCachedAnalysis) {
+        setChapterAnalysis(null);
+      }
     } finally {
-      if (!silent) setIsChapterAnalysisLoading(false);
+      if (!silent && !hasCachedAnalysis) setIsChapterAnalysisLoading(false);
     }
-  }, [chapterIndex, novelId]);
+  }, [analysisStatus?.job.status, chapterIndex, novelId]);
 
   const handleAnalyzeChapter = useCallback(async () => {
     if (!novelId || chapterIndex < 0) return;
     setIsAnalyzingChapter(true);
     try {
       const result = await analysisApi.analyzeChapter(novelId, chapterIndex);
+      chapterAnalysisCacheRef.current.set(chapterIndex, result.analysis);
       setChapterAnalysis(result.analysis);
     } catch (err) {
       console.error('Failed to analyze chapter', err);
