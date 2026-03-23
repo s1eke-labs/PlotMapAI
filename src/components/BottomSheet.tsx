@@ -192,7 +192,7 @@ export default function BottomSheet({
         type="button"
         aria-hidden="true"
         tabIndex={-1}
-        onClick={handleBackdropClick}
+        onPointerDown={handleBackdropClick}
         className={`absolute inset-0 bg-[#18202a]/18 backdrop-blur-[2px] ${backdropAnimation}`}
       />
       <div
