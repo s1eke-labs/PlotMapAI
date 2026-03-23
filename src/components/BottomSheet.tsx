@@ -40,16 +40,11 @@ export default function BottomSheet({
   const [closing, setClosing] = useState(false);
   const [dragOffset, setDragOffset] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
-  const prevIsOpenRef = useRef(isOpen);
   const timerRef = useRef<ReturnType<typeof setTimeout>>(null);
   const dragRef = useRef<DragState | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const prev = prevIsOpenRef.current;
-    prevIsOpenRef.current = isOpen;
-    if (isOpen === prev) return;
-
     if (timerRef.current) {
       clearTimeout(timerRef.current);
       timerRef.current = null;
@@ -78,7 +73,7 @@ export default function BottomSheet({
         timerRef.current = null;
       }
     };
-  });
+  }, [isOpen]);
 
   useEffect(() => {
     if (mounted) {
