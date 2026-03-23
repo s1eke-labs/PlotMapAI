@@ -7,7 +7,7 @@ export function useChapterAnalysis(novelId: number, chapterIndex: number) {
   const [chapterAnalysis, setChapterAnalysis] = useState<ChapterAnalysisResult | null>(null);
   const [isChapterAnalysisLoading, setIsChapterAnalysisLoading] = useState(false);
   const [isAnalyzingChapter, setIsAnalyzingChapter] = useState(false);
-  const chapterAnalysisCacheRef = useRef<Map<number, ChapterAnalysisResult | null>>(new Map());
+  const chapterAnalysisCacheRef = useRef<Map<string, ChapterAnalysisResult | null>>(new Map());
 
   const loadAnalysisStatus = useCallback(async () => {
     if (!novelId) return;
@@ -24,8 +24,9 @@ export function useChapterAnalysis(novelId: number, chapterIndex: number) {
   const loadChapterAnalysis = useCallback(async (silent = false) => {
     if (!novelId || chapterIndex < 0) return;
 
-    const hasCachedAnalysis = chapterAnalysisCacheRef.current.has(chapterIndex);
-    const cachedAnalysis = chapterAnalysisCacheRef.current.get(chapterIndex) ?? null;
+    const cacheKey = `${novelId}:${chapterIndex}`;
+    const hasCachedAnalysis = chapterAnalysisCacheRef.current.has(cacheKey);
+    const cachedAnalysis = chapterAnalysisCacheRef.current.get(cacheKey) ?? null;
     const shouldRefreshCachedAnalysis = analysisStatus?.job.status === 'running' || analysisStatus?.job.status === 'pausing';
 
     if (hasCachedAnalysis) {
@@ -39,7 +40,7 @@ export function useChapterAnalysis(novelId: number, chapterIndex: number) {
     if (!silent && !hasCachedAnalysis) setIsChapterAnalysisLoading(true);
     try {
       const data = await analysisApi.getChapterAnalysis(novelId, chapterIndex);
-      chapterAnalysisCacheRef.current.set(chapterIndex, data.analysis);
+      chapterAnalysisCacheRef.current.set(cacheKey, data.analysis);
       setChapterAnalysis(data.analysis);
     } catch (err) {
       console.error('Failed to load chapter analysis', err);
@@ -56,7 +57,7 @@ export function useChapterAnalysis(novelId: number, chapterIndex: number) {
     setIsAnalyzingChapter(true);
     try {
       const result = await analysisApi.analyzeChapter(novelId, chapterIndex);
-      chapterAnalysisCacheRef.current.set(chapterIndex, result.analysis);
+      chapterAnalysisCacheRef.current.set(`${novelId}:${chapterIndex}`, result.analysis);
       setChapterAnalysis(result.analysis);
     } catch (err) {
       console.error('Failed to analyze chapter', err);
