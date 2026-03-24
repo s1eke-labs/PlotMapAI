@@ -14,7 +14,7 @@ import {
   buildRuntimeAnalysisConfig,
   maskApiKey,
   testAiProviderConnection,
-} from '../services/aiAnalysis';
+} from '../services/analysis';
 import { debugLog } from '../services/debug';
 
 export interface TocRule {

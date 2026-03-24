@@ -2,8 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { db } from '../db';
 
 // Mock the module-level side effect (recoverInterruptedJobs)
-vi.mock('../aiAnalysis', async () => {
-  const actual = await vi.importActual<typeof import('../aiAnalysis')>('../aiAnalysis');
+vi.mock('../analysis', async () => {
+  const actual = await vi.importActual<typeof import('../analysis')>('../analysis');
   return {
     ...actual,
     // Keep all real exports; mock only what's needed

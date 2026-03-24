@@ -13,7 +13,7 @@ import {
   AnalysisConfigError,
   ChunkingError,
   type RuntimeAnalysisConfig,
-} from '../aiAnalysis';
+} from '../analysis';
 import type { Chapter, ChapterAnalysis, AnalysisOverview } from '../db';
 
 describe('maskApiKey', () => {
