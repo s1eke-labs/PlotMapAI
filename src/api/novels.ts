@@ -114,23 +114,21 @@ export const novelsApi = {
           blob: parsed.coverBlob,
         });
       }
-      for (let i = 0; i < parsed.chapters.length; i++) {
-        await db.chapters.add({
-          id: undefined as unknown as number,
-          novelId: id,
-          title: parsed.chapters[i].title,
-          content: parsed.chapters[i].content,
-          chapterIndex: i,
-          wordCount: parsed.chapters[i].content.length,
-        });
-      }
-      for (const img of parsed.images) {
-        await db.chapterImages.add({
+      await db.chapters.bulkAdd(parsed.chapters.map((ch, i) => ({
+        id: undefined as unknown as number,
+        novelId: id,
+        title: ch.title,
+        content: ch.content,
+        chapterIndex: i,
+        wordCount: ch.content.length,
+      })));
+      if (parsed.images.length > 0) {
+        await db.chapterImages.bulkAdd(parsed.images.map(img => ({
           id: undefined as unknown as number,
           novelId: id,
           imageKey: img.imageKey,
           blob: img.blob,
-        });
+        })));
       }
     });
 

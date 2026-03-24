@@ -330,19 +330,17 @@ async function resetJobPlan(
   job.updatedAt = timestamp;
   await db.analysisJobs.put(job);
 
-  for (const chunk of chunks) {
-    await db.analysisChunks.add({
-      novelId,
-      chunkIndex: chunk.chunkIndex,
-      startChapterIndex: chunk.startChapterIndex,
-      endChapterIndex: chunk.endChapterIndex,
-      chapterIndices: chunk.chapterIndices,
-      status: 'pending',
-      chunkSummary: '',
-      errorMessage: '',
-      updatedAt: timestamp,
-    });
-  }
+  await db.analysisChunks.bulkAdd(chunks.map(chunk => ({
+    novelId,
+    chunkIndex: chunk.chunkIndex,
+    startChapterIndex: chunk.startChapterIndex,
+    endChapterIndex: chunk.endChapterIndex,
+    chapterIndices: chunk.chapterIndices,
+    status: 'pending' as const,
+    chunkSummary: '',
+    errorMessage: '',
+    updatedAt: timestamp,
+  })));
 }
 
 async function clearAnalysisData(novelId: number): Promise<void> {
