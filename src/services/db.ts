@@ -1,4 +1,5 @@
 import Dexie, { type EntityTable } from 'dexie';
+import type { AnalysisCharacter, AnalysisRelationship, OverviewCharacterStat, OverviewRelationship } from './analysis/types';
 
 interface DefaultTocRule {
   name: string;
@@ -109,8 +110,8 @@ export interface ChapterAnalysis {
   chapterTitle: string;
   summary: string;
   keyPoints: string[];
-  characters: Array<Record<string, unknown>>;
-  relationships: Array<Record<string, unknown>>;
+  characters: AnalysisCharacter[];
+  relationships: AnalysisRelationship[];
   tags: string[];
   chunkIndex: number;
   updatedAt: string;
@@ -122,8 +123,8 @@ export interface AnalysisOverview {
   bookIntro: string;
   globalSummary: string;
   themes: string[];
-  characterStats: Array<Record<string, unknown>>;
-  relationshipGraph: Array<Record<string, unknown>>;
+  characterStats: OverviewCharacterStat[];
+  relationshipGraph: OverviewRelationship[];
   totalChapters: number;
   analyzedChapters: number;
   updatedAt: string;
