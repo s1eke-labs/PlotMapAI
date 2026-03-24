@@ -20,7 +20,7 @@ vi.mock('../../api/reader', () => ({
   loadAndPurifyChapters: mockLoadAndPurifyChapters,
 }));
 
-vi.mock('../../api/settings', () => ({
+vi.mock('../../api/settings/aiConfig', () => ({
   getAiConfig: mockGetAiConfig,
 }));
 

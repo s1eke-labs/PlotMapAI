@@ -1,5 +1,5 @@
 import { loadAndPurifyChapters } from '../../api/reader';
-import { getAiConfig } from '../../api/settings';
+import { getAiConfig } from '../../api/settings/aiConfig';
 import { debugLog } from '../debug';
 import { buildRuntimeAnalysisConfig, buildAnalysisChunks, runSingleChapterAnalysis } from '../analysis';
 import { AnalysisErrorCode, AnalysisJobStateError } from '../analysis/errors';
