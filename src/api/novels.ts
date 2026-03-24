@@ -1,7 +1,7 @@
 import { db, ensureDefaultTocRules } from '../services/db';
 import { debugLog } from '../services/debug';
 
-export interface Novel {
+export interface NovelView {
   id: number;
   title: string;
   author: string;
@@ -12,11 +12,11 @@ export interface Novel {
   originalFilename: string;
   originalEncoding: string;
   totalWords: number;
-  chapter_count?: number;
+  chapterCount?: number;
   createdAt: string;
 }
 
-function novelToApi(novel: import('../services/db').Novel, chapterCount: number): Novel {
+function novelToApi(novel: import('../services/db').Novel, chapterCount: number): NovelView {
   return {
     id: novel.id,
     title: novel.title,
@@ -29,7 +29,7 @@ function novelToApi(novel: import('../services/db').Novel, chapterCount: number)
     originalEncoding: novel.originalEncoding,
     totalWords: novel.totalWords,
     createdAt: novel.createdAt,
-    chapter_count: chapterCount,
+    chapterCount,
   };
 }
 
@@ -39,9 +39,9 @@ async function getNextId(): Promise<number> {
 }
 
 export const novelsApi = {
-  list: async (): Promise<Novel[]> => {
+  list: async (): Promise<NovelView[]> => {
     const novels = await db.novels.orderBy('createdAt').reverse().toArray();
-    const result: Novel[] = [];
+    const result: NovelView[] = [];
     for (const novel of novels) {
       const count = await db.chapters.where('novelId').equals(novel.id).count();
       result.push(novelToApi(novel, count));
@@ -49,7 +49,7 @@ export const novelsApi = {
     return result;
   },
 
-  get: async (id: number): Promise<Novel> => {
+  get: async (id: number): Promise<NovelView> => {
     const novel = await db.novels.get(id);
     if (!novel) throw new Error('Novel not found');
     const count = await db.chapters.where('novelId').equals(id).count();
@@ -72,7 +72,7 @@ export const novelsApi = {
     return { message: 'Novel deleted' };
   },
 
-  upload: async (file: File): Promise<Novel> => {
+  upload: async (file: File): Promise<NovelView> => {
     const filename = file.name;
     const ext = filename.toLowerCase().split('.').pop();
     if (ext !== 'txt' && ext !== 'epub') {
