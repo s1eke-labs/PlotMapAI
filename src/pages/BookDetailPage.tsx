@@ -367,7 +367,7 @@ export default function BookDetailPage() {
                         {job.lastError && (
                           <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300 flex gap-3">
                             <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
-                            <span>{job.lastError}</span>
+                            <span>{t(`errors.${job.lastError}`, { defaultValue: job.lastError })}</span>
                           </div>
                         )}
                       </>

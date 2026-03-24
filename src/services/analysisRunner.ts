@@ -5,7 +5,9 @@ import { getAiConfig } from '../api/settings';
 import { debugLog } from './debug';
 import {
   AnalysisConfigError,
+  AnalysisErrorCode,
   AnalysisExecutionError,
+  AnalysisJobStateError,
   ChunkingError,
   buildRuntimeAnalysisConfig,
 } from './analysis';
@@ -46,14 +48,6 @@ const RESUMABLE_STATUSES = new Set(['paused', 'failed']);
 
 const ACTIVE_RUNNERS = new Map<number, AbortController>();
 
-// ── Custom error ──────────────────────────────────────────────────────────
-
-class AnalysisJobStateError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'AnalysisJobStateError';
-  }
-}
 
 // ── AI config helpers ─────────────────────────────────────────────────────
 
@@ -66,13 +60,13 @@ async function loadRuntimeConfig(): Promise<RuntimeAnalysisConfig> {
 
 async function loadNovel(novelId: number): Promise<Novel> {
   const novel = await db.novels.get(novelId);
-  if (!novel) throw new AnalysisJobStateError('小说不存在。');
+  if (!novel) throw new AnalysisJobStateError(AnalysisErrorCode.NOVEL_NOT_FOUND);
   return novel;
 }
 
 async function loadPurifiedChaptersForAnalysis(novelId: number): Promise<Chapter[]> {
   const chapters = await loadAndPurifyChapters(novelId);
-  if (!chapters.length) throw new AnalysisJobStateError('当前小说没有可分析的章节。');
+  if (!chapters.length) throw new AnalysisJobStateError(AnalysisErrorCode.NO_CHAPTERS);
   return chapters;
 }
 
@@ -82,7 +76,7 @@ async function loadJob(novelId: number): Promise<AnalysisJob | undefined> {
 
 async function ensureJob(novelId: number): Promise<AnalysisJob> {
   const job = await loadJob(novelId);
-  if (!job) throw new AnalysisJobStateError('当前小说还没有分析任务。');
+  if (!job) throw new AnalysisJobStateError(AnalysisErrorCode.JOB_NOT_FOUND);
   return job;
 }
 
@@ -296,7 +290,7 @@ async function resetJobPlan(
   totalChapters: number,
   chunks: AnalysisChunkPayload[],
 ): Promise<void> {
-  if (!chunks.length) throw new AnalysisJobStateError('当前小说没有可分析的章节。');
+  if (!chunks.length) throw new AnalysisJobStateError(AnalysisErrorCode.NO_CHAPTERS);
 
   await clearAnalysisData(novelId);
 
@@ -318,7 +312,7 @@ async function resetJobPlan(
       updatedAt: nowISO(),
     });
     job = await db.analysisJobs.get(id);
-    if (!job) throw new AnalysisJobStateError('无法创建分析任务。');
+    if (!job) throw new AnalysisJobStateError(AnalysisErrorCode.JOB_CREATE_FAILED);
   }
 
   const timestamp = nowISO();
@@ -389,7 +383,7 @@ async function hydrateChunkPayload(
   const chapters: Chapter[] = [];
   for (const chapterIndex of chapterIndices) {
     const chapter = chapterMap.get(chapterIndex);
-    if (!chapter) throw new AnalysisJobStateError(`找不到第 ${chapterIndex + 1} 章，无法继续分析。`);
+    if (!chapter) throw new AnalysisJobStateError(AnalysisErrorCode.CHAPTER_MISSING);
     chapters.push(chapter);
   }
   return buildChunkFromChapters(chunkRow.chunkIndex, chapters);
@@ -406,7 +400,7 @@ function formatExceptionMessage(exc: unknown): string {
   ) {
     return exc.message;
   }
-  return `系统内部错误：${exc instanceof Error ? exc.message : String(exc)}`;
+  return `Internal error: ${exc instanceof Error ? exc.message : String(exc)}`;
 }
 
 // ── Mark chunk helpers ────────────────────────────────────────────────────
@@ -458,7 +452,7 @@ async function saveChunkAnalysisResult(
     .first();
   if (chunk) {
     chunk.status = 'completed';
-    chunk.chunkSummary = result.chunkSummary || '该章节块分析已完成。';
+    chunk.chunkSummary = result.chunkSummary || 'Chunk analysis completed.';
     chunk.errorMessage = '';
     chunk.updatedAt = nowISO();
     await db.analysisChunks.put(chunk);
@@ -540,7 +534,7 @@ async function runAnalysisJob(novelId: number, signal: AbortSignal): Promise<voi
     for (const ch of chapters) chapterMap.set(ch.chapterIndex, ch);
     const chunkRows = await loadChunks(novelId);
     if (!chunkRows.length) {
-      await failJob(novelId, '分析分块不存在，请重新开始分析。');
+      await failJob(novelId, AnalysisErrorCode.CHUNKS_NOT_FOUND);
       return;
     }
 
@@ -607,7 +601,7 @@ async function runAnalysisJob(novelId: number, signal: AbortSignal): Promise<voi
         }
         await db.analysisJobs.put(job);
       } catch (exc) {
-        const errorMessage = `第 ${chunkRow.chunkIndex + 1} 块分析失败：${formatExceptionMessage(exc)}`;
+        const errorMessage = `Chunk ${chunkRow.chunkIndex + 1} failed: ${formatExceptionMessage(exc)}`;
         debugLog('Analysis', `chunk ${chunkRow.chunkIndex + 1} failed: ${exc}`);
         job = await loadJob(novelId);
         if (!job) return;
@@ -641,7 +635,7 @@ async function runAnalysisJob(novelId: number, signal: AbortSignal): Promise<voi
         chapterRows.length < totalChapters ||
         chapterRows.some(r => !isChapterAnalysisComplete(r))
       ) {
-        await failJob(novelId, '章节分析数据尚未全部补全，无法生成全书概览。');
+        await failJob(novelId, AnalysisErrorCode.CHAPTERS_INCOMPLETE);
         return;
       }
 
@@ -675,7 +669,7 @@ async function runAnalysisJob(novelId: number, signal: AbortSignal): Promise<voi
         debugLog('Analysis', `job completed`);
         return;
       } catch (exc) {
-        const errorMessage = `全书概览生成失败：${formatExceptionMessage(exc)}`;
+        const errorMessage = `Overview generation failed: ${formatExceptionMessage(exc)}`;
         job = await loadJob(novelId);
         if (!job) return;
         await updateJobCounters(job, totalChapters);
@@ -727,7 +721,7 @@ async function recoverInterruptedJobs(): Promise<void> {
     job.status = 'paused';
     job.pauseRequested = false;
     if (!job.lastError) {
-      job.lastError = '应用重启后，分析任务已暂停，请手动继续。';
+      job.lastError = AnalysisErrorCode.APP_RESTARTED;
     }
     job.updatedAt = nowISO();
     await db.analysisJobs.put(job);
@@ -756,10 +750,10 @@ export async function startAnalysis(novelId: number): Promise<AnalysisStatusResp
 
   const job = await loadJob(novelId);
   if (job && RUNNING_STATUSES.has(job.status)) {
-    throw new AnalysisJobStateError('当前小说正在分析中，请稍后再试。');
+    throw new AnalysisJobStateError(AnalysisErrorCode.ANALYSIS_IN_PROGRESS);
   }
   if (job && job.totalChunks > 0 && ['paused', 'failed', 'completed'].includes(job.status)) {
-    throw new AnalysisJobStateError('当前小说已有分析任务，请使用"继续分析"或"重新开始分析"。');
+    throw new AnalysisJobStateError(AnalysisErrorCode.JOB_ALREADY_EXISTS);
   }
 
   await resetJobPlan(novelId, chapters.length, chunks);
@@ -770,7 +764,7 @@ export async function startAnalysis(novelId: number): Promise<AnalysisStatusResp
 export async function pauseAnalysis(novelId: number): Promise<AnalysisStatusResponse> {
   const job = await ensureJob(novelId);
   if (!RUNNING_STATUSES.has(job.status)) {
-    throw new AnalysisJobStateError('当前没有可暂停的分析任务。');
+    throw new AnalysisJobStateError(AnalysisErrorCode.NO_PAUSABLE_JOB);
   }
   const updated = await db.analysisJobs
     .where('novelId')
@@ -796,7 +790,7 @@ export async function resumeAnalysis(novelId: number): Promise<AnalysisStatusRes
 
   const job = await ensureJob(novelId);
   if (RUNNING_STATUSES.has(job.status)) {
-    throw new AnalysisJobStateError('当前小说正在分析中，请勿重复启动。');
+    throw new AnalysisJobStateError(AnalysisErrorCode.ANALYSIS_RUNNING);
   }
   if (
     !RESUMABLE_STATUSES.has(job.status) &&
@@ -805,12 +799,12 @@ export async function resumeAnalysis(novelId: number): Promise<AnalysisStatusRes
       job.totalChunks > 0
     )
   ) {
-    throw new AnalysisJobStateError('当前任务不可继续，请先开始分析。');
+    throw new AnalysisJobStateError(AnalysisErrorCode.JOB_NOT_RESUMABLE);
   }
 
   const chunks = await loadChunks(novelId);
   if (!chunks.length) {
-    throw new AnalysisJobStateError('未找到可继续的分析分块，请重新开始分析。');
+    throw new AnalysisJobStateError(AnalysisErrorCode.NO_RESUMABLE_CHUNKS);
   }
 
   const incompleteIndices = await findIncompleteChunkIndices(novelId, chunks);
@@ -828,7 +822,7 @@ export async function resumeAnalysis(novelId: number): Promise<AnalysisStatusRes
   const overview = await loadOverview(novelId);
   const overviewComplete = isOverviewComplete(overview, totalChapters);
   if (completedCount >= reloadedChunks.length && overviewComplete) {
-    throw new AnalysisJobStateError('分析已完成，请使用"重新开始分析"重新生成。');
+    throw new AnalysisJobStateError(AnalysisErrorCode.ANALYSIS_COMPLETED);
   }
 
   const nextPending = reloadedChunks.find(c => c.status !== 'completed');
@@ -858,7 +852,7 @@ export async function restartAnalysis(novelId: number): Promise<AnalysisStatusRe
 
   const job = await loadJob(novelId);
   if (job && RUNNING_STATUSES.has(job.status)) {
-    throw new AnalysisJobStateError('请先暂停当前分析任务，再重新开始。');
+    throw new AnalysisJobStateError(AnalysisErrorCode.PAUSE_FIRST);
   }
 
   await resetJobPlan(novelId, chapters.length, chunks);
@@ -874,22 +868,22 @@ export async function refreshOverview(novelId: number): Promise<AnalysisStatusRe
 
   const job = await loadJob(novelId);
   if (job && RUNNING_STATUSES.has(job.status)) {
-    throw new AnalysisJobStateError('当前小说正在分析中，请稍后再试。');
+    throw new AnalysisJobStateError(AnalysisErrorCode.ANALYSIS_IN_PROGRESS);
   }
 
   const chunkRows = await loadChunks(novelId);
   if (!chunkRows.length) {
-    throw new AnalysisJobStateError('尚无可复用的章节分析结果，请先完成一次分析。');
+    throw new AnalysisJobStateError(AnalysisErrorCode.NO_REUSEABLE_RESULTS);
   }
 
   const incompleteIndices = await findIncompleteChunkIndices(novelId, chunkRows);
   if (incompleteIndices.size > 0) {
-    throw new AnalysisJobStateError('章节分析结果尚未完整，暂时无法只重跑人物图谱汇总。');
+    throw new AnalysisJobStateError(AnalysisErrorCode.CHAPTERS_INCOMPLETE_FOR_OVERVIEW);
   }
 
   const chapterRows = await loadChapterAnalyses(novelId);
   if (chapterRows.length < totalChapters || chapterRows.some(r => !isChapterAnalysisComplete(r))) {
-    throw new AnalysisJobStateError('章节分析结果尚未完整，暂时无法只重跑人物图谱汇总。');
+    throw new AnalysisJobStateError(AnalysisErrorCode.CHAPTERS_INCOMPLETE_FOR_OVERVIEW);
   }
 
   const overview = await loadOverview(novelId);
@@ -915,7 +909,7 @@ export async function refreshOverview(novelId: number): Promise<AnalysisStatusRe
       updatedAt: nowISO(),
     });
     currentJob = await db.analysisJobs.get(id);
-    if (!currentJob) throw new AnalysisJobStateError('无法创建分析任务。');
+    if (!currentJob) throw new AnalysisJobStateError(AnalysisErrorCode.JOB_CREATE_FAILED);
   }
 
   const timestamp = nowISO();
@@ -944,7 +938,7 @@ export async function analyzeSingleChapter(
   const novel = await loadNovel(novelId);
   const chapters = await loadPurifiedChaptersForAnalysis(novelId);
   const chapter = chapters.find(ch => ch.chapterIndex === chapterIndex);
-  if (!chapter) throw new AnalysisJobStateError(`第 ${chapterIndex + 1} 章不存在。`);
+  if (!chapter) throw new AnalysisJobStateError(AnalysisErrorCode.CHAPTER_NOT_FOUND);
 
   const result = await runSingleChapterAnalysis(runtimeConfig, novel.title, chapter);
   if (result.chapterAnalyses.length === 0) return null;
