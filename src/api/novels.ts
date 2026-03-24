@@ -40,13 +40,15 @@ async function getNextId(): Promise<number> {
 
 export const novelsApi = {
   list: async (): Promise<NovelView[]> => {
-    const novels = await db.novels.orderBy('createdAt').reverse().toArray();
-    const result: NovelView[] = [];
-    for (const novel of novels) {
-      const count = await db.chapters.where('novelId').equals(novel.id).count();
-      result.push(novelToApi(novel, count));
+    const [novels, chapters] = await Promise.all([
+      db.novels.orderBy('createdAt').reverse().toArray(),
+      db.chapters.toArray(),
+    ]);
+    const countMap = new Map<number, number>();
+    for (const ch of chapters) {
+      countMap.set(ch.novelId, (countMap.get(ch.novelId) ?? 0) + 1);
     }
-    return result;
+    return novels.map(novel => novelToApi(novel, countMap.get(novel.id) ?? 0));
   },
 
   get: async (id: number): Promise<NovelView> => {
