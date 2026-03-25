@@ -1,8 +1,9 @@
 import type { ChapterAnalysis } from '@infra/db';
+import { resolveAnalysisProviderAdapter } from '../providers';
 import { ANALYSIS_RETRY_LIMIT, LLM_MAX_OUTPUT_TOKENS } from './constants';
 import { AnalysisExecutionError } from './errors';
 import { collectAnalysisAggregates } from './aggregates';
-import { requestChatJson } from './client';
+import { extractJsonObject } from './client';
 import { buildAnalysisChunks } from './chunking';
 import { normalizeChunkResult, normalizeOverviewResult, normalizeSingleChapterResult } from './parsers';
 import { buildChunkPrompt, buildOverviewPrompt, buildSingleChapterPrompt } from './prompts';
@@ -22,18 +23,19 @@ export async function runChunkAnalysis(
   totalChunks: number,
 ): Promise<ChunkAnalysisResult> {
   const prompt = buildChunkPrompt(novelTitle, chunk, totalChunks);
-  const payload = {
-    model: config.modelName,
+  const request = {
+    systemPrompt: CHAPTER_ANALYZER_SYSTEM_PROMPT,
+    userPrompt: prompt,
     temperature: 0.2,
-    max_tokens: LLM_MAX_OUTPUT_TOKENS,
-    messages: [
-      { role: 'system' as const, content: CHAPTER_ANALYZER_SYSTEM_PROMPT },
-      { role: 'user' as const, content: prompt },
-    ],
+    maxOutputTokens: LLM_MAX_OUTPUT_TOKENS,
   };
   return runAnalysisWithRetry(
     `第 ${chunk.chunkIndex + 1} 块章节分析`,
-    async () => normalizeChunkResult(await requestChatJson(config.apiBaseUrl, config.apiKey, payload), chunk),
+    async () => {
+      const content = await resolveAnalysisProviderAdapter(config.providerId)
+        .generateText(config.providerConfig, request);
+      return normalizeChunkResult(extractJsonObject(content), chunk);
+    },
   );
 }
 
@@ -43,18 +45,19 @@ export async function runSingleChapterAnalysis(
   chapter: PromptChapter,
 ): Promise<ChunkAnalysisResult> {
   const prompt = buildSingleChapterPrompt(novelTitle, chapter);
-  const payload = {
-    model: config.modelName,
+  const request = {
+    systemPrompt: CHAPTER_ANALYZER_SYSTEM_PROMPT,
+    userPrompt: prompt,
     temperature: 0.2,
-    max_tokens: LLM_MAX_OUTPUT_TOKENS,
-    messages: [
-      { role: 'system' as const, content: CHAPTER_ANALYZER_SYSTEM_PROMPT },
-      { role: 'user' as const, content: prompt },
-    ],
+    maxOutputTokens: LLM_MAX_OUTPUT_TOKENS,
   };
   return runAnalysisWithRetry(
     `第 ${chapter.chapterIndex + 1} 章单章分析`,
-    async () => normalizeSingleChapterResult(await requestChatJson(config.apiBaseUrl, config.apiKey, payload), chapter),
+    async () => {
+      const content = await resolveAnalysisProviderAdapter(config.providerId)
+        .generateText(config.providerConfig, request);
+      return normalizeSingleChapterResult(extractJsonObject(content), chapter);
+    },
   );
 }
 
@@ -69,18 +72,19 @@ export async function runOverviewAnalysis(
   }
   const aggregates = collectAnalysisAggregates(chapterRows);
   const prompt = buildOverviewPrompt(novelTitle, aggregates, totalChapters, config.contextSize);
-  const payload = {
-    model: config.modelName,
+  const request = {
+    systemPrompt: OVERVIEW_ANALYZER_SYSTEM_PROMPT,
+    userPrompt: prompt,
     temperature: 0.2,
-    max_tokens: LLM_MAX_OUTPUT_TOKENS,
-    messages: [
-      { role: 'system' as const, content: OVERVIEW_ANALYZER_SYSTEM_PROMPT },
-      { role: 'user' as const, content: prompt },
-    ],
+    maxOutputTokens: LLM_MAX_OUTPUT_TOKENS,
   };
   return runAnalysisWithRetry(
     '全书概览分析',
-    async () => normalizeOverviewResult(await requestChatJson(config.apiBaseUrl, config.apiKey, payload), aggregates, totalChapters),
+    async () => {
+      const content = await resolveAnalysisProviderAdapter(config.providerId)
+        .generateText(config.providerConfig, request);
+      return normalizeOverviewResult(extractJsonObject(content), aggregates, totalChapters);
+    },
   );
 }
 

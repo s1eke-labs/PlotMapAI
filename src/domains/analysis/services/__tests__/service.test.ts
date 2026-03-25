@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
+import { DEFAULT_ANALYSIS_PROVIDER_ID } from '../../providers';
 import {
+  buildRuntimeAnalysisConfig,
   maskApiKey,
   cleanText,
   normalizeBaseUrl,
@@ -80,10 +82,13 @@ describe('normalizeBaseUrl', () => {
 
 describe('validateAnalysisConfig', () => {
   const validConfig: RuntimeAnalysisConfig = {
-    apiBaseUrl: 'http://localhost:5000',
-    apiKey: 'sk-test12345678',
-    modelName: 'gpt-4',
+    providerId: DEFAULT_ANALYSIS_PROVIDER_ID,
     contextSize: 32000,
+    providerConfig: {
+      apiBaseUrl: 'http://localhost:5000',
+      apiKey: 'sk-test12345678',
+      modelName: 'gpt-4',
+    },
   };
 
   it('passes for valid config', () => {
@@ -95,19 +100,69 @@ describe('validateAnalysisConfig', () => {
   });
 
   it('throws for empty apiBaseUrl', () => {
-    expect(() => validateAnalysisConfig({ ...validConfig, apiBaseUrl: '' })).toThrow(AnalysisConfigError);
+    expect(() => validateAnalysisConfig({
+      ...validConfig,
+      providerConfig: { ...validConfig.providerConfig, apiBaseUrl: '' },
+    })).toThrow(AnalysisConfigError);
   });
 
   it('throws for empty apiKey', () => {
-    expect(() => validateAnalysisConfig({ ...validConfig, apiKey: '' })).toThrow(AnalysisConfigError);
+    expect(() => validateAnalysisConfig({
+      ...validConfig,
+      providerConfig: { ...validConfig.providerConfig, apiKey: '' },
+    })).toThrow(AnalysisConfigError);
   });
 
   it('throws for empty modelName', () => {
-    expect(() => validateAnalysisConfig({ ...validConfig, modelName: '' })).toThrow(AnalysisConfigError);
+    expect(() => validateAnalysisConfig({
+      ...validConfig,
+      providerConfig: { ...validConfig.providerConfig, modelName: '' },
+    })).toThrow(AnalysisConfigError);
   });
 
   it('throws for small contextSize', () => {
     expect(() => validateAnalysisConfig({ ...validConfig, contextSize: 1000 })).toThrow(AnalysisConfigError);
+  });
+});
+
+describe('buildRuntimeAnalysisConfig', () => {
+  it('defaults providerId for legacy flat config input', () => {
+    expect(buildRuntimeAnalysisConfig({
+      apiBaseUrl: 'http://localhost:5000',
+      apiKey: 'token',
+      modelName: 'gpt-test',
+      contextSize: 32000,
+    })).toEqual({
+      providerId: DEFAULT_ANALYSIS_PROVIDER_ID,
+      contextSize: 32000,
+      providerConfig: {
+        apiBaseUrl: 'http://localhost:5000',
+        apiKey: 'token',
+        modelName: 'gpt-test',
+      },
+    });
+  });
+
+  it('throws for invalid providerId', () => {
+    expect(() => buildRuntimeAnalysisConfig({
+      providerId: 'invalid-provider',
+      apiBaseUrl: 'http://localhost:5000',
+      apiKey: 'token',
+      modelName: 'gpt-test',
+      contextSize: 32000,
+    })).toThrow(AnalysisConfigError);
+  });
+
+  it('accepts nested providerConfig input', () => {
+    expect(buildRuntimeAnalysisConfig({
+      providerId: DEFAULT_ANALYSIS_PROVIDER_ID,
+      contextSize: 32000,
+      providerConfig: {
+        apiBaseUrl: 'http://localhost:5000',
+        apiKey: 'token',
+        modelName: 'gpt-test',
+      },
+    }).providerConfig.modelName).toBe('gpt-test');
   });
 });
 

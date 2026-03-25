@@ -6,6 +6,7 @@ import {
   SECURE_KEYS,
   storage,
 } from '@infra/storage';
+import { DEFAULT_ANALYSIS_PROVIDER_ID } from '@domains/analysis';
 import { aiConfigApi, resetDeviceKeyForTesting } from '../aiConfig';
 import { db } from '@infra/db';
 
@@ -19,6 +20,7 @@ describe('aiConfigApi', () => {
 
   it('getAiProviderSettings returns empty config when not set', async () => {
     const settings = await aiConfigApi.getAiProviderSettings();
+    expect(settings.providerId).toBe(DEFAULT_ANALYSIS_PROVIDER_ID);
     expect(settings.apiBaseUrl).toBe('');
     expect(settings.hasApiKey).toBe(false);
     expect(settings.maskedApiKey).toBe('');
@@ -26,11 +28,13 @@ describe('aiConfigApi', () => {
 
   it('updateAiProviderSettings saves config', async () => {
     const settings = await aiConfigApi.updateAiProviderSettings({
+      providerId: DEFAULT_ANALYSIS_PROVIDER_ID,
       apiBaseUrl: 'http://localhost:5000',
       apiKey: 'sk-test12345678',
       modelName: 'gpt-4',
       contextSize: 32000,
     });
+    expect(settings.providerId).toBe(DEFAULT_ANALYSIS_PROVIDER_ID);
     expect(settings.apiBaseUrl).toBe('http://localhost:5000');
     expect(settings.hasApiKey).toBe(true);
     expect(settings.maskedApiKey).toContain('sk-t');
@@ -38,12 +42,14 @@ describe('aiConfigApi', () => {
 
   it('updateAiProviderSettings preserves existing key when keepExistingApiKey', async () => {
     await aiConfigApi.updateAiProviderSettings({
+      providerId: DEFAULT_ANALYSIS_PROVIDER_ID,
       apiBaseUrl: 'http://localhost:5000',
       apiKey: 'sk-original1234',
       modelName: 'gpt-4',
       contextSize: 32000,
     });
     const settings = await aiConfigApi.updateAiProviderSettings({
+      providerId: DEFAULT_ANALYSIS_PROVIDER_ID,
       apiBaseUrl: 'http://localhost:8080',
       keepExistingApiKey: true,
       modelName: 'gpt-4',
@@ -51,6 +57,19 @@ describe('aiConfigApi', () => {
     });
     expect(settings.apiBaseUrl).toBe('http://localhost:8080');
     expect(settings.hasApiKey).toBe(true);
+  });
+
+  it('defaults providerId for legacy AI config records', async () => {
+    await storage.primary.settings.set(APP_SETTING_KEYS.aiConfig, {
+      apiBaseUrl: 'http://legacy-host:5000',
+      modelName: 'legacy-model',
+      contextSize: 64000,
+    });
+    await storage.secure.set(SECURE_KEYS.aiApiKey, 'sk-legacy-secret');
+
+    const settings = await aiConfigApi.getAiProviderSettings();
+
+    expect(settings.providerId).toBe(DEFAULT_ANALYSIS_PROVIDER_ID);
   });
 
   it('migrates legacy AI config from localStorage to primary and secure storage', async () => {
@@ -68,6 +87,7 @@ describe('aiConfigApi', () => {
     expect(settings.contextSize).toBe(64000);
     expect(settings.hasApiKey).toBe(true);
     expect(await storage.primary.settings.get(APP_SETTING_KEYS.aiConfig)).toEqual({
+      providerId: DEFAULT_ANALYSIS_PROVIDER_ID,
       apiBaseUrl: 'http://legacy-host:5000',
       modelName: 'legacy-model',
       contextSize: 64000,
@@ -79,6 +99,7 @@ describe('aiConfigApi', () => {
 
   it('updateAiProviderSettings throws for invalid config', async () => {
     await expect(aiConfigApi.updateAiProviderSettings({
+      providerId: DEFAULT_ANALYSIS_PROVIDER_ID,
       apiBaseUrl: '',
       apiKey: '',
       modelName: '',
@@ -89,6 +110,7 @@ describe('aiConfigApi', () => {
   describe('AI config export/import', () => {
     beforeEach(async () => {
       await aiConfigApi.updateAiProviderSettings({
+        providerId: DEFAULT_ANALYSIS_PROVIDER_ID,
         apiBaseUrl: 'http://localhost:5000',
         apiKey: 'sk-test-secret-key-12345',
         modelName: 'gpt-4',
@@ -131,6 +153,7 @@ describe('aiConfigApi', () => {
       expect(settings.maskedApiKey).toContain('sk-t');
       expect(settings.modelName).toBe('gpt-4');
       expect(settings.contextSize).toBe(32000);
+      expect(settings.providerId).toBe(DEFAULT_ANALYSIS_PROVIDER_ID);
     });
 
     it('import fails with wrong password', async () => {

@@ -1,3 +1,4 @@
+import { DEFAULT_ANALYSIS_PROVIDER_ID } from '@domains/analysis';
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { aiConfigApi } from '../api/aiConfig';
@@ -43,6 +44,7 @@ export interface AiSettingsManager {
 }
 
 const DEFAULT_AI_FORM: AiProviderSettingsPayload = {
+  providerId: DEFAULT_ANALYSIS_PROVIDER_ID,
   apiBaseUrl: '',
   apiKey: '',
   modelName: '',
@@ -74,6 +76,7 @@ export function useAiSettingsManager(): AiSettingsManager {
 
   const syncForm = useCallback((data: AiProviderSettings) => {
     setForm({
+      providerId: data.providerId,
       apiBaseUrl: data.apiBaseUrl,
       apiKey: '',
       modelName: data.modelName,
@@ -107,6 +110,7 @@ export function useAiSettingsManager(): AiSettingsManager {
     const apiKey = form.apiKey?.trim() ?? '';
 
     return {
+      providerId: form.providerId,
       apiBaseUrl: form.apiBaseUrl.trim(),
       apiKey,
       modelName: form.modelName.trim(),

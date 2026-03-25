@@ -160,6 +160,7 @@ describe('analysis runtime orchestrator', () => {
     localStorage.clear();
 
     mockGetAiConfig.mockResolvedValue({
+      providerId: 'openai-compatible',
       apiBaseUrl: 'http://127.0.0.1:5000',
       apiKey: 'token',
       modelName: 'gpt-test',
@@ -198,6 +199,15 @@ describe('analysis runtime orchestrator', () => {
     expect(await currentDb.chapterAnalyses.count()).toBe(0);
     expect(await currentDb.analysisOverviews.count()).toBe(0);
     expect(mockRunAnalysisExecution).toHaveBeenCalledTimes(1);
+    expect(mockRunAnalysisExecution).toHaveBeenCalledWith(expect.objectContaining({
+      runtimeConfig: expect.objectContaining({
+        providerId: 'openai-compatible',
+        providerConfig: expect.objectContaining({
+          apiBaseUrl: 'http://127.0.0.1:5000',
+          modelName: 'gpt-test',
+        }),
+      }),
+    }));
   });
 
   it('pauseAnalysis marks pausing, aborts the active runner, and keeps completed work', async () => {

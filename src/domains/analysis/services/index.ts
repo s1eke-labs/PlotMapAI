@@ -1,6 +1,5 @@
 export * from './aggregates';
 export * from './chunking';
-export * from './client';
 export * from './config';
 export * from './connection';
 export * from './constants';

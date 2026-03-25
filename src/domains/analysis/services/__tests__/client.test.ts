@@ -1,63 +1,19 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
-
+import { describe, expect, it } from 'vitest';
 import { AnalysisExecutionError } from '../errors';
-import { requestChatContent, requestChatJson } from '../client';
+import { extractJsonObject } from '../client';
 
-const PAYLOAD = {
-  model: 'gpt-test',
-  temperature: 0,
-  max_tokens: 16,
-  messages: [
-    { role: 'system' as const, content: 'system' },
-    { role: 'user' as const, content: 'user' },
-  ],
-};
-
-describe('analysis client', () => {
-  afterEach(() => {
-    vi.restoreAllMocks();
+describe('analysis output helpers', () => {
+  it('extracts json from fenced model output', () => {
+    expect(extractJsonObject('```json\n{"ok":true}\n```')).toEqual({ ok: true });
   });
 
-  it('joins array-based message content into a single string', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({
-      choices: [
-        {
-          message: {
-            content: [
-              { text: '{"hello"' },
-              { text: ': "world"}' },
-            ],
-          },
-        },
-      ],
-    })));
-
-    await expect(requestChatContent('http://localhost:5000', 'token', PAYLOAD))
-      .resolves.toBe('{"hello": "world"}');
+  it('extracts the first json object embedded in text', () => {
+    expect(extractJsonObject('结果如下：{"hello":"world"}谢谢')).toEqual({ hello: 'world' });
   });
 
-  it('extracts json from fenced model output', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({
-      choices: [
-        {
-          message: {
-            content: '```json\n{"ok":true}\n```',
-          },
-        },
-      ],
-    })));
-
-    await expect(requestChatJson('http://localhost:5000', 'token', PAYLOAD))
-      .resolves.toEqual({ ok: true });
-  });
-
-  it('surfaces provider error messages from non-200 responses', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(
-      JSON.stringify({ error: { message: 'bad api key' } }),
-      { status: 401 },
-    ));
-
-    await expect(requestChatContent('http://localhost:5000', 'token', PAYLOAD))
-      .rejects.toThrow(new AnalysisExecutionError('AI 接口返回错误（HTTP 401）：bad api key'));
+  it('throws when content does not contain a valid json object', () => {
+    expect(() => extractJsonObject('not-json')).toThrow(
+      new AnalysisExecutionError('AI 返回内容不是合法 JSON。'),
+    );
   });
 });

@@ -1,8 +1,12 @@
+import type {
+  AnalysisProviderId,
+  OpenAiCompatibleProviderConfig,
+} from '../providers/types';
+
 export interface RuntimeAnalysisConfig {
-  apiBaseUrl: string;
-  apiKey: string;
-  modelName: string;
+  providerId: AnalysisProviderId;
   contextSize: number;
+  providerConfig: OpenAiCompatibleProviderConfig;
 }
 
 export interface PromptChapter {

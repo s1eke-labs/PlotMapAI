@@ -6,6 +6,8 @@ import {
   storage,
 } from '@infra/storage';
 import {
+  DEFAULT_ANALYSIS_PROVIDER_ID,
+  type AnalysisProviderId,
   buildRuntimeAnalysisConfig,
   maskApiKey,
   testAiProviderConnection,
@@ -13,12 +15,14 @@ import {
 import type { AiProviderSettings, AiProviderSettingsPayload } from './types';
 
 interface StoredAiConfigRecord {
+  providerId: AnalysisProviderId;
   apiBaseUrl: string;
   modelName: string;
   contextSize: number;
 }
 
 interface RuntimeAiConfig {
+  providerId: AnalysisProviderId;
   apiBaseUrl: string;
   apiKey: string;
   modelName: string;
@@ -29,6 +33,7 @@ function sanitizeAiConfigRecord(raw: unknown): StoredAiConfigRecord | null {
   if (!raw || typeof raw !== 'object') return null;
   const parsed = raw as Record<string, unknown>;
   return {
+    providerId: DEFAULT_ANALYSIS_PROVIDER_ID,
     apiBaseUrl: typeof parsed.apiBaseUrl === 'string' ? parsed.apiBaseUrl : '',
     modelName: typeof parsed.modelName === 'string' ? parsed.modelName : '',
     contextSize: typeof parsed.contextSize === 'number' ? parsed.contextSize : 32000,
@@ -76,6 +81,7 @@ async function getStoredAiApiKey(): Promise<string> {
 
 async function setAiConfig(config: RuntimeAiConfig): Promise<void> {
   await storage.primary.settings.set(APP_SETTING_KEYS.aiConfig, {
+    providerId: config.providerId,
     apiBaseUrl: config.apiBaseUrl,
     modelName: config.modelName,
     contextSize: config.contextSize,
@@ -93,6 +99,7 @@ export async function getAiConfig(): Promise<RuntimeAiConfig | null> {
   const stored = await getStoredAiConfigRecord();
   if (!stored) return null;
   return {
+    providerId: stored.providerId,
     apiBaseUrl: stored.apiBaseUrl,
     apiKey: await getStoredAiApiKey(),
     modelName: stored.modelName,
@@ -109,6 +116,7 @@ export const aiConfigApi = {
     const config = await getAiConfig();
     if (!config) {
       return {
+        providerId: DEFAULT_ANALYSIS_PROVIDER_ID,
         apiBaseUrl: '',
         modelName: '',
         contextSize: 32000,
@@ -118,6 +126,7 @@ export const aiConfigApi = {
       };
     }
     return {
+      providerId: config.providerId,
       apiBaseUrl: config.apiBaseUrl,
       modelName: config.modelName,
       contextSize: config.contextSize,
@@ -135,18 +144,26 @@ export const aiConfigApi = {
       apiKey = existing.apiKey;
     }
     const config = buildRuntimeAnalysisConfig({
+      providerId: payload.providerId || existing?.providerId || DEFAULT_ANALYSIS_PROVIDER_ID,
       apiBaseUrl: payload.apiBaseUrl || existing?.apiBaseUrl || '',
       apiKey,
       modelName: payload.modelName || existing?.modelName || '',
       contextSize: payload.contextSize || existing?.contextSize || 32000,
     });
-    await setAiConfig(config);
+    await setAiConfig({
+      providerId: config.providerId,
+      apiBaseUrl: config.providerConfig.apiBaseUrl,
+      apiKey: config.providerConfig.apiKey,
+      modelName: config.providerConfig.modelName,
+      contextSize: config.contextSize,
+    });
     return aiConfigApi.getAiProviderSettings();
   },
 
   testAiProviderSettings: async (payload: Partial<AiProviderSettingsPayload>): Promise<{ message: string; preview: string }> => {
     const existing = await getAiConfig();
     const config = buildRuntimeAnalysisConfig({
+      providerId: payload.providerId || existing?.providerId || DEFAULT_ANALYSIS_PROVIDER_ID,
       apiBaseUrl: payload.apiBaseUrl || existing?.apiBaseUrl || '',
       apiKey: payload.apiKey || existing?.apiKey || '',
       modelName: payload.modelName || existing?.modelName || '',
@@ -235,9 +252,19 @@ export const aiConfigApi = {
       throw new Error('Decrypted data is not valid JSON');
     }
 
-    if (!config.apiBaseUrl || !config.apiKey || !config.modelName || !config.contextSize) {
-      throw new Error('Config file is missing required fields');
-    }
-    await setAiConfig(config);
+    const runtimeConfig = buildRuntimeAnalysisConfig({
+      providerId: config.providerId,
+      apiBaseUrl: config.apiBaseUrl,
+      apiKey: config.apiKey,
+      modelName: config.modelName,
+      contextSize: config.contextSize,
+    });
+    await setAiConfig({
+      providerId: runtimeConfig.providerId,
+      apiBaseUrl: runtimeConfig.providerConfig.apiBaseUrl,
+      apiKey: runtimeConfig.providerConfig.apiKey,
+      modelName: runtimeConfig.providerConfig.modelName,
+      contextSize: runtimeConfig.contextSize,
+    });
   },
 };

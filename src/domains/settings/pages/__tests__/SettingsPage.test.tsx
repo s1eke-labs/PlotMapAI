@@ -1,3 +1,4 @@
+import { DEFAULT_ANALYSIS_PROVIDER_ID } from '@domains/analysis';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -79,6 +80,7 @@ const purificationRules = [
 ];
 
 const aiSettings = {
+  providerId: DEFAULT_ANALYSIS_PROVIDER_ID,
   apiBaseUrl: 'https://api.example.com/v1',
   modelName: 'gpt-4.1-mini',
   contextSize: 32000,
@@ -278,6 +280,7 @@ describe('SettingsPage', () => {
 
     await waitFor(() => {
       expect(aiConfigApi.updateAiProviderSettings).toHaveBeenCalledWith({
+        providerId: DEFAULT_ANALYSIS_PROVIDER_ID,
         apiBaseUrl: 'https://api.changed.example/v1',
         apiKey: 'new-key',
         modelName: 'gpt-5-mini',

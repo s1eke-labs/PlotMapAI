@@ -1,3 +1,5 @@
+import type { AnalysisProviderId } from '@domains/analysis';
+
 export interface TocRule {
   id: number;
   name: string;
@@ -28,6 +30,7 @@ export interface PurificationRule {
 }
 
 export interface AiProviderSettings {
+  providerId: AnalysisProviderId;
   apiBaseUrl: string;
   modelName: string;
   contextSize: number;
@@ -37,6 +40,7 @@ export interface AiProviderSettings {
 }
 
 export interface AiProviderSettingsPayload {
+  providerId: AnalysisProviderId;
   apiBaseUrl: string;
   apiKey?: string;
   modelName: string;

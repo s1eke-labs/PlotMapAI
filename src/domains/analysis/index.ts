@@ -13,6 +13,8 @@ export type {
 } from './api/analysisApi';
 export { default as ChapterAnalysisPanel } from './components/ChapterAnalysisPanel';
 export { useChapterAnalysis } from './hooks/useChapterAnalysis';
+export { DEFAULT_ANALYSIS_PROVIDER_ID } from './providers';
+export type { AnalysisProviderId } from './providers';
 export {
   buildAnalysisChunks,
   buildRuntimeAnalysisConfig,
