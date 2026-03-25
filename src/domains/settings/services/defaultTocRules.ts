@@ -1,5 +1,6 @@
 import type { TocRule } from '@infra/db';
 import { db } from '@infra/db';
+import { loadYaml } from './yaml';
 
 interface DefaultTocRuleRecord {
   name: string;
@@ -10,12 +11,11 @@ interface DefaultTocRuleRecord {
 }
 
 async function loadDefaultTocRules(): Promise<DefaultTocRuleRecord[]> {
-  const [{ default: yaml }, { default: defaultTocRulesRaw }] = await Promise.all([
-    import('js-yaml'),
+  const [{ default: defaultTocRulesRaw }] = await Promise.all([
     import('./defaultTocRules.yaml?raw'),
   ]);
 
-  return yaml.load(defaultTocRulesRaw) as DefaultTocRuleRecord[];
+  return loadYaml<DefaultTocRuleRecord[]>(defaultTocRulesRaw);
 }
 
 function mapDefaultRule(rule: DefaultTocRuleRecord, createdAt: string): Omit<TocRule, 'id'> {

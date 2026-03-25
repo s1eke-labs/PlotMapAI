@@ -1,13 +1,13 @@
 import { lazy, Suspense, useState, useEffect, useCallback } from 'react';
 import { Loader2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { UploadModal } from '@domains/book-import';
+import { loadUploadModal } from '@domains/book-import';
 
 import { libraryApi } from '../api/libraryApi';
 import type { NovelView } from '../api/libraryApi';
 import BookCard from '../components/BookCard';
 
-const LazyUploadModal = lazy(async () => ({ default: UploadModal }));
+const LazyUploadModal = lazy(loadUploadModal);
 
 export default function BookshelfPage() {
   const { t } = useTranslation();

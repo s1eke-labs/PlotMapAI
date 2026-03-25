@@ -1,1 +1,3 @@
-export { default as CharacterGraphPage } from './pages/CharacterGraphPage';
+export function loadCharacterGraphPage() {
+  return import('./pages/CharacterGraphPage');
+}

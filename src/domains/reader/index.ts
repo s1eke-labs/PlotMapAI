@@ -1,4 +1,3 @@
-export { default as ReaderPage } from './pages/ReaderPage';
 export { readerApi, loadAndPurifyChapters } from './api/readerApi';
 export type { Chapter, ChapterContent, ReadingProgress } from './api/readerApi';
 export {
@@ -8,3 +7,7 @@ export {
   resetReaderSessionStoreForTests,
 } from './hooks/sessionStore';
 export type { AppTheme } from './hooks/sessionStore';
+
+export function loadReaderPage() {
+  return import('./pages/ReaderPage');
+}

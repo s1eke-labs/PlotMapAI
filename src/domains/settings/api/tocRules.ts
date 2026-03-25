@@ -1,6 +1,6 @@
-import yaml from 'js-yaml';
 import { db } from '@infra/db';
 import { debugLog } from '@app/debug/service';
+import { dumpYaml, loadYaml } from '../services/yaml';
 import type { TocRule } from './types';
 
 function tocRuleToApi(rule: import('@infra/db').TocRule): TocRule {
@@ -64,7 +64,7 @@ export const tocRulesApi = {
     const text = await file.text();
     let rules: Array<Record<string, unknown>>;
     try {
-      const parsed = yaml.load(text);
+      const parsed = await loadYaml(text);
       rules = Array.isArray(parsed)
         ? parsed
         : ((parsed as Record<string, unknown>)?.rules as Array<Record<string, unknown>>) || [];
@@ -109,6 +109,6 @@ export const tocRulesApi = {
       serialNumber: rule.serialNumber ?? index,
       enable: rule.enable,
     }));
-    return yaml.dump(exportData, { lineWidth: 200, noRefs: true });
+    return dumpYaml(exportData, { lineWidth: 200, noRefs: true });
   },
 };

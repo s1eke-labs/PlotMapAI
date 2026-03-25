@@ -1,10 +1,10 @@
 import { lazy, Suspense, useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
 import { HashRouter as Router, Routes, Route } from 'react-router-dom';
-import { BookDetailPage, BookshelfPage } from '@domains/library';
-import { CharacterGraphPage } from '@domains/character-graph';
-import { ReaderPage } from '@domains/reader';
-import { SettingsPage } from '@domains/settings';
+import { loadBookDetailPage, loadBookshelfPage } from '@domains/library';
+import { loadCharacterGraphPage } from '@domains/character-graph';
+import { loadReaderPage } from '@domains/reader';
+import { loadSettingsPage } from '@domains/settings';
 
 import InstallPrompt from './components/InstallPrompt';
 import ReloadPrompt from './components/ReloadPrompt';
@@ -14,11 +14,11 @@ import Layout from './layout/Layout';
 import { ThemeProvider } from './providers/ThemeContext';
 import { appPaths } from './router/paths';
 
-const LazyBookshelfPage = lazy(async () => ({ default: BookshelfPage }));
-const LazyBookDetailPage = lazy(async () => ({ default: BookDetailPage }));
-const LazyReaderPage = lazy(async () => ({ default: ReaderPage }));
-const LazySettingsPage = lazy(async () => ({ default: SettingsPage }));
-const LazyCharacterGraphPage = lazy(async () => ({ default: CharacterGraphPage }));
+const LazyBookshelfPage = lazy(loadBookshelfPage);
+const LazyBookDetailPage = lazy(loadBookDetailPage);
+const LazyReaderPage = lazy(loadReaderPage);
+const LazySettingsPage = lazy(loadSettingsPage);
+const LazyCharacterGraphPage = lazy(loadCharacterGraphPage);
 
 function RouteFallback() {
   return (

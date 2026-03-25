@@ -23,24 +23,26 @@ vi.mock('../../components/BookCard', () => ({
   default: ({ novel }: { novel: { title: string } }) => <div data-testid="book-card">{novel.title}</div>,
 }));
 
-vi.mock('../../../book-import/components/UploadModal', () => ({
-  default: ({
-    isOpen,
-    onSuccess,
-    onClose,
-  }: {
-    isOpen: boolean;
-    onSuccess: () => void;
-    onClose: () => void;
-  }) => {
-    if (!isOpen) return null;
-    return (
-      <div data-testid="upload-modal">
-        <button type="button" onClick={onSuccess}>mock-upload-success</button>
-        <button type="button" onClick={onClose}>mock-upload-close</button>
-      </div>
-    );
-  },
+vi.mock('@domains/book-import', () => ({
+  loadUploadModal: () => Promise.resolve({
+    default: ({
+      isOpen,
+      onSuccess,
+      onClose,
+    }: {
+      isOpen: boolean;
+      onSuccess: () => void;
+      onClose: () => void;
+    }) => {
+      if (!isOpen) return null;
+      return (
+        <div data-testid="upload-modal">
+          <button type="button" onClick={onSuccess}>mock-upload-success</button>
+          <button type="button" onClick={onClose}>mock-upload-close</button>
+        </div>
+      );
+    },
+  }),
 }));
 
 describe('BookshelfPage', () => {

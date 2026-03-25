@@ -1,6 +1,6 @@
-import yaml from 'js-yaml';
 import { db } from '@infra/db';
 import { debugLog } from '@app/debug/service';
+import { dumpYaml, loadYaml } from '../services/yaml';
 import type { PurificationRule } from './types';
 
 function unescapeReplacement(raw: string): string {
@@ -106,7 +106,7 @@ export const purificationRulesApi = {
     debugLog('Settings', `upload purify rules file: ${file.name}, size=${file.size}, text length=${text.length}`);
     let parsed: unknown[];
     try {
-      const loaded = yaml.load(text);
+      const loaded = await loadYaml(text);
       parsed = Array.isArray(loaded) ? loaded : [];
     } catch (error) {
       throw new Error(`Invalid YAML file: ${error instanceof Error ? error.message : String(error)}`);
@@ -167,6 +167,6 @@ export const purificationRulesApi = {
       book_scope: rule.bookScope || '',
       exclude_book_scope: rule.excludeBookScope || '',
     }));
-    return yaml.dump(exportData, { lineWidth: 200, noRefs: true });
+    return dumpYaml(exportData, { lineWidth: 200, noRefs: true });
   },
 };
