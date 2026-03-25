@@ -1,6 +1,7 @@
 import type JSZip from 'jszip';
 import type { ChapterImageRef, OpfPackage } from './types';
-import { getChildElements, getPackageChild, resolveOpfPath } from './opf';
+import { findTagEnd, getAttribute, parseMarkupTag } from './markup';
+import { resolveOpfPath } from './opf';
 
 let imageCounter = 0;
 
@@ -17,56 +18,93 @@ function getImageMimeType(path: string): string {
   return 'image/png';
 }
 
+function decodeBase64(data: string): ArrayBuffer {
+  const binary = atob(data);
+  const buffer = new ArrayBuffer(binary.length);
+  const bytes = new Uint8Array(buffer);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return buffer;
+}
+
 export async function extractChapterImages(
   html: string,
   zip: JSZip,
   opfDir: string,
 ): Promise<{ html: string; images: ChapterImageRef[] }> {
-  const doc = new DOMParser().parseFromString(html, 'text/html');
   const images: ChapterImageRef[] = [];
+  let transformedHtml = '';
+  let index = 0;
 
-  for (const image of doc.querySelectorAll('img')) {
-    const src = image.getAttribute('src') || '';
-    if (!src || src.startsWith('http:') || src.startsWith('https:')) continue;
+  while (index < html.length) {
+    const tagStart = html.indexOf('<', index);
+    if (tagStart === -1) {
+      transformedHtml += html.slice(index);
+      break;
+    }
+
+    transformedHtml += html.slice(index, tagStart);
+    const tagEnd = findTagEnd(html, tagStart);
+    if (tagEnd === -1) {
+      transformedHtml += html.slice(tagStart);
+      break;
+    }
+
+    const originalTag = html.slice(tagStart, tagEnd + 1);
+    const parsedTag = parseMarkupTag(html.slice(tagStart + 1, tagEnd));
+    if (!parsedTag || parsedTag.isSpecial || parsedTag.isClosing || parsedTag.localName !== 'img') {
+      transformedHtml += originalTag;
+      index = tagEnd + 1;
+      continue;
+    }
+
+    const src = getAttribute(parsedTag.attributes, 'src');
+    if (!src || src.startsWith('http:') || src.startsWith('https:')) {
+      transformedHtml += originalTag;
+      index = tagEnd + 1;
+      continue;
+    }
+
     if (src.startsWith('data:')) {
       const key = generateImageKey();
-      const [meta, data] = src.split(',');
-      const mime = meta.match(/data:([^;]+)/)?.[1] || 'image/png';
-      const binary = atob(data);
-      const bytes = new Uint8Array(binary.length);
-      for (let index = 0; index < binary.length; index += 1) {
-        bytes[index] = binary.charCodeAt(index);
-      }
-      images.push({ imageKey: key, blob: new Blob([bytes], { type: mime }) });
-      image.replaceWith(doc.createTextNode(`[IMG:${key}]`));
+      const [meta, data = ''] = src.split(',', 2);
+      const mime = meta.match(/data:([^;]+)/u)?.[1] || 'image/png';
+      images.push({ imageKey: key, blob: new Blob([decodeBase64(data)], { type: mime }) });
+      transformedHtml += `[IMG:${key}]`;
+      index = tagEnd + 1;
       continue;
     }
 
     const fullPath = resolveOpfPath(opfDir, src);
     const file = zip.file(fullPath);
-    if (!file) continue;
+    if (!file) {
+      transformedHtml += originalTag;
+      index = tagEnd + 1;
+      continue;
+    }
+
     try {
       const buffer = await file.async('arraybuffer');
       const key = generateImageKey();
       images.push({ imageKey: key, blob: new Blob([buffer], { type: getImageMimeType(fullPath) }) });
-      image.replaceWith(doc.createTextNode(`[IMG:${key}]`));
+      transformedHtml += `[IMG:${key}]`;
     } catch {
-      // skip unreadable images
+      transformedHtml += originalTag;
     }
+
+    index = tagEnd + 1;
   }
 
-  return { html: doc.documentElement.outerHTML, images };
+  return { html: transformedHtml, images };
 }
 
 export async function extractCoverBlob(opfPackage: OpfPackage): Promise<Blob | null> {
-  const { manifest, opfDir, opfDoc, zip } = opfPackage;
+  const { manifest, metadata, opfDir, zip } = opfPackage;
   const imageItems = Array.from(manifest.values()).filter(item => item.mediaType.startsWith('image/'));
   let coverItem = undefined as (typeof imageItems)[number] | undefined;
 
-  const coverMeta = getChildElements(getPackageChild(opfDoc, 'metadata'), 'meta')
-    .find(element => element.getAttribute('name') === 'cover') || null;
-  const coverId = coverMeta?.getAttribute('content') || '';
-  if (coverId) coverItem = manifest.get(coverId);
+  if (metadata.coverId) coverItem = manifest.get(metadata.coverId);
 
   if (!coverItem) {
     coverItem = imageItems.find(item => {

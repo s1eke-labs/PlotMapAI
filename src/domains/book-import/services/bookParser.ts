@@ -1,5 +1,6 @@
-import { parseTxt } from './txtParser';
 import { parseEpub } from './epub/parser';
+import { parseTxt } from './txtParser';
+import type { BookImportProgress } from './progress';
 
 export interface ParsedBook {
   title: string;
@@ -17,6 +18,8 @@ export interface ParsedBook {
 
 export interface ParseContext {
   tocRules: Array<{ rule: string }>;
+  signal?: AbortSignal;
+  onProgress?: (progress: BookImportProgress) => void;
 }
 
 export interface BookParser {
@@ -27,11 +30,27 @@ export interface BookParser {
 const parsers: BookParser[] = [
   {
     canHandle: (file) => file.name.toLowerCase().endsWith('.epub'),
-    parse: (file) => parseEpub(file),
+    parse: (file, context) => {
+      if (!context.signal && !context.onProgress) {
+        return parseEpub(file);
+      }
+      return parseEpub(file, {
+        signal: context.signal,
+        onProgress: context.onProgress,
+      });
+    },
   },
   {
     canHandle: (file) => file.name.toLowerCase().endsWith('.txt'),
-    parse: (file, ctx) => parseTxt(file, ctx.tocRules),
+    parse: (file, context) => {
+      if (!context.signal && !context.onProgress) {
+        return parseTxt(file, context.tocRules);
+      }
+      return parseTxt(file, context.tocRules, {
+        signal: context.signal,
+        onProgress: context.onProgress,
+      });
+    },
   },
 ];
 
@@ -42,8 +61,18 @@ export function registerParser(parser: BookParser): void {
 export async function parseBook(
   file: File,
   tocRules: Array<{ rule: string }>,
+  options: {
+    signal?: AbortSignal;
+    onProgress?: (progress: BookImportProgress) => void;
+  } = {},
 ): Promise<ParsedBook> {
   const context: ParseContext = { tocRules };
+  if (options.signal) {
+    context.signal = options.signal;
+  }
+  if (options.onProgress) {
+    context.onProgress = options.onProgress;
+  }
   const parser = parsers.find(p => p.canHandle(file));
   if (!parser) {
     const ext = file.name.toLowerCase().split('.').pop();

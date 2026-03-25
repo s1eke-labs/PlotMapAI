@@ -1,5 +1,7 @@
 import type JSZip from 'jszip';
-import type { ManifestItem, OpfPackage } from './types';
+import { findElements, getAttribute } from './markup';
+import { parseOpfMetadata } from './metadata';
+import type { GuideReference, ManifestItem, OpfPackage } from './types';
 
 export function resolveOpfPath(opfDir: string, path: string): string {
   const cleanPath = path.split('#')[0];
@@ -7,42 +9,54 @@ export function resolveOpfPath(opfDir: string, path: string): string {
   return cleanPath;
 }
 
-export function getPackageChild(doc: Document, localName: string): Element | null {
-  return Array.from(doc.documentElement.children).find(element => element.localName === localName) || null;
-}
-
-export function getChildElements(parent: Element | null, localName: string): Element[] {
-  if (!parent) return [];
-  return Array.from(parent.children).filter(element => element.localName === localName);
-}
-
 async function getOpfPath(zip: JSZip): Promise<string> {
   const containerFile = zip.file('META-INF/container.xml');
   if (!containerFile) throw new Error('META-INF/container.xml not found');
   const containerXml = await containerFile.async('text');
-  const doc = new DOMParser().parseFromString(containerXml, 'application/xml');
-  const rootfile = doc.querySelector('rootfile');
+  const rootfile = findElements(containerXml, 'rootfile')[0];
   if (!rootfile) throw new Error('No rootfile element in container.xml');
-  const path = rootfile.getAttribute('full-path');
+  const path = getAttribute(rootfile.attributes, 'full-path');
   if (!path) throw new Error('No full-path attribute in rootfile');
   return path;
 }
 
-function getManifest(doc: Document): Map<string, ManifestItem> {
+function getManifest(opfXml: string): Map<string, ManifestItem> {
   const items = new Map<string, ManifestItem>();
-  for (const element of getChildElements(getPackageChild(doc, 'manifest'), 'item')) {
-    const id = element.getAttribute('id') || '';
-    const href = element.getAttribute('href') || '';
-    const mediaType = element.getAttribute('media-type') || '';
-    if (id && href) items.set(id, { id, href, mediaType });
+  const manifestMarkup = findElements(opfXml, 'manifest')[0]?.innerContent || '';
+  for (const element of findElements(manifestMarkup, 'item')) {
+    const id = getAttribute(element.attributes, 'id');
+    const href = getAttribute(element.attributes, 'href');
+    const mediaType = getAttribute(element.attributes, 'media-type');
+    const properties = getAttribute(element.attributes, 'properties');
+    if (id && href) items.set(id, { id, href, mediaType, properties });
   }
   return items;
 }
 
-function getSpineItemIds(doc: Document): string[] {
-  return getChildElements(getPackageChild(doc, 'spine'), 'itemref')
-    .map(element => element.getAttribute('idref'))
-    .filter((idref): idref is string => Boolean(idref));
+function getSpineData(opfXml: string): { spineIds: string[]; spineTocId: string } {
+  const spine = findElements(opfXml, 'spine')[0];
+  if (!spine) {
+    return { spineIds: [], spineTocId: '' };
+  }
+
+  const spineIds = findElements(spine.innerContent, 'itemref')
+    .map((element) => getAttribute(element.attributes, 'idref'))
+    .filter(Boolean);
+
+  return {
+    spineIds,
+    spineTocId: getAttribute(spine.attributes, 'toc'),
+  };
+}
+
+function getGuideReferences(opfXml: string): GuideReference[] {
+  const guideMarkup = findElements(opfXml, 'guide')[0]?.innerContent || '';
+  return findElements(guideMarkup, 'reference')
+    .map((element) => ({
+      href: getAttribute(element.attributes, 'href').split('#')[0],
+      title: getAttribute(element.attributes, 'title'),
+    }))
+    .filter((reference) => Boolean(reference.href) && Boolean(reference.title));
 }
 
 export async function loadOpfPackage(zip: JSZip): Promise<OpfPackage> {
@@ -51,13 +65,15 @@ export async function loadOpfPackage(zip: JSZip): Promise<OpfPackage> {
   const opfFile = zip.file(opfPath);
   if (!opfFile) throw new Error(`OPF file not found: ${opfPath}`);
   const opfXml = await opfFile.async('text');
-  const opfDoc = new DOMParser().parseFromString(opfXml, 'application/xml');
+  const { spineIds, spineTocId } = getSpineData(opfXml);
   return {
-    zip,
-    opfPath,
+    guideReferences: getGuideReferences(opfXml),
+    manifest: getManifest(opfXml),
+    metadata: parseOpfMetadata(opfXml),
     opfDir,
-    opfDoc,
-    manifest: getManifest(opfDoc),
-    spineIds: getSpineItemIds(opfDoc),
+    opfPath,
+    spineIds,
+    spineTocId,
+    zip,
   };
 }

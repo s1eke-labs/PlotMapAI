@@ -4,6 +4,19 @@ import { ensureDefaultTocRules } from '@domains/settings';
 import { db } from '@infra/db';
 
 import { parseBook } from '../services/bookParser';
+import type { BookImportProgress } from '../services/progress';
+
+export interface ImportBookOptions {
+  signal?: AbortSignal;
+  onProgress?: (progress: BookImportProgress) => void;
+}
+
+function emitProgress(
+  onProgress: ((progress: BookImportProgress) => void) | undefined,
+  progress: BookImportProgress,
+): void {
+  onProgress?.(progress);
+}
 
 async function getNextId(): Promise<number> {
   const last = await db.novels.orderBy('id').last();
@@ -11,22 +24,29 @@ async function getNextId(): Promise<number> {
 }
 
 export const bookImportApi = {
-  async importBook(file: File): Promise<NovelView> {
+  async importBook(file: File, options: ImportBookOptions = {}): Promise<NovelView> {
     const filename = file.name;
     const ext = filename.toLowerCase().split('.').pop();
     if (ext !== 'txt' && ext !== 'epub') {
       throw new Error('Only .txt and .epub files are supported');
     }
 
+    options.signal?.throwIfAborted?.();
     await ensureDefaultTocRules();
     const tocRules = await db.tocRules.filter((rule) => rule.enable).sortBy('serialNumber');
     const ruleDtos = tocRules.map((rule) => ({ rule: rule.rule }));
     debugLog('Upload', `file="${filename}", tocRules=${tocRules.length}`);
 
-    const parsed = await parseBook(file, ruleDtos);
+    const parsed = await parseBook(file, ruleDtos, {
+      signal: options.signal,
+      onProgress: options.onProgress,
+    });
+    options.signal?.throwIfAborted?.();
+
     const id = await getNextId();
     const now = new Date().toISOString();
 
+    emitProgress(options.onProgress, { progress: 96, stage: 'finalizing' });
     await db.transaction('rw', db.novels, db.chapters, db.coverImages, db.chapterImages, async () => {
       await db.novels.add({
         id,
@@ -67,6 +87,8 @@ export const bookImportApi = {
       }
     });
 
-    return libraryApi.get(id);
+    const novel = await libraryApi.get(id);
+    emitProgress(options.onProgress, { progress: 100, stage: 'finalizing' });
+    return novel;
   },
 };

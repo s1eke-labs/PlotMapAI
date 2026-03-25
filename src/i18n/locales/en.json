@@ -41,10 +41,21 @@
     "sizeLimit": "File size must be less than 100MB",
     "uploadFailed": "Upload failed",
     "uploadAndProcessing": "Uploading & Processing...",
+    "progressDetail": "{{stage}} · {{percent}}%",
     "maxSize": "Max size: 100MB",
     "clickOrDrag": "Click or drag file here",
     "subtitle": "Manage and read your personal collection",
-    "noBooksHint": "Upload a .txt or .epub file to start your reading journey. Our engine will automatically parse chapters for you."
+    "noBooksHint": "Upload a .txt or .epub file to start your reading journey. Our engine will automatically parse chapters for you.",
+    "workerStages": {
+      "hashing": "Hashing file",
+      "decoding": "Detecting text encoding",
+      "unzipping": "Unpacking EPUB",
+      "opf": "Reading book structure",
+      "toc": "Building table of contents",
+      "chapters": "Extracting chapters",
+      "images": "Extracting images and cover",
+      "finalizing": "Saving to library"
+    }
   },
   "bookDetail": {
     "author": "Author",
@@ -127,6 +138,7 @@
     "refreshGraph": "Refresh Character Graph",
     "refreshStarted": "Character graph regeneration has started. The introduction, overview, and relationships will update shortly.",
     "refreshFailed": "Failed to refresh the character graph.",
+    "layoutComputing": "Computing graph layout {{percent}}%",
     "resetLayout": "Reset Layout",
     "enterFullscreen": "Open Fullscreen",
     "exitFullscreen": "Exit Fullscreen",
@@ -219,6 +231,9 @@
       "analyzeChapter": "Analyze This Chapter",
       "analyzingChapter": "Analyzing…"
     },
+    "processingContents": "Preparing contents {{percent}}%",
+    "processingChapter": "Processing chapter {{percent}}%",
+    "restoringPosition": "Restoring reading position",
     "exit": "Exit Reader",
     "goBack": "Go Back"
   },

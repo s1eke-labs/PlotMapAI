@@ -6,6 +6,7 @@ import Modal from '@shared/components/Modal';
 import { cn } from '@shared/utils/cn';
 
 import { bookImportApi } from '../api/bookImportApi';
+import type { BookImportProgress } from '../services/progress';
 
 interface UploadModalProps {
   isOpen: boolean;
@@ -18,7 +19,11 @@ export default function UploadModal({ isOpen, onClose, onSuccess }: UploadModalP
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [progress, setProgress] = useState<BookImportProgress | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  const currentStageLabel = progress ? t(`bookshelf.workerStages.${progress.stage}`) : null;
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -45,15 +50,27 @@ export default function UploadModal({ isOpen, onClose, onSuccess }: UploadModalP
 
     setError(null);
     setIsUploading(true);
+    setProgress({ progress: 0, stage: 'hashing' });
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
     
     try {
-      await bookImportApi.importBook(file);
+      await bookImportApi.importBook(file, {
+        signal: controller.signal,
+        onProgress: setProgress,
+      });
       onSuccess();
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err) || t('bookshelf.uploadFailed'));
+      if (err instanceof Error && err.name === 'AbortError') {
+        setError(null);
+      } else {
+        setError(err instanceof Error ? err.message : String(err) || t('bookshelf.uploadFailed'));
+      }
     } finally {
+      abortControllerRef.current = null;
       setIsUploading(false);
+      setProgress(null);
     }
   };
 
@@ -74,8 +91,19 @@ export default function UploadModal({ isOpen, onClose, onSuccess }: UploadModalP
     }
   };
 
+  const handleCancelUpload = () => {
+    abortControllerRef.current?.abort();
+  };
+
+  const handleClose = () => {
+    if (isUploading) {
+      abortControllerRef.current?.abort();
+    }
+    onClose();
+  };
+
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={t('bookshelf.uploadTitle')} className="max-w-md">
+    <Modal isOpen={isOpen} onClose={handleClose} title={t('bookshelf.uploadTitle')} className="max-w-md">
       <div className="flex flex-col gap-4">
         {error && (
           <div className="bg-red-500/10 border border-red-500/20 text-red-500 rounded-lg p-3 text-sm">
@@ -113,17 +141,39 @@ export default function UploadModal({ isOpen, onClose, onSuccess }: UploadModalP
               {isUploading ? t('bookshelf.uploadAndProcessing') : t('bookshelf.clickOrDrag')}
             </p>
             <p className="text-sm text-text-secondary mt-1 max-w-[250px] mx-auto">
-              {t('bookshelf.supportHint')}
+              {isUploading && currentStageLabel
+                ? t('bookshelf.progressDetail', { percent: progress?.progress ?? 0, stage: currentStageLabel })
+                : t('bookshelf.supportHint')}
             </p>
           </div>
 
-          {!isUploading && (
+          {isUploading && progress ? (
+            <div className="w-full max-w-[260px] space-y-2">
+              <div className="h-2 overflow-hidden rounded-full bg-white/10">
+                <div
+                  className="h-full rounded-full bg-accent transition-[width] duration-200"
+                  style={{ width: `${progress.progress}%` }}
+                />
+              </div>
+              <p className="text-xs text-text-secondary">{currentStageLabel}</p>
+            </div>
+          ) : (
             <div className="flex items-center gap-2 mt-2 text-xs text-text-secondary">
               <FileText className="w-4 h-4" />
               <span>{t('bookshelf.maxSize')}</span>
             </div>
           )}
         </div>
+
+        {isUploading && (
+          <button
+            type="button"
+            onClick={handleCancelUpload}
+            className="rounded-xl border border-white/10 px-4 py-2.5 text-sm font-medium text-text-primary transition-colors hover:bg-white/5"
+          >
+            {t('common.actions.cancel')}
+          </button>
+        )}
       </div>
     </Modal>
   );

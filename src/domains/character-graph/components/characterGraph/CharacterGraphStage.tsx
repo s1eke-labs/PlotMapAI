@@ -31,11 +31,14 @@ interface CharacterGraphStageProps {
   highlightedNodeIds: ReadonlySet<string>;
   isComplete: boolean;
   isFullscreen: boolean;
+  isLayoutComputing: boolean;
   isMobile: boolean;
   isPanning: boolean;
   isRefreshingOverview: boolean;
   layoutEdges: LayoutEdge[];
+  layoutMessage: string | null;
   layoutNodes: LayoutNode[];
+  layoutProgress: number;
   novelId: number;
   novelTitle: string;
   relatedEdges: CharacterGraphEdge[];
@@ -65,11 +68,14 @@ export default function CharacterGraphStage({
   highlightedNodeIds,
   isComplete,
   isFullscreen,
+  isLayoutComputing,
   isMobile,
   isPanning,
   isRefreshingOverview,
   layoutEdges,
+  layoutMessage,
   layoutNodes,
+  layoutProgress,
   novelId,
   novelTitle,
   relatedEdges,
@@ -188,6 +194,21 @@ export default function CharacterGraphStage({
                   )}
                 </div>
               )}
+
+              {isLayoutComputing && layoutMessage && (
+                <div className="rounded-[20px] border border-[#d7deea] bg-[#f8fafc]/96 px-4 py-3 text-sm text-[#34527a] shadow-[0_12px_30px_rgba(28,35,45,0.05)] backdrop-blur">
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>{layoutMessage}</span>
+                  </div>
+                  <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#dce4ec]">
+                    <div
+                      className="h-full rounded-full bg-[#34527a] transition-[width] duration-200"
+                      style={{ width: `${layoutProgress}%` }}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
 
             {!selectedNode && mobileSheetMode !== 'help' && (
@@ -298,6 +319,7 @@ export default function CharacterGraphStage({
               ))}
               <StatusPill text={isComplete ? t('characterGraph.metaComplete') : t('characterGraph.metaPartial')} accent />
               {generatedAtText && <StatusPill text={generatedAtText} />}
+              {isLayoutComputing && layoutMessage && <StatusPill text={layoutMessage} />}
               {canRefreshOverview && (
                 <button
                   type="button"
@@ -336,6 +358,20 @@ export default function CharacterGraphStage({
               {actionMessage && (
                 <div className="mt-3 rounded-2xl border border-[#d7deea] bg-[#f8fafc] px-3 py-2 text-[#5f6b79]">
                   {actionMessage}
+                </div>
+              )}
+              {isLayoutComputing && layoutMessage && (
+                <div className="mt-3 rounded-2xl border border-[#d7deea] bg-[#f8fafc] px-3 py-3 text-[#34527a]">
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>{layoutMessage}</span>
+                  </div>
+                  <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#dce4ec]">
+                    <div
+                      className="h-full rounded-full bg-[#34527a] transition-[width] duration-200"
+                      style={{ width: `${layoutProgress}%` }}
+                    />
+                  </div>
                 </div>
               )}
               {!isComplete && (

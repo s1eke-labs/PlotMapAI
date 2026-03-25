@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { extractBookMetadata, extractTitleFromHtml, isNonContentPage } from '../epub/metadata';
+import { extractBookMetadata, extractTitleFromHtml, isNonContentPage, parseOpfMetadata } from '../epub/metadata';
 
 describe('metadata helpers', () => {
   it('extracts metadata fields and falls back to filename for missing title', () => {
-    const doc = new DOMParser().parseFromString(`<?xml version="1.0"?>
+    const metadata = parseOpfMetadata(`<?xml version="1.0"?>
 <package xmlns="http://www.idpf.org/2007/opf" version="3.0">
   <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
     <dc:creator>Author</dc:creator>
@@ -11,14 +11,14 @@ describe('metadata helpers', () => {
     <dc:subject>tag-a</dc:subject>
     <dc:subject>tag-b</dc:subject>
   </metadata>
-</package>`, 'application/xml');
+</package>`);
 
-    const metadata = extractBookMetadata(doc, 'Fallback.epub');
+    const bookMetadata = extractBookMetadata(metadata, 'Fallback.epub');
 
-    expect(metadata.title).toBe('Fallback');
-    expect(metadata.author).toBe('Author');
-    expect(metadata.description).toBe('Desc');
-    expect(metadata.tags).toEqual(['tag-a', 'tag-b']);
+    expect(bookMetadata.title).toBe('Fallback');
+    expect(bookMetadata.author).toBe('Author');
+    expect(bookMetadata.description).toBe('Desc');
+    expect(bookMetadata.tags).toEqual(['tag-a', 'tag-b']);
   });
 
   it('extracts a title from html title or heading tags', () => {

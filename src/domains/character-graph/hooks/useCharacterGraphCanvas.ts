@@ -2,9 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent, RefObject } from 'react';
 import type { TFunction } from 'i18next';
 import type { CharacterGraphEdge, CharacterGraphResponse } from '@domains/analysis';
+import type { GraphLayoutProgress } from '../workers/layoutClient';
+import { runGraphLayoutTask } from '../workers/layoutClient';
 import {
   buildEdgeCurve,
-  buildSpaciousLayout,
   CANVAS_PADDING,
   clamp,
   clampZoomOffset,
@@ -61,9 +62,12 @@ interface UseCharacterGraphCanvasResult {
   canPanCanvas: boolean;
   focusNodeId: string | null;
   highlightedNodeIds: Set<string>;
+  isLayoutComputing: boolean;
   isPanning: boolean;
   layoutEdges: LayoutEdge[];
+  layoutMessage: string | null;
   layoutNodes: LayoutNode[];
+  layoutProgress: number;
   relatedEdges: CharacterGraphEdge[];
   selectedNode: LayoutNode | null;
   selectedNodeId: string | null;
@@ -76,6 +80,14 @@ interface UseCharacterGraphCanvasResult {
   handleNodePointerDown: (event: ReactPointerEvent<SVGGElement>, node: LayoutNode) => void;
   resetLayout: () => void;
   selectNode: (nodeId: string) => void;
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === 'AbortError';
+}
+
+function getLayoutMessage(progress: number, t: TFunction): string {
+  return t('characterGraph.layoutComputing', { percent: progress });
 }
 
 export function useCharacterGraphCanvas({
@@ -93,11 +105,87 @@ export function useCharacterGraphCanvas({
   const [nodePositionState, setNodePositionState] = useState<NodePositionState>({ graph: null, positions: {} });
   const [viewportState, setViewportState] = useState<ViewportState>({ graph: null, isMobile: false, zoom: null });
   const [isPanning, setIsPanning] = useState(false);
+  const [layoutRevision, setLayoutRevision] = useState(0);
+  const [layoutState, setLayoutState] = useState<{
+    graph: CharacterGraphResponse | null;
+    isComputing: boolean;
+    nodes: LayoutNode[];
+    progress: number;
+  }>({
+    graph: null,
+    isComputing: false,
+    nodes: [],
+    progress: 0,
+  });
+
+  useEffect(() => {
+    if (!graph) {
+      return;
+    }
+
+    const controller = new AbortController();
+    const run = async () => {
+      setLayoutState((current) => ({
+        graph,
+        isComputing: true,
+        nodes: current.graph === graph ? current.nodes : [],
+        progress: 0,
+      }));
+
+      try {
+        const nodes = await runGraphLayoutTask(
+          {
+            nodes: graph.nodes,
+            edges: graph.edges,
+          },
+          {
+            signal: controller.signal,
+            onProgress: (progress: GraphLayoutProgress) => {
+              setLayoutState((current) => {
+                if (current.graph !== graph) {
+                  return current;
+                }
+                return {
+                  ...current,
+                  isComputing: true,
+                  progress: progress.progress,
+                };
+              });
+            },
+          },
+        );
+        setLayoutState({
+          graph,
+          isComputing: false,
+          nodes,
+          progress: 100,
+        });
+      } catch (error) {
+        if (isAbortError(error)) {
+          return;
+        }
+        setLayoutState({
+          graph,
+          isComputing: false,
+          nodes: [],
+          progress: 0,
+        });
+      }
+    };
+
+    void run();
+
+    return () => {
+      controller.abort();
+    };
+  }, [graph, layoutRevision]);
 
   const baseNodes = useMemo(
-    () => buildSpaciousLayout(graph?.nodes ?? [], graph?.edges ?? []),
-    [graph?.edges, graph?.nodes],
+    () => (layoutState.graph === graph ? layoutState.nodes : []),
+    [graph, layoutState.graph, layoutState.nodes],
   );
+  const isLayoutComputing = layoutState.graph === graph && layoutState.isComputing;
+  const layoutProgress = layoutState.graph === graph ? layoutState.progress : 0;
 
   const mobileFitZoomState = useMemo(
     () => getFitZoomState(baseNodes, {
@@ -204,6 +292,7 @@ export function useCharacterGraphCanvas({
   const resetLayout = useCallback(() => {
     setNodePositionState({ graph, positions: {} });
     setViewportState({ graph, isMobile, zoom: null });
+    setLayoutRevision((current) => current + 1);
   }, [graph, isMobile]);
 
   const getViewportPoint = useCallback((clientX: number, clientY: number) => {
@@ -408,9 +497,12 @@ export function useCharacterGraphCanvas({
     canPanCanvas,
     focusNodeId,
     highlightedNodeIds,
+    isLayoutComputing,
     isPanning,
     layoutEdges,
+    layoutMessage: isLayoutComputing ? getLayoutMessage(layoutProgress, t) : null,
     layoutNodes,
+    layoutProgress,
     relatedEdges,
     selectedNode,
     selectedNodeId: resolvedSelectedNodeId,

@@ -1,15 +1,62 @@
 import type { OpfPackage } from './types';
-import { getChildElements, getPackageChild, resolveOpfPath } from './opf';
+import { extractTextContent, findElements, getAttribute } from './markup';
+import { resolveOpfPath } from './opf';
+
+function isHtmlManifestItem(mediaType: string): boolean {
+  return mediaType.includes('xhtml') || mediaType.includes('html');
+}
+
+function addTocEntries(
+  tocMap: Map<string, string>,
+  entries: Array<{ href: string; title: string }>,
+): void {
+  for (const entry of entries) {
+    if (entry.href && entry.title && !tocMap.has(entry.href)) {
+      tocMap.set(entry.href, entry.title);
+    }
+  }
+}
+
+function parseNcxEntries(ncxXml: string): Array<{ href: string; title: string }> {
+  return findElements(ncxXml, 'navPoint')
+    .map((navPoint) => {
+      const title = extractTextContent(findElements(navPoint.innerContent, 'text')[0]?.innerContent || '');
+      const href = getAttribute(
+        findElements(navPoint.innerContent, 'content')[0]?.attributes || {},
+        'src',
+      ).split('#')[0];
+      return { href, title };
+    })
+    .filter((entry) => Boolean(entry.href) && Boolean(entry.title));
+}
+
+function parseNavEntries(navXml: string): Array<{ href: string; title: string }> {
+  const entries: Array<{ href: string; title: string }> = [];
+
+  for (const nav of findElements(navXml, 'nav')) {
+    if (getAttribute(nav.attributes, 'type').toLowerCase() !== 'toc') {
+      continue;
+    }
+
+    for (const link of findElements(nav.innerContent, 'a')) {
+      const href = getAttribute(link.attributes, 'href').split('#')[0];
+      const title = extractTextContent(link.innerContent);
+      if (href && title) {
+        entries.push({ href, title });
+      }
+    }
+  }
+
+  return entries;
+}
 
 export async function buildTocMap(opfPackage: OpfPackage): Promise<Map<string, string>> {
   const tocMap = new Map<string, string>();
-  const { manifest, opfDir, opfDoc, zip } = opfPackage;
+  const { guideReferences, manifest, opfDir, spineTocId, zip } = opfPackage;
 
   let ncxPath = '';
-  const spine = getPackageChild(opfDoc, 'spine');
-  const ncxId = spine?.getAttribute('toc') || '';
-  if (ncxId) {
-    const ncxHref = manifest.get(ncxId)?.href || '';
+  if (spineTocId) {
+    const ncxHref = manifest.get(spineTocId)?.href || '';
     if (ncxHref) ncxPath = resolveOpfPath(opfDir, ncxHref);
   }
 
@@ -18,14 +65,7 @@ export async function buildTocMap(opfPackage: OpfPackage): Promise<Map<string, s
     if (ncxFile) {
       try {
         const ncxXml = await ncxFile.async('text');
-        const ncxDoc = new DOMParser().parseFromString(ncxXml, 'application/xml');
-        const navPoints = ncxDoc.querySelectorAll('navPoint');
-        for (const navPoint of navPoints) {
-          const title = navPoint.querySelector('text')?.textContent?.trim() || '';
-          const src = navPoint.querySelector('content')?.getAttribute('src') || '';
-          const href = src.split('#')[0];
-          if (title && href && !tocMap.has(href)) tocMap.set(href, title);
-        }
+        addTocEntries(tocMap, parseNcxEntries(ncxXml));
       } catch {
         // ignore invalid ncx
       }
@@ -33,22 +73,16 @@ export async function buildTocMap(opfPackage: OpfPackage): Promise<Map<string, s
   }
 
   if (tocMap.size === 0) {
-    const navItem = getChildElements(getPackageChild(opfDoc, 'manifest'), 'item')
-      .find(item => item.getAttribute('properties') === 'nav') || null;
-    const navHref = navItem?.getAttribute('href') || '';
+    const navItem = Array.from(manifest.values())
+      .find((item) => item.properties.split(/\s+/u).includes('nav'));
+    const navHref = navItem?.href || '';
     const navPath = navHref ? resolveOpfPath(opfDir, navHref) : '';
     if (navPath) {
       const navFile = zip.file(navPath);
       if (navFile) {
         try {
           const navXml = await navFile.async('text');
-          const navDoc = new DOMParser().parseFromString(navXml, 'application/xhtml+xml');
-          const links = navDoc.querySelectorAll('nav[*|type="toc"] a, nav[epub\\:type="toc"] a, ol a');
-          for (const link of links) {
-            const href = (link as HTMLAnchorElement).getAttribute('href')?.split('#')[0] || '';
-            const title = link.textContent?.trim() || '';
-            if (href && title && !tocMap.has(href)) tocMap.set(href, title);
-          }
+          addTocEntries(tocMap, parseNavEntries(navXml));
         } catch {
           // ignore invalid nav document
         }
@@ -56,15 +90,11 @@ export async function buildTocMap(opfPackage: OpfPackage): Promise<Map<string, s
     }
   }
 
-  for (const element of getChildElements(getPackageChild(opfDoc, 'guide'), 'reference')) {
-    const href = element.getAttribute('href')?.split('#')[0] || '';
-    const title = element.getAttribute('title') || '';
-    if (href && title && !tocMap.has(href)) tocMap.set(href, title);
-  }
+  addTocEntries(tocMap, guideReferences);
 
   if (tocMap.size === 0) {
     for (const item of manifest.values()) {
-      if (item.mediaType.includes('xhtml') || item.mediaType.includes('html')) {
+      if (isHtmlManifestItem(item.mediaType)) {
         tocMap.set(item.href.split('#')[0], item.href);
       }
     }

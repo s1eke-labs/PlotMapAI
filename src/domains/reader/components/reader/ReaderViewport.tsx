@@ -13,6 +13,7 @@ interface ReaderViewportProps {
   renderableChapter: ChapterContent | null;
   showLoadingOverlay: boolean;
   isRestoringPosition: boolean;
+  loadingLabel?: string | null;
   onContentClick: React.MouseEventHandler<HTMLDivElement>;
   onContentScroll: React.UIEventHandler<HTMLDivElement>;
   emptyHref: string;
@@ -30,6 +31,7 @@ export default function ReaderViewport({
   renderableChapter,
   showLoadingOverlay,
   isRestoringPosition,
+  loadingLabel,
   onContentClick,
   onContentScroll,
   emptyHref,
@@ -69,9 +71,10 @@ export default function ReaderViewport({
         <div
           role="status"
           aria-label="Loading reader content"
-          className="absolute inset-0 flex items-center justify-center"
+          className="absolute inset-0 flex flex-col items-center justify-center gap-3"
         >
           <Loader2 className="w-8 h-8 animate-spin text-accent" />
+          {loadingLabel ? <p className="text-sm text-text-secondary">{loadingLabel}</p> : null}
         </div>
       )}
     </div>

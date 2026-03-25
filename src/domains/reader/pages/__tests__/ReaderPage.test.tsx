@@ -235,7 +235,7 @@ describe('ReaderPage', () => {
 
     expect(await screen.findByText('Summary for chapter 2')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Chapter 2', level: 3 })).toBeInTheDocument();
-    expect(readerApi.getChapterContent).toHaveBeenCalledWith(1, 1);
+    expect(readerApi.getChapterContent).toHaveBeenCalledWith(1, 1, expect.any(Object));
     expect(JSON.parse(localStorage.getItem('reader-state:1')!)).toMatchObject({
       chapterIndex: 1,
       viewMode: 'summary',
@@ -250,7 +250,7 @@ describe('ReaderPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /Chapter 2/ }));
 
     await waitFor(() => {
-      expect(readerApi.getChapterContent).toHaveBeenLastCalledWith(1, 1);
+      expect(readerApi.getChapterContent).toHaveBeenLastCalledWith(1, 1, expect.any(Object));
     });
     expect(await screen.findByRole('heading', { name: 'Chapter 2', level: 1 })).toBeInTheDocument();
     expect(JSON.parse(localStorage.getItem('reader-state:1')!)).toMatchObject({
@@ -292,7 +292,7 @@ describe('ReaderPage', () => {
     const { container } = renderPage();
 
     await waitFor(() => {
-      expect(readerApi.getChapterContent).toHaveBeenCalledWith(1, 2);
+      expect(readerApi.getChapterContent).toHaveBeenCalledWith(1, 2, expect.any(Object));
     });
 
     fireEvent.click(screen.getByRole('button', { name: /Chapter 6/i }));
@@ -496,7 +496,7 @@ describe('ReaderPage', () => {
     renderPage();
 
     await waitFor(() => {
-      expect(readerApi.getChapterContent).toHaveBeenCalledWith(1, 0);
+      expect(readerApi.getChapterContent).toHaveBeenCalledWith(1, 0, expect.any(Object));
     });
     expect(screen.queryByText('reader.noChapters')).not.toBeInTheDocument();
     expect(screen.getByRole('status', { name: 'Loading reader content' })).toBeInTheDocument();

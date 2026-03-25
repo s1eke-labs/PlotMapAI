@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { readerApi } from '../api/readerApi';
 import type { Chapter, ChapterContent } from '../api/readerApi';
 import type { PageTarget, StoredReaderState } from './useReaderStatePersistence';
@@ -37,10 +38,17 @@ interface UseReaderChapterDataParams {
   suppressScrollSyncTemporarily: () => void;
   startRestoreMaskForState: (state: StoredReaderState | null | undefined) => void;
   stopRestoreMask: () => void;
+  setLoadingMessage: React.Dispatch<React.SetStateAction<string | null>>;
 }
 
 interface UseReaderChapterDataResult {
-  fetchChapterContent: (index: number) => Promise<ChapterContent>;
+  fetchChapterContent: (
+    index: number,
+    options?: {
+      signal?: AbortSignal;
+      onProgress?: (message: string) => void;
+    },
+  ) => Promise<ChapterContent>;
   preloadAdjacent: (index: number, prune?: boolean) => void;
 }
 
@@ -76,23 +84,41 @@ export function useReaderChapterData({
   suppressScrollSyncTemporarily,
   startRestoreMaskForState,
   stopRestoreMask,
+  setLoadingMessage,
 }: UseReaderChapterDataParams): UseReaderChapterDataResult {
+  const { t } = useTranslation();
   const preloadTimeoutIdsRef = useRef<number[]>([]);
+  const preloadControllersRef = useRef<AbortController[]>([]);
 
   const clearScheduledPreloads = useCallback(() => {
     preloadTimeoutIdsRef.current.forEach((timeoutId) => {
       window.clearTimeout(timeoutId);
     });
     preloadTimeoutIdsRef.current = [];
+    preloadControllersRef.current.forEach((controller) => controller.abort());
+    preloadControllersRef.current = [];
   }, []);
 
-  const fetchChapterContent = useCallback(async (index: number) => {
+  const fetchChapterContent = useCallback(async (
+    index: number,
+    options: {
+      signal?: AbortSignal;
+      onProgress?: (message: string) => void;
+    } = {},
+  ) => {
     const cached = chapterCacheRef.current.get(index);
     if (cached) return cached;
-    const data = await readerApi.getChapterContent(novelId, index);
+
+    const data = await readerApi.getChapterContent(novelId, index, {
+      signal: options.signal,
+      onProgress: (progress) => {
+        const message = t('reader.processingChapter', { percent: progress.progress });
+        options.onProgress?.(message);
+      },
+    });
     chapterCacheRef.current.set(index, data);
     return data;
-  }, [chapterCacheRef, novelId]);
+  }, [chapterCacheRef, novelId, t]);
 
   const preloadAdjacent = useCallback((index: number, prune = true) => {
     clearScheduledPreloads();
@@ -111,7 +137,11 @@ export function useReaderChapterData({
       const timeoutId = window.setTimeout(() => {
         preloadTimeoutIdsRef.current = preloadTimeoutIdsRef.current.filter((id) => id !== timeoutId);
         if (chapterCacheRef.current.has(adjacentIndex)) return;
-        readerApi.getChapterContent(novelId, adjacentIndex)
+        const controller = new AbortController();
+        preloadControllersRef.current.push(controller);
+        readerApi.getChapterContent(novelId, adjacentIndex, {
+          signal: controller.signal,
+        })
           .then((data) => chapterCacheRef.current.set(adjacentIndex, data))
           .catch(() => {});
       }, delay);
@@ -144,10 +174,12 @@ export function useReaderChapterData({
   useEffect(() => {
     if (!novelId) return;
     let cancelled = false;
+    const initController = new AbortController();
 
     const init = async () => {
       clearScheduledPreloads();
       setIsLoading(true);
+      setLoadingMessage(t('reader.processingContents', { percent: 0 }));
       stopRestoreMask();
       setHasHydratedReaderState(false);
       hasUserInteractedRef.current = false;
@@ -177,7 +209,14 @@ export function useReaderChapterData({
       setChapterIndex(nextStoredState.chapterIndex ?? 0);
 
       try {
-        const toc = await readerApi.getChapters(novelId);
+        const toc = await readerApi.getChapters(novelId, {
+          signal: initController.signal,
+          onProgress: (progress) => {
+            if (!cancelled) {
+              setLoadingMessage(t('reader.processingContents', { percent: progress.progress }));
+            }
+          },
+        });
         if (cancelled) return;
         setChapters(toc);
 
@@ -206,12 +245,14 @@ export function useReaderChapterData({
 
         if (toc.length === 0) {
           setIsLoading(false);
+          setLoadingMessage(null);
           stopRestoreMask();
         }
       } catch (error) {
         if (!cancelled) {
           console.error('Failed to load reader init data:', error);
           setIsLoading(false);
+          setLoadingMessage(null);
           stopRestoreMask();
         }
       } finally {
@@ -224,6 +265,7 @@ export function useReaderChapterData({
     void init();
     return () => {
       cancelled = true;
+      initController.abort();
       clearScheduledPreloads();
     };
   }, [
@@ -245,8 +287,10 @@ export function useReaderChapterData({
     setPageIndex,
     setPendingRestoreState,
     setViewMode,
+    setLoadingMessage,
     startRestoreMaskForState,
     stopRestoreMask,
+    t,
     updateChapterWindow,
   ]);
 
@@ -263,6 +307,7 @@ export function useReaderChapterData({
     }
 
     let cancelled = false;
+    const chapterController = new AbortController();
 
     const initScrollModeWindow = () => {
       const nextWindow: number[] = [];
@@ -328,15 +373,22 @@ export function useReaderChapterData({
         preloadAdjacent(chapterIndex);
         chapterChangeSourceRef.current = null;
         setIsLoading(false);
+        setLoadingMessage(null);
         return;
       }
 
-      if (isPagedMode) {
-        setIsLoading(true);
-      }
+      setIsLoading(true);
 
       try {
-        const data = await readerApi.getChapterContent(novelId, chapterIndex);
+        setLoadingMessage(t('reader.processingChapter', { percent: 0 }));
+        const data = await readerApi.getChapterContent(novelId, chapterIndex, {
+          signal: chapterController.signal,
+          onProgress: (progress) => {
+            if (!cancelled) {
+              setLoadingMessage(t('reader.processingChapter', { percent: progress.progress }));
+            }
+          },
+        });
         if (cancelled) return;
         chapterCacheRef.current.set(chapterIndex, data);
         setCurrentChapter(data);
@@ -358,11 +410,13 @@ export function useReaderChapterData({
       } catch (error) {
         if (!cancelled) {
           console.error('Failed to load chapter content', error);
+          setLoadingMessage(null);
           stopRestoreMask();
         }
       } finally {
         if (!cancelled) {
           setIsLoading(false);
+          setLoadingMessage(null);
         }
       }
     };
@@ -370,6 +424,7 @@ export function useReaderChapterData({
     void fetchContent();
     return () => {
       cancelled = true;
+      chapterController.abort();
       clearScheduledPreloads();
     };
   }, [
@@ -389,11 +444,13 @@ export function useReaderChapterData({
     preloadAdjacent,
     setCurrentChapter,
     setIsLoading,
+    setLoadingMessage,
     setPageCount,
     setPageIndex,
     setPendingRestoreState,
     stopRestoreMask,
     suppressScrollSyncTemporarily,
+    t,
     updateChapterWindow,
     viewMode,
     wheelDeltaRef,

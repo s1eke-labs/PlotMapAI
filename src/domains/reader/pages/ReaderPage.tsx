@@ -46,6 +46,7 @@ export default function ReaderPage() {
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [currentChapter, setCurrentChapter] = useState<ChapterContent | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadingMessage, setLoadingMessage] = useState<string | null>(null);
   const [pageIndex, setPageIndex] = useState(0);
   const [pageCount, setPageCount] = useState(1);
   const [scrollModeChapters, setScrollModeChapters] = useState<number[]>([]);
@@ -165,6 +166,7 @@ export default function ReaderPage() {
     suppressScrollSyncTemporarily: restoreFlow.suppressScrollSyncTemporarily,
     startRestoreMaskForState: restoreFlow.startRestoreMaskForState,
     stopRestoreMask: restoreFlow.stopRestoreMask,
+    setLoadingMessage,
   });
 
   const handleReadingAnchorChange = useCallback((anchor: ScrollModeAnchor) => {
@@ -308,6 +310,7 @@ export default function ReaderPage() {
           renderableChapter={renderableChapter}
           showLoadingOverlay={showLoadingOverlay}
           isRestoringPosition={restoreFlow.isRestoringPosition}
+          loadingLabel={restoreStatus === 'restoring' ? t('reader.restoringPosition') : loadingMessage}
           onContentClick={contentClick.handleContentClick}
           onContentScroll={restoreFlow.handleContentScroll}
           emptyHref={appPaths.novel(novelId)}

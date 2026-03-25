@@ -1,6 +1,12 @@
 import { db } from '@infra/db';
 import type { Chapter as DbChapter } from '@infra/db';
-import { purify } from '@domains/settings';
+import {
+  runPurifyChapterTask,
+  runPurifyChaptersTask,
+  runPurifyTitlesTask,
+  type PurifyRule,
+  type TextProcessingProgress,
+} from '@shared/text-processing';
 
 export interface Chapter {
   index: number;
@@ -23,7 +29,12 @@ export interface ReadingProgress {
   isTwoColumn?: boolean;
 }
 
-async function getPurifyRules(): Promise<Array<Record<string, unknown>>> {
+export interface ReaderTextProcessingOptions {
+  signal?: AbortSignal;
+  onProgress?: (progress: TextProcessingProgress) => void;
+}
+
+async function getPurifyRules(): Promise<PurifyRule[]> {
   const rules = await db.purificationRules.filter(r => r.isEnabled).sortBy('order');
   return rules.map(r => ({
     name: r.name,
@@ -45,34 +56,73 @@ async function getNovelTitle(novelId: number): Promise<string> {
   return novel.title;
 }
 
-export async function loadAndPurifyChapters(novelId: number): Promise<DbChapter[]> {
+export async function loadAndPurifyChapters(
+  novelId: number,
+  options: ReaderTextProcessingOptions = {},
+): Promise<DbChapter[]> {
   const novelTitle = await getNovelTitle(novelId);
   const rawChapters = await db.chapters.where('novelId').equals(novelId).sortBy('chapterIndex');
   const rules = await getPurifyRules();
   if (rules.length === 0) return rawChapters;
-  return rawChapters.map(ch => ({
-    ...ch,
-    title: purify(ch.title, rules, 'title', novelTitle),
-    content: purify(ch.content, rules, 'content', novelTitle),
+
+  const purified = await runPurifyChaptersTask(
+    {
+      chapters: rawChapters.map((chapter) => ({
+        chapterIndex: chapter.chapterIndex,
+        title: chapter.title,
+        content: chapter.content,
+        wordCount: chapter.wordCount,
+      })),
+      rules,
+      bookTitle: novelTitle,
+    },
+    options,
+  );
+
+  return rawChapters.map((chapter, index) => ({
+    ...chapter,
+    title: purified[index].title,
+    content: purified[index].content,
   }));
 }
 
 export const readerApi = {
-  getChapters: async (novelId: number): Promise<Chapter[]> => {
+  getChapters: async (
+    novelId: number,
+    options: ReaderTextProcessingOptions = {},
+  ): Promise<Chapter[]> => {
     const novelTitle = await getNovelTitle(novelId);
     const rawChapters = await db.chapters.where('novelId').equals(novelId).sortBy('chapterIndex');
     const rules = await getPurifyRules();
     if (rules.length === 0) {
       return rawChapters.map(ch => ({ index: ch.chapterIndex, title: ch.title, wordCount: ch.wordCount }));
     }
-    return rawChapters.map(ch => ({
-      index: ch.chapterIndex,
-      title: purify(ch.title, rules, 'title', novelTitle),
-      wordCount: ch.wordCount,
+
+    const titles = await runPurifyTitlesTask(
+      {
+        titles: rawChapters.map((chapter) => ({
+          index: chapter.chapterIndex,
+          title: chapter.title,
+          wordCount: chapter.wordCount,
+        })),
+        rules,
+        bookTitle: novelTitle,
+      },
+      options,
+    );
+
+    return titles.map((chapter) => ({
+      index: chapter.index,
+      title: chapter.title,
+      wordCount: chapter.wordCount,
     }));
   },
 
-  getChapterContent: async (novelId: number, chapterIndex: number): Promise<ChapterContent> => {
+  getChapterContent: async (
+    novelId: number,
+    chapterIndex: number,
+    options: ReaderTextProcessingOptions = {},
+  ): Promise<ChapterContent> => {
     const novelTitle = await getNovelTitle(novelId);
     const chapter = await db.chapters
       .where('[novelId+chapterIndex]')
@@ -83,8 +133,21 @@ export const readerApi = {
     const rules = await getPurifyRules();
     let { title, content } = chapter;
     if (rules.length > 0) {
-      title = purify(title, rules, 'title', novelTitle);
-      content = purify(content, rules, 'content', novelTitle);
+      const purified = await runPurifyChapterTask(
+        {
+          chapter: {
+            chapterIndex: chapter.chapterIndex,
+            title,
+            content,
+            wordCount: chapter.wordCount,
+          },
+          rules,
+          bookTitle: novelTitle,
+        },
+        options,
+      );
+      title = purified.title;
+      content = purified.content;
     }
     return {
       index: chapter.chapterIndex,

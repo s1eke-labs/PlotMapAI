@@ -56,7 +56,13 @@ describe('UploadModal', () => {
     await user.upload(getFileInput(), file);
 
     await waitFor(() => {
-      expect(bookImportApi.importBook).toHaveBeenCalledWith(file);
+      expect(bookImportApi.importBook).toHaveBeenCalledWith(
+        file,
+        expect.objectContaining({
+          onProgress: expect.any(Function),
+          signal: expect.any(AbortSignal),
+        }),
+      );
     });
     expect(onSuccess).toHaveBeenCalledTimes(1);
     expect(onClose).toHaveBeenCalledTimes(1);

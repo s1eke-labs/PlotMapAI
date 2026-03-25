@@ -196,7 +196,7 @@ describe('CharacterGraphPage', () => {
     renderPage('/novel/1/graph');
 
     expect(await screen.findByText('Mock Novel')).toBeInTheDocument();
-    fireEvent.pointerDown(screen.getByText('Hero'), { clientX: 50, clientY: 50 });
+    fireEvent.pointerDown(await screen.findByText('Hero'), { clientX: 50, clientY: 50 });
     window.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
 
     expect(await screen.findByText('characterGraph.profileTitle')).toBeInTheDocument();
@@ -271,7 +271,7 @@ describe('CharacterGraphPage', () => {
     renderPage('/novel/1/graph');
 
     expect(await screen.findByText('Mock Novel')).toBeInTheDocument();
-    fireEvent.pointerDown(screen.getByText('Hero'), { clientX: 50, clientY: 50 });
+    fireEvent.pointerDown(await screen.findByText('Hero'), { clientX: 50, clientY: 50 });
     window.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
 
     expect(await screen.findByText('characterGraph.profileTitle')).toBeInTheDocument();
@@ -305,12 +305,13 @@ describe('CharacterGraphPage', () => {
     const svg = container.querySelector('svg[viewBox="0 0 1440 960"]');
     const matrixGroup = svg?.querySelector('g[transform^="matrix("]');
 
-    expect(svg).not.toBeNull();
-    expect(matrixGroup).not.toBeNull();
+    await waitFor(() => {
+      expect(svg).not.toBeNull();
+      expect(matrixGroup).not.toBeNull();
+      expect(matrixGroup?.getAttribute('transform')).not.toBe('matrix(1 0 0 1 0 0)');
+    });
 
     const initialTransform = matrixGroup?.getAttribute('transform');
-    expect(initialTransform).not.toBeNull();
-    expect(initialTransform).not.toBe('matrix(1 0 0 1 0 0)');
 
     fireEvent.wheel(svg!, { clientX: 50, clientY: 50, deltaY: -300 });
 

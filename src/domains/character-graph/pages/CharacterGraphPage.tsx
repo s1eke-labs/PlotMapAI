@@ -171,11 +171,14 @@ export default function CharacterGraphPage() {
       highlightedNodeIds={canvas.highlightedNodeIds}
       isComplete={graph.meta.isComplete}
       isFullscreen={isFullscreen}
+      isLayoutComputing={canvas.isLayoutComputing}
       isMobile={isMobile}
       isPanning={canvas.isPanning}
       isRefreshingOverview={isRefreshingOverview}
       layoutEdges={canvas.layoutEdges}
+      layoutMessage={canvas.layoutMessage}
       layoutNodes={canvas.layoutNodes}
+      layoutProgress={canvas.layoutProgress}
       novelId={novel.id}
       novelTitle={novel.title}
       relatedEdges={canvas.relatedEdges}

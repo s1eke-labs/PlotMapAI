@@ -41,10 +41,21 @@
     "sizeLimit": "文件大小必须小于 100MB",
     "uploadFailed": "上传失败",
     "uploadAndProcessing": "正在上传并解析...",
+    "progressDetail": "{{stage}} · {{percent}}%",
     "maxSize": "最大限制：100MB",
     "clickOrDrag": "点击或拖拽文件至此处",
     "subtitle": "管理和阅读您的个人藏书",
-    "noBooksHint": "上传 .txt 或 .epub 文件即可开始阅读。我们的引擎会自动为您解析章节。"
+    "noBooksHint": "上传 .txt 或 .epub 文件即可开始阅读。我们的引擎会自动为您解析章节。",
+    "workerStages": {
+      "hashing": "计算文件指纹",
+      "decoding": "识别文本编码",
+      "unzipping": "解压 EPUB",
+      "opf": "读取书籍结构",
+      "toc": "整理目录导航",
+      "chapters": "提取章节内容",
+      "images": "提取插图与封面",
+      "finalizing": "写入书库"
+    }
   },
   "bookDetail": {
     "author": "作者",
@@ -127,6 +138,7 @@
     "refreshGraph": "重新汇总人物图谱",
     "refreshStarted": "已开始重新汇总人物图谱，新的简介、全书概览和关系图会陆续更新。",
     "refreshFailed": "重新汇总人物图谱失败。",
+    "layoutComputing": "正在整理图谱布局 {{percent}}%",
     "resetLayout": "重置布局",
     "enterFullscreen": "全屏查看",
     "exitFullscreen": "退出全屏",
@@ -219,6 +231,9 @@
       "analyzeChapter": "分析本章",
       "analyzingChapter": "正在分析…"
     },
+    "processingContents": "正在整理目录 {{percent}}%",
+    "processingChapter": "正在处理章节内容 {{percent}}%",
+    "restoringPosition": "正在恢复阅读位置",
     "exit": "退出阅读",
     "goBack": "返回"
   },

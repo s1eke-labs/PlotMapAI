@@ -49,6 +49,11 @@ export interface FitZoomStateOptions {
   maxScale?: number;
 }
 
+export interface BuildSpaciousLayoutOptions {
+  signal?: AbortSignal;
+  onProgress?: (progress: number) => void;
+}
+
 export const STAGE_WIDTH = 1440;
 export const STAGE_HEIGHT = 960;
 export const CANVAS_PADDING = 96;
@@ -60,10 +65,22 @@ export const DEFAULT_ZOOM_STATE: ZoomState = {
   offsetY: 0,
 };
 
-export function buildSpaciousLayout(nodes: CharacterGraphNode[], edges: CharacterGraphEdge[]): LayoutNode[] {
+export function buildSpaciousLayout(
+  nodes: CharacterGraphNode[],
+  edges: CharacterGraphEdge[],
+  options: BuildSpaciousLayoutOptions = {},
+): LayoutNode[] {
+  const emitProgress = (progress: number) => {
+    options.onProgress?.(progress);
+  };
+
   if (nodes.length === 0) {
+    emitProgress(100);
     return [];
   }
+
+  options.signal?.throwIfAborted?.();
+  emitProgress(2);
 
   const degreeMap = new Map<string, number>();
   edges.forEach((edge) => {
@@ -110,6 +127,7 @@ export function buildSpaciousLayout(nodes: CharacterGraphNode[], edges: Characte
   }));
 
   for (let iteration = 0; iteration < 220; iteration += 1) {
+    options.signal?.throwIfAborted?.();
     for (let i = 0; i < layout.length; i += 1) {
       for (let j = i + 1; j < layout.length; j += 1) {
         const first = layout[i];
@@ -167,13 +185,20 @@ export function buildSpaciousLayout(nodes: CharacterGraphNode[], edges: Characte
         STAGE_HEIGHT - CANVAS_PADDING - node.radius,
       );
     });
+
+    if (iteration === 0 || iteration === 219 || iteration % 20 === 0) {
+      emitProgress(Math.max(4, Math.min(96, Math.round(((iteration + 1) / 220) * 100))));
+    }
   }
 
-  return layout.map((node, index) => ({
+  const result = layout.map((node, index) => ({
     ...node,
     x: Number(positions[index].x.toFixed(2)),
     y: Number(positions[index].y.toFixed(2)),
   }));
+
+  emitProgress(100);
+  return result;
 }
 
 export function getAnchorPosition(index: number, total: number): { x: number; y: number } {
