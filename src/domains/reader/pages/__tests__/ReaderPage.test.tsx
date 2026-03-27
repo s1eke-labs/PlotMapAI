@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import ReaderPage from '../ReaderPage';
@@ -288,6 +288,27 @@ describe('ReaderPage', () => {
       viewMode: 'original',
       isTwoColumn: false,
       chapterProgress: 0,
+    });
+  });
+
+  it('opens the mobile contents sheet and closes it after selecting a chapter', async () => {
+    renderPage();
+
+    expect(await screen.findByRole('heading', { name: 'Chapter 1', level: 1 })).toBeInTheDocument();
+
+    fireEvent.click(screen.getAllByTitle('reader.contents')[0]);
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /Chapter 2/ }));
+
+    await waitFor(() => {
+      expect(readerApi.getChapterContent).toHaveBeenLastCalledWith(1, 1, expect.any(Object));
+    });
+    expect(await screen.findByRole('heading', { name: 'Chapter 2', level: 1 })).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     });
   });
 

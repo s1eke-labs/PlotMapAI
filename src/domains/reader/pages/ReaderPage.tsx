@@ -304,13 +304,9 @@ export default function ReaderPage() {
         currentIndex={chapterIndex}
         contentTextColor={preferences.currentTheme.text}
         isSidebarOpen={sidebar.isSidebarOpen}
-        dragOffset={sidebar.dragOffset}
         sidebarBgClassName={preferences.currentTheme.sidebarBg}
         onClose={closeSidebar}
         onSelectChapter={handleSelectChapter}
-        onDragStart={sidebar.handleDragStart}
-        onDragMove={sidebar.handleDragMove}
-        onDragEnd={sidebar.handleDragEnd}
       />
 
       <main className="flex-1 flex flex-col min-w-0 relative text-text-primary">

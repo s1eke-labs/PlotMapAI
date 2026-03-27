@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import BottomSheet from '../BottomSheet';
 
 function getDragHandle(container: HTMLElement): HTMLDivElement {
-  const handle = container.querySelector('div.flex.touch-none.select-none.justify-center.pt-5.pb-1');
+  const handle = container.querySelector('[data-slot="sheet-handle-area"]');
   if (!(handle instanceof HTMLDivElement)) {
     throw new Error('drag handle not found');
   }
@@ -85,5 +85,24 @@ describe('BottomSheet', () => {
     fireEvent.pointerUp(handle, { pointerId: 1, clientY: 140 });
 
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('applies custom class names to the container, panel, and content slots', () => {
+    const { container } = render(
+      <BottomSheet
+        isOpen={true}
+        onClose={vi.fn()}
+        title="Panel title"
+        containerClassName="sheet-root-test"
+        panelClassName="sheet-panel-test"
+        contentClassName="sheet-content-test"
+      >
+        Panel content
+      </BottomSheet>,
+    );
+
+    expect(container.querySelector('[data-slot="sheet-root"]')).toHaveClass('sheet-root-test');
+    expect(container.querySelector('[data-slot="sheet-panel"]')).toHaveClass('sheet-panel-test');
+    expect(container.querySelector('[data-slot="sheet-content"]')).toHaveClass('sheet-content-test');
   });
 });

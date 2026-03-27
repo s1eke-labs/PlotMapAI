@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent, ReactNode } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { X } from 'lucide-react';
+
+import { cn } from '@shared/utils/cn';
 
 const EXIT_DURATION_MS = 250;
 const DRAG_CLOSE_THRESHOLD = 0.3;
@@ -27,6 +29,9 @@ interface BottomSheetProps {
   closeOnBackdrop?: boolean;
   closeLabel?: string;
   showDragHandle?: boolean;
+  containerClassName?: string;
+  panelClassName?: string;
+  contentClassName?: string;
 }
 
 export default function BottomSheet({
@@ -39,6 +44,9 @@ export default function BottomSheet({
   closeOnBackdrop = true,
   closeLabel = 'Close panel',
   showDragHandle = true,
+  containerClassName,
+  panelClassName,
+  contentClassName,
 }: BottomSheetProps) {
   const titleId = useId();
   const [mounted, setMounted] = useState(() => isOpen);
@@ -215,8 +223,9 @@ export default function BottomSheet({
     : undefined;
 
   return (
-    <div className="absolute inset-0 z-30 flex items-end">
+    <div data-slot="sheet-root" className={cn('absolute inset-0 z-30 flex items-end', containerClassName)}>
       <button
+        data-slot="sheet-backdrop"
         type="button"
         aria-hidden="true"
         tabIndex={-1}
@@ -226,10 +235,15 @@ export default function BottomSheet({
       />
       <div
         ref={panelRef}
+        data-slot="sheet-panel"
         role="dialog"
         aria-modal="true"
         aria-labelledby={title ? titleId : undefined}
-        className={`relative flex w-full flex-col overflow-hidden rounded-t-[30px] border-t border-[#ddd7cc] bg-[#fffdfa]/98 shadow-[0_-20px_56px_rgba(24,32,42,0.16)] ${animationClass}`}
+        className={cn(
+          'relative flex w-full flex-col overflow-hidden rounded-t-[30px] border-t border-[#ddd7cc] bg-[#fffdfa]/98 shadow-[0_-20px_56px_rgba(24,32,42,0.16)]',
+          animationClass,
+          panelClassName,
+        )}
         style={{
           maxHeight,
           transform: dragOffset > 0 ? `translateY(${dragOffset}px)` : undefined,
@@ -237,29 +251,31 @@ export default function BottomSheet({
       >
         {showDragHandle && (
           <div
+            data-slot="sheet-handle-area"
             className="flex touch-none select-none justify-center pt-5 pb-1"
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerUp}
             onPointerCancel={handlePointerCancel}
           >
-            <span className="h-1.5 w-12 rounded-full bg-[#d8d1c6]" />
+            <span data-slot="sheet-drag-handle" className="h-1.5 w-12 rounded-full bg-[#d8d1c6]" />
           </div>
         )}
 
         {hasHeader && (
-          <div className="flex items-start justify-between gap-3 px-4 pb-4 pt-3">
+          <div data-slot="sheet-header" className="flex items-start justify-between gap-3 px-4 pb-4 pt-3">
             <div className="min-w-0">
               {title && (
                 <p
                   id={titleId}
+                  data-slot="sheet-title"
                   className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#34527a]"
                 >
                   {title}
                 </p>
               )}
               {subtitle && (
-                <div className={title ? 'mt-2' : ''}>
+                <div data-slot="sheet-subtitle" className={title ? 'mt-2' : ''}>
                   {typeof subtitle === 'string'
                     ? <p className="text-sm leading-6 text-[#5f6b79]">{subtitle}</p>
                     : subtitle}
@@ -267,6 +283,7 @@ export default function BottomSheet({
               )}
             </div>
             <button
+              data-slot="sheet-close"
               type="button"
               onClick={onClose}
               aria-label={closeLabel}
@@ -277,7 +294,7 @@ export default function BottomSheet({
           </div>
         )}
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6">
+        <div data-slot="sheet-content" className={cn('min-h-0 flex-1 overflow-y-auto px-4 pb-6', contentClassName)}>
           {children}
         </div>
       </div>
