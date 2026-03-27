@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { libraryApi } from '@domains/library';
 import { db } from '@infra/db';
+import { CACHE_KEYS } from '@infra/storage';
 import { parseBook } from '../../services/bookParser';
 import { bookImportApi } from '../bookImportApi';
 
@@ -87,5 +89,23 @@ describe('bookImportApi', () => {
       ],
       expect.any(Object),
     );
+  });
+
+  it('does not reuse a deleted novel id and clears stale reader cache for the new id', async () => {
+    const firstFile = new File(['content'], 'first.txt', { type: 'text/plain' });
+    const firstNovel = await bookImportApi.importBook(firstFile);
+    await libraryApi.delete(firstNovel.id);
+
+    localStorage.setItem(CACHE_KEYS.readerState(firstNovel.id + 1), JSON.stringify({
+      chapterIndex: 7,
+      chapterProgress: 0.8,
+      viewMode: 'original',
+    }));
+
+    const secondFile = new File(['content'], 'second.txt', { type: 'text/plain' });
+    const secondNovel = await bookImportApi.importBook(secondFile);
+
+    expect(secondNovel.id).toBe(firstNovel.id + 1);
+    expect(localStorage.getItem(CACHE_KEYS.readerState(secondNovel.id))).toBeNull();
   });
 });

@@ -1,4 +1,5 @@
 import { db } from '@infra/db';
+import { CACHE_KEYS, storage } from '@infra/storage';
 
 export interface NovelView {
   id: number;
@@ -66,6 +67,7 @@ export const libraryApi = {
       await db.coverImages.where('novelId').equals(id).delete();
       await db.chapterImages.where('novelId').equals(id).delete();
     });
+    storage.cache.remove(CACHE_KEYS.readerState(id));
     return { message: 'Novel deleted' };
   },
 

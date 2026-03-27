@@ -4,6 +4,7 @@ import { debugLog } from '@app/debug/service';
 import { libraryApi, type NovelView } from '@domains/library';
 import { ensureDefaultTocRules } from '@domains/settings';
 import { db } from '@infra/db';
+import { CACHE_KEYS, storage } from '@infra/storage';
 
 import { parseBook } from '../services/bookParser';
 import type { BookImportProgress } from '../services/progress';
@@ -18,11 +19,6 @@ function emitProgress(
   progress: BookImportProgress,
 ): void {
   onProgress?.(progress);
-}
-
-async function getNextId(): Promise<number> {
-  const last = await db.novels.orderBy('id').last();
-  return (last?.id ?? 0) + 1;
 }
 
 export const bookImportApi = {
@@ -48,13 +44,13 @@ export const bookImportApi = {
     });
     options.signal?.throwIfAborted?.();
 
-    const id = await getNextId();
     const now = new Date().toISOString();
+    let novelId = 0;
 
     emitProgress(options.onProgress, { progress: 96, stage: 'finalizing' });
     await db.transaction('rw', db.novels, db.chapters, db.coverImages, db.chapterImages, async () => {
-      await db.novels.add({
-        id,
+      novelId = await db.novels.add({
+        id: undefined as unknown as number,
         title: parsed.title,
         author: parsed.author,
         description: parsed.description,
@@ -70,13 +66,13 @@ export const bookImportApi = {
       if (parsed.coverBlob) {
         await db.coverImages.add({
           id: undefined as unknown as number,
-          novelId: id,
+          novelId,
           blob: parsed.coverBlob,
         });
       }
       await db.chapters.bulkAdd(parsed.chapters.map((chapter, chapterIndex) => ({
         id: undefined as unknown as number,
-        novelId: id,
+        novelId,
         title: chapter.title,
         content: chapter.content,
         chapterIndex,
@@ -85,14 +81,15 @@ export const bookImportApi = {
       if (parsed.images.length > 0) {
         await db.chapterImages.bulkAdd(parsed.images.map((image) => ({
           id: undefined as unknown as number,
-          novelId: id,
+          novelId,
           imageKey: image.imageKey,
           blob: image.blob,
         })));
       }
     });
 
-    const novel = await libraryApi.get(id);
+    storage.cache.remove(CACHE_KEYS.readerState(novelId));
+    const novel = await libraryApi.get(novelId);
     emitProgress(options.onProgress, { progress: 100, stage: 'finalizing' });
     return novel;
   },

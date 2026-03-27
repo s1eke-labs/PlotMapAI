@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { db } from '@infra/db';
+import { CACHE_KEYS } from '@infra/storage';
 import { libraryApi } from '../libraryApi';
 
 describe('libraryApi', () => {
@@ -59,11 +60,29 @@ describe('libraryApi', () => {
       id: undefined as unknown as number,
       novelId: id as number, title: 'Ch', content: 'c', chapterIndex: 0, wordCount: 1,
     });
+    await db.readingProgress.add({
+      id: undefined as unknown as number,
+      novelId: id as number,
+      chapterIndex: 3,
+      scrollPosition: 50,
+      viewMode: 'original',
+      updatedAt: new Date().toISOString(),
+    });
+    localStorage.setItem(CACHE_KEYS.readerState(id as number), JSON.stringify({
+      chapterIndex: 3,
+      chapterProgress: 0.5,
+      viewMode: 'original',
+    }));
+
     await libraryApi.delete(id as number);
+
     const novels = await db.novels.toArray();
     expect(novels.length).toBe(0);
     const chapters = await db.chapters.toArray();
     expect(chapters.length).toBe(0);
+    const readingProgress = await db.readingProgress.toArray();
+    expect(readingProgress).toEqual([]);
+    expect(localStorage.getItem(CACHE_KEYS.readerState(id as number))).toBeNull();
   });
 
   it('getCoverUrl returns null when no cover', async () => {
