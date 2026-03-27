@@ -1,6 +1,26 @@
 import { describe, it, expect } from 'vitest';
 import { detectChapters, splitByChapters } from '../chapterDetector';
 
+const ARABIC_DELIMITED_RULE = '^\\d+[.、:：]\\s*.+$';
+const CJK_DELIMITED_RULE = '^[零〇一二两三四五六七八九十百千万壹贰叁肆伍陆柒捌玖拾佰仟]+[.、:：]\\s*.+$';
+const BRACKETED_NUMBER_RULE = '^[\\(（\\[]\\d+[\\)）\\]]\\s*.+$';
+const NO_NUMBER_RULE = '^[Nn][Oo]\\.?\\s*\\d+\\s+.+$';
+
+function buildSectionLines(label: string): string[] {
+  return Array.from(
+    { length: 6 },
+    (_, index) => `${label} content line ${index + 1} ${'x'.repeat(60)}`,
+  );
+}
+
+function buildWeakHeadingBook(headings: string[]): string {
+  return headings.flatMap((heading, index) => [
+    heading,
+    ...buildSectionLines(`section-${index + 1}`),
+    '',
+  ]).join('\n');
+}
+
 describe('detectChapters', () => {
   it('returns empty array for empty text', () => {
     expect(detectChapters('', [{ rule: '第.*章' }])).toEqual([]);
@@ -47,6 +67,157 @@ describe('detectChapters', () => {
     const text = '第一章 Test\ncontent';
     const chapters = detectChapters(text, [{ rule: '[invalid' }]);
     expect(chapters).toEqual([]);
+  });
+
+  it('filters numbered list items inside a strong section', () => {
+    const text = [
+      '前言',
+      '作者有两个原则。',
+      '',
+      '1. 从不骗人',
+      '这一点只是正文列表项。',
+      '2. 不相信任何人',
+      '这一点也是正文列表项。',
+      '3. 只相信证据',
+      '这一点仍然是正文列表项。',
+    ].join('\n');
+
+    const chapters = detectChapters(text, [
+      { rule: '^前言$' },
+      { rule: ARABIC_DELIMITED_RULE },
+    ]);
+
+    expect(chapters).toHaveLength(1);
+    expect(chapters[0]).toEqual({
+      title: '前言',
+      start: 0,
+      end: text.split('\n').length,
+    });
+  });
+
+  it('accepts numbered headings when the matching rule is custom', () => {
+    const text = [
+      '前言',
+      '作者有两个原则。',
+      '',
+      '1. 从不骗人',
+      '这一点只是正文列表项。',
+      '2. 不相信任何人',
+      '这一点也是正文列表项。',
+      '3. 只相信证据',
+      '这一点仍然是正文列表项。',
+    ].join('\n');
+
+    const chapters = detectChapters(text, [
+      { rule: '^前言$', source: 'default' },
+      { rule: ARABIC_DELIMITED_RULE, source: 'custom' },
+    ]);
+
+    expect(chapters.map((chapter) => chapter.title)).toEqual([
+      '前言',
+      '1. 从不骗人',
+      '2. 不相信任何人',
+      '3. 只相信证据',
+    ]);
+  });
+
+  it('detects arabic-delimited weak headings when the structure looks chapter-like', () => {
+    const headings = ['1. 开始', '2. 继续', '3. 转折'];
+    const chapters = detectChapters(buildWeakHeadingBook(headings), [{ rule: ARABIC_DELIMITED_RULE }]);
+
+    expect(chapters.map((chapter) => chapter.title)).toEqual(headings);
+  });
+
+  it('detects cjk-delimited weak headings when the structure looks chapter-like', () => {
+    const headings = ['一、开始', '二、继续', '三、转折'];
+    const chapters = detectChapters(buildWeakHeadingBook(headings), [{ rule: CJK_DELIMITED_RULE }]);
+
+    expect(chapters.map((chapter) => chapter.title)).toEqual(headings);
+  });
+
+  it('detects bracketed-number weak headings when the structure looks chapter-like', () => {
+    const headings = ['(1) 开始', '(2) 继续', '(3) 转折'];
+    const chapters = detectChapters(buildWeakHeadingBook(headings), [{ rule: BRACKETED_NUMBER_RULE }]);
+
+    expect(chapters.map((chapter) => chapter.title)).toEqual(headings);
+  });
+
+  it('detects no-number weak headings when the structure looks chapter-like', () => {
+    const headings = ['No.1 开始', 'No.2 继续', 'No.3 转折'];
+    const chapters = detectChapters(buildWeakHeadingBook(headings), [{ rule: NO_NUMBER_RULE }]);
+
+    expect(chapters.map((chapter) => chapter.title)).toEqual(headings);
+  });
+
+  it('keeps a strong preface heading and accepts later weak chapter headings', () => {
+    const text = [
+      '前言',
+      '这是前言内容。',
+      '这里介绍一下背景。',
+      '',
+      buildWeakHeadingBook(['1. 开始', '2. 继续', '3. 转折']),
+    ].join('\n');
+
+    const chapters = detectChapters(text, [
+      { rule: '^前言$' },
+      { rule: ARABIC_DELIMITED_RULE },
+    ]);
+
+    expect(chapters.map((chapter) => chapter.title)).toEqual([
+      '前言',
+      '1. 开始',
+      '2. 继续',
+      '3. 转折',
+    ]);
+  });
+
+  it('rejects weak headings when numbering is not consistently increasing', () => {
+    const headings = ['1. 开始', '3. 偏移', '2. 回跳'];
+    const chapters = detectChapters(buildWeakHeadingBook(headings), [{ rule: ARABIC_DELIMITED_RULE }]);
+
+    expect(chapters).toEqual([]);
+  });
+
+  it('prefers a matching custom rule over a matching default rule on the same line', () => {
+    const text = [
+      '前言',
+      '作者有两个原则。',
+      '',
+      '1. 从不骗人',
+      '这一点只是正文列表项。',
+      '2. 不相信任何人',
+      '这一点也是正文列表项。',
+      '3. 只相信证据',
+      '这一点仍然是正文列表项。',
+    ].join('\n');
+
+    const chapters = detectChapters(text, [
+      { rule: '^前言$', source: 'default' },
+      { rule: ARABIC_DELIMITED_RULE, source: 'default' },
+      { rule: ARABIC_DELIMITED_RULE, source: 'custom' },
+    ]);
+
+    expect(chapters.map((chapter) => chapter.title)).toEqual([
+      '前言',
+      '1. 从不骗人',
+      '2. 不相信任何人',
+      '3. 只相信证据',
+    ]);
+  });
+
+  it('preserves strong headings with explicit chapter keywords', () => {
+    const text = [
+      'Chapter 1 Beginning',
+      'chapter one content',
+      'Chapter 2 Continue',
+      'chapter two content',
+    ].join('\n');
+
+    const chapters = detectChapters(text, [{ rule: '^[Cc]hapter\\s+\\d+' }]);
+    expect(chapters.map((chapter) => chapter.title)).toEqual([
+      'Chapter 1 Beginning',
+      'Chapter 2 Continue',
+    ]);
   });
 });
 

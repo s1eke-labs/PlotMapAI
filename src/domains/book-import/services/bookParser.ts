@@ -1,6 +1,8 @@
+import type { ChapterDetectionRule } from '@shared/text-processing';
+import type { BookImportProgress } from './progress';
+
 import { parseEpub } from './epub/parser';
 import { parseTxt } from './txtParser';
-import type { BookImportProgress } from './progress';
 
 export interface ParsedBook {
   title: string;
@@ -17,7 +19,7 @@ export interface ParsedBook {
 }
 
 export interface ParseContext {
-  tocRules: Array<{ rule: string }>;
+  tocRules: ChapterDetectionRule[];
   signal?: AbortSignal;
   onProgress?: (progress: BookImportProgress) => void;
 }
@@ -60,7 +62,7 @@ export function registerParser(parser: BookParser): void {
 
 export async function parseBook(
   file: File,
-  tocRules: Array<{ rule: string }>,
+  tocRules: ChapterDetectionRule[],
   options: {
     signal?: AbortSignal;
     onProgress?: (progress: BookImportProgress) => void;

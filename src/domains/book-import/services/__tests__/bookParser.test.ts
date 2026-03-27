@@ -62,7 +62,7 @@ describe('parseBook', () => {
   });
 
   it('passes tocRules context to parseTxt', async () => {
-    const rules = [{ rule: '^第\\d+章' }];
+    const rules = [{ rule: '^第\\d+章', source: 'custom' as const }];
     const file = new File(['content'], 'book.txt', { type: 'text/plain' });
     await parseBook(file, rules);
     expect(mockParseTxt).toHaveBeenCalledWith(file, rules);

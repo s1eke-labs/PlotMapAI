@@ -1,5 +1,8 @@
+export type ChapterDetectionRuleSource = 'default' | 'custom';
+
 export interface ChapterDetectionRule {
   rule: string;
+  source?: ChapterDetectionRuleSource;
 }
 
 export interface DetectedChapter {

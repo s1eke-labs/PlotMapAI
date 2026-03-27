@@ -1,3 +1,5 @@
+import type { ChapterDetectionRule } from '@shared/text-processing';
+
 import { debugLog } from '@app/debug/service';
 import { libraryApi, type NovelView } from '@domains/library';
 import { ensureDefaultTocRules } from '@domains/settings';
@@ -34,7 +36,10 @@ export const bookImportApi = {
     options.signal?.throwIfAborted?.();
     await ensureDefaultTocRules();
     const tocRules = await db.tocRules.filter((rule) => rule.enable).sortBy('serialNumber');
-    const ruleDtos = tocRules.map((rule) => ({ rule: rule.rule }));
+    const ruleDtos: ChapterDetectionRule[] = tocRules.map((rule) => ({
+      rule: rule.rule,
+      source: rule.isDefault ? 'default' : 'custom',
+    }));
     debugLog('Upload', `file="${filename}", tocRules=${tocRules.length}`);
 
     const parsed = await parseBook(file, ruleDtos, {

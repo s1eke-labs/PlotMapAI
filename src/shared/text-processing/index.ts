@@ -11,6 +11,7 @@ export {
 } from './workerClient';
 export type {
   ChapterDetectionRule,
+  ChapterDetectionRuleSource,
   DetectedChapter,
   ParsedTextDocument,
   PurifiedChapter,
