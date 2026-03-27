@@ -51,6 +51,7 @@ export default function ReaderPage() {
   const [pageCount, setPageCount] = useState(1);
   const [scrollModeChapters, setScrollModeChapters] = useState<number[]>([]);
   const [scrollReaderChapters, setScrollReaderChapters] = useState<Array<{ index: number; chapter: ChapterContent }>>([]);
+  const [scrollContentVersion, setScrollContentVersion] = useState(0);
 
   const contentRef = useRef<HTMLDivElement>(null);
   const pagedViewportRef = useRef<HTMLDivElement>(null);
@@ -134,6 +135,10 @@ export default function ReaderPage() {
     isChapterAnalysisLoading: analysis.isChapterAnalysisLoading,
   });
 
+  const handleScrollContentResolved = useCallback(() => {
+    setScrollContentVersion(prev => prev + 1);
+  }, []);
+
   const chapterData = useReaderChapterData({
     novelId,
     chapterIndex,
@@ -167,6 +172,7 @@ export default function ReaderPage() {
     startRestoreMaskForState: restoreFlow.startRestoreMaskForState,
     stopRestoreMask: restoreFlow.stopRestoreMask,
     setLoadingMessage,
+    onChapterContentResolved: handleScrollContentResolved,
   });
 
   const handleReadingAnchorChange = useCallback((anchor: ScrollModeAnchor) => {
@@ -178,11 +184,11 @@ export default function ReaderPage() {
     isPagedMode,
     viewMode,
     chapters,
-    chapterCacheRef,
     chapterData.fetchChapterContent,
     chapterData.preloadAdjacent,
     scrollModeChapters,
     setScrollModeChapters,
+    scrollContentVersion,
     handleReadingAnchorChange,
   );
 
@@ -204,7 +210,7 @@ export default function ReaderPage() {
         })
         .filter((item): item is { index: number; chapter: ChapterContent } => Boolean(item)),
     );
-  }, [currentChapter, scrollModeChapters]);
+  }, [currentChapter, scrollContentVersion, scrollModeChapters]);
 
   const pagedLayout = usePagedReaderLayout({
     chapterIndex,

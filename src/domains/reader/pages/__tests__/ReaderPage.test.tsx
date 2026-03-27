@@ -261,6 +261,31 @@ describe('ReaderPage', () => {
     });
   });
 
+  it('renders adjacent chapters in scroll mode without waiting for a scroll event', async () => {
+    const shortChapters = Array.from({ length: 4 }, (_, index) => ({
+      index,
+      title: `Chapter ${index + 1}`,
+      wordCount: 20 + index,
+    }));
+    const shortChapterContent = shortChapters.map((chapter, index) => ({
+      ...chapter,
+      content: `${chapter.title} short content`,
+      totalChapters: shortChapters.length,
+      hasPrev: index > 0,
+      hasNext: index < shortChapters.length - 1,
+    }));
+
+    vi.mocked(readerApi.getChapters).mockResolvedValueOnce(shortChapters);
+    vi.mocked(readerApi.getChapterContent).mockImplementation(async (_novelId, chapterIndex) => shortChapterContent[chapterIndex]);
+
+    renderPage();
+
+    expect(await screen.findByRole('heading', { name: 'Chapter 1', level: 1 })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Chapter 2', level: 1 })).toBeInTheDocument();
+    });
+  });
+
   it('does not let stale scroll anchor override chapter selection from the table of contents', async () => {
     const longChapters = Array.from({ length: 6 }, (_, index) => ({
       index,

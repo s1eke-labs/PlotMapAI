@@ -52,10 +52,11 @@ function setupHook(opts: {
   scrollModeChapters?: number[];
   fetchChapterContent?: Mock;
   preloadAdjacent?: Mock;
+  contentVersion?: number;
+  contentElement?: HTMLDivElement;
   onReadingAnchorChange?: Mock;
 } = {}) {
-  const contentRef = { current: makeMockElement() };
-  const chapterCacheRef = { current: new Map<number, ChapterContent>() };
+  const contentRef = { current: opts.contentElement ?? makeMockElement() };
   const fetchChapterContent = opts.fetchChapterContent ?? vi.fn().mockResolvedValue(makeChapterContent(0));
   const preloadAdjacent = opts.preloadAdjacent ?? vi.fn();
   const onReadingAnchorChange = opts.onReadingAnchorChange ?? vi.fn();
@@ -68,11 +69,11 @@ function setupHook(opts: {
       opts.isPagedMode ?? false,
       opts.viewMode ?? 'original',
       chapters,
-      chapterCacheRef,
       fetchChapterContent,
       preloadAdjacent,
       scrollModeChapters,
       setScrollModeChapters,
+      opts.contentVersion ?? 0,
       onReadingAnchorChange,
     )
   );
@@ -80,7 +81,6 @@ function setupHook(opts: {
   return {
     result,
     contentRef,
-    chapterCacheRef,
     fetchChapterContent,
     preloadAdjacent,
     setScrollModeChapters,
@@ -120,6 +120,39 @@ describe('useScrollModeChapters', () => {
       act(() => { result.current.handleScroll(); });
 
       expect(fetchChapterContent).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('auto-fill', () => {
+    it('loads the next chapter when the rendered content is not scrollable', async () => {
+      const fetchFn = vi.fn().mockResolvedValue(makeChapterContent(1));
+      const requestAnimationFrameSpy = vi
+        .spyOn(window, 'requestAnimationFrame')
+        .mockImplementation((callback: FrameRequestCallback) => {
+          callback(0);
+          return 1;
+        });
+      const cancelAnimationFrameSpy = vi
+        .spyOn(window, 'cancelAnimationFrame')
+        .mockImplementation(() => undefined);
+
+      try {
+        setupHook({
+          scrollModeChapters: [0],
+          fetchChapterContent: fetchFn,
+          contentElement: makeMockElement({
+          clientHeight: 600,
+          scrollHeight: 300,
+          }),
+        });
+
+        await waitFor(() => {
+          expect(fetchFn).toHaveBeenCalledWith(1);
+        });
+      } finally {
+        requestAnimationFrameSpy.mockRestore();
+        cancelAnimationFrameSpy.mockRestore();
+      }
     });
   });
 

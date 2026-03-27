@@ -1,4 +1,4 @@
-import { useRef, useCallback } from 'react';
+import { useRef, useCallback, useEffect } from 'react';
 import type { Chapter, ChapterContent } from '../api/readerApi';
 
 export interface ScrollModeAnchor {
@@ -11,11 +11,11 @@ export function useScrollModeChapters(
   isPagedMode: boolean,
   viewMode: 'original' | 'summary',
   chapters: Chapter[],
-  chapterCacheRef: React.MutableRefObject<Map<number, ChapterContent>>,
   fetchChapterContent: (idx: number) => Promise<ChapterContent>,
   preloadAdjacent: (idx: number, prune?: boolean) => void,
   scrollModeChapters: number[],
   setScrollModeChapters: React.Dispatch<React.SetStateAction<number[]>>,
+  contentVersion: number,
   onReadingAnchorChange?: (anchor: ScrollModeAnchor) => void,
 ): {
   scrollChapterElementsRef: React.MutableRefObject<Map<number, HTMLDivElement>>;
@@ -25,6 +25,59 @@ export function useScrollModeChapters(
   const scrollChapterElementsRef = useRef<Map<number, HTMLDivElement>>(new Map());
   const scrollThrottleRef = useRef(0);
   const pendingScrollFetchesRef = useRef<Set<number>>(new Set());
+
+  const appendNextChapter = useCallback((nextIdx: number) => {
+    if (
+      nextIdx >= chapters.length
+      || scrollModeChapters.includes(nextIdx)
+      || pendingScrollFetchesRef.current.has(nextIdx)
+    ) {
+      return;
+    }
+
+    pendingScrollFetchesRef.current.add(nextIdx);
+    void fetchChapterContent(nextIdx)
+      .then(() => {
+        setScrollModeChapters(prev => {
+          if (prev.includes(nextIdx)) return prev;
+          return [...prev, nextIdx];
+        });
+        preloadAdjacent(nextIdx, false);
+      })
+      .finally(() => {
+        pendingScrollFetchesRef.current.delete(nextIdx);
+      });
+  }, [chapters.length, fetchChapterContent, preloadAdjacent, scrollModeChapters, setScrollModeChapters]);
+
+  const prependPrevChapter = useCallback((prevIdx: number) => {
+    if (
+      prevIdx < 0
+      || scrollModeChapters.includes(prevIdx)
+      || pendingScrollFetchesRef.current.has(prevIdx)
+    ) {
+      return;
+    }
+
+    pendingScrollFetchesRef.current.add(prevIdx);
+    void fetchChapterContent(prevIdx)
+      .then(() => {
+        const container = contentRef.current;
+        const prevHeight = container?.scrollHeight ?? 0;
+        setScrollModeChapters(prev => {
+          if (prev.includes(prevIdx)) return prev;
+          return [prevIdx, ...prev];
+        });
+        requestAnimationFrame(() => {
+          if (container) {
+            container.scrollTop += container.scrollHeight - prevHeight;
+          }
+          preloadAdjacent(prevIdx, false);
+        });
+      })
+      .finally(() => {
+        pendingScrollFetchesRef.current.delete(prevIdx);
+      });
+  }, [contentRef, fetchChapterContent, preloadAdjacent, scrollModeChapters, setScrollModeChapters]);
 
   const getCurrentAnchor = useCallback((): ScrollModeAnchor | null => {
     if (isPagedMode || !contentRef.current || viewMode !== 'original' || scrollModeChapters.length === 0) {
@@ -82,22 +135,10 @@ export function useScrollModeChapters(
     if (scrollModeChapters.length > 0 && anchor) {
       const lastIdx = scrollModeChapters[scrollModeChapters.length - 1];
       const nextIdx = lastIdx + 1;
-      if (nextIdx < chapters.length && !scrollModeChapters.includes(nextIdx) && !pendingScrollFetchesRef.current.has(nextIdx)) {
+      if (nextIdx < chapters.length) {
         const chEl = scrollChapterElementsRef.current.get(anchor.chapterIndex);
-        if (chEl) {
-          if (anchor.chapterProgress >= 0.5) {
-            pendingScrollFetchesRef.current.add(nextIdx);
-            fetchChapterContent(nextIdx).then(data => {
-              chapterCacheRef.current.set(nextIdx, data);
-              setScrollModeChapters(prev => {
-                if (prev.includes(nextIdx)) return prev;
-                return [...prev, nextIdx];
-              });
-              preloadAdjacent(nextIdx, false);
-            }).finally(() => {
-              pendingScrollFetchesRef.current.delete(nextIdx);
-            });
-          }
+        if (chEl && anchor.chapterProgress >= 0.5) {
+          appendNextChapter(nextIdx);
         }
       }
     }
@@ -105,28 +146,33 @@ export function useScrollModeChapters(
     if (scrollTop < 50 && scrollModeChapters.length > 0) {
       const firstIdx = scrollModeChapters[0];
       const prevIdx = firstIdx - 1;
-      if (prevIdx >= 0 && !scrollModeChapters.includes(prevIdx) && !pendingScrollFetchesRef.current.has(prevIdx)) {
-        pendingScrollFetchesRef.current.add(prevIdx);
-        fetchChapterContent(prevIdx).then(data => {
-          chapterCacheRef.current.set(prevIdx, data);
-          const container = contentRef.current;
-          const prevHeight = container?.scrollHeight ?? 0;
-          setScrollModeChapters(prev => {
-            if (prev.includes(prevIdx)) return prev;
-            return [prevIdx, ...prev];
-          });
-          requestAnimationFrame(() => {
-            if (container) {
-              container.scrollTop += container.scrollHeight - prevHeight;
-            }
-            preloadAdjacent(prevIdx, false);
-          });
-        }).finally(() => {
-          pendingScrollFetchesRef.current.delete(prevIdx);
-        });
-      }
+      prependPrevChapter(prevIdx);
     }
-  }, [chapterCacheRef, chapters, contentRef, fetchChapterContent, getCurrentAnchor, isPagedMode, onReadingAnchorChange, preloadAdjacent, scrollModeChapters, setScrollModeChapters, viewMode]);
+  }, [appendNextChapter, chapters, contentRef, getCurrentAnchor, isPagedMode, onReadingAnchorChange, prependPrevChapter, scrollModeChapters, viewMode]);
+
+  useEffect(() => {
+    if (isPagedMode || viewMode !== 'original' || scrollModeChapters.length === 0) return;
+
+    let frameId = 0;
+    let cancelled = false;
+
+    const ensureScrollable = () => {
+      if (cancelled) return;
+
+      const container = contentRef.current;
+      if (!container || container.clientHeight <= 0) return;
+      if (container.scrollHeight > container.clientHeight + 1) return;
+
+      const lastIdx = scrollModeChapters[scrollModeChapters.length - 1];
+      appendNextChapter(lastIdx + 1);
+    };
+
+    frameId = requestAnimationFrame(ensureScrollable);
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(frameId);
+    };
+  }, [appendNextChapter, contentRef, contentVersion, isPagedMode, scrollModeChapters, viewMode]);
 
   return {
     scrollChapterElementsRef,

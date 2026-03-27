@@ -39,6 +39,7 @@ interface UseReaderChapterDataParams {
   startRestoreMaskForState: (state: StoredReaderState | null | undefined) => void;
   stopRestoreMask: () => void;
   setLoadingMessage: React.Dispatch<React.SetStateAction<string | null>>;
+  onChapterContentResolved?: (chapterIndex: number) => void;
 }
 
 interface UseReaderChapterDataResult {
@@ -85,6 +86,7 @@ export function useReaderChapterData({
   startRestoreMaskForState,
   stopRestoreMask,
   setLoadingMessage,
+  onChapterContentResolved,
 }: UseReaderChapterDataParams): UseReaderChapterDataResult {
   const { t } = useTranslation();
   const preloadTimeoutIdsRef = useRef<number[]>([]);
@@ -117,8 +119,9 @@ export function useReaderChapterData({
       },
     });
     chapterCacheRef.current.set(index, data);
+    onChapterContentResolved?.(index);
     return data;
-  }, [chapterCacheRef, novelId, t]);
+  }, [chapterCacheRef, novelId, onChapterContentResolved, t]);
 
   const preloadAdjacent = useCallback((index: number, prune = true) => {
     clearScheduledPreloads();
