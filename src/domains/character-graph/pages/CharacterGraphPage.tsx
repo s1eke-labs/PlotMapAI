@@ -171,6 +171,7 @@ export default function CharacterGraphPage() {
       highlightedNodeIds={canvas.highlightedNodeIds}
       isComplete={graph.meta.isComplete}
       isFullscreen={isFullscreen}
+      isGestureInteracting={canvas.isGestureInteracting}
       isLayoutComputing={canvas.isLayoutComputing}
       isMobile={isMobile}
       isPanning={canvas.isPanning}
@@ -184,6 +185,7 @@ export default function CharacterGraphPage() {
       relatedEdges={canvas.relatedEdges}
       selectedNode={canvas.selectedNode}
       selectedNodeId={canvas.selectedNodeId}
+      stageHeight={canvas.stageHeight}
       stageMeta={canvas.stageMeta}
       zoomState={canvas.zoomState}
       svgRef={canvas.svgRef}

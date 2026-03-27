@@ -256,12 +256,19 @@ describe('CharacterGraphPage', () => {
 
   it('renders the compact mobile layout without the desktop help card', async () => {
     mockViewport(true);
-    renderPage('/novel/1/graph');
+    const { container } = renderPage('/novel/1/graph');
 
     expect(await screen.findByText('Mock Novel')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'characterGraph.helpSheetTrigger' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'characterGraph.resetLayout' })).toBeInTheDocument();
     expect(screen.queryByText('characterGraph.canvasHint')).not.toBeInTheDocument();
     expect(screen.queryByText('characterGraph.legendCore')).not.toBeInTheDocument();
+    expect(screen.queryByText('characterGraph.dragHint')).not.toBeInTheDocument();
+    expect(container.querySelector('.overflow-x-auto')).toBeNull();
+
+    const svg = container.querySelector('svg[viewBox^="0 0 1440 "]');
+    expect(svg?.parentElement).toHaveClass('min-h-0');
+    expect(svg?.parentElement).toHaveClass('flex-1');
   });
 
   it('opens the mobile bottom sheet with character details when a node is selected', async () => {
@@ -291,7 +298,8 @@ describe('CharacterGraphPage', () => {
 
     expect(await screen.findByText('characterGraph.graphStatusTitle')).toBeInTheDocument();
     expect(screen.getByText('characterGraph.legendCore')).toBeInTheDocument();
-    expect(screen.getByText('characterGraph.dragHint')).toBeInTheDocument();
+    expect(screen.getByText('characterGraph.mobileGuideSummary')).toBeInTheDocument();
+    expect(screen.queryByText('characterGraph.dragHint')).not.toBeInTheDocument();
   });
 
   it('resets the mobile canvas back to its fitted viewport instead of the desktop default', async () => {
@@ -302,7 +310,7 @@ describe('CharacterGraphPage', () => {
 
     expect(await screen.findByText('Mock Novel')).toBeInTheDocument();
 
-    const svg = container.querySelector('svg[viewBox="0 0 1440 960"]');
+    const svg = container.querySelector('svg[viewBox^="0 0 1440 "]');
     const matrixGroup = svg?.querySelector('g[transform^="matrix("]');
 
     await waitFor(() => {

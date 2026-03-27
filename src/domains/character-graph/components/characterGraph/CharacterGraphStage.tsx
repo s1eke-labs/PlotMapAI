@@ -14,6 +14,7 @@ import { Link } from 'react-router-dom';
 import type { PointerEvent as ReactPointerEvent, PointerEventHandler, ReactNode, RefObject } from 'react';
 import { appPaths } from '@app/router/paths';
 import type { CharacterGraphEdge } from '@domains/analysis';
+import { cn } from '@shared/utils/cn';
 import type { LayoutEdge, LayoutNode, ZoomState } from '../../utils/characterGraphLayout';
 import BottomSheet from '@shared/components/BottomSheet';
 import CharacterGraphCanvas from './CharacterGraphCanvas';
@@ -31,6 +32,7 @@ interface CharacterGraphStageProps {
   highlightedNodeIds: ReadonlySet<string>;
   isComplete: boolean;
   isFullscreen: boolean;
+  isGestureInteracting: boolean;
   isLayoutComputing: boolean;
   isMobile: boolean;
   isPanning: boolean;
@@ -44,6 +46,7 @@ interface CharacterGraphStageProps {
   relatedEdges: CharacterGraphEdge[];
   selectedNode: LayoutNode | null;
   selectedNodeId: string | null;
+  stageHeight: number;
   stageMeta: string[];
   zoomState: ZoomState;
   svgRef: RefObject<SVGSVGElement | null>;
@@ -68,6 +71,7 @@ export default function CharacterGraphStage({
   highlightedNodeIds,
   isComplete,
   isFullscreen,
+  isGestureInteracting,
   isLayoutComputing,
   isMobile,
   isPanning,
@@ -81,6 +85,7 @@ export default function CharacterGraphStage({
   relatedEdges,
   selectedNode,
   selectedNodeId,
+  stageHeight,
   stageMeta,
   zoomState,
   svgRef,
@@ -95,7 +100,7 @@ export default function CharacterGraphStage({
   onToggleFullscreen,
 }: CharacterGraphStageProps) {
   const { t } = useTranslation();
-  const canvasHeightClass = isFullscreen ? 'h-screen' : 'h-[calc(100vh-4rem)]';
+  const stageHeightClass = isFullscreen ? 'h-[100dvh]' : 'h-[calc(100dvh-4rem)] md:h-[calc(100vh-4rem)]';
   const generatedAtText = graphGeneratedAt
     ? t('characterGraph.metaGeneratedAt', { time: new Date(graphGeneratedAt).toLocaleString() })
     : null;
@@ -112,115 +117,143 @@ export default function CharacterGraphStage({
   }
 
   return (
-    <div className="h-[calc(100vh-4rem)] overflow-hidden bg-[#f5f2eb] text-[#18202a]">
-      <div ref={fullscreenRef} className={`relative w-full overflow-hidden ${canvasHeightClass}`}>
+    <div className={cn(stageHeightClass, 'overflow-hidden bg-[#f5f2eb] text-[#18202a]')}>
+      <div ref={fullscreenRef} className={cn('relative w-full overflow-hidden', stageHeightClass)}>
         <div className="absolute inset-0 bg-[linear-gradient(180deg,#fcfbf8_0%,#f5f2eb_100%)]" />
         <div className="absolute inset-0 opacity-60 [background-image:linear-gradient(rgba(113,120,129,0.07)_1px,transparent_1px),linear-gradient(90deg,rgba(113,120,129,0.07)_1px,transparent_1px)] [background-size:72px_72px]" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(52,82,122,0.06),transparent_30%),radial-gradient(circle_at_bottom_left,rgba(24,32,42,0.04),transparent_34%)]" />
 
         {isMobile ? (
           <>
-            <div className="absolute inset-x-3 top-3 z-20 flex flex-col gap-2 md:hidden">
-              <div className="flex items-center gap-2">
-                <Link
-                  to={appPaths.novel(novelId)}
-                  aria-label={t('characterGraph.backToBook')}
-                  className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#ddd7cc] bg-[#fffdfa]/94 text-[#5f6b79] backdrop-blur transition hover:border-[#cfc7b9] hover:text-[#18202a]"
-                >
-                  <ArrowLeft className="h-4 w-4" />
-                </Link>
+            <div className="relative z-10 flex h-full flex-col px-3 pb-3 pt-3 md:hidden" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 0.75rem)', paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.75rem)' }}>
+              <div className="shrink-0 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <Link
+                    to={appPaths.novel(novelId)}
+                    aria-label={t('characterGraph.backToBook')}
+                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[#ddd7cc] bg-[#fffdfa]/96 text-[#5f6b79] shadow-[0_10px_24px_rgba(28,35,45,0.05)] backdrop-blur transition hover:border-[#cfc7b9] hover:text-[#18202a]"
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                  </Link>
 
-                <div className="min-w-0 flex-1 rounded-[24px] border border-[#ddd7cc] bg-[#fffdfa]/96 px-4 py-3 backdrop-blur">
+                  <div className="flex min-w-0 items-center justify-end gap-1.5">
+                    {canRefreshOverview && (
+                      <StageIconButton
+                        label={t('characterGraph.refreshGraph')}
+                        disabled={isRefreshingOverview}
+                        onClick={onRefreshOverview}
+                      >
+                        {isRefreshingOverview ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                      </StageIconButton>
+                    )}
+                    <StageIconButton label={t('characterGraph.resetLayout')} onClick={onResetLayout}>
+                      <RotateCcw className="h-4 w-4" />
+                    </StageIconButton>
+                    <StageIconButton
+                      label={isFullscreen ? t('characterGraph.exitFullscreen') : t('characterGraph.enterFullscreen')}
+                      onClick={onToggleFullscreen}
+                    >
+                      {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+                    </StageIconButton>
+                  </div>
+                </div>
+
+                <div className="rounded-[24px] border border-[#ddd7cc] bg-[#fffdfa]/96 px-4 py-3 shadow-[0_12px_30px_rgba(28,35,45,0.05)] backdrop-blur">
                   <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#34527a]">
                     {t('characterGraph.title')}
                   </p>
                   <p className="mt-1 truncate text-sm font-medium text-[#18202a]">{novelTitle}</p>
-                </div>
-
-                <div className="flex shrink-0 items-center gap-2">
-                  {canRefreshOverview && (
-                    <StageIconButton
-                      label={t('characterGraph.refreshGraph')}
-                      disabled={isRefreshingOverview}
-                      onClick={onRefreshOverview}
-                    >
-                      {isRefreshingOverview ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                    </StageIconButton>
-                  )}
-                  <StageIconButton label={t('characterGraph.resetLayout')} onClick={onResetLayout}>
-                    <RotateCcw className="h-4 w-4" />
-                  </StageIconButton>
-                  <StageIconButton
-                    label={isFullscreen ? t('characterGraph.exitFullscreen') : t('characterGraph.enterFullscreen')}
-                    onClick={onToggleFullscreen}
-                  >
-                    {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-                  </StageIconButton>
-                </div>
-              </div>
-
-              <div className="rounded-[24px] border border-[#ddd7cc] bg-[#fffdfa]/94 px-3 py-3 shadow-[0_16px_40px_rgba(28,35,45,0.06)] backdrop-blur">
-                <div className="flex flex-wrap gap-2">
-                  {stageMeta.map((item) => (
-                    <span
-                      key={item}
-                      className="rounded-full border border-[#e2ddd3] bg-[#f7f5f0] px-3 py-2 text-xs text-[#5f6b79]"
-                    >
-                      {item}
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {stageMeta.map((item) => (
+                      <span
+                        key={item}
+                        className="max-w-full rounded-full border border-[#e2ddd3] bg-[#f7f5f0] px-3 py-1.5 text-[11px] leading-4 text-[#5f6b79]"
+                      >
+                        {item}
+                      </span>
+                    ))}
+                    <span className={`max-w-full rounded-full border px-3 py-1.5 text-[11px] leading-4 ${
+                      isComplete
+                        ? 'border-[#d6dde5] bg-[#eef1f4] text-[#34527a]'
+                        : 'border-[#ffd6a5] bg-[#fff5e8] text-[#a06528]'
+                    }`}>
+                      {isComplete ? t('characterGraph.metaComplete') : t('characterGraph.metaPartial')}
                     </span>
-                  ))}
-                  <span className={`rounded-full border px-3 py-2 text-xs ${
-                    isComplete
-                      ? 'border-[#d6dde5] bg-[#eef1f4] text-[#34527a]'
-                      : 'border-[#ffd6a5] bg-[#fff5e8] text-[#a06528]'
-                  }`}>
-                    {isComplete ? t('characterGraph.metaComplete') : t('characterGraph.metaPartial')}
-                  </span>
+                  </div>
                 </div>
+
+                {(generatedAtText || actionMessage || !isComplete || (isLayoutComputing && layoutMessage)) && (
+                  <div className="flex flex-wrap gap-2">
+                    {generatedAtText && (
+                      <div className="min-w-0 flex-1 rounded-[18px] border border-[#ddd7cc] bg-[#fffdfa]/94 px-4 py-2 text-xs text-[#5f6b79] shadow-[0_10px_24px_rgba(28,35,45,0.04)] backdrop-blur">
+                        {generatedAtText}
+                      </div>
+                    )}
+                    {actionMessage && (
+                      <div className="min-w-0 basis-full rounded-[18px] border border-[#d7deea] bg-[#f8fafc]/96 px-4 py-2.5 text-sm text-[#5f6b79] shadow-[0_10px_24px_rgba(28,35,45,0.05)] backdrop-blur">
+                        {actionMessage}
+                      </div>
+                    )}
+                    {!isComplete && (
+                      <div className="flex min-w-0 basis-full gap-2 rounded-[18px] border border-[#ffd6a5] bg-[#fff5e8]/96 px-4 py-2.5 text-sm text-[#a06528] shadow-[0_10px_24px_rgba(28,35,45,0.05)] backdrop-blur">
+                        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                        <span>{t('characterGraph.partialHint')}</span>
+                      </div>
+                    )}
+                    {isLayoutComputing && layoutMessage && (
+                      <div className="min-w-0 basis-full rounded-[18px] border border-[#d7deea] bg-[#f8fafc]/96 px-4 py-2.5 text-sm text-[#34527a] shadow-[0_10px_24px_rgba(28,35,45,0.05)] backdrop-blur">
+                        <div className="flex items-center gap-2">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          <span>{layoutMessage}</span>
+                        </div>
+                        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[#dce4ec]">
+                          <div
+                            className="h-full rounded-full bg-[#34527a] transition-[width] duration-200"
+                            style={{ width: `${layoutProgress}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
               </div>
 
-              {(actionMessage || !isComplete) && (
-                <div className="space-y-2">
-                  {actionMessage && (
-                    <div className="rounded-[20px] border border-[#d7deea] bg-[#f8fafc]/96 px-4 py-3 text-sm text-[#5f6b79] shadow-[0_12px_30px_rgba(28,35,45,0.05)] backdrop-blur">
-                      {actionMessage}
-                    </div>
-                  )}
-                  {!isComplete && (
-                    <div className="flex gap-2 rounded-[20px] border border-[#ffd6a5] bg-[#fff5e8]/96 px-4 py-3 text-sm text-[#a06528] shadow-[0_12px_30px_rgba(28,35,45,0.05)] backdrop-blur">
-                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                      <span>{t('characterGraph.partialHint')}</span>
-                    </div>
-                  )}
-                </div>
-              )}
+              <div className="relative mt-2 min-h-0 flex-1 overflow-hidden rounded-[28px] border border-[#ddd7cc]/80 bg-[#fffdfa]/40 shadow-[inset_0_1px_0_rgba(255,255,255,0.65)]">
+                <CharacterGraphCanvas
+                  svgRef={svgRef}
+                  canPanCanvas={canPanCanvas}
+                  focusNodeId={focusNodeId}
+                  highlightedNodeIds={highlightedNodeIds}
+                  isGestureInteracting={isGestureInteracting}
+                  isMobile={isMobile}
+                  isPanning={isPanning}
+                  layoutEdges={layoutEdges}
+                  layoutNodes={layoutNodes}
+                  selectedNodeId={selectedNodeId}
+                  stageHeight={stageHeight}
+                  zoomState={zoomState}
+                  onCanvasPointerDown={onCanvasPointerDown}
+                  onNodeMouseEnter={onNodeMouseEnter}
+                  onNodeMouseLeave={onNodeMouseLeave}
+                  onNodePointerDown={onNodePointerDown}
+                />
 
-              {isLayoutComputing && layoutMessage && (
-                <div className="rounded-[20px] border border-[#d7deea] bg-[#f8fafc]/96 px-4 py-3 text-sm text-[#34527a] shadow-[0_12px_30px_rgba(28,35,45,0.05)] backdrop-blur">
-                  <div className="flex items-center gap-2">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    <span>{layoutMessage}</span>
-                  </div>
-                  <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#dce4ec]">
-                    <div
-                      className="h-full rounded-full bg-[#34527a] transition-[width] duration-200"
-                      style={{ width: `${layoutProgress}%` }}
-                    />
-                  </div>
-                </div>
-              )}
+                {!selectedNode && mobileSheetMode !== 'help' && (
+                  <button
+                    type="button"
+                    onClick={() => setMobileSheetPreference('help')}
+                    className="absolute bottom-4 right-4 z-20 inline-flex items-center gap-2 rounded-full border border-[#ddd7cc] bg-[#fffdfa]/96 px-4 py-3 text-sm font-medium text-[#34527a] shadow-[0_18px_42px_rgba(28,35,45,0.1)] backdrop-blur transition-transform duration-150"
+                    style={{
+                      transform: isGestureInteracting ? 'translateY(2px) scale(0.985)' : undefined,
+                    }}
+                  >
+                    <CircleHelp className="h-4 w-4" />
+                    {t('characterGraph.helpSheetTrigger')}
+                  </button>
+                )}
+              </div>
             </div>
-
-            {!selectedNode && mobileSheetMode !== 'help' && (
-              <button
-                type="button"
-                onClick={() => setMobileSheetPreference('help')}
-                className="absolute bottom-4 right-4 z-20 inline-flex items-center gap-2 rounded-full border border-[#ddd7cc] bg-[#fffdfa]/96 px-4 py-3 text-sm font-medium text-[#34527a] shadow-[0_18px_42px_rgba(28,35,45,0.1)] backdrop-blur"
-              >
-                <CircleHelp className="h-4 w-4" />
-                {t('characterGraph.helpSheetTrigger')}
-              </button>
-            )}
 
             {mobileSheetMode && (
               <BottomSheet
@@ -284,10 +317,6 @@ export default function CharacterGraphStage({
                     <div className="flex flex-wrap gap-2 text-[11px] font-semibold tracking-[0.08em] text-[#34527a]">
                       <span className="rounded-full bg-[#eef1f4] px-3 py-1.5">{t('characterGraph.legendCore')}</span>
                       <span className="rounded-full bg-[#f4f2ed] px-3 py-1.5 text-[#697384]">{t('characterGraph.legendRelation')}</span>
-                    </div>
-
-                    <div className="rounded-[24px] border border-[#ddd7cc] bg-[#f7f5f0] px-4 py-4 text-sm leading-7 text-[#4e5c6d]">
-                      {t('characterGraph.dragHint')}
                     </div>
                   </div>
                 )}
@@ -393,21 +422,26 @@ export default function CharacterGraphStage({
           </>
         )}
 
-        <CharacterGraphCanvas
-          svgRef={svgRef}
-          canPanCanvas={canPanCanvas}
-          focusNodeId={focusNodeId}
-          highlightedNodeIds={highlightedNodeIds}
-          isPanning={isPanning}
-          layoutEdges={layoutEdges}
-          layoutNodes={layoutNodes}
-          selectedNodeId={selectedNodeId}
-          zoomState={zoomState}
-          onCanvasPointerDown={onCanvasPointerDown}
-          onNodeMouseEnter={onNodeMouseEnter}
-          onNodeMouseLeave={onNodeMouseLeave}
-          onNodePointerDown={onNodePointerDown}
-        />
+        {!isMobile && (
+          <CharacterGraphCanvas
+            svgRef={svgRef}
+            canPanCanvas={canPanCanvas}
+            focusNodeId={focusNodeId}
+            highlightedNodeIds={highlightedNodeIds}
+            isGestureInteracting={isGestureInteracting}
+            isMobile={isMobile}
+            isPanning={isPanning}
+            layoutEdges={layoutEdges}
+            layoutNodes={layoutNodes}
+            selectedNodeId={selectedNodeId}
+            stageHeight={stageHeight}
+            zoomState={zoomState}
+            onCanvasPointerDown={onCanvasPointerDown}
+            onNodeMouseEnter={onNodeMouseEnter}
+            onNodeMouseLeave={onNodeMouseLeave}
+            onNodePointerDown={onNodePointerDown}
+          />
+        )}
       </div>
     </div>
   );
@@ -427,7 +461,7 @@ function StageIconButton({ children, label, disabled = false, onClick }: StageIc
       aria-label={label}
       disabled={disabled}
       onClick={onClick}
-      className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[#ddd7cc] bg-[#fffdfa]/94 text-[#5f6b79] shadow-[0_12px_30px_rgba(28,35,45,0.06)] backdrop-blur transition hover:border-[#cfc7b9] hover:text-[#18202a] disabled:opacity-60"
+      className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#ddd7cc] bg-[#fffdfa]/94 text-[#5f6b79] shadow-[0_12px_30px_rgba(28,35,45,0.06)] backdrop-blur transition hover:border-[#cfc7b9] hover:text-[#18202a] disabled:opacity-60"
     >
       {children}
     </button>

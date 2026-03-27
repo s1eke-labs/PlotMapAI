@@ -94,19 +94,19 @@
   }
 
   .animate-sheet-up {
-    animation: sheet-up 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    animation: sheet-up 0.26s cubic-bezier(0.22, 1, 0.36, 1);
   }
 
   .animate-sheet-down {
-    animation: sheet-down 0.25s cubic-bezier(0.4, 0, 1, 1);
+    animation: sheet-down 0.22s cubic-bezier(0.32, 0, 0.2, 1);
   }
 
   .animate-fade-in {
-    animation: fade-in 0.3s ease-out;
+    animation: fade-in 0.22s ease-out;
   }
 
   .animate-fade-out {
-    animation: fade-out 0.25s ease-in;
+    animation: fade-out 0.2s ease-in;
   }
 }
 

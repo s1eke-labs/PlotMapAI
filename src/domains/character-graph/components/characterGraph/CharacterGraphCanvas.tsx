@@ -3,7 +3,6 @@ import type { PointerEvent as ReactPointerEvent, RefObject } from 'react';
 import {
   estimateTextUnits,
   getNodeLabelLayout,
-  STAGE_HEIGHT,
   STAGE_WIDTH,
   type LayoutEdge,
   type LayoutNode,
@@ -15,10 +14,13 @@ interface CharacterGraphCanvasProps {
   canPanCanvas: boolean;
   focusNodeId: string | null;
   highlightedNodeIds: ReadonlySet<string>;
+  isGestureInteracting: boolean;
+  isMobile: boolean;
   isPanning: boolean;
   layoutEdges: LayoutEdge[];
   layoutNodes: LayoutNode[];
   selectedNodeId: string | null;
+  stageHeight: number;
   zoomState: ZoomState;
   onCanvasPointerDown: (event: ReactPointerEvent<SVGSVGElement>) => void;
   onNodeMouseEnter: (nodeId: string) => void;
@@ -31,10 +33,13 @@ export default function CharacterGraphCanvas({
   canPanCanvas,
   focusNodeId,
   highlightedNodeIds,
+  isGestureInteracting,
+  isMobile,
   isPanning,
   layoutEdges,
   layoutNodes,
   selectedNodeId,
+  stageHeight,
   zoomState,
   onCanvasPointerDown,
   onNodeMouseEnter,
@@ -42,12 +47,22 @@ export default function CharacterGraphCanvas({
   onNodePointerDown,
 }: CharacterGraphCanvasProps) {
   const { t } = useTranslation();
+  const opacityTransition = isGestureInteracting
+    ? 'none'
+    : (isMobile ? 'opacity 140ms ease-out' : 'opacity 220ms ease');
+  const transformTransition = isGestureInteracting
+    ? 'none'
+    : (isMobile ? 'transform 150ms cubic-bezier(0.2, 0.9, 0.2, 1)' : 'transform 240ms cubic-bezier(0.22,1,0.36,1)');
+  const colorTransition = isGestureInteracting
+    ? 'none'
+    : (isMobile ? 'fill 140ms ease-out, stroke 140ms ease-out, stroke-width 140ms ease-out, opacity 140ms ease-out' : 'fill 220ms ease, stroke 220ms ease, stroke-width 220ms ease, opacity 220ms ease');
 
   return (
     <svg
       ref={svgRef}
-      viewBox={`0 0 ${STAGE_WIDTH} ${STAGE_HEIGHT}`}
-      className="relative h-full w-full"
+      viewBox={`0 0 ${STAGE_WIDTH} ${stageHeight}`}
+      preserveAspectRatio="xMidYMid meet"
+      className="relative block h-full w-full"
       style={{
         cursor: isPanning ? 'grabbing' : (canPanCanvas ? 'grab' : 'default'),
         touchAction: 'none',
@@ -67,7 +82,7 @@ export default function CharacterGraphCanvas({
         </filter>
       </defs>
 
-      <rect x="0" y="0" width={STAGE_WIDTH} height={STAGE_HEIGHT} fill="transparent" />
+      <rect x="0" y="0" width={STAGE_WIDTH} height={stageHeight} fill="transparent" />
 
       <g transform={`matrix(${zoomState.scale} 0 0 ${zoomState.scale} ${zoomState.offsetX} ${zoomState.offsetY})`}>
         {layoutEdges.map((edge) => {
@@ -103,6 +118,8 @@ export default function CharacterGraphCanvas({
           const isFocused = focusNodeId === node.id;
           const isActive = isSelected || isFocused;
           const isVisible = !focusNodeId || highlightedNodeIds.has(node.id);
+          const focusedLift = isMobile ? 'translateY(-1px) scale(1.012)' : 'translateY(-2px) scale(1.018)';
+          const selectedLift = isMobile ? 'scale(1.006)' : 'scale(1.01)';
           const labelLayout = getNodeLabelLayout(node.name, node.radius);
           const nodeMetaText = node.sharePercent > 0
             ? `${node.sharePercent.toFixed(1)}%`
@@ -118,15 +135,15 @@ export default function CharacterGraphCanvas({
               style={{
                 cursor: 'grab',
                 opacity: isVisible ? 1 : 0.16,
-                transition: 'opacity 220ms ease',
+                transition: opacityTransition,
               }}
             >
               <g
                 style={{
-                  transform: isFocused ? 'translateY(-2px) scale(1.018)' : (isSelected ? 'scale(1.01)' : 'scale(1)'),
+                  transform: isFocused ? focusedLift : (isSelected ? selectedLift : 'scale(1)'),
                   transformBox: 'fill-box',
                   transformOrigin: 'center center',
-                  transition: 'transform 240ms cubic-bezier(0.22,1,0.36,1)',
+                  transition: transformTransition,
                 }}
               >
                 <circle
@@ -134,7 +151,7 @@ export default function CharacterGraphCanvas({
                   style={{
                     fill: node.isCore ? 'rgba(52,82,122,0.10)' : 'rgba(24,32,42,0.05)',
                     opacity: isActive ? 0.92 : 0.28,
-                    transition: 'opacity 220ms ease, fill 220ms ease',
+                    transition: colorTransition,
                   }}
                 />
                 <circle
@@ -144,7 +161,7 @@ export default function CharacterGraphCanvas({
                     fill: '#fffdfa',
                     stroke: node.isCore ? '#18202a' : (isActive ? '#34527a' : '#9aa4af'),
                     strokeWidth: isActive ? 2.2 : 1.4,
-                    transition: 'stroke 220ms ease, stroke-width 220ms ease',
+                    transition: colorTransition,
                   }}
                 />
                 <circle
@@ -153,7 +170,7 @@ export default function CharacterGraphCanvas({
                     fill: node.isCore ? '#34527a' : '#f2efea',
                     stroke: node.isCore ? '#34527a' : '#ddd7cc',
                     strokeWidth: 1,
-                    transition: 'fill 220ms ease, stroke 220ms ease',
+                    transition: colorTransition,
                   }}
                 />
                 <g pointerEvents="none">
@@ -169,7 +186,7 @@ export default function CharacterGraphCanvas({
                       textLength={Math.min(labelLayout.maxTextWidth, estimateTextUnits(line) * labelLayout.fontSize)}
                       style={{
                         fill: node.isCore ? '#ffffff' : '#18202a',
-                        transition: 'fill 220ms ease, opacity 220ms ease',
+                        transition: colorTransition,
                       }}
                     >
                       {line}
@@ -180,7 +197,7 @@ export default function CharacterGraphCanvas({
                   transform={`translate(0 ${node.radius + 18})`}
                   pointerEvents="none"
                   opacity={isActive ? 1 : 0}
-                  style={{ transition: 'opacity 180ms ease' }}
+                  style={{ transition: isGestureInteracting ? 'none' : (isMobile ? 'opacity 120ms ease-out' : 'opacity 180ms ease') }}
                 >
                   <rect
                     x={-46}

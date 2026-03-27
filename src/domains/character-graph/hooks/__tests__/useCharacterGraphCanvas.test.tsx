@@ -1,7 +1,8 @@
 import { act, fireEvent, renderHook, waitFor } from '@testing-library/react';
 import type { TFunction } from 'i18next';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CharacterGraphResponse } from '@domains/analysis';
+import { STAGE_WIDTH, viewportPointToGraphPoint } from '../../utils/characterGraphLayout';
 import { useCharacterGraphCanvas } from '../useCharacterGraphCanvas';
 
 const testT = ((key: string) => key) as TFunction;
@@ -80,8 +81,56 @@ const graph: CharacterGraphResponse = {
   },
 };
 
+function createMockSvg(): SVGSVGElement {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  vi.spyOn(svg, 'getBoundingClientRect').mockReturnValue({
+    x: 0,
+    y: 0,
+    width: 100,
+    height: 100,
+    top: 0,
+    right: 100,
+    bottom: 100,
+    left: 0,
+    toJSON: () => ({}),
+  } as DOMRect);
+  return svg;
+}
+
+function attachSvg(result: ReturnType<typeof renderHook<typeof useCharacterGraphCanvas>>['result']): SVGSVGElement {
+  const svg = createMockSvg();
+  act(() => {
+    (result.current.svgRef as { current: SVGSVGElement | null }).current = svg;
+  });
+  return svg;
+}
+
+function createPointerEventData(overrides: Record<string, unknown> = {}) {
+  return {
+    pointerId: 1,
+    clientX: 50,
+    clientY: 50,
+    preventDefault: vi.fn(),
+    stopPropagation: vi.fn(),
+    ...overrides,
+  };
+}
+
 describe('useCharacterGraphCanvas', () => {
+  const originalRequestAnimationFrame = window.requestAnimationFrame;
+  const originalCancelAnimationFrame = window.cancelAnimationFrame;
+
+  beforeEach(() => {
+    window.requestAnimationFrame = ((callback: FrameRequestCallback) => {
+      callback(performance.now());
+      return 1;
+    }) as typeof window.requestAnimationFrame;
+    window.cancelAnimationFrame = vi.fn();
+  });
+
   afterEach(() => {
+    window.requestAnimationFrame = originalRequestAnimationFrame;
+    window.cancelAnimationFrame = originalCancelAnimationFrame;
     vi.restoreAllMocks();
   });
 
@@ -119,33 +168,18 @@ describe('useCharacterGraphCanvas', () => {
       expect(result.current.zoomState.scale).toBeGreaterThan(1);
     });
 
-    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    vi.spyOn(svg, 'getBoundingClientRect').mockReturnValue({
-      x: 0,
-      y: 0,
-      width: 100,
-      height: 100,
-      top: 0,
-      right: 100,
-      bottom: 100,
-      left: 0,
-      toJSON: () => ({}),
-    } as DOMRect);
+    attachSvg(result);
 
     act(() => {
-      (result.current.svgRef as { current: SVGSVGElement | null }).current = svg;
-    });
-
-    act(() => {
-      result.current.handleCanvasPointerDown({
+      result.current.handleCanvasPointerDown(createPointerEventData({
+        pointerId: 1,
         clientX: 50,
         clientY: 50,
-        preventDefault: vi.fn(),
-      } as never);
+      }) as never);
     });
 
-    fireEvent.pointerMove(window, { clientX: 74, clientY: 82 });
-    fireEvent.pointerUp(window);
+    fireEvent.pointerMove(window, { pointerId: 1, clientX: 78, clientY: 84 });
+    fireEvent.pointerUp(window, { pointerId: 1 });
 
     await waitFor(() => {
       expect(result.current.zoomState.offsetX).not.toBe(0);
@@ -156,6 +190,175 @@ describe('useCharacterGraphCanvas', () => {
 
     await waitFor(() => {
       expect(result.current.zoomState).toEqual(zoomAfterPan);
+    });
+  });
+
+  it('pans the mobile canvas without selecting a node', async () => {
+    const { result } = renderHook(() => useCharacterGraphCanvas({
+      graph,
+      isLoading: false,
+      isMobile: true,
+      t: testT,
+    }));
+
+    await waitFor(() => {
+      expect(result.current.layoutNodes.length).toBeGreaterThan(0);
+    });
+
+    attachSvg(result);
+    const initialZoom = result.current.zoomState;
+
+    act(() => {
+      result.current.handleCanvasPointerDown(createPointerEventData({
+        pointerId: 1,
+        clientX: 48,
+        clientY: 44,
+      }) as never);
+    });
+
+    fireEvent.pointerMove(window, { pointerId: 1, clientX: 72, clientY: 78 });
+    fireEvent.pointerUp(window, { pointerId: 1 });
+
+    await waitFor(() => {
+      expect(result.current.zoomState.offsetX).not.toBe(initialZoom.offsetX);
+      expect(result.current.selectedNodeId).toBeNull();
+    });
+  });
+
+  it('keeps node tap selection but treats large movement as dragging instead of a tap', async () => {
+    const { result } = renderHook(() => useCharacterGraphCanvas({
+      graph,
+      isLoading: false,
+      isMobile: true,
+      t: testT,
+    }));
+
+    await waitFor(() => {
+      expect(result.current.layoutNodes.length).toBeGreaterThan(0);
+    });
+
+    attachSvg(result);
+    const heroNode = result.current.layoutNodes.find((node) => node.id === 'hero');
+    expect(heroNode).toBeDefined();
+
+    act(() => {
+      result.current.handleNodePointerDown(createPointerEventData({
+        pointerId: 1,
+        clientX: 50,
+        clientY: 50,
+      }) as never, heroNode!);
+    });
+
+    fireEvent.pointerUp(window, { pointerId: 1 });
+
+    await waitFor(() => {
+      expect(result.current.selectedNodeId).toBe('hero');
+    });
+
+    act(() => {
+      result.current.clearSelection();
+    });
+
+    const initialHeroPosition = result.current.layoutNodes.find((node) => node.id === 'hero');
+
+    act(() => {
+      result.current.handleNodePointerDown(createPointerEventData({
+        pointerId: 1,
+        clientX: 50,
+        clientY: 50,
+      }) as never, heroNode!);
+    });
+
+    fireEvent.pointerMove(window, { pointerId: 1, clientX: 76, clientY: 86 });
+    fireEvent.pointerUp(window, { pointerId: 1 });
+
+    await waitFor(() => {
+      const movedHero = result.current.layoutNodes.find((node) => node.id === 'hero');
+      expect(result.current.selectedNodeId).toBeNull();
+      expect(movedHero?.x).not.toBe(initialHeroPosition?.x);
+    });
+  });
+
+  it('lets nodes reach the visible mobile canvas edges while dragging', async () => {
+    const { result } = renderHook(() => useCharacterGraphCanvas({
+      graph,
+      isLoading: false,
+      isMobile: true,
+      t: testT,
+    }));
+
+    await waitFor(() => {
+      expect(result.current.layoutNodes.length).toBeGreaterThan(0);
+      expect(result.current.zoomState.scale).toBeGreaterThan(1);
+    });
+
+    attachSvg(result);
+    const heroNode = result.current.layoutNodes.find((node) => node.id === 'hero');
+    expect(heroNode).toBeDefined();
+
+    act(() => {
+      result.current.handleNodePointerDown(createPointerEventData({
+        pointerId: 1,
+        clientX: 50,
+        clientY: 50,
+      }) as never, heroNode!);
+    });
+
+    fireEvent.pointerMove(window, { pointerId: 1, clientX: 140, clientY: 140 });
+    fireEvent.pointerUp(window, { pointerId: 1 });
+
+    await waitFor(() => {
+      const movedHero = result.current.layoutNodes.find((node) => node.id === 'hero');
+      const visibleBottomRight = viewportPointToGraphPoint(
+        { x: STAGE_WIDTH, y: result.current.stageHeight },
+        result.current.zoomState,
+      );
+
+      expect(movedHero).toBeDefined();
+      expect(movedHero!.x).toBeCloseTo(visibleBottomRight.x - movedHero!.radius, 1);
+      expect(movedHero!.y).toBeCloseTo(visibleBottomRight.y - movedHero!.radius, 1);
+    });
+  });
+
+  it('supports pinch zoom on mobile without jumping away from the viewport', async () => {
+    const { result } = renderHook(() => useCharacterGraphCanvas({
+      graph,
+      isLoading: false,
+      isMobile: true,
+      t: testT,
+    }));
+
+    await waitFor(() => {
+      expect(result.current.zoomState.scale).toBeGreaterThan(1);
+    });
+
+    attachSvg(result);
+    const initialZoom = result.current.zoomState;
+
+    act(() => {
+      result.current.handleCanvasPointerDown(createPointerEventData({
+        pointerId: 1,
+        clientX: 30,
+        clientY: 40,
+      }) as never);
+      result.current.handleCanvasPointerDown(createPointerEventData({
+        pointerId: 2,
+        clientX: 70,
+        clientY: 40,
+      }) as never);
+    });
+
+    fireEvent.pointerMove(window, { pointerId: 2, clientX: 90, clientY: 40 });
+
+    await waitFor(() => {
+      expect(result.current.zoomState.scale).toBeGreaterThan(initialZoom.scale);
+    });
+
+    fireEvent.pointerUp(window, { pointerId: 1 });
+    fireEvent.pointerUp(window, { pointerId: 2 });
+
+    await waitFor(() => {
+      expect(result.current.isGestureInteracting).toBe(false);
     });
   });
 });

@@ -5,11 +5,16 @@ import { X } from 'lucide-react';
 const EXIT_DURATION_MS = 250;
 const DRAG_CLOSE_THRESHOLD = 0.3;
 const DRAG_MIN_DISTANCE = 120;
+const DRAG_CLOSE_VELOCITY = 0.55;
+const DRAG_REBOUND_TRANSITION = 'transform 0.18s cubic-bezier(0.2, 0.9, 0.25, 1)';
 
 interface DragState {
   pointerId: number;
   startY: number;
   isDragging: boolean;
+  lastY: number;
+  lastTime: number;
+  velocityY: number;
 }
 
 interface BottomSheetProps {
@@ -39,6 +44,7 @@ export default function BottomSheet({
   const [mounted, setMounted] = useState(() => isOpen);
   const [closing, setClosing] = useState(false);
   const [dragOffset, setDragOffset] = useState(0);
+  const [dragProgress, setDragProgress] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout>>(null);
   const dragRef = useRef<DragState | null>(null);
@@ -54,6 +60,7 @@ export default function BottomSheet({
       timerRef.current = setTimeout(() => {
         setClosing(false);
         setMounted(true);
+        setDragProgress(0);
         timerRef.current = null;
       }, 0);
     } else {
@@ -113,6 +120,9 @@ export default function BottomSheet({
       pointerId: event.pointerId,
       startY: event.clientY,
       isDragging: false,
+      lastY: event.clientY,
+      lastTime: Date.now(),
+      velocityY: 0,
     };
 
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -122,6 +132,8 @@ export default function BottomSheet({
   const handlePointerMove = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
     const drag = dragRef.current;
     if (!drag || event.pointerId !== drag.pointerId) return;
+    const panel = panelRef.current;
+    if (!panel) return;
 
     const deltaY = event.clientY - drag.startY;
 
@@ -130,8 +142,19 @@ export default function BottomSheet({
       setIsDragging(true);
     }
 
+    const now = Date.now();
+    const elapsed = Math.max(1, now - drag.lastTime);
+    const deltaSinceLast = event.clientY - drag.lastY;
+    if (elapsed >= 16) {
+      drag.velocityY = deltaSinceLast / elapsed;
+    }
+    drag.lastY = event.clientY;
+    drag.lastTime = now;
+
     if (drag.isDragging && deltaY > 0) {
       setDragOffset(deltaY);
+      const panelHeight = Math.max(1, panel.getBoundingClientRect().height);
+      setDragProgress(Math.min(1, Math.max(0, deltaY / panelHeight)));
       event.preventDefault();
     }
   }, []);
@@ -150,14 +173,20 @@ export default function BottomSheet({
     }
 
     const threshold = Math.max(DRAG_MIN_DISTANCE, panel.getBoundingClientRect().height * DRAG_CLOSE_THRESHOLD);
+    const shouldClose = drag.isDragging && (
+      dragOffset >= threshold
+      || drag.velocityY >= DRAG_CLOSE_VELOCITY
+    );
 
-    if (drag.isDragging && dragOffset >= threshold) {
+    if (shouldClose) {
       setDragOffset(0);
+      setDragProgress(0);
       panel.style.transition = '';
       onClose();
     } else {
-      panel.style.transition = 'transform 0.25s cubic-bezier(0.16, 1, 0.3, 1)';
+      panel.style.transition = DRAG_REBOUND_TRANSITION;
       setDragOffset(0);
+      setDragProgress(0);
     }
   }, [dragOffset, onClose]);
 
@@ -166,9 +195,10 @@ export default function BottomSheet({
     dragRef.current = null;
     setIsDragging(false);
     if (panel) {
-      panel.style.transition = 'transform 0.25s cubic-bezier(0.16, 1, 0.3, 1)';
+      panel.style.transition = DRAG_REBOUND_TRANSITION;
     }
     setDragOffset(0);
+    setDragProgress(0);
   }, []);
 
   if (!mounted) return null;
@@ -180,6 +210,9 @@ export default function BottomSheet({
       ? 'animate-sheet-down'
       : 'animate-sheet-up';
   const backdropAnimation = closing ? 'animate-fade-out' : 'animate-fade-in';
+  const backdropOpacity = dragOffset > 0
+    ? Math.max(0.35, 1 - dragProgress * 0.7)
+    : undefined;
 
   return (
     <div className="absolute inset-0 z-30 flex items-end">
@@ -189,6 +222,7 @@ export default function BottomSheet({
         tabIndex={-1}
         onPointerDown={handleBackdropClick}
         className={`absolute inset-0 bg-[#18202a]/18 backdrop-blur-[2px] ${backdropAnimation}`}
+        style={{ opacity: backdropOpacity }}
       />
       <div
         ref={panelRef}
