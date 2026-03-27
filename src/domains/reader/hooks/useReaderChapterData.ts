@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
+import { reportAppError } from '@app/debug/service';
+import { AppErrorCode, toAppError, type AppError } from '@shared/errors';
 import { readerApi } from '../api/readerApi';
 import type { Chapter, ChapterContent } from '../api/readerApi';
 import type { ChapterChangeSource } from './navigationTypes';
@@ -21,6 +23,7 @@ interface UseReaderChapterDataParams {
   setIsTwoColumn: React.Dispatch<React.SetStateAction<boolean>>;
   setPageIndex: React.Dispatch<React.SetStateAction<number>>;
   setPageCount: React.Dispatch<React.SetStateAction<number>>;
+  setReaderError: React.Dispatch<React.SetStateAction<AppError | null>>;
   contentRef: React.RefObject<HTMLDivElement | null>;
   pagedViewportRef: React.RefObject<HTMLDivElement | null>;
   chapterCacheRef: React.MutableRefObject<Map<number, ChapterContent>>;
@@ -68,6 +71,7 @@ export function useReaderChapterData({
   setIsTwoColumn,
   setPageIndex,
   setPageCount,
+  setReaderError,
   contentRef,
   pagedViewportRef,
   chapterCacheRef,
@@ -189,6 +193,7 @@ export function useReaderChapterData({
       chapterCacheRef.current.clear();
       setChapters([]);
       setCurrentChapter(null);
+      setReaderError(null);
       updateChapterWindow([]);
       setPageIndex(0);
       setPageCount(1);
@@ -252,7 +257,15 @@ export function useReaderChapterData({
         }
       } catch (error) {
         if (!cancelled) {
+          const normalized = toAppError(error, {
+            code: AppErrorCode.STORAGE_OPERATION_FAILED,
+            kind: 'storage',
+            source: 'reader',
+            userMessageKey: 'reader.loadError',
+          });
+          reportAppError(normalized);
           console.error('Failed to load reader init data:', error);
+          setReaderError(normalized);
           setIsLoading(false);
           setLoadingMessage(null);
           stopRestoreMask();
@@ -287,6 +300,7 @@ export function useReaderChapterData({
     setIsTwoColumn,
     setPageCount,
     setPageIndex,
+    setReaderError,
     setPendingRestoreState,
     setViewMode,
     setLoadingMessage,
@@ -380,6 +394,7 @@ export function useReaderChapterData({
       }
 
       setIsLoading(true);
+      setReaderError(null);
 
       try {
         setLoadingMessage(t('reader.processingChapter', { percent: 0 }));
@@ -411,7 +426,15 @@ export function useReaderChapterData({
         chapterChangeSourceRef.current = null;
       } catch (error) {
         if (!cancelled) {
+          const normalized = toAppError(error, {
+            code: AppErrorCode.STORAGE_OPERATION_FAILED,
+            kind: 'storage',
+            source: 'reader',
+            userMessageKey: 'reader.loadError',
+          });
+          reportAppError(normalized);
           console.error('Failed to load chapter content', error);
+          setReaderError(normalized);
           setLoadingMessage(null);
           stopRestoreMask();
         }
@@ -449,6 +472,7 @@ export function useReaderChapterData({
     setLoadingMessage,
     setPageCount,
     setPageIndex,
+    setReaderError,
     setPendingRestoreState,
     stopRestoreMask,
     suppressScrollSyncTemporarily,
