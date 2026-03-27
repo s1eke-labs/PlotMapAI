@@ -5,6 +5,7 @@ import { libraryApi, type NovelView } from '@domains/library';
 import { ensureDefaultTocRules } from '@domains/settings';
 import { db } from '@infra/db';
 import { CACHE_KEYS, storage } from '@infra/storage';
+import { AppErrorCode, createAppError, toAppError } from '@shared/errors';
 
 import { parseBook } from '../services/bookParser';
 import type { BookImportProgress } from '../services/progress';

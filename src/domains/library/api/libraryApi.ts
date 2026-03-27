@@ -1,5 +1,6 @@
 import { db } from '@infra/db';
 import { CACHE_KEYS, storage } from '@infra/storage';
+import { AppErrorCode, createAppError } from '@shared/errors';
 
 export interface NovelView {
   id: number;
