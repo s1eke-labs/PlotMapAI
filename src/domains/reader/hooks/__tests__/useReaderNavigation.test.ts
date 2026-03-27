@@ -28,6 +28,7 @@ function setupHook(overrides: {
   pageIndex?: number;
   pageCount?: number;
   scrollModeChapters?: number[];
+  isChapterNavigationReady?: boolean;
 } = {}) {
   const setChapterIndex = vi.fn();
   const setPageIndex = vi.fn();
@@ -43,28 +44,42 @@ function setupHook(overrides: {
   const pageIndex = overrides.pageIndex ?? 0;
   const pageCount = overrides.pageCount ?? 1;
   const scrollModeChapters = overrides.scrollModeChapters ?? [];
+  const isChapterNavigationReady = overrides.isChapterNavigationReady ?? true;
 
-  const { result } = renderHook(() =>
+  const initialProps = {
+    chapterIndex,
+    currentChapter,
+    isPagedMode,
+    pageIndex,
+    pageCount,
+    scrollModeChapters,
+    isChapterNavigationReady,
+  };
+
+  const { result, rerender } = renderHook((props: typeof initialProps) =>
     useReaderNavigation(
-      chapterIndex,
+      props.chapterIndex,
       setChapterIndex,
-      currentChapter,
-      isPagedMode,
-      pageIndex,
+      props.currentChapter,
+      props.isPagedMode,
+      props.pageIndex,
       setPageIndex,
-      pageCount,
+      props.pageCount,
       persistReaderState,
       pageTargetRef,
       chapters,
-      scrollModeChapters,
+      props.scrollModeChapters,
       hasUserInteractedRef,
       chapterChangeSourceRef,
+      props.isChapterNavigationReady,
       beforeChapterChange,
-    )
+    ),
+    { initialProps },
   );
 
   return {
     result,
+    rerender,
     setChapterIndex,
     setPageIndex,
     persistReaderState,
@@ -72,6 +87,7 @@ function setupHook(overrides: {
     hasUserInteractedRef,
     chapterChangeSourceRef,
     beforeChapterChange,
+    baseProps: initialProps,
   };
 }
 
@@ -137,6 +153,111 @@ describe('useReaderNavigation', () => {
       expect(setChapterIndex).not.toHaveBeenCalled();
       expect(setPageIndex).not.toHaveBeenCalled();
     });
+
+    it('queues one next intent during chapter transition and replays it within the resolved chapter', () => {
+      const { result, rerender, setChapterIndex, setPageIndex, baseProps } = setupHook({
+        chapterIndex: 0,
+        chapter: makeChapter({ index: 0, hasNext: true }),
+        pageIndex: 0,
+        pageCount: 1,
+      });
+
+      act(() => {
+        result.current.goToNextPage();
+      });
+      expect(setChapterIndex).toHaveBeenCalledTimes(1);
+      expect(setChapterIndex).toHaveBeenLastCalledWith(1);
+
+      act(() => {
+        rerender({
+          ...baseProps,
+          chapterIndex: 1,
+          currentChapter: makeChapter({ index: 0, hasNext: true }),
+          pageIndex: 0,
+          pageCount: 1,
+          isChapterNavigationReady: false,
+        });
+      });
+
+      act(() => {
+        result.current.goToNextPage();
+      });
+      expect(setChapterIndex).toHaveBeenCalledTimes(1);
+      expect(setPageIndex).not.toHaveBeenCalled();
+
+      act(() => {
+        rerender({
+          ...baseProps,
+          chapterIndex: 1,
+          currentChapter: makeChapter({ index: 1, hasPrev: true, hasNext: true }),
+          pageIndex: 0,
+          pageCount: 3,
+          isChapterNavigationReady: true,
+        });
+      });
+
+      expect(setChapterIndex).toHaveBeenCalledTimes(1);
+      expect(setPageIndex).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not chain into another chapter when replaying next inside a single-page target chapter', () => {
+      const { result, rerender, setChapterIndex, setPageIndex, baseProps } = setupHook({
+        chapterIndex: 0,
+        chapter: makeChapter({ index: 0, hasNext: true }),
+        pageIndex: 0,
+        pageCount: 1,
+      });
+
+      act(() => {
+        result.current.goToNextPage();
+      });
+
+      act(() => {
+        rerender({
+          ...baseProps,
+          chapterIndex: 1,
+          currentChapter: makeChapter({ index: 0, hasNext: true }),
+          pageIndex: 0,
+          pageCount: 1,
+          isChapterNavigationReady: false,
+        });
+      });
+
+      act(() => {
+        result.current.goToNextPage();
+      });
+
+      act(() => {
+        rerender({
+          ...baseProps,
+          chapterIndex: 1,
+          currentChapter: makeChapter({ index: 1, hasPrev: true, hasNext: true }),
+          pageIndex: 0,
+          pageCount: 1,
+          isChapterNavigationReady: true,
+        });
+      });
+
+      expect(setChapterIndex).toHaveBeenCalledTimes(1);
+      expect(setPageIndex).not.toHaveBeenCalled();
+    });
+
+    it('does nothing when current chapter content is out of sync with chapter index', () => {
+      const { result, setChapterIndex, setPageIndex } = setupHook({
+        chapterIndex: 1,
+        chapter: makeChapter({ index: 0, hasNext: true }),
+        pageIndex: 0,
+        pageCount: 1,
+        isChapterNavigationReady: false,
+      });
+
+      act(() => {
+        result.current.goToNextPage();
+      });
+
+      expect(setChapterIndex).not.toHaveBeenCalled();
+      expect(setPageIndex).not.toHaveBeenCalled();
+    });
   });
 
   describe('goToPrevPage', () => {
@@ -166,6 +287,53 @@ describe('useReaderNavigation', () => {
       result.current.goToPrevPage();
       expect(setChapterIndex).not.toHaveBeenCalled();
       expect(setPageIndex).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('queued intent precedence', () => {
+    it('allows an explicit chapter intent to overwrite a queued next intent', () => {
+      const { result, rerender, setChapterIndex, baseProps } = setupHook({
+        chapterIndex: 0,
+        chapter: makeChapter({ index: 0, hasNext: true }),
+        pageIndex: 0,
+        pageCount: 1,
+      });
+
+      act(() => {
+        result.current.goToNextPage();
+      });
+      expect(setChapterIndex).toHaveBeenCalledTimes(1);
+      expect(setChapterIndex).toHaveBeenLastCalledWith(1);
+
+      act(() => {
+        rerender({
+          ...baseProps,
+          chapterIndex: 1,
+          currentChapter: makeChapter({ index: 0, hasNext: true }),
+          pageIndex: 0,
+          pageCount: 1,
+          isChapterNavigationReady: false,
+        });
+      });
+
+      act(() => {
+        result.current.goToNextPage();
+        result.current.goToChapter(2, 'start');
+      });
+
+      act(() => {
+        rerender({
+          ...baseProps,
+          chapterIndex: 1,
+          currentChapter: makeChapter({ index: 1, hasPrev: true, hasNext: true }),
+          pageIndex: 0,
+          pageCount: 1,
+          isChapterNavigationReady: true,
+        });
+      });
+
+      expect(setChapterIndex).toHaveBeenCalledTimes(2);
+      expect(setChapterIndex).toHaveBeenLastCalledWith(2);
     });
   });
 

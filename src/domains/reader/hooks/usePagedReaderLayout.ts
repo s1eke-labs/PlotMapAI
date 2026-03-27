@@ -30,6 +30,7 @@ interface UsePagedReaderLayoutResult {
   pageTurnStep: number;
   twoColumnGap: number;
   twoColumnWidth: number | undefined;
+  readyChapterIndex: number | null;
 }
 
 export function usePagedReaderLayout({
@@ -51,6 +52,7 @@ export function usePagedReaderLayout({
 }: UsePagedReaderLayoutParams): UsePagedReaderLayoutResult {
   const prevChapterIndexRef = useRef(chapterIndex);
   const [pagedViewportSize, setPagedViewportSize] = useState({ width: 0, height: 0 });
+  const [resolvedLayoutChapterIndex, setResolvedLayoutChapterIndex] = useState<number | null>(null);
 
   const twoColumnWidth = pagedViewportSize.width
     ? pagedViewportSize.width >= 2 * MIN_COLUMN_WIDTH + TWO_COLUMN_GAP
@@ -109,6 +111,7 @@ export function usePagedReaderLayout({
       setPageCount(nextPageCount);
       setPageIndex(targetPage);
       pageTargetRef.current = 'start';
+      setResolvedLayoutChapterIndex(chapterIndex);
       if (hasRestorablePage || pendingRestoreState) {
         clearPendingRestoreState();
       }
@@ -157,5 +160,11 @@ export function usePagedReaderLayout({
     pageTurnStep,
     twoColumnGap: TWO_COLUMN_GAP,
     twoColumnWidth,
+    readyChapterIndex: (
+      !isLoading
+      && isPagedMode
+      && Boolean(currentChapter)
+      && resolvedLayoutChapterIndex === chapterIndex
+    ) ? resolvedLayoutChapterIndex : null,
   };
 }

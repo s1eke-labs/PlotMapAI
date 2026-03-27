@@ -230,6 +230,10 @@ export default function ReaderPage() {
     lineSpacing: preferences.lineSpacing,
   });
 
+  const isChapterNavigationReady = !isLoading
+    && currentChapter?.index === chapterIndex
+    && (!isPagedMode || pagedLayout.readyChapterIndex === chapterIndex);
+
   const navigation = useReaderNavigation(
     chapterIndex,
     setChapterIndex,
@@ -244,6 +248,7 @@ export default function ReaderPage() {
     scrollModeChapters,
     hasUserInteractedRef,
     restoreFlow.chapterChangeSourceRef,
+    isChapterNavigationReady,
     restoreFlow.handleBeforeChapterChange,
   );
 

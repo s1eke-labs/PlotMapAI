@@ -174,6 +174,36 @@ function createDeferred<T>() {
   return { promise, resolve };
 }
 
+function enablePagedTestLayout(scrollWidth: number = 400) {
+  setPrototypeNumberGetter('clientWidth', 600);
+  setPrototypeNumberGetter('clientHeight', 800);
+  setPrototypeNumberGetter('scrollWidth', scrollWidth);
+}
+
+function getPagedReaderContainer(container: HTMLElement): HTMLDivElement {
+  const readerContainer = container.querySelector('main .cursor-pointer.overflow-hidden') as HTMLDivElement | null;
+  if (!readerContainer) {
+    throw new Error('Paged reader container not found');
+  }
+
+  Object.defineProperty(readerContainer, 'getBoundingClientRect', {
+    configurable: true,
+    value: () => ({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      width: 100,
+      height: 100,
+      right: 100,
+      bottom: 100,
+      toJSON: () => ({}),
+    }),
+  });
+
+  return readerContainer;
+}
+
 describe('ReaderPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -512,6 +542,119 @@ describe('ReaderPage', () => {
       requestAnimationFrameSpy.mockRestore();
       cancelAnimationFrameSpy.mockRestore();
     }
+  });
+
+  it('does not skip chapters when rapid wheel paging overlaps an async chapter transition', async () => {
+    const pagedChapters = Array.from({ length: 3 }, (_, index) => ({
+      index,
+      title: `Chapter ${index + 1}`,
+      wordCount: 100 + index,
+    }));
+    const pagedChapterContent = pagedChapters.map((chapter, index) => ({
+      ...chapter,
+      content: `${chapter.title} content`,
+      totalChapters: pagedChapters.length,
+      hasPrev: index > 0,
+      hasNext: index < pagedChapters.length - 1,
+    }));
+    const deferredSecondChapter = createDeferred<(typeof pagedChapterContent)[number]>();
+
+    enablePagedTestLayout(900);
+    localStorage.setItem('reader-state:1', JSON.stringify({
+      chapterIndex: 0,
+      viewMode: 'original',
+      isTwoColumn: true,
+      chapterProgress: 1,
+    }));
+    vi.mocked(readerApi.getChapters).mockResolvedValueOnce(pagedChapters);
+    vi.mocked(readerApi.getChapterContent).mockImplementation(async (_novelId, chapterIndex) => {
+      if (chapterIndex === 1) {
+        return deferredSecondChapter.promise;
+      }
+      return pagedChapterContent[chapterIndex];
+    });
+
+    const { container } = renderPage();
+
+    expect(await screen.findByRole('heading', { name: 'Chapter 1', level: 2 })).toBeInTheDocument();
+    expect(await screen.findByText('2 / 2')).toBeInTheDocument();
+    const readerContainer = getPagedReaderContainer(container);
+
+    const firstWheel = new WheelEvent('wheel', { deltaY: 120, bubbles: true, cancelable: true });
+    Object.defineProperty(firstWheel, 'deltaX', { value: 0 });
+    readerContainer.dispatchEvent(firstWheel);
+
+    await act(async () => {
+      await new Promise((resolve) => window.setTimeout(resolve, 320));
+    });
+
+    const secondWheel = new WheelEvent('wheel', { deltaY: 120, bubbles: true, cancelable: true });
+    Object.defineProperty(secondWheel, 'deltaX', { value: 0 });
+    readerContainer.dispatchEvent(secondWheel);
+
+    deferredSecondChapter.resolve(pagedChapterContent[1]);
+
+    expect(await screen.findByRole('heading', { name: 'Chapter 2', level: 2 })).toBeInTheDocument();
+    expect(await screen.findByText('2 / 2')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByRole('heading', { name: 'Chapter 3', level: 2 })).not.toBeInTheDocument();
+    });
+    expect(JSON.parse(localStorage.getItem('reader-state:1')!)).toMatchObject({
+      chapterIndex: 1,
+      isTwoColumn: true,
+      viewMode: 'original',
+    });
+  });
+
+  it('does not skip chapters when rapid right-side clicks overlap a cached chapter transition', async () => {
+    const pagedChapters = Array.from({ length: 3 }, (_, index) => ({
+      index,
+      title: `Chapter ${index + 1}`,
+      wordCount: 100 + index,
+    }));
+    const pagedChapterContent = pagedChapters.map((chapter, index) => ({
+      ...chapter,
+      content: `${chapter.title} content`,
+      totalChapters: pagedChapters.length,
+      hasPrev: index > 0,
+      hasNext: index < pagedChapters.length - 1,
+    }));
+
+    enablePagedTestLayout(900);
+    localStorage.setItem('reader-state:1', JSON.stringify({
+      chapterIndex: 0,
+      viewMode: 'original',
+      isTwoColumn: true,
+      chapterProgress: 1,
+    }));
+    vi.mocked(readerApi.getChapters).mockResolvedValueOnce(pagedChapters);
+    vi.mocked(readerApi.getChapterContent).mockImplementation(async (_novelId, chapterIndex) => pagedChapterContent[chapterIndex]);
+
+    const { container } = renderPage();
+
+    expect(await screen.findByRole('heading', { name: 'Chapter 1', level: 2 })).toBeInTheDocument();
+    expect(await screen.findByText('2 / 2')).toBeInTheDocument();
+    await act(async () => {
+      await new Promise((resolve) => window.setTimeout(resolve, 160));
+    });
+
+    const readerContainer = getPagedReaderContainer(container);
+
+    act(() => {
+      fireEvent.click(readerContainer, { clientX: 90, clientY: 50 });
+      fireEvent.click(readerContainer, { clientX: 90, clientY: 50 });
+    });
+
+    expect(await screen.findByRole('heading', { name: 'Chapter 2', level: 2 })).toBeInTheDocument();
+    expect(await screen.findByText('2 / 2')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByRole('heading', { name: 'Chapter 3', level: 2 })).not.toBeInTheDocument();
+    });
+    expect(JSON.parse(localStorage.getItem('reader-state:1')!)).toMatchObject({
+      chapterIndex: 1,
+      isTwoColumn: true,
+      viewMode: 'original',
+    });
   });
 
   it('shows the unified loading state while chapter content is loading in scroll mode', async () => {
