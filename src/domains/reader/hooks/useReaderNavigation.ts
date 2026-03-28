@@ -2,9 +2,11 @@ import type { Chapter, ChapterContent } from '../api/readerApi';
 import type { ChapterChangeSource } from './navigationTypes';
 import type { PageTarget, StoredReaderState } from './useReaderStatePersistence';
 
-import { useCallback, useLayoutEffect, useRef } from 'react';
+import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 
 import { usePagedChapterTransition } from './usePagedChapterTransition';
+
+type NavigationDirection = 'next' | 'prev';
 
 export function useReaderNavigation(
   chapterIndex: number,
@@ -26,12 +28,29 @@ export function useReaderNavigation(
   goToChapter: (targetIndex: number, pageTarget?: PageTarget) => void;
   goToNextPage: () => void;
   goToPrevPage: () => void;
+  goToNextPageSilently: () => void;
+  goToPrevPageSilently: () => void;
   handleNext: () => void;
   handlePrev: () => void;
   toolbarHasPrev: boolean;
   toolbarHasNext: boolean;
+  pageTurnDirection: NavigationDirection;
+  pageTurnToken: number;
 } {
-  const replayDirectionalNavigationRef = useRef<(direction: 'next' | 'prev') => void>(() => {});
+  const replayDirectionalNavigationRef = useRef<
+    (direction: NavigationDirection, shouldAnimate: boolean) => void
+  >(() => {});
+  const [pageTurnState, setPageTurnState] = useState<{ direction: NavigationDirection; token: number }>({
+    direction: 'next',
+    token: 0,
+  });
+
+  const recordAnimatedPageTurn = useCallback((direction: NavigationDirection) => {
+    setPageTurnState((previous) => ({
+      direction,
+      token: previous.token + 1,
+    }));
+  }, []);
 
   const commitChapterNavigation = useCallback((targetIndex: number, pageTarget: PageTarget = 'start') => {
     if (targetIndex < 0 || targetIndex >= chapters.length) {
@@ -64,28 +83,33 @@ export function useReaderNavigation(
     isChapterNavigationReady,
     chapterChangeSourceRef,
     onCommitChapterNavigation: commitChapterNavigation,
-    onReplayDirectionalNavigation: (direction) => {
-      replayDirectionalNavigationRef.current(direction);
+    onReplayDirectionalNavigation: (direction, shouldAnimate) => {
+      replayDirectionalNavigationRef.current(direction, shouldAnimate);
     },
   });
 
   const stepNextPage = useCallback((allowChapterTransition: boolean) => {
-    if (!currentChapter) return;
+    if (!currentChapter) {
+      return false;
+    }
 
     if (isPagedMode && (!isChapterNavigationReady || currentChapter.index !== chapterIndex)) {
-      return;
+      return false;
     }
 
     if (pageIndex < pageCount - 1) {
       setPageIndex((prev) => prev + 1);
-      return;
+      return true;
     }
 
-    if (allowChapterTransition && currentChapter.hasNext) {
+    if (allowChapterTransition && currentChapter.hasNext && chapterIndex < chapters.length - 1) {
       requestChapterNavigation(chapterIndex + 1, 'start');
+      return true;
     }
+    return false;
   }, [
     chapterIndex,
+    chapters.length,
     currentChapter,
     isChapterNavigationReady,
     isPagedMode,
@@ -96,20 +120,24 @@ export function useReaderNavigation(
   ]);
 
   const stepPrevPage = useCallback((allowChapterTransition: boolean) => {
-    if (!currentChapter) return;
+    if (!currentChapter) {
+      return false;
+    }
 
     if (isPagedMode && (!isChapterNavigationReady || currentChapter.index !== chapterIndex)) {
-      return;
+      return false;
     }
 
     if (pageIndex > 0) {
       setPageIndex((prev) => prev - 1);
-      return;
+      return true;
     }
 
-    if (allowChapterTransition && currentChapter.hasPrev) {
+    if (allowChapterTransition && currentChapter.hasPrev && chapterIndex > 0) {
       requestChapterNavigation(chapterIndex - 1, 'end');
+      return true;
     }
+    return false;
   }, [
     chapterIndex,
     currentChapter,
@@ -121,35 +149,58 @@ export function useReaderNavigation(
   ]);
 
   useLayoutEffect(() => {
-    replayDirectionalNavigationRef.current = (direction) => {
-      if (direction === 'next') {
-        stepNextPage(false);
-        return;
-      }
+    replayDirectionalNavigationRef.current = (direction, shouldAnimate) => {
+      const didNavigate = direction === 'next'
+        ? stepNextPage(false)
+        : stepPrevPage(false);
 
-      stepPrevPage(false);
+      if (didNavigate && shouldAnimate) {
+        recordAnimatedPageTurn(direction);
+      }
     };
-  }, [stepNextPage, stepPrevPage]);
+  }, [recordAnimatedPageTurn, stepNextPage, stepPrevPage]);
 
   const goToChapter = useCallback((targetIndex: number, pageTarget: PageTarget = 'start') => {
     requestChapterNavigation(targetIndex, pageTarget);
   }, [requestChapterNavigation]);
 
-  const goToNextPage = useCallback(() => {
-    if (!requestDirectionalNavigation('next')) {
+  const performNextPageTurn = useCallback((shouldAnimate: boolean) => {
+    if (!requestDirectionalNavigation('next', shouldAnimate)) {
       return;
     }
 
-    stepNextPage(true);
-  }, [requestDirectionalNavigation, stepNextPage]);
+    const didNavigate = stepNextPage(true);
+    if (didNavigate && shouldAnimate) {
+      recordAnimatedPageTurn('next');
+    }
+  }, [recordAnimatedPageTurn, requestDirectionalNavigation, stepNextPage]);
+
+  const performPrevPageTurn = useCallback((shouldAnimate: boolean) => {
+    if (!requestDirectionalNavigation('prev', shouldAnimate)) {
+      return;
+    }
+
+    const didNavigate = stepPrevPage(true);
+    if (didNavigate && shouldAnimate) {
+      recordAnimatedPageTurn('prev');
+    }
+  }, [recordAnimatedPageTurn, requestDirectionalNavigation, stepPrevPage]);
+
+  const goToNextPage = useCallback(() => {
+    performNextPageTurn(true);
+  }, [performNextPageTurn]);
 
   const goToPrevPage = useCallback(() => {
-    if (!requestDirectionalNavigation('prev')) {
-      return;
-    }
+    performPrevPageTurn(true);
+  }, [performPrevPageTurn]);
 
-    stepPrevPage(true);
-  }, [requestDirectionalNavigation, stepPrevPage]);
+  const goToNextPageSilently = useCallback(() => {
+    performNextPageTurn(false);
+  }, [performNextPageTurn]);
+
+  const goToPrevPageSilently = useCallback(() => {
+    performPrevPageTurn(false);
+  }, [performPrevPageTurn]);
 
   const handleNext = useCallback(() => {
     if (isPagedMode) {
@@ -188,9 +239,13 @@ export function useReaderNavigation(
     goToChapter,
     goToNextPage,
     goToPrevPage,
+    goToNextPageSilently,
+    goToPrevPageSilently,
     handleNext,
     handlePrev,
     toolbarHasPrev,
     toolbarHasNext,
+    pageTurnDirection: pageTurnState.direction,
+    pageTurnToken: pageTurnState.token,
   };
 }

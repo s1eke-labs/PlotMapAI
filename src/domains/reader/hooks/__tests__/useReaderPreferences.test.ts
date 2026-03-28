@@ -19,6 +19,7 @@ describe('useReaderPreferences', () => {
 
     expect(result.current.fontSize).toBe(18);
     expect(result.current.readerTheme).toBe('auto');
+    expect(result.current.pageTurnMode).toBe('scroll');
     expect(result.current.lineSpacing).toBe(1.8);
     expect(result.current.paragraphSpacing).toBe(16);
     expect(result.current.currentTheme).toEqual(READER_THEMES.auto);
@@ -38,6 +39,13 @@ describe('useReaderPreferences', () => {
     const { result } = renderHook(() => useReaderPreferences());
     expect(result.current.readerTheme).toBe('night');
     expect(result.current.currentTheme).toEqual(READER_THEMES.night);
+  });
+
+  it('reads saved pageTurnMode from localStorage', () => {
+    localStorage.setItem('readerPageTurnMode', 'slide');
+    resetReaderSessionStoreForTests();
+    const { result } = renderHook(() => useReaderPreferences());
+    expect(result.current.pageTurnMode).toBe('slide');
   });
 
   it('reads saved lineSpacing from localStorage', () => {
@@ -66,6 +74,13 @@ describe('useReaderPreferences', () => {
     act(() => { result.current.setReaderTheme('green'); });
     expect(result.current.readerTheme).toBe('green');
     expect(localStorage.getItem('readerTheme')).toBe('green');
+  });
+
+  it('persists pageTurnMode to localStorage on update', () => {
+    const { result } = renderHook(() => useReaderPreferences());
+    act(() => { result.current.setPageTurnMode('cover'); });
+    expect(result.current.pageTurnMode).toBe('cover');
+    expect(localStorage.getItem('readerPageTurnMode')).toBe('cover');
   });
 
   it('persists lineSpacing to localStorage on update', () => {
@@ -125,6 +140,7 @@ describe('useReaderPreferences', () => {
 
   it('hydrates reader preferences from primary storage when cache is empty', async () => {
     await storage.primary.settings.set(APP_SETTING_KEYS.readerTheme, 'paper');
+    await storage.primary.settings.set(APP_SETTING_KEYS.readerPageTurnMode, 'none');
     await storage.primary.settings.set(APP_SETTING_KEYS.readerFontSize, 23);
     await storage.primary.settings.set(APP_SETTING_KEYS.readerLineSpacing, 2.2);
     await storage.primary.settings.set(APP_SETTING_KEYS.readerParagraphSpacing, 20);
@@ -133,6 +149,7 @@ describe('useReaderPreferences', () => {
 
     await waitFor(() => {
       expect(result.current.readerTheme).toBe('paper');
+      expect(result.current.pageTurnMode).toBe('none');
       expect(result.current.fontSize).toBe(23);
       expect(result.current.lineSpacing).toBe(2.2);
       expect(result.current.paragraphSpacing).toBe(20);

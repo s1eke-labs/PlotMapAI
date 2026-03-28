@@ -10,6 +10,7 @@ import ReaderSidebar from '../components/reader/ReaderSidebar';
 import ReaderTopBar from '../components/reader/ReaderTopBar';
 import ReaderViewport from '../components/reader/ReaderViewport';
 import ReaderToolbar from '../components/ReaderToolbar';
+import { isPagedPageTurnMode, type ReaderPageTurnMode } from '../constants/pageTurnMode';
 import { cn } from '@shared/utils/cn';
 import { useReaderPreferences } from '../hooks/useReaderPreferences';
 import { useReaderStatePersistence } from '../hooks/useReaderStatePersistence';
@@ -54,6 +55,13 @@ export default function ReaderPage() {
   const [pageCount, setPageCount] = useState(1);
   const [scrollModeChapters, setScrollModeChapters] = useState<number[]>([]);
   const [scrollReaderChapters, setScrollReaderChapters] = useState<Array<{ index: number; chapter: ChapterContent }>>([]);
+  const [chapterCacheSnapshotState, setChapterCacheSnapshotState] = useState<{
+    novelId: number;
+    snapshot: Map<number, ChapterContent>;
+  }>({
+    novelId,
+    snapshot: new Map(),
+  });
   const [scrollContentVersion, setScrollContentVersion] = useState(0);
 
   const contentRef = useRef<HTMLDivElement>(null);
@@ -73,13 +81,13 @@ export default function ReaderPage() {
   const closeSidebar = useCallback(() => {
     sidebar.setIsSidebarOpen(false);
   }, [sidebar]);
-  const { chapterIndex, isTwoColumn, restoreStatus, viewMode } = useReaderSessionSelector(state => ({
+  const { chapterIndex, restoreStatus, viewMode } = useReaderSessionSelector(state => ({
     chapterIndex: state.chapterIndex,
-    isTwoColumn: state.isTwoColumn,
     restoreStatus: state.restoreStatus,
     viewMode: state.viewMode,
   }));
   const analysis = useChapterAnalysis(novelId, viewMode === 'summary' ? chapterIndex : -1);
+  const isTwoColumn = isPagedPageTurnMode(preferences.pageTurnMode);
   const isPagedMode = isTwoColumn && viewMode === 'original';
   const { handleMobileBack } = useReaderMobileBack({
     isSidebarOpen: sidebar.isSidebarOpen,
@@ -96,16 +104,15 @@ export default function ReaderPage() {
   }, []);
 
   const setViewMode = useCallback((nextState: React.SetStateAction<'original' | 'summary'>) => {
-    const currentSnapshot = getReaderSessionSnapshot();
-    const currentViewMode = currentSnapshot.viewMode;
+    const currentViewMode = getReaderSessionSnapshot().viewMode;
     const nextValue = typeof nextState === 'function'
       ? nextState(currentViewMode)
       : nextState;
     const nextMode = nextValue === 'summary'
       ? 'summary'
-      : currentSnapshot.lastContentMode;
+      : isPagedPageTurnMode(preferences.pageTurnMode) ? 'paged' : 'scroll';
     setSessionMode(nextMode, { persistRemote: false });
-  }, []);
+  }, [preferences.pageTurnMode]);
 
   const setIsTwoColumn = useCallback((nextState: React.SetStateAction<boolean>) => {
     const currentSnapshot = getReaderSessionSnapshot();
@@ -147,8 +154,12 @@ export default function ReaderPage() {
   });
 
   const handleScrollContentResolved = useCallback(() => {
+    setChapterCacheSnapshotState({
+      novelId,
+      snapshot: new Map(chapterCacheRef.current),
+    });
     setScrollContentVersion(prev => prev + 1);
-  }, []);
+  }, [novelId]);
 
   const chapterData = useReaderChapterData({
     novelId,
@@ -224,6 +235,17 @@ export default function ReaderPage() {
     );
   }, [currentChapter, scrollContentVersion, scrollModeChapters]);
 
+  const chapterCacheSnapshot = chapterCacheSnapshotState.novelId === novelId
+    ? chapterCacheSnapshotState.snapshot
+    : new Map<number, ChapterContent>();
+
+  const previousChapterPreview = currentChapter?.hasPrev
+    ? chapterCacheSnapshot.get(chapterIndex - 1) ?? null
+    : null;
+  const nextChapterPreview = currentChapter?.hasNext
+    ? chapterCacheSnapshot.get(chapterIndex + 1) ?? null
+    : null;
+
   const pagedLayout = usePagedReaderLayout({
     chapterIndex,
     currentChapter,
@@ -277,6 +299,25 @@ export default function ReaderPage() {
     wheelDeltaRef,
     pageTurnLockedRef,
   );
+
+  const handleSetPageTurnMode = useCallback((nextMode: ReaderPageTurnMode) => {
+    if (nextMode === preferences.pageTurnMode) {
+      return;
+    }
+
+    const currentIsPagedMode = isPagedPageTurnMode(preferences.pageTurnMode);
+    const nextIsPagedMode = isPagedPageTurnMode(nextMode);
+
+    preferences.setPageTurnMode(nextMode);
+
+    if (viewMode !== 'original') {
+      return;
+    }
+
+    if (currentIsPagedMode !== nextIsPagedMode) {
+      restoreFlow.handleSetIsTwoColumn(nextIsPagedMode);
+    }
+  }, [preferences, restoreFlow, viewMode]);
 
   const contentClick = useContentClick(isPagedMode, navigation.handlePrev, navigation.handleNext);
   const toolbarHasPrev = navigation.toolbarHasPrev;
@@ -377,9 +418,18 @@ export default function ReaderPage() {
             readerTheme: preferences.readerTheme,
             textClassName: preferences.currentTheme.text,
             headerBgClassName: preferences.headerBg,
+            pageBgClassName: preferences.currentTheme.bg,
             fitsTwoColumns: pagedLayout.fitsTwoColumns,
             twoColumnWidth: pagedLayout.twoColumnWidth,
             twoColumnGap: pagedLayout.twoColumnGap,
+            pageTurnMode: preferences.pageTurnMode,
+            pageTurnDirection: navigation.pageTurnDirection,
+            pageTurnToken: navigation.pageTurnToken,
+            previousChapterPreview,
+            nextChapterPreview,
+            onRequestPrevPage: navigation.goToPrevPageSilently,
+            onRequestNextPage: navigation.goToNextPageSilently,
+            disableAnimation: restoreFlow.isRestoringPosition,
           } : undefined}
           scrollContentProps={renderableChapter && viewMode === 'original' && !isPagedMode ? {
             chapters: scrollReaderChapters,
@@ -416,8 +466,8 @@ export default function ReaderPage() {
               paragraphSpacing: preferences.paragraphSpacing,
               setParagraphSpacing: preferences.setParagraphSpacing,
             }}
-            isTwoColumn={isTwoColumn}
-            setIsTwoColumn={restoreFlow.handleSetIsTwoColumn}
+            pageTurnMode={preferences.pageTurnMode}
+            setPageTurnMode={handleSetPageTurnMode}
             hasPrev={toolbarHasPrev}
             hasNext={toolbarHasNext}
             onPrev={navigation.handlePrev}

@@ -1,6 +1,8 @@
 import { useSyncExternalStore } from 'react';
 import { APP_SETTING_KEYS, CACHE_KEYS, storage } from '@infra/storage';
 import { readerApi, type ReadingProgress } from '../api/readerApi';
+import type { ReaderPageTurnMode } from '../constants/pageTurnMode';
+import { isPagedPageTurnMode } from '../constants/pageTurnMode';
 
 export type PageTarget = 'start' | 'end';
 export type ReaderMode = 'scroll' | 'paged' | 'summary';
@@ -8,6 +10,7 @@ export type AppTheme = 'light' | 'dark';
 export type RestoreStatus = 'hydrating' | 'restoring' | 'ready' | 'error';
 
 const READER_STATE_SYNC_DELAY_MS = 400;
+const DEFAULT_PAGE_TURN_MODE: ReaderPageTurnMode = 'scroll';
 const DEFAULT_FONT_SIZE = 18;
 const DEFAULT_LINE_SPACING = 1.8;
 const DEFAULT_PARAGRAPH_SPACING = 16;
@@ -29,6 +32,7 @@ export interface ReaderSessionState {
   chapterProgress?: number;
   scrollPosition?: number;
   readerTheme: string;
+  pageTurnMode: ReaderPageTurnMode;
   appTheme: AppTheme;
   fontSize: number;
   lineSpacing: number;
@@ -52,6 +56,7 @@ export interface ReaderSessionActions {
   setChapterIndex: (chapterIndex: number, options?: SessionUpdateOptions) => void;
   setReadingPosition: (state: StoredReaderState, options?: SessionUpdateOptions) => void;
   setReaderTheme: (theme: string) => void;
+  setReaderPageTurnMode: (mode: ReaderPageTurnMode) => void;
   setAppTheme: (theme: AppTheme) => void;
   setTypography: (state: TypographyState) => void;
   beginRestore: (state: StoredReaderState | null | undefined) => void;
@@ -68,6 +73,7 @@ interface TypographyState {
 
 interface LocalReaderSessionSnapshot extends StoredReaderState {
   readerTheme?: string;
+  pageTurnMode?: ReaderPageTurnMode;
   appTheme?: AppTheme;
   fontSize?: number;
   lineSpacing?: number;
@@ -82,6 +88,7 @@ interface SessionUpdateOptions {
 
 interface SessionPreferenceSnapshot {
   readerTheme: string;
+  pageTurnMode: ReaderPageTurnMode;
   appTheme: AppTheme;
   fontSize: number;
   lineSpacing: number;
@@ -98,6 +105,7 @@ let settingsPersistTimerId: number | null = null;
 let settingsPersistQueue: Promise<void> = Promise.resolve();
 let preferenceRevision = 0;
 let storeEpoch = 0;
+let hasConfiguredPageTurnModePreference = false;
 
 function isBrowser(): boolean {
   return typeof window !== 'undefined';
@@ -115,6 +123,15 @@ function readNumberCache(key: string, fallback: number): number {
 
 function readReaderTheme(): string {
   return readStringCache(CACHE_KEYS.readerTheme) || 'auto';
+}
+
+function isReaderPageTurnMode(value: unknown): value is ReaderPageTurnMode {
+  return value === 'scroll' || value === 'cover' || value === 'slide' || value === 'none';
+}
+
+function readReaderPageTurnMode(): ReaderPageTurnMode {
+  const saved = readStringCache(CACHE_KEYS.readerPageTurnMode);
+  return isReaderPageTurnMode(saved) ? saved : DEFAULT_PAGE_TURN_MODE;
 }
 
 function readAppTheme(): AppTheme {
@@ -251,6 +268,7 @@ function readLocalSessionState(novelId: number): LocalReaderSessionSnapshot | nu
   return {
     ...sanitizeStoredReaderState(parsed),
     readerTheme: typeof parsed.readerTheme === 'string' ? parsed.readerTheme : undefined,
+    pageTurnMode: isReaderPageTurnMode(parsed.pageTurnMode) ? parsed.pageTurnMode : undefined,
     appTheme: parsed.appTheme === 'light' || parsed.appTheme === 'dark' ? parsed.appTheme : undefined,
     fontSize: typeof parsed.fontSize === 'number' && Number.isFinite(parsed.fontSize) ? parsed.fontSize : undefined,
     lineSpacing: typeof parsed.lineSpacing === 'number' && Number.isFinite(parsed.lineSpacing) ? parsed.lineSpacing : undefined,
@@ -271,6 +289,7 @@ function getRemoteProgressSnapshot(progress: ReadingProgress): string {
 function getSessionPreferences(currentState: ReaderSessionInternalState): SessionPreferenceSnapshot {
   return {
     readerTheme: currentState.readerTheme,
+    pageTurnMode: currentState.pageTurnMode,
     appTheme: currentState.appTheme,
     fontSize: currentState.fontSize,
     lineSpacing: currentState.lineSpacing,
@@ -281,6 +300,7 @@ function getSessionPreferences(currentState: ReaderSessionInternalState): Sessio
 function readCachedPreferenceState(): SessionPreferenceSnapshot {
   return {
     readerTheme: readReaderTheme(),
+    pageTurnMode: readReaderPageTurnMode(),
     appTheme: readAppTheme(),
     fontSize: readNumberCache(CACHE_KEYS.readerFontSize, DEFAULT_FONT_SIZE),
     lineSpacing: readNumberCache(CACHE_KEYS.readerLineSpacing, DEFAULT_LINE_SPACING),
@@ -288,11 +308,14 @@ function readCachedPreferenceState(): SessionPreferenceSnapshot {
   };
 }
 
+hasConfiguredPageTurnModePreference = readStringCache(CACHE_KEYS.readerPageTurnMode) !== null;
+
 function writeCachePersistence(currentState: ReaderSessionInternalState): void {
   if (!isBrowser()) return;
 
   storage.cache.set(CACHE_KEYS.theme, currentState.appTheme);
   storage.cache.set(CACHE_KEYS.readerTheme, currentState.readerTheme);
+  storage.cache.set(CACHE_KEYS.readerPageTurnMode, currentState.pageTurnMode);
   storage.cache.set(CACHE_KEYS.readerFontSize, String(currentState.fontSize));
   storage.cache.set(CACHE_KEYS.readerLineSpacing, String(currentState.lineSpacing));
   storage.cache.set(CACHE_KEYS.readerParagraphSpacing, String(currentState.paragraphSpacing));
@@ -302,6 +325,7 @@ function writeCachePersistence(currentState: ReaderSessionInternalState): void {
   const snapshot: LocalReaderSessionSnapshot = {
     ...toStoredReaderState(currentState),
     readerTheme: currentState.readerTheme,
+    pageTurnMode: currentState.pageTurnMode,
     appTheme: currentState.appTheme,
     fontSize: currentState.fontSize,
     lineSpacing: currentState.lineSpacing,
@@ -314,6 +338,7 @@ async function persistPreferenceSettings(preferences: SessionPreferenceSnapshot)
   await Promise.all([
     storage.primary.settings.set(APP_SETTING_KEYS.appTheme, preferences.appTheme),
     storage.primary.settings.set(APP_SETTING_KEYS.readerTheme, preferences.readerTheme),
+    storage.primary.settings.set(APP_SETTING_KEYS.readerPageTurnMode, preferences.pageTurnMode),
     storage.primary.settings.set(APP_SETTING_KEYS.readerFontSize, preferences.fontSize),
     storage.primary.settings.set(APP_SETTING_KEYS.readerLineSpacing, preferences.lineSpacing),
     storage.primary.settings.set(APP_SETTING_KEYS.readerParagraphSpacing, preferences.paragraphSpacing),
@@ -323,17 +348,21 @@ async function persistPreferenceSettings(preferences: SessionPreferenceSnapshot)
 async function loadPrimaryPreferenceState(): Promise<SessionPreferenceSnapshot> {
   const cached = readCachedPreferenceState();
   try {
-    const [appTheme, readerTheme, fontSize, lineSpacing, paragraphSpacing] = await Promise.all([
+    const [appTheme, readerTheme, pageTurnMode, fontSize, lineSpacing, paragraphSpacing] = await Promise.all([
       storage.primary.settings.get<AppTheme>(APP_SETTING_KEYS.appTheme),
       storage.primary.settings.get<string>(APP_SETTING_KEYS.readerTheme),
+      storage.primary.settings.get<ReaderPageTurnMode>(APP_SETTING_KEYS.readerPageTurnMode),
       storage.primary.settings.get<number>(APP_SETTING_KEYS.readerFontSize),
       storage.primary.settings.get<number>(APP_SETTING_KEYS.readerLineSpacing),
       storage.primary.settings.get<number>(APP_SETTING_KEYS.readerParagraphSpacing),
     ]);
 
+    hasConfiguredPageTurnModePreference = pageTurnMode !== null || readStringCache(CACHE_KEYS.readerPageTurnMode) !== null;
+
     const resolved: SessionPreferenceSnapshot = {
       appTheme: appTheme === 'light' || appTheme === 'dark' ? appTheme : cached.appTheme,
       readerTheme: typeof readerTheme === 'string' ? readerTheme : cached.readerTheme,
+      pageTurnMode: isReaderPageTurnMode(pageTurnMode) ? pageTurnMode : cached.pageTurnMode,
       fontSize: typeof fontSize === 'number' && Number.isFinite(fontSize) ? fontSize : cached.fontSize,
       lineSpacing: typeof lineSpacing === 'number' && Number.isFinite(lineSpacing) ? lineSpacing : cached.lineSpacing,
       paragraphSpacing: typeof paragraphSpacing === 'number' && Number.isFinite(paragraphSpacing) ? paragraphSpacing : cached.paragraphSpacing,
@@ -342,6 +371,7 @@ async function loadPrimaryPreferenceState(): Promise<SessionPreferenceSnapshot> 
     if (
       appTheme === null
       || readerTheme === null
+      || pageTurnMode === null
       || fontSize === null
       || lineSpacing === null
       || paragraphSpacing === null
@@ -351,6 +381,7 @@ async function loadPrimaryPreferenceState(): Promise<SessionPreferenceSnapshot> 
 
     return resolved;
   } catch {
+    hasConfiguredPageTurnModePreference = readStringCache(CACHE_KEYS.readerPageTurnMode) !== null;
     return cached;
   }
 }
@@ -416,6 +447,12 @@ export async function ensureSessionPreferencesHydrated(): Promise<void> {
   settingsHydrationPromise = trackedPromise;
 
   return trackedPromise;
+}
+
+function inferLegacyPageTurnMode(state: StoredReaderState | null | undefined): ReaderPageTurnMode {
+  return state?.isTwoColumn === true || state?.mode === 'paged' || state?.lastContentMode === 'paged'
+    ? 'cover'
+    : DEFAULT_PAGE_TURN_MODE;
 }
 
 function toRemoteProgress(state: ReaderSessionInternalState): ReadingProgress {
@@ -529,12 +566,14 @@ export async function hydrateSession(novelId: number): Promise<StoredReaderState
   const epochAtStart = storeEpoch;
   const localState = readLocalSessionState(novelId);
   const cachedPreferences = readCachedPreferenceState();
+  const hadConfiguredPageTurnModePreference = hasConfiguredPageTurnModePreference || localState?.pageTurnMode !== undefined;
   setState({
     novelId,
     restoreStatus: 'hydrating',
     pendingRestoreState: null,
     hasUserInteracted: false,
     readerTheme: localState?.readerTheme ?? cachedPreferences.readerTheme,
+    pageTurnMode: localState?.pageTurnMode ?? cachedPreferences.pageTurnMode,
     appTheme: localState?.appTheme ?? cachedPreferences.appTheme,
     fontSize: localState?.fontSize ?? cachedPreferences.fontSize,
     lineSpacing: localState?.lineSpacing ?? cachedPreferences.lineSpacing,
@@ -564,7 +603,23 @@ export async function hydrateSession(novelId: number): Promise<StoredReaderState
 
   if (epochAtStart !== storeEpoch) return buildStoredReaderState(localState);
   const mergedState = mergeStoredReaderState(remoteState, localState);
-  const mode = resolveModeFromStoredState(mergedState);
+  const currentViewMode = mergedState.viewMode ?? (mergedState.mode === 'summary' ? 'summary' : 'original');
+  const resolvedPageTurnMode = hadConfiguredPageTurnModePreference
+    ? (localState?.pageTurnMode ?? preferences.pageTurnMode)
+    : inferLegacyPageTurnMode(mergedState);
+  const mode = currentViewMode === 'summary'
+    ? 'summary'
+    : isPagedPageTurnMode(resolvedPageTurnMode)
+      ? 'paged'
+      : 'scroll';
+  const nextLastContentMode = mode === 'summary'
+    ? (isPagedPageTurnMode(resolvedPageTurnMode) ? 'paged' : 'scroll')
+    : mode === 'paged'
+      ? 'paged'
+      : 'scroll';
+
+  hasConfiguredPageTurnModePreference = true;
+
   setState({
     novelId,
     ...preferences,
@@ -574,11 +629,26 @@ export async function hydrateSession(novelId: number): Promise<StoredReaderState
     scrollPosition: typeof mergedState.scrollPosition === 'number' && Number.isFinite(mergedState.scrollPosition)
       ? mergedState.scrollPosition
       : undefined,
-    lastContentMode: mergedState.lastContentMode ?? (mode === 'paged' ? 'paged' : 'scroll'),
+    pageTurnMode: resolvedPageTurnMode,
+    lastContentMode: nextLastContentMode,
     pendingRestoreState: shouldMaskRestore(mergedState) ? mergedState : null,
     restoreStatus: shouldMaskRestore(mergedState) ? 'restoring' : 'ready',
   });
-  return mergedState;
+
+  if (!hadConfiguredPageTurnModePreference) {
+    void persistPreferenceSettings({
+      ...preferences,
+      pageTurnMode: resolvedPageTurnMode,
+    }).catch(() => undefined);
+  }
+
+  return buildStoredReaderState({
+    ...mergedState,
+    mode,
+    viewMode: currentViewMode,
+    isTwoColumn: mode === 'paged',
+    lastContentMode: nextLastContentMode,
+  });
 }
 
 export function setMode(mode: ReaderMode, options: SessionUpdateOptions = {}): void {
@@ -621,6 +691,13 @@ export function setReadingPosition(nextState: StoredReaderState, options: Sessio
 export function setReaderTheme(theme: string): void {
   preferenceRevision += 1;
   setState({ readerTheme: theme });
+  schedulePreferencePersistence();
+}
+
+export function setReaderPageTurnMode(mode: ReaderPageTurnMode): void {
+  preferenceRevision += 1;
+  hasConfiguredPageTurnModePreference = true;
+  setState({ pageTurnMode: mode });
   schedulePreferencePersistence();
 }
 
@@ -730,6 +807,7 @@ export function useReaderSessionActions(): ReaderSessionActions {
     setChapterIndex,
     setReadingPosition,
     setReaderTheme,
+    setReaderPageTurnMode,
     setAppTheme,
     setTypography,
     beginRestore,
@@ -755,6 +833,7 @@ export function resetReaderSessionStoreForTests(): void {
   settingsHydrated = false;
   settingsPersistQueue = Promise.resolve();
   preferenceRevision = 0;
+  hasConfiguredPageTurnModePreference = readStringCache(CACHE_KEYS.readerPageTurnMode) !== null;
   state = createInitialState();
   applyAppTheme(state.appTheme);
   emit();

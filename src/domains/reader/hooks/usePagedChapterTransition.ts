@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef } from 'react';
 
 type NavigationDirection = 'next' | 'prev';
 type QueuedNavigationIntent =
-  | { type: NavigationDirection }
+  | { type: 'direction'; direction: NavigationDirection; shouldAnimate: boolean }
   | { type: 'chapter'; targetIndex: number; pageTarget: PageTarget };
 
 interface UsePagedChapterTransitionParams {
@@ -14,12 +14,12 @@ interface UsePagedChapterTransitionParams {
   isChapterNavigationReady: boolean;
   chapterChangeSourceRef: React.MutableRefObject<ChapterChangeSource>;
   onCommitChapterNavigation: (targetIndex: number, pageTarget: PageTarget) => boolean;
-  onReplayDirectionalNavigation: (direction: NavigationDirection) => void;
+  onReplayDirectionalNavigation: (direction: NavigationDirection, shouldAnimate: boolean) => void;
 }
 
 interface UsePagedChapterTransitionResult {
   requestChapterNavigation: (targetIndex: number, pageTarget?: PageTarget) => void;
-  requestDirectionalNavigation: (direction: NavigationDirection) => boolean;
+  requestDirectionalNavigation: (direction: NavigationDirection, shouldAnimate?: boolean) => boolean;
 }
 
 export function usePagedChapterTransition({
@@ -61,13 +61,13 @@ export function usePagedChapterTransition({
     }
   }, [isPagedMode, onCommitChapterNavigation, queueIntent]);
 
-  const requestDirectionalNavigation = useCallback((direction: NavigationDirection) => {
+  const requestDirectionalNavigation = useCallback((direction: NavigationDirection, shouldAnimate = false) => {
     if (!isPagedMode) {
       return true;
     }
 
     if (transitionTargetChapterIndexRef.current !== null) {
-      queueIntent({ type: direction });
+      queueIntent({ type: 'direction', direction, shouldAnimate });
       return false;
     }
 
@@ -123,7 +123,7 @@ export function usePagedChapterTransition({
       return;
     }
 
-    onReplayDirectionalNavigation(queuedIntent.type);
+    onReplayDirectionalNavigation(queuedIntent.direction, queuedIntent.shouldAnimate);
   }, [
     chapterIndex,
     clearPendingTransition,

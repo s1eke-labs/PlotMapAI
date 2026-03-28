@@ -182,6 +182,13 @@
     "fontSize": "字号",
     "lineSpacing": "行距",
     "paragraphSpacing": "段距",
+    "pageTurnMode": "翻页方式",
+    "pageTurnModes": {
+      "scroll": "上下",
+      "cover": "覆盖",
+      "slide": "平移",
+      "none": "无动画"
+    },
     "singleColumn": "单列模式",
     "twoColumn": "双列模式",
     "aiSummaryPlaceholder": "AI 摘要",

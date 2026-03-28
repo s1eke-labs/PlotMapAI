@@ -47,9 +47,9 @@ describe('usePagedChapterTransition', () => {
 
     act(() => {
       result.current.requestChapterNavigation(1, 'start');
-      result.current.requestDirectionalNavigation('next');
-      result.current.requestDirectionalNavigation('prev');
-      result.current.requestDirectionalNavigation('next');
+      result.current.requestDirectionalNavigation('next', true);
+      result.current.requestDirectionalNavigation('prev', false);
+      result.current.requestDirectionalNavigation('next', true);
     });
 
     expect(onCommitChapterNavigation).toHaveBeenCalledTimes(1);
@@ -64,7 +64,7 @@ describe('usePagedChapterTransition', () => {
     });
 
     expect(onReplayDirectionalNavigation).toHaveBeenCalledTimes(1);
-    expect(onReplayDirectionalNavigation).toHaveBeenCalledWith('next');
+    expect(onReplayDirectionalNavigation).toHaveBeenCalledWith('next', true);
   });
 
   it('lets a chapter intent overwrite a queued directional intent', () => {

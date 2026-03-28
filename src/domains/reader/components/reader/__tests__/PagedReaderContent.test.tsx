@@ -1,9 +1,16 @@
 import { render } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import PagedReaderContent from '../PagedReaderContent';
+import {
+  clampDragOffset,
+  getPagedDragLayerOffsets,
+  shouldCommitPageTurnDrag,
+} from '../../../utils/pagedDrag';
 
 const chapterSectionSpy = vi.hoisted(() => vi.fn());
+const originalClientWidthDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'clientWidth');
+const originalScrollWidthDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollWidth');
 
 vi.mock('../ReaderChapterSection', () => ({
   default: (props: unknown) => {
@@ -13,6 +20,20 @@ vi.mock('../ReaderChapterSection', () => ({
 }));
 
 describe('PagedReaderContent', () => {
+  afterEach(() => {
+    if (originalClientWidthDescriptor) {
+      Object.defineProperty(HTMLElement.prototype, 'clientWidth', originalClientWidthDescriptor);
+    } else {
+      Reflect.deleteProperty(HTMLElement.prototype, 'clientWidth');
+    }
+
+    if (originalScrollWidthDescriptor) {
+      Object.defineProperty(HTMLElement.prototype, 'scrollWidth', originalScrollWidthDescriptor);
+    } else {
+      Reflect.deleteProperty(HTMLElement.prototype, 'scrollWidth');
+    }
+  });
+
   it('passes paged break rules that allow plain text paragraphs to split naturally', () => {
     render(
       <PagedReaderContent
@@ -36,9 +57,13 @@ describe('PagedReaderContent', () => {
         readerTheme="auto"
         textClassName=""
         headerBgClassName=""
+        pageBgClassName="bg-[#f4ecd8]"
         fitsTwoColumns={false}
         twoColumnWidth={undefined}
         twoColumnGap={48}
+        pageTurnMode="cover"
+        pageTurnDirection="next"
+        pageTurnToken={1}
       />,
     );
 
@@ -50,5 +75,68 @@ describe('PagedReaderContent', () => {
       mixedParagraphClassName: 'break-inside-avoid',
     }));
     expect(forwardedProps).not.toHaveProperty('blankParagraphClassName');
+  });
+
+  it('applies an opaque page background to animated layers', () => {
+    const { container } = render(
+      <PagedReaderContent
+        chapter={{
+          index: 0,
+          title: 'Chapter 1',
+          content: 'Text',
+          wordCount: 100,
+          totalChapters: 1,
+          hasPrev: false,
+          hasNext: true,
+        }}
+        novelId={1}
+        pageIndex={0}
+        pageCount={2}
+        pagedViewportRef={{ current: null }}
+        pagedContentRef={{ current: null }}
+        fontSize={18}
+        lineSpacing={1.8}
+        paragraphSpacing={24}
+        readerTheme="auto"
+        textClassName=""
+        headerBgClassName=""
+        pageBgClassName="bg-[#f4ecd8]"
+        fitsTwoColumns={false}
+        twoColumnWidth={undefined}
+        twoColumnGap={48}
+        pageTurnMode="cover"
+        pageTurnDirection="next"
+        pageTurnToken={1}
+      />,
+    );
+
+    const animatedLayer = container.querySelector('.absolute.inset-0.overflow-hidden.bg-\\[\\#f4ecd8\\]');
+    expect(animatedLayer).toBeInTheDocument();
+  });
+
+  it('clamps drag offsets to the available navigation directions', () => {
+    expect(clampDragOffset(160, 120, true, false)).toBe(120);
+    expect(clampDragOffset(-160, 120, false, true)).toBe(-120);
+    expect(clampDragOffset(-40, 120, true, false)).toBe(0);
+    expect(clampDragOffset(40, 120, false, true)).toBe(0);
+  });
+
+  it('commits a dragged page turn when distance or velocity crosses the threshold', () => {
+    expect(shouldCommitPageTurnDrag(-140, 0, 600)).toBe(true);
+    expect(shouldCommitPageTurnDrag(-40, 500, 600)).toBe(true);
+    expect(shouldCommitPageTurnDrag(-40, 100, 600)).toBe(false);
+  });
+
+  it('matches cover drag offsets to the reveal-next and pull-prev interaction', () => {
+    expect(getPagedDragLayerOffsets('cover', 'next', -180, 600)).toEqual({
+      currentX: -180,
+      previewX: 0,
+      isPreviewOnTop: false,
+    });
+    expect(getPagedDragLayerOffsets('cover', 'prev', 180, 600)).toEqual({
+      currentX: 0,
+      previewX: -420,
+      isPreviewOnTop: true,
+    });
   });
 });

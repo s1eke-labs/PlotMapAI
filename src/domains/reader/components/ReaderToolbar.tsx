@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect, useCallback, useMemo, useSyncExternalStore } from 'react';
-import { AlignJustify, Columns2, List, MoreVertical, ArrowLeft, ArrowRight } from 'lucide-react';
+import { AlignJustify, Columns2, List, MoreVertical, ArrowLeft, ArrowRight, Check } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@shared/utils/cn';
 import { READER_SLIDER_CONFIG, MOBILE_SLIDER_KEYS, OVERFLOW_SLIDER_KEYS } from '../constants/readerSliderConfig';
+import { isPagedPageTurnMode, type ReaderPageTurnMode } from '../constants/pageTurnMode';
 import { READER_THEME_DISPLAY } from '../constants/readerThemeConfig';
 
 interface SliderValues {
@@ -16,8 +17,8 @@ interface SliderValues {
 
 interface ReaderToolbarProps {
   sliders: SliderValues;
-  isTwoColumn: boolean;
-  setIsTwoColumn: (two: boolean) => void;
+  pageTurnMode: ReaderPageTurnMode;
+  setPageTurnMode: (mode: ReaderPageTurnMode) => void;
   onPrev: () => void;
   onNext: () => void;
   hasPrev: boolean;
@@ -77,8 +78,8 @@ function subscribeToDesktopViewport(onStoreChange: () => void): () => void {
 
 export default function ReaderToolbar({
   sliders,
-  isTwoColumn,
-  setIsTwoColumn,
+  pageTurnMode,
+  setPageTurnMode,
   onPrev,
   onNext,
   hasPrev,
@@ -93,36 +94,43 @@ export default function ReaderToolbar({
   const { t } = useTranslation();
   const [activeSlider, setActiveSlider] = useState<SliderKey>(null);
   const [overflowOpen, setOverflowOpen] = useState(false);
+  const [pageTurnModeOpen, setPageTurnModeOpen] = useState(false);
   const popoverRef = useRef<HTMLDivElement>(null);
   const overflowRef = useRef<HTMLDivElement>(null);
+  const pageTurnModeRef = useRef<HTMLDivElement>(null);
   const buttonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const overflowBtnRef = useRef<HTMLButtonElement>(null);
+  const pageTurnModeBtnRef = useRef<HTMLButtonElement>(null);
   const isDesktopViewport = useSyncExternalStore(
     subscribeToDesktopViewport,
     getIsDesktopViewport,
     () => true,
   );
+  const isPagedMode = isPagedPageTurnMode(pageTurnMode);
 
   const toggleSlider = useCallback((key: SliderKey) => {
     setActiveSlider(prev => prev === key ? null : key);
   }, []);
 
   useEffect(() => {
-    if (!activeSlider && !overflowOpen) return;
+    if (!activeSlider && !overflowOpen && !pageTurnModeOpen) return;
     const handleClick = (e: MouseEvent) => {
       const target = e.target as Node;
       if (popoverRef.current?.contains(target)) return;
       if (overflowRef.current?.contains(target)) return;
+      if (pageTurnModeRef.current?.contains(target)) return;
       if (overflowBtnRef.current?.contains(target)) return;
+      if (pageTurnModeBtnRef.current?.contains(target)) return;
       const mode = isDesktopViewport ? 'desktop' : 'mobile';
       const btn = activeSlider ? buttonRefs.current[mode + '-' + activeSlider] : null;
       if (btn?.contains(target)) return;
       setActiveSlider(null);
       setOverflowOpen(false);
+      setPageTurnModeOpen(false);
     };
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
-  }, [activeSlider, isDesktopViewport, overflowOpen]);
+  }, [activeSlider, isDesktopViewport, overflowOpen, pageTurnModeOpen]);
 
   const resolvedSliders: ResolvedSlider[] = useMemo(() =>
     READER_SLIDER_CONFIG.map(cfg => ({
@@ -147,6 +155,13 @@ export default function ReaderToolbar({
     READER_THEME_DISPLAY.map(td => ({ ...td, label: t(td.labelKey) })),
     [t],
   );
+
+  const pageTurnModes = useMemo(() => ([
+    { id: 'scroll', label: t('reader.pageTurnModes.scroll') },
+    { id: 'cover', label: t('reader.pageTurnModes.cover') },
+    { id: 'slide', label: t('reader.pageTurnModes.slide') },
+    { id: 'none', label: t('reader.pageTurnModes.none') },
+  ] satisfies Array<{ id: ReaderPageTurnMode; label: string }>), [t]);
 
   function renderSliderButton(s: ResolvedSlider, mode: 'desktop' | 'mobile') {
     const isActiveMode = (mode === 'desktop') === isDesktopViewport;
@@ -260,33 +275,71 @@ export default function ReaderToolbar({
       </div>
 
       <div className="flex items-center gap-2 border-r border-border-color/50 pr-3 sm:pr-5">
-        {/* Mobile: single toggle button */}
-        <button
-          onClick={() => setIsTwoColumn(!isTwoColumn)}
-          className={cn(
-            "p-2 rounded-full transition-colors sm:hidden",
-            isTwoColumn ? "bg-accent text-white shadow-sm" : "text-text-secondary hover:text-text-primary hover:bg-muted-bg"
+        <div className="relative sm:hidden">
+          <button
+            ref={pageTurnModeBtnRef}
+            onClick={() => {
+              setPageTurnModeOpen(prev => !prev);
+              setOverflowOpen(false);
+              setActiveSlider(null);
+            }}
+            className={cn(
+              "p-2 rounded-full transition-colors",
+              pageTurnModeOpen ? "bg-accent text-white shadow-sm" : "text-text-secondary hover:text-text-primary hover:bg-muted-bg"
+            )}
+            title={t('reader.pageTurnMode')}
+          >
+            {isPagedMode ? <Columns2 className="w-5 h-5" /> : <AlignJustify className="w-5 h-5" />}
+          </button>
+          {pageTurnModeOpen && (
+            <div
+              ref={pageTurnModeRef}
+              className="absolute bottom-full mb-3 left-1/2 min-w-[176px] -translate-x-1/2 rounded-xl border border-border-color bg-bg-secondary px-2 py-2 shadow-xl dark:bg-brand-800"
+            >
+              <div className="absolute bottom-0 left-1/2 h-2.5 w-2.5 -translate-x-1/2 translate-y-1/2 rotate-45 border-b border-r border-border-color bg-bg-secondary dark:bg-brand-800" />
+              <div className="px-2 pb-2 pt-1 text-xs text-text-secondary">{t('reader.pageTurnMode')}</div>
+              <div className="space-y-1">
+                {pageTurnModes.map(mode => (
+                  <button
+                    key={mode.id}
+                    type="button"
+                    onClick={() => {
+                      setPageTurnMode(mode.id);
+                      setPageTurnModeOpen(false);
+                    }}
+                    className={cn(
+                      'flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition-colors',
+                      pageTurnMode === mode.id
+                        ? 'bg-accent text-white'
+                        : 'text-text-primary hover:bg-muted-bg',
+                    )}
+                    title={mode.label}
+                  >
+                    <span>{mode.label}</span>
+                    {pageTurnMode === mode.id ? <Check className="h-4 w-4" /> : null}
+                  </button>
+                ))}
+              </div>
+            </div>
           )}
-          title={isTwoColumn ? t('reader.singleColumn') : t('reader.twoColumn')}
-        >
-          {isTwoColumn ? <Columns2 className="w-5 h-5" /> : <AlignJustify className="w-5 h-5" />}
-        </button>
+        </div>
+
         {/* Desktop: two separate buttons */}
         <button
-          onClick={() => setIsTwoColumn(false)}
+          onClick={() => setPageTurnMode('scroll')}
           className={cn(
             "p-2 rounded-full transition-colors hidden sm:block",
-            !isTwoColumn ? "bg-accent text-white shadow-sm" : "text-text-secondary hover:text-text-primary hover:bg-muted-bg"
+            !isPagedMode ? "bg-accent text-white shadow-sm" : "text-text-secondary hover:text-text-primary hover:bg-muted-bg"
           )}
           title={t('reader.singleColumn')}
         >
           <AlignJustify className="w-5 h-5" />
         </button>
         <button
-          onClick={() => setIsTwoColumn(true)}
+          onClick={() => setPageTurnMode('cover')}
           className={cn(
             "p-2 rounded-full transition-colors hidden sm:block",
-            isTwoColumn ? "bg-accent text-white shadow-sm" : "text-text-secondary hover:text-text-primary hover:bg-muted-bg"
+            isPagedMode ? "bg-accent text-white shadow-sm" : "text-text-secondary hover:text-text-primary hover:bg-muted-bg"
           )}
           title={t('reader.twoColumn')}
         >
@@ -317,7 +370,11 @@ export default function ReaderToolbar({
       <div className="relative sm:hidden">
         <button
           ref={overflowBtnRef}
-          onClick={() => { setOverflowOpen(prev => !prev); setActiveSlider(null); }}
+          onClick={() => {
+            setOverflowOpen(prev => !prev);
+            setPageTurnModeOpen(false);
+            setActiveSlider(null);
+          }}
           className={cn(
             "p-2 rounded-full transition-colors",
             overflowOpen ? "bg-accent text-white" : "text-text-primary hover:bg-muted-bg"

@@ -1,6 +1,7 @@
-import { render, screen, fireEvent } from '@testing-library/react';
-import { describe, it, expect, vi } from 'vitest';
+import { fireEvent, render, screen } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
 import { useState } from 'react';
+
 import ReaderToolbar from '../ReaderToolbar';
 
 vi.mock('react-i18next', () => ({
@@ -30,15 +31,15 @@ describe('ReaderToolbar', () => {
       paragraphSpacing: 16,
       setParagraphSpacing: vi.fn(),
     },
-    isTwoColumn: false,
-    setIsTwoColumn: vi.fn(),
+    pageTurnMode: 'scroll' as const,
+    setPageTurnMode: vi.fn(),
     onPrev: vi.fn(),
     onNext: vi.fn(),
     hasPrev: true,
     hasNext: true,
     navigationMode: 'chapter' as const,
     readerTheme: 'paper',
-    setReaderTheme: vi.fn()
+    setReaderTheme: vi.fn(),
   };
 
   it('keeps the desktop slider popover open while adjusting font size', () => {
@@ -83,21 +84,17 @@ describe('ReaderToolbar', () => {
 
   it('buttons call correct callbacks', () => {
     render(<ReaderToolbar {...defaultProps} />);
-    
-    // Previous button
-    const prevButton = screen.getByTitle('reader.prev');
-    fireEvent.click(prevButton);
+
+    fireEvent.click(screen.getByTitle('reader.prev'));
     expect(defaultProps.onPrev).toHaveBeenCalled();
 
-    // Next button
-    const nextButton = screen.getByTitle('reader.next');
-    fireEvent.click(nextButton);
+    fireEvent.click(screen.getByTitle('reader.next'));
     expect(defaultProps.onNext).toHaveBeenCalled();
   });
 
   it('disables prev/next buttons based on props', () => {
     render(<ReaderToolbar {...defaultProps} hasPrev={false} hasNext={false} />);
-    
+
     expect(screen.getByTitle('reader.prev')).toBeDisabled();
     expect(screen.getByTitle('reader.next')).toBeDisabled();
   });
@@ -109,6 +106,43 @@ describe('ReaderToolbar', () => {
     const tocButton = screen.getByTitle('reader.contents');
     fireEvent.click(tocButton);
     expect(onToggleSidebar).toHaveBeenCalledTimes(1);
+  });
+
+  it('opens the mobile page-turn menu and applies the selected mode', () => {
+    mockMatchMedia(false);
+    const setPageTurnMode = vi.fn();
+
+    render(
+      <ReaderToolbar
+        {...defaultProps}
+        pageTurnMode="scroll"
+        setPageTurnMode={setPageTurnMode}
+      />,
+    );
+
+    fireEvent.click(screen.getByTitle('reader.pageTurnMode'));
+    fireEvent.click(screen.getByTitle('reader.pageTurnModes.slide'));
+
+    expect(setPageTurnMode).toHaveBeenCalledWith('slide');
+  });
+
+  it('maps desktop single and two-column buttons to scroll and cover', () => {
+    mockMatchMedia(true);
+    const setPageTurnMode = vi.fn();
+
+    render(
+      <ReaderToolbar
+        {...defaultProps}
+        pageTurnMode="cover"
+        setPageTurnMode={setPageTurnMode}
+      />,
+    );
+
+    fireEvent.click(screen.getByTitle('reader.singleColumn'));
+    fireEvent.click(screen.getByTitle('reader.twoColumn'));
+
+    expect(setPageTurnMode).toHaveBeenNthCalledWith(1, 'scroll');
+    expect(setPageTurnMode).toHaveBeenNthCalledWith(2, 'cover');
   });
 
   it('does not render mobile TOC button when onToggleSidebar is omitted', () => {

@@ -1,7 +1,9 @@
 import { useCallback, useEffect } from 'react';
+import type { ReaderPageTurnMode } from '../constants/pageTurnMode';
 import { READER_THEMES } from '../constants/readerThemes';
 import {
   ensureSessionPreferencesHydrated,
+  setReaderPageTurnMode,
   setReaderTheme,
   setTypography,
   useReaderSessionSelector,
@@ -23,6 +25,7 @@ export function useReaderPreferences() {
   const preferences = useReaderSessionSelector(state => ({
     fontSize: state.fontSize,
     readerTheme: state.readerTheme,
+    pageTurnMode: state.pageTurnMode,
     lineSpacing: state.lineSpacing,
     paragraphSpacing: state.paragraphSpacing,
   }));
@@ -38,6 +41,10 @@ export function useReaderPreferences() {
     setReaderTheme(readerTheme);
   }, []);
 
+  const handleSetPageTurnMode = useCallback((pageTurnMode: ReaderPageTurnMode) => {
+    setReaderPageTurnMode(pageTurnMode);
+  }, []);
+
   const handleSetLineSpacing = useCallback((lineSpacing: number) => {
     setTypography({ lineSpacing });
   }, []);
@@ -50,6 +57,7 @@ export function useReaderPreferences() {
     ...preferences,
     setFontSize: handleSetFontSize,
     setReaderTheme: handleSetReaderTheme,
+    setPageTurnMode: handleSetPageTurnMode,
     setLineSpacing: handleSetLineSpacing,
     setParagraphSpacing: handleSetParagraphSpacing,
     currentTheme,

@@ -2,6 +2,7 @@ export const APP_SETTING_KEYS = {
   aiConfig: 'app.aiConfig',
   appTheme: 'app.theme',
   readerTheme: 'reader.theme',
+  readerPageTurnMode: 'reader.pageTurnMode',
   readerFontSize: 'reader.fontSize',
   readerLineSpacing: 'reader.lineSpacing',
   readerParagraphSpacing: 'reader.paragraphSpacing',
@@ -10,6 +11,7 @@ export const APP_SETTING_KEYS = {
 export const CACHE_KEYS = {
   theme: 'theme',
   readerTheme: 'readerTheme',
+  readerPageTurnMode: 'readerPageTurnMode',
   readerFontSize: 'readerFontSize',
   readerLineSpacing: 'readerLineSpacing',
   readerParagraphSpacing: 'readerParagraphSpacing',

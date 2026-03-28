@@ -205,7 +205,7 @@ function getPagedReaderContainer(container: HTMLElement): HTMLDivElement {
 }
 
 function getPagedViewport(container: HTMLElement): HTMLDivElement {
-  const pagedViewport = container.querySelector('main .cursor-pointer.overflow-hidden .flex-1.min-h-0.overflow-hidden') as HTMLDivElement | null;
+  const pagedViewport = container.querySelector('main .cursor-pointer.overflow-hidden [aria-hidden="true"]') as HTMLDivElement | null;
   if (!pagedViewport) {
     throw new Error('Paged viewport not found');
   }

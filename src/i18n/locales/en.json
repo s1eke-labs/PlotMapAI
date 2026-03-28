@@ -182,6 +182,13 @@
     "fontSize": "Size",
     "lineSpacing": "Line Spacing",
     "paragraphSpacing": "Paragraph Spacing",
+    "pageTurnMode": "Page Turn",
+    "pageTurnModes": {
+      "scroll": "Vertical",
+      "cover": "Cover",
+      "slide": "Slide",
+      "none": "No Animation"
+    },
     "singleColumn": "Single Column",
     "twoColumn": "Two Columns",
     "aiSummaryPlaceholder": "AI Summary",

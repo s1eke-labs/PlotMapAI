@@ -57,6 +57,9 @@ function renderViewport(overrides: Partial<React.ComponentProps<typeof ReaderVie
           fitsTwoColumns: false,
           twoColumnWidth: undefined,
           twoColumnGap: 48,
+          pageTurnMode: 'cover',
+          pageTurnDirection: 'next',
+          pageTurnToken: 1,
         }}
         scrollContentProps={{
           chapters: [{ index: 0, chapter }],

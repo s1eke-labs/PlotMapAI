@@ -201,6 +201,105 @@ describe('useReaderNavigation', () => {
       expect(setPageIndex).toHaveBeenCalledTimes(1);
     });
 
+    it('keeps the existing animation direction until a queued opposite turn is actually replayed', () => {
+      const { result, rerender, setChapterIndex, setPageIndex, baseProps } = setupHook({
+        chapterIndex: 0,
+        chapter: makeChapter({ index: 0, hasNext: true }),
+        pageIndex: 0,
+        pageCount: 1,
+      });
+
+      act(() => {
+        result.current.goToNextPage();
+      });
+
+      expect(setChapterIndex).toHaveBeenCalledTimes(1);
+      expect(result.current.pageTurnDirection).toBe('next');
+      expect(result.current.pageTurnToken).toBe(1);
+
+      act(() => {
+        rerender({
+          ...baseProps,
+          chapterIndex: 1,
+          currentChapter: makeChapter({ index: 0, hasNext: true }),
+          pageIndex: 0,
+          pageCount: 1,
+          isChapterNavigationReady: false,
+        });
+      });
+
+      act(() => {
+        result.current.goToPrevPage();
+      });
+
+      expect(setPageIndex).not.toHaveBeenCalled();
+      expect(result.current.pageTurnDirection).toBe('next');
+      expect(result.current.pageTurnToken).toBe(1);
+
+      act(() => {
+        rerender({
+          ...baseProps,
+          chapterIndex: 1,
+          currentChapter: makeChapter({ index: 1, hasPrev: true, hasNext: true }),
+          pageIndex: 1,
+          pageCount: 3,
+          isChapterNavigationReady: true,
+        });
+      });
+
+      expect(setPageIndex).toHaveBeenCalledTimes(1);
+      expect(result.current.pageTurnDirection).toBe('prev');
+      expect(result.current.pageTurnToken).toBe(2);
+    });
+
+    it('does not animate a queued silent page turn when it replays', () => {
+      const { result, rerender, setChapterIndex, setPageIndex, baseProps } = setupHook({
+        chapterIndex: 0,
+        chapter: makeChapter({ index: 0, hasNext: true }),
+        pageIndex: 0,
+        pageCount: 1,
+      });
+
+      act(() => {
+        result.current.goToNextPageSilently();
+      });
+
+      expect(setChapterIndex).toHaveBeenCalledTimes(1);
+      expect(result.current.pageTurnToken).toBe(0);
+
+      act(() => {
+        rerender({
+          ...baseProps,
+          chapterIndex: 1,
+          currentChapter: makeChapter({ index: 0, hasNext: true }),
+          pageIndex: 0,
+          pageCount: 1,
+          isChapterNavigationReady: false,
+        });
+      });
+
+      act(() => {
+        result.current.goToNextPageSilently();
+      });
+
+      expect(setPageIndex).not.toHaveBeenCalled();
+      expect(result.current.pageTurnToken).toBe(0);
+
+      act(() => {
+        rerender({
+          ...baseProps,
+          chapterIndex: 1,
+          currentChapter: makeChapter({ index: 1, hasPrev: true, hasNext: true }),
+          pageIndex: 0,
+          pageCount: 3,
+          isChapterNavigationReady: true,
+        });
+      });
+
+      expect(setPageIndex).toHaveBeenCalledTimes(1);
+      expect(result.current.pageTurnToken).toBe(0);
+    });
+
     it('does not chain into another chapter when replaying next inside a single-page target chapter', () => {
       const { result, rerender, setChapterIndex, setPageIndex, baseProps } = setupHook({
         chapterIndex: 0,

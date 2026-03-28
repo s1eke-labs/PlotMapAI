@@ -148,7 +148,10 @@ export function useReaderChapterData({
         readerApi.getChapterContent(novelId, adjacentIndex, {
           signal: controller.signal,
         })
-          .then((data) => chapterCacheRef.current.set(adjacentIndex, data))
+          .then((data) => {
+            chapterCacheRef.current.set(adjacentIndex, data);
+            onChapterContentResolved?.(adjacentIndex);
+          })
           .catch(() => {});
       }, delay);
       preloadTimeoutIdsRef.current.push(timeoutId);
@@ -162,7 +165,7 @@ export function useReaderChapterData({
         }
       }
     }
-  }, [chapterCacheRef, chapters.length, clearScheduledPreloads, novelId]);
+  }, [chapterCacheRef, chapters.length, clearScheduledPreloads, novelId, onChapterContentResolved]);
 
   const updateChapterWindow = useCallback((nextWindow: number[]) => {
     setCurrentChapterWindow((previousWindow) => {

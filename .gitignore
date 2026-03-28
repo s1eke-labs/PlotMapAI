@@ -21,6 +21,7 @@ coverage/
 AGENTS.md
 GEMINI.md
 .kilo
+.codex
 
 # OS
 .DS_Store
