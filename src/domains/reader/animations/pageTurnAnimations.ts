@@ -23,12 +23,46 @@ export interface PageTurnAnimationDefinition {
   };
 }
 
+const COVER_TURN_DURATION = 1;
+const SLIDE_TURN_DURATION = 1;
+const DEFAULT_EASE: [number, number, number, number] = [0.22, 1, 0.36, 1];
+const PAGE_TURN_LINEAR_EASE: [number, number, number, number] = [0.32, 0.72, 0.08, 1];
+
 function getDirectionalOffset(direction: PageTurnDirection): string {
   return direction === 'next' ? '100%' : '-100%';
 }
 
 function getReverseDirectionalOffset(direction: PageTurnDirection): string {
   return direction === 'next' ? '-100%' : '100%';
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+export function getPageTurnSettleDuration(
+  mode: Exclude<ReaderPageTurnMode, 'scroll'>,
+  fromOffset: number,
+  targetOffset: number,
+  viewportWidth: number,
+  velocityX: number,
+): number {
+  if (mode === 'none') {
+    return 0;
+  }
+
+  if (viewportWidth <= 0) {
+    return getPageTurnAnimation(mode).transition.duration;
+  }
+
+  const remainingRatio = clamp(Math.abs(targetOffset - fromOffset) / viewportWidth, 0, 1);
+  const velocityRatio = clamp(Math.abs(velocityX) / 1600, 0, 1);
+  const maxDuration = mode === 'cover' ? 0.18 : 0.16;
+  const minDuration = mode === 'cover' ? 0.09 : 0.08;
+  const distanceDuration = maxDuration * Math.max(0.35, remainingRatio);
+  const velocityAdjusted = distanceDuration * (1 - velocityRatio * 0.3);
+
+  return clamp(velocityAdjusted, minDuration, maxDuration);
 }
 
 export function getPageTurnAnimation(
@@ -49,8 +83,8 @@ export function getPageTurnAnimation(
         zIndex: direction === 'next' ? 2 : 1,
       }),
       transition: {
-        duration: 1,
-        ease: [0.22, 1, 0.36, 1],
+        duration: COVER_TURN_DURATION,
+        ease: PAGE_TURN_LINEAR_EASE,
       },
     };
   }
@@ -70,8 +104,8 @@ export function getPageTurnAnimation(
         zIndex: 1,
       }),
       transition: {
-        duration: 1,
-        ease: [0.22, 1, 0.36, 1],
+        duration: SLIDE_TURN_DURATION,
+        ease: PAGE_TURN_LINEAR_EASE,
       },
     };
   }
@@ -91,7 +125,7 @@ export function getPageTurnAnimation(
     }),
     transition: {
       duration: 0,
-      ease: [0.22, 1, 0.36, 1],
+      ease: DEFAULT_EASE,
     },
   };
 }

@@ -110,8 +110,50 @@ describe('PagedReaderContent', () => {
       />,
     );
 
-    const animatedLayer = container.querySelector('.absolute.inset-0.overflow-hidden.bg-\\[\\#f4ecd8\\]');
-    expect(animatedLayer).toBeInTheDocument();
+    const interactiveLayer = container.querySelector('[data-testid="paged-reader-interactive"]');
+    const pageFrame = interactiveLayer?.querySelector('[data-testid="paged-reader-page-frame"]');
+    const pageBody = pageFrame?.querySelector('.min-h-0.flex-1.bg-\\[\\#f4ecd8\\]');
+
+    expect(pageFrame).toBeInTheDocument();
+    expect(pageBody).toBeInTheDocument();
+  });
+
+  it('renders the animated page as a full-page frame instead of only animating the text column', () => {
+    const { container } = render(
+      <PagedReaderContent
+        chapter={{
+          index: 0,
+          title: 'Chapter 1',
+          content: 'Text',
+          wordCount: 100,
+          totalChapters: 1,
+          hasPrev: false,
+          hasNext: true,
+        }}
+        novelId={1}
+        pageIndex={0}
+        pageCount={2}
+        pagedViewportRef={{ current: null }}
+        pagedContentRef={{ current: null }}
+        fontSize={18}
+        lineSpacing={1.8}
+        paragraphSpacing={24}
+        readerTheme="auto"
+        textClassName="text-text-primary"
+        headerBgClassName="bg-bg-primary"
+        pageBgClassName="bg-[#f4ecd8]"
+        fitsTwoColumns={false}
+        twoColumnWidth={undefined}
+        twoColumnGap={48}
+        pageTurnMode="cover"
+        pageTurnDirection="next"
+        pageTurnToken={1}
+      />,
+    );
+
+    const pageFrame = container.querySelector('[data-testid="paged-reader-interactive"] > .absolute.inset-0.overflow-hidden [data-testid="paged-reader-page-frame"]');
+    expect(pageFrame).toBeInTheDocument();
+    expect(pageFrame).toHaveClass('h-full', 'w-full', 'flex-col');
   });
 
   it('clamps drag offsets to the available navigation directions', () => {

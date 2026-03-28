@@ -205,7 +205,7 @@ function getPagedReaderContainer(container: HTMLElement): HTMLDivElement {
 }
 
 function getPagedViewport(container: HTMLElement): HTMLDivElement {
-  const pagedViewport = container.querySelector('main .cursor-pointer.overflow-hidden [aria-hidden="true"]') as HTMLDivElement | null;
+  const pagedViewport = container.querySelector('[data-testid="paged-reader-measurement-viewport"]') as HTMLDivElement | null;
   if (!pagedViewport) {
     throw new Error('Paged viewport not found');
   }
@@ -544,7 +544,7 @@ describe('ReaderPage', () => {
       expect(await screen.findByRole('heading', { name: 'Chapter 1', level: 2 })).toBeInTheDocument();
       await flushAnimationFrames();
 
-      expect(await screen.findByText('3 / 3')).toBeInTheDocument();
+      expect(await screen.findAllByText('3 / 3')).not.toHaveLength(0);
       expect(getPagedViewport(container).scrollLeft).toBe(900);
     } finally {
       requestAnimationFrameSpy.mockRestore();
@@ -589,7 +589,7 @@ describe('ReaderPage', () => {
 
       await flushAnimationFrames();
 
-      expect(await screen.findByText('2 / 3')).toBeInTheDocument();
+      expect(await screen.findAllByText('2 / 3')).not.toHaveLength(0);
       await waitFor(() => {
         expect(screen.queryByRole('status', { name: 'Loading reader content' })).not.toBeInTheDocument();
       });
@@ -632,7 +632,7 @@ describe('ReaderPage', () => {
     const { container } = renderPage();
 
     expect(await screen.findByRole('heading', { name: 'Chapter 1', level: 2 })).toBeInTheDocument();
-    expect(await screen.findByText('2 / 2')).toBeInTheDocument();
+    expect(await screen.findAllByText('2 / 2')).not.toHaveLength(0);
     const readerContainer = getPagedReaderContainer(container);
 
     const firstWheel = new WheelEvent('wheel', { deltaY: 120, bubbles: true, cancelable: true });
@@ -650,7 +650,7 @@ describe('ReaderPage', () => {
     deferredSecondChapter.resolve(pagedChapterContent[1]);
 
     expect(await screen.findByRole('heading', { name: 'Chapter 2', level: 2 })).toBeInTheDocument();
-    expect(await screen.findByText('2 / 2')).toBeInTheDocument();
+    expect(await screen.findAllByText('2 / 2')).not.toHaveLength(0);
     await waitFor(() => {
       expect(screen.queryByRole('heading', { name: 'Chapter 3', level: 2 })).not.toBeInTheDocument();
     });
@@ -688,7 +688,7 @@ describe('ReaderPage', () => {
     const { container } = renderPage();
 
     expect(await screen.findByRole('heading', { name: 'Chapter 1', level: 2 })).toBeInTheDocument();
-    expect(await screen.findByText('2 / 2')).toBeInTheDocument();
+    expect(await screen.findAllByText('2 / 2')).not.toHaveLength(0);
     await act(async () => {
       await new Promise((resolve) => window.setTimeout(resolve, 160));
     });
@@ -701,7 +701,7 @@ describe('ReaderPage', () => {
     });
 
     expect(await screen.findByRole('heading', { name: 'Chapter 2', level: 2 })).toBeInTheDocument();
-    expect(await screen.findByText('2 / 2')).toBeInTheDocument();
+    expect(await screen.findAllByText('2 / 2')).not.toHaveLength(0);
     await waitFor(() => {
       expect(screen.queryByRole('heading', { name: 'Chapter 3', level: 2 })).not.toBeInTheDocument();
     });

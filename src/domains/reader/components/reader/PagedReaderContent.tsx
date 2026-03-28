@@ -6,7 +6,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { animate, AnimatePresence, motion, useMotionValue, useTransform } from 'motion/react';
 import { cn } from '@shared/utils/cn';
 
-import { getPageTurnAnimation, type PageTurnDirection } from '../../animations/pageTurnAnimations';
+import {
+  getPageTurnAnimation,
+  getPageTurnSettleDuration,
+  type PageTurnDirection,
+} from '../../animations/pageTurnAnimations';
 import { getPagedPageCount, getPagedScrollLeft } from '../../hooks/usePagedReaderLayout';
 import {
   clampDragOffset,
@@ -70,6 +74,28 @@ interface PreviewMeasurements {
 interface PagePreviewTarget {
   chapter: ChapterContent;
   pageOffset: number;
+  pageIndex: number;
+  pageCount: number;
+}
+
+interface CommittedDragTransition {
+  current: PagePreviewTarget;
+  preview: PagePreviewTarget;
+  direction: PageTurnDirection;
+  mode: Extract<ReaderPageTurnMode, 'cover' | 'slide'>;
+}
+
+interface PagedPageFrameProps extends PagedContentBodyProps {
+  chapter: ChapterContent;
+  pageIndex: number;
+  pageCount: number;
+  readerTheme: string;
+  textClassName: string;
+  headerBgClassName: string;
+  pageBgClassName?: string;
+  viewportRef?: React.RefObject<HTMLDivElement | null>;
+  viewportTestId?: string;
+  showHeaderContent?: boolean;
 }
 
 function getLastPageOffset(scrollWidth: number, viewportWidth: number, pageTurnStep: number): number {
@@ -121,6 +147,70 @@ function PagedContentBody({
   );
 }
 
+function PagedPageFrame({
+  chapter,
+  novelId,
+  contentRef,
+  fontSize,
+  lineSpacing,
+  paragraphSpacing,
+  twoColumnGap,
+  twoColumnWidth,
+  fitsTwoColumns,
+  pageOffset = 0,
+  pageIndex,
+  pageCount,
+  readerTheme,
+  textClassName,
+  headerBgClassName,
+  pageBgClassName,
+  viewportRef,
+  viewportTestId,
+  showHeaderContent = true,
+}: PagedPageFrameProps) {
+  return (
+    <div data-testid="paged-reader-page-frame" className="flex h-full w-full flex-col">
+      <div className={cn('w-full shrink-0 border-b border-border-color/20 backdrop-blur-sm', headerBgClassName)}>
+        <div className={cn('mx-auto flex w-full max-w-[1400px] items-center justify-between gap-4 px-4 py-3 sm:px-8 md:px-12', textClassName)}>
+          {showHeaderContent ? (
+            <h1 className={cn('truncate text-sm font-medium transition-colors', readerTheme === 'auto' ? 'text-text-secondary' : 'opacity-60')}>
+              {chapter.title}
+            </h1>
+          ) : (
+            <div className="h-5 flex-1" />
+          )}
+          {showHeaderContent ? (
+            pageCount > 1 ? (
+              <div className="whitespace-nowrap text-xs font-medium text-text-secondary">{pageIndex + 1} / {pageCount}</div>
+            ) : null
+          ) : (
+            <div className="h-4 w-10 shrink-0" />
+          )}
+        </div>
+      </div>
+
+      <div className={cn('min-h-0 flex-1', pageBgClassName ?? headerBgClassName)}>
+        <div className={cn('mx-auto h-full w-full max-w-[1400px] px-4 sm:px-8 md:px-12', textClassName)}>
+          <div ref={viewportRef} data-testid={viewportTestId} className="h-full overflow-hidden pt-4">
+            <PagedContentBody
+              chapter={chapter}
+              novelId={novelId}
+              contentRef={contentRef}
+              fontSize={fontSize}
+              lineSpacing={lineSpacing}
+              paragraphSpacing={paragraphSpacing}
+              twoColumnGap={twoColumnGap}
+              twoColumnWidth={twoColumnWidth}
+              fitsTwoColumns={fitsTwoColumns}
+              pageOffset={pageOffset}
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function PagedReaderContent({
   chapter,
   novelId,
@@ -156,33 +246,37 @@ export default function PagedReaderContent({
     nextScrollWidth: 0,
   });
   const [dragDirection, setDragDirection] = useState<PageTurnDirection | null>(null);
+  const [committedDragTransition, setCommittedDragTransition] = useState<CommittedDragTransition | null>(null);
 
   const previousPreviewContentRef = useRef<HTMLDivElement | null>(null);
   const nextPreviewContentRef = useRef<HTMLDivElement | null>(null);
   const dragAnimationRef = useRef<AnimationPlaybackControls | null>(null);
   const suppressNextClickRef = useRef(false);
+  const activeDragMode = committedDragTransition?.mode
+    ?? (pageTurnMode === 'cover' || pageTurnMode === 'slide' ? pageTurnMode : null);
+  const activeDragDirection = committedDragTransition?.direction ?? dragDirection;
 
   const dragOffset = useMotionValue(0);
   const currentLayerX = useTransform(dragOffset, (offset) => {
-    if (!dragDirection || (pageTurnMode !== 'cover' && pageTurnMode !== 'slide')) {
+    if (!activeDragDirection || !activeDragMode) {
       return 0;
     }
 
     return getPagedDragLayerOffsets(
-      pageTurnMode,
-      dragDirection,
+      activeDragMode,
+      activeDragDirection,
       offset,
       layoutMetrics.viewportWidth,
     ).currentX;
   });
   const previewLayerX = useTransform(dragOffset, (offset) => {
-    if (!dragDirection || (pageTurnMode !== 'cover' && pageTurnMode !== 'slide')) {
+    if (!activeDragDirection || !activeDragMode) {
       return 0;
     }
 
     return getPagedDragLayerOffsets(
-      pageTurnMode,
-      dragDirection,
+      activeDragMode,
+      activeDragDirection,
       offset,
       layoutMetrics.viewportWidth,
     ).previewX;
@@ -313,12 +407,20 @@ export default function PagedReaderContent({
       return {
         chapter,
         pageOffset: getPagedScrollLeft(pageIndex - 1, pageTurnStep, currentMaxScrollLeft),
+        pageIndex: pageIndex - 1,
+        pageCount,
       };
     }
 
     if (!previousChapterPreview || previewMeasurements.previousScrollWidth <= 0) {
       return null;
     }
+
+    const previewPageCount = getPagedPageCount(
+      previewMeasurements.previousScrollWidth,
+      layoutMetrics.viewportWidth,
+      pageTurnStep,
+    );
 
     return {
       chapter: previousChapterPreview,
@@ -327,11 +429,14 @@ export default function PagedReaderContent({
         layoutMetrics.viewportWidth,
         pageTurnStep,
       ),
+      pageIndex: Math.max(0, previewPageCount - 1),
+      pageCount: previewPageCount,
     };
   }, [
     chapter,
     currentMaxScrollLeft,
     layoutMetrics.viewportWidth,
+    pageCount,
     pageIndex,
     pageTurnStep,
     previewMeasurements.previousScrollWidth,
@@ -347,6 +452,8 @@ export default function PagedReaderContent({
       return {
         chapter,
         pageOffset: getPagedScrollLeft(pageIndex + 1, pageTurnStep, currentMaxScrollLeft),
+        pageIndex: pageIndex + 1,
+        pageCount,
       };
     }
 
@@ -354,9 +461,17 @@ export default function PagedReaderContent({
       return null;
     }
 
+    const previewPageCount = getPagedPageCount(
+      previewMeasurements.nextScrollWidth,
+      layoutMetrics.viewportWidth,
+      pageTurnStep,
+    );
+
     return {
       chapter: nextChapterPreview,
       pageOffset: 0,
+      pageIndex: 0,
+      pageCount: previewPageCount,
     };
   }, [
     chapter,
@@ -371,18 +486,39 @@ export default function PagedReaderContent({
 
   const canDragPrev = previousPreviewTarget !== null && typeof onRequestPrevPage === 'function';
   const canDragNext = nextPreviewTarget !== null && typeof onRequestNextPage === 'function';
-  const isDragEnabled = !disableAnimation
+  const isDragEnabled = committedDragTransition === null
+    && !disableAnimation
     && (pageTurnMode === 'cover' || pageTurnMode === 'slide')
     && layoutMetrics.viewportWidth > 0
     && (canDragPrev || canDragNext);
-  const dragLayerOffsets = dragDirection && (pageTurnMode === 'cover' || pageTurnMode === 'slide')
-    ? getPagedDragLayerOffsets(pageTurnMode, dragDirection, 0, layoutMetrics.viewportWidth)
-    : null;
-  const activePreviewTarget = dragDirection === 'prev'
+  const livePreviewTarget = dragDirection === 'prev'
     ? previousPreviewTarget
     : dragDirection === 'next'
       ? nextPreviewTarget
       : null;
+  const activeDragTransition = committedDragTransition
+    ? committedDragTransition
+    : dragDirection && livePreviewTarget && (pageTurnMode === 'cover' || pageTurnMode === 'slide')
+      ? {
+          current: {
+            chapter,
+            pageOffset: visiblePageOffset,
+            pageIndex,
+            pageCount,
+          },
+          preview: livePreviewTarget,
+          direction: dragDirection,
+          mode: pageTurnMode,
+        }
+      : null;
+  const dragLayerOffsets = activeDragTransition
+    ? getPagedDragLayerOffsets(
+        activeDragTransition.mode,
+        activeDragTransition.direction,
+        0,
+        layoutMetrics.viewportWidth,
+      )
+    : null;
 
   const handlePanStart = useCallback(() => {
     if (!isDragEnabled) {
@@ -440,40 +576,76 @@ export default function PagedReaderContent({
       info.velocity.x,
       layoutMetrics.viewportWidth,
     );
+    const commitPreviewTarget = nextDirection === 'prev' ? previousPreviewTarget : nextPreviewTarget;
+
+    if (!commitPreviewTarget) {
+      suppressNextClickRef.current = false;
+      resetDragState();
+      return;
+    }
+
     const targetOffset = shouldCommit
       ? nextDirection === 'next'
         ? -layoutMetrics.viewportWidth
         : layoutMetrics.viewportWidth
       : 0;
     const animation = getPageTurnAnimation(pageTurnMode);
+    const settleDuration = getPageTurnSettleDuration(
+      pageTurnMode,
+      nextOffset,
+      targetOffset,
+      layoutMetrics.viewportWidth,
+      info.velocity.x,
+    );
 
     dragAnimationRef.current = animate(dragOffset, targetOffset, {
       ...animation.transition,
+      duration: settleDuration,
       onComplete: () => {
         dragAnimationRef.current = null;
-        if (shouldCommit) {
-          if (nextDirection === 'next') {
-            onRequestNextPage?.();
-          } else {
-            onRequestPrevPage?.();
-          }
-        } else {
-          suppressNextClickRef.current = false;
-        }
+        suppressNextClickRef.current = false;
+        setCommittedDragTransition(null);
         dragOffset.set(0);
         setDragDirection(null);
       },
     });
+
+    if (shouldCommit) {
+      setCommittedDragTransition({
+        current: {
+          chapter,
+          pageOffset: visiblePageOffset,
+          pageIndex,
+          pageCount,
+        },
+        preview: commitPreviewTarget,
+        direction: nextDirection,
+        mode: pageTurnMode,
+      });
+      setDragDirection(null);
+      if (nextDirection === 'next') {
+        onRequestNextPage?.();
+      } else {
+        onRequestPrevPage?.();
+      }
+    }
   }, [
     canDragNext,
     canDragPrev,
+    chapter,
     dragOffset,
     isDragEnabled,
     layoutMetrics.viewportWidth,
     onRequestNextPage,
     onRequestPrevPage,
+    pageIndex,
+    pageCount,
     pageTurnMode,
+    previousPreviewTarget,
+    nextPreviewTarget,
     resetDragState,
+    setCommittedDragTransition,
+    visiblePageOffset,
   ]);
 
   const handleClickCapture = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
@@ -497,63 +669,76 @@ export default function PagedReaderContent({
   };
 
   return (
-    <div className={cn('mx-auto flex h-full w-full max-w-[1400px] flex-col px-4 sm:px-8 md:px-12', textClassName)}>
-      <div className={cn('mb-4 flex shrink-0 items-center justify-between gap-4 border-b border-border-color/20 py-3', headerBgClassName)}>
-        <h1 className={cn('truncate text-sm font-medium transition-colors', readerTheme === 'auto' ? 'text-text-secondary' : 'opacity-60')}>
-          {chapter.title}
-        </h1>
-        {pageCount > 1 ? (
-          <div className="whitespace-nowrap text-xs font-medium text-text-secondary">{pageIndex + 1} / {pageCount}</div>
-        ) : null}
-      </div>
-
-      <div className="relative flex-1 min-h-0">
+    <div className="relative h-full w-full">
+      <div className="relative h-full">
         <div
-          ref={pagedViewportRef}
           aria-hidden="true"
           className="pointer-events-none absolute inset-0 overflow-hidden opacity-0"
         >
-          <PagedContentBody
+          <PagedPageFrame
             chapter={chapter}
             novelId={novelId}
-            contentRef={pagedContentRef}
             fontSize={fontSize}
             lineSpacing={lineSpacing}
             paragraphSpacing={paragraphSpacing}
             twoColumnGap={twoColumnGap}
             twoColumnWidth={twoColumnWidth}
             fitsTwoColumns={fitsTwoColumns}
+            contentRef={pagedContentRef}
+            pageIndex={pageIndex}
+            pageCount={pageCount}
+            readerTheme={readerTheme}
+            textClassName={textClassName}
+            headerBgClassName={headerBgClassName}
+            pageBgClassName={pageBgClassName}
+            viewportRef={pagedViewportRef}
+            viewportTestId="paged-reader-measurement-viewport"
+            showHeaderContent={false}
           />
         </div>
 
         {previousChapterPreview ? (
           <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden opacity-0">
-            <PagedContentBody
+            <PagedPageFrame
               chapter={previousChapterPreview}
               novelId={novelId}
-              contentRef={previousPreviewContentRef}
               fontSize={fontSize}
               lineSpacing={lineSpacing}
               paragraphSpacing={paragraphSpacing}
               twoColumnGap={twoColumnGap}
               twoColumnWidth={twoColumnWidth}
               fitsTwoColumns={fitsTwoColumns}
+              contentRef={previousPreviewContentRef}
+              pageIndex={Math.max(0, previousChapterPreview.totalChapters - 1)}
+              pageCount={previousChapterPreview.totalChapters}
+              readerTheme={readerTheme}
+              textClassName={textClassName}
+              headerBgClassName={headerBgClassName}
+              pageBgClassName={pageBgClassName}
+              showHeaderContent={false}
             />
           </div>
         ) : null}
 
         {nextChapterPreview ? (
           <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden opacity-0">
-            <PagedContentBody
+            <PagedPageFrame
               chapter={nextChapterPreview}
               novelId={novelId}
-              contentRef={nextPreviewContentRef}
               fontSize={fontSize}
               lineSpacing={lineSpacing}
               paragraphSpacing={paragraphSpacing}
               twoColumnGap={twoColumnGap}
               twoColumnWidth={twoColumnWidth}
               fitsTwoColumns={fitsTwoColumns}
+              contentRef={nextPreviewContentRef}
+              pageIndex={0}
+              pageCount={nextChapterPreview.totalChapters}
+              readerTheme={readerTheme}
+              textClassName={textClassName}
+              headerBgClassName={headerBgClassName}
+              pageBgClassName={pageBgClassName}
+              showHeaderContent={false}
             />
           </div>
         ) : null}
@@ -567,18 +752,17 @@ export default function PagedReaderContent({
           onPanEnd={handlePanEnd}
           onPanStart={handlePanStart}
         >
-          {dragDirection && activePreviewTarget ? (
+          {activeDragTransition && dragLayerOffsets ? (
             <>
               <motion.div
                 className={cn(
                   'absolute inset-0 overflow-hidden',
-                  pageBgClassName ?? headerBgClassName,
                   dragLayerOffsets?.isPreviewOnTop ? 'z-0' : 'z-10',
                 )}
                 style={{ x: currentLayerX }}
               >
-                <PagedContentBody
-                  chapter={chapter}
+                <PagedPageFrame
+                  chapter={activeDragTransition.current.chapter}
                   novelId={novelId}
                   fontSize={fontSize}
                   lineSpacing={lineSpacing}
@@ -586,20 +770,25 @@ export default function PagedReaderContent({
                   twoColumnGap={twoColumnGap}
                   twoColumnWidth={twoColumnWidth}
                   fitsTwoColumns={fitsTwoColumns}
-                  pageOffset={visiblePageOffset}
+                  pageOffset={activeDragTransition.current.pageOffset}
+                  pageIndex={activeDragTransition.current.pageIndex}
+                  pageCount={activeDragTransition.current.pageCount}
+                  readerTheme={readerTheme}
+                  textClassName={textClassName}
+                  headerBgClassName={headerBgClassName}
+                  pageBgClassName={pageBgClassName}
                 />
               </motion.div>
 
               <motion.div
                 className={cn(
                   'absolute inset-0 overflow-hidden',
-                  pageBgClassName ?? headerBgClassName,
                   dragLayerOffsets?.isPreviewOnTop ? 'z-10' : 'z-0',
                 )}
                 style={{ x: previewLayerX }}
               >
-                <PagedContentBody
-                  chapter={activePreviewTarget.chapter}
+                <PagedPageFrame
+                  chapter={activeDragTransition.preview.chapter}
                   novelId={novelId}
                   fontSize={fontSize}
                   lineSpacing={lineSpacing}
@@ -607,7 +796,13 @@ export default function PagedReaderContent({
                   twoColumnGap={twoColumnGap}
                   twoColumnWidth={twoColumnWidth}
                   fitsTwoColumns={fitsTwoColumns}
-                  pageOffset={activePreviewTarget.pageOffset}
+                  pageOffset={activeDragTransition.preview.pageOffset}
+                  pageIndex={activeDragTransition.preview.pageIndex}
+                  pageCount={activeDragTransition.preview.pageCount}
+                  readerTheme={readerTheme}
+                  textClassName={textClassName}
+                  headerBgClassName={headerBgClassName}
+                  pageBgClassName={pageBgClassName}
                 />
               </motion.div>
             </>
@@ -615,7 +810,7 @@ export default function PagedReaderContent({
             <AnimatePresence custom={pageTurnDirection} initial={false} mode="sync">
               <motion.div
                 key={`${chapter.index}:${pageIndex}`}
-                className={cn('absolute inset-0 overflow-hidden', pageBgClassName ?? headerBgClassName)}
+                className="absolute inset-0 overflow-hidden"
                 custom={pageTurnDirection}
                 variants={variants}
                 initial="enter"
@@ -623,7 +818,7 @@ export default function PagedReaderContent({
                 exit="exit"
                 transition={pageTurnAnimation.transition}
               >
-                <PagedContentBody
+                <PagedPageFrame
                   chapter={chapter}
                   novelId={novelId}
                   fontSize={fontSize}
@@ -633,6 +828,12 @@ export default function PagedReaderContent({
                   twoColumnWidth={twoColumnWidth}
                   fitsTwoColumns={fitsTwoColumns}
                   pageOffset={visiblePageOffset}
+                  pageIndex={pageIndex}
+                  pageCount={pageCount}
+                  readerTheme={readerTheme}
+                  textClassName={textClassName}
+                  headerBgClassName={headerBgClassName}
+                  pageBgClassName={pageBgClassName}
                 />
               </motion.div>
             </AnimatePresence>
