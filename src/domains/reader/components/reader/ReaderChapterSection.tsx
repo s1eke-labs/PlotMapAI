@@ -7,6 +7,7 @@ interface ReaderChapterSectionProps {
   content: string;
   novelId: number;
   paragraphSpacing: number;
+  imageRenderMode?: 'scroll' | 'paged';
   headingClassName?: string;
   headingStyle?: CSSProperties;
   paragraphClassName?: string;
@@ -19,6 +20,7 @@ export default function ReaderChapterSection({
   content,
   novelId,
   paragraphSpacing,
+  imageRenderMode = 'scroll',
   headingClassName,
   headingStyle,
   paragraphClassName,
@@ -51,6 +53,7 @@ export default function ReaderChapterSection({
             marginBottom={paragraphSpacing}
             className={paragraphClassName}
             containerClassName={mixedParagraphClassName}
+            imageRenderMode={imageRenderMode}
           />
         );
       })}

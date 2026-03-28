@@ -17,6 +17,8 @@ import {
   getPagedDragLayerOffsets,
   shouldCommitPageTurnDrag,
 } from '../../utils/pagedDrag';
+import { extractImageKeysFromText } from '../../utils/chapterImages';
+import { preloadReaderImageResources } from '../../utils/readerImageResourceCache';
 import ReaderChapterSection from './ReaderChapterSection';
 
 const DRAG_START_THRESHOLD_PX = 8;
@@ -138,6 +140,7 @@ function PagedContentBody({
         content={chapter.content}
         novelId={novelId}
         paragraphSpacing={paragraphSpacing}
+        imageRenderMode="paged"
         headingClassName="text-xl sm:text-2xl font-bold text-center mb-8 mt-2 break-inside-avoid"
         headingStyle={{ lineHeight: '1.4' }}
         paragraphClassName="indent-8"
@@ -247,6 +250,20 @@ export default function PagedReaderContent({
   });
   const [dragDirection, setDragDirection] = useState<PageTurnDirection | null>(null);
   const [committedDragTransition, setCommittedDragTransition] = useState<CommittedDragTransition | null>(null);
+  const preloadImageKeys = useMemo(() => {
+    const imageKeys = new Set<string>();
+    for (const renderableChapter of [chapter, previousChapterPreview, nextChapterPreview]) {
+      if (!renderableChapter) {
+        continue;
+      }
+
+      for (const imageKey of extractImageKeysFromText(renderableChapter.content)) {
+        imageKeys.add(imageKey);
+      }
+    }
+
+    return Array.from(imageKeys);
+  }, [chapter, nextChapterPreview, previousChapterPreview]);
 
   const previousPreviewContentRef = useRef<HTMLDivElement | null>(null);
   const nextPreviewContentRef = useRef<HTMLDivElement | null>(null);
@@ -391,6 +408,14 @@ export default function PagedReaderContent({
       stopDragAnimation();
     };
   }, [stopDragAnimation]);
+
+  useEffect(() => {
+    if (preloadImageKeys.length === 0) {
+      return;
+    }
+
+    void preloadReaderImageResources(novelId, preloadImageKeys);
+  }, [novelId, preloadImageKeys]);
 
   const pageTurnStep = layoutMetrics.viewportWidth
     ? layoutMetrics.viewportWidth + (fitsTwoColumns ? twoColumnGap : 0)

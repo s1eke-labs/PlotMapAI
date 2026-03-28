@@ -114,6 +114,21 @@ describe('readerApi', () => {
     const result = await readerApi.getImageUrl(novelId, 'nonexistent');
     expect(result).toBeNull();
   });
+
+  it('getImageBlob returns the stored chapter image blob', async () => {
+    const novelId = await getNovelId();
+    const blob = new Blob(['chapter-image'], { type: 'image/png' });
+    await db.chapterImages.add({
+      id: undefined as unknown as number,
+      novelId,
+      imageKey: 'cover',
+      blob,
+    });
+
+    const result = await readerApi.getImageBlob(novelId, 'cover');
+
+    expect(result).not.toBeNull();
+  });
 });
 
 describe('loadAndPurifyChapters', () => {

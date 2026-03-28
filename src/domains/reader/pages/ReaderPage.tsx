@@ -31,6 +31,7 @@ import {
   setMode as setSessionMode,
   useReaderSessionSelector,
 } from '../hooks/sessionStore';
+import { clearReaderImageResourcesForNovel } from '../utils/readerImageResourceCache';
 
 export default function ReaderPage() {
   const { t } = useTranslation();
@@ -234,6 +235,12 @@ export default function ReaderPage() {
         .filter((item): item is { index: number; chapter: ChapterContent } => Boolean(item)),
     );
   }, [currentChapter, scrollContentVersion, scrollModeChapters]);
+
+  useEffect(() => {
+    return () => {
+      clearReaderImageResourcesForNovel(novelId);
+    };
+  }, [novelId]);
 
   const chapterCacheSnapshot = chapterCacheSnapshotState.novelId === novelId
     ? chapterCacheSnapshotState.snapshot

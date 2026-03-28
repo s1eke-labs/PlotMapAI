@@ -1,50 +1,20 @@
-import { useState, useEffect, useMemo } from 'react';
-import { readerApi } from '../api/readerApi';
+import type { CSSProperties } from 'react';
 
-const IMG_PATTERN = /\[IMG:([^\]]+)\]/g;
+import { useMemo } from 'react';
 
-interface TextSegment {
-  type: 'text' | 'image';
-  value: string;
-}
+import { useReaderImageResource } from '../hooks/useReaderImageResource';
+import { parseParagraphSegments } from '../utils/chapterImages';
 
-function parseParagraphSegments(text: string): TextSegment[] {
-  const segments: TextSegment[] = [];
-  let lastIndex = 0;
-  IMG_PATTERN.lastIndex = 0;
-  let match: RegExpExecArray | null;
-  while ((match = IMG_PATTERN.exec(text)) !== null) {
-    if (match.index > lastIndex) {
-      segments.push({ type: 'text', value: text.slice(lastIndex, match.index) });
-    }
-    segments.push({ type: 'image', value: match[1] });
-    lastIndex = match.index + match[0].length;
-  }
-  if (lastIndex < text.length) {
-    segments.push({ type: 'text', value: text.slice(lastIndex) });
-  }
-  return segments.length > 0 ? segments : [{ type: 'text', value: text }];
-}
-
-function InlineImage({ novelId, imageKey }: { novelId: number; imageKey: string }) {
-  const [url, setUrl] = useState<string | null>(null);
-
-  useEffect(() => {
-    let revoked = false;
-    let objectUrl: string | null = null;
-    readerApi.getImageUrl(novelId, imageKey).then(result => {
-      if (!revoked) {
-        objectUrl = result;
-        setUrl(result);
-      } else if (result) {
-        URL.revokeObjectURL(result);
-      }
-    });
-    return () => {
-      revoked = true;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    };
-  }, [novelId, imageKey]);
+function InlineImage({
+  novelId,
+  imageKey,
+  imageRenderMode,
+}: {
+  novelId: number;
+  imageKey: string;
+  imageRenderMode: 'scroll' | 'paged';
+}) {
+  const url = useReaderImageResource(novelId, imageKey);
 
   if (!url) return null;
   return (
@@ -52,7 +22,8 @@ function InlineImage({ novelId, imageKey }: { novelId: number; imageKey: string 
       src={url}
       alt=""
       className="max-w-full mx-auto my-4 rounded-lg shadow-md"
-      loading="lazy"
+      loading={imageRenderMode === 'paged' ? 'eager' : 'lazy'}
+      decoding="async"
     />
   );
 }
@@ -63,7 +34,8 @@ export interface ChapterParagraphProps {
   marginBottom: number;
   className?: string;
   containerClassName?: string;
-  style?: React.CSSProperties;
+  imageRenderMode?: 'scroll' | 'paged';
+  style?: CSSProperties;
 }
 
 export default function ChapterParagraph({
@@ -72,6 +44,7 @@ export default function ChapterParagraph({
   marginBottom,
   className,
   containerClassName,
+  imageRenderMode = 'scroll',
   style,
 }: ChapterParagraphProps) {
   const segments = useMemo(() => parseParagraphSegments(text), [text]);
@@ -88,7 +61,12 @@ export default function ChapterParagraph({
     <div className={containerClassName} style={{ marginBottom }}>
       {segments.map((seg, i) =>
         seg.type === 'image' ? (
-          <InlineImage key={i} novelId={novelId} imageKey={seg.value} />
+          <InlineImage
+            key={i}
+            novelId={novelId}
+            imageKey={seg.value}
+            imageRenderMode={imageRenderMode}
+          />
         ) : (
           seg.value.trim() ? (
             <p key={i} className={className} style={style}>

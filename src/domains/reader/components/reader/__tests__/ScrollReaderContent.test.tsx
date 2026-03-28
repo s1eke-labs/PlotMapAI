@@ -1,5 +1,5 @@
 import { render } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import ScrollReaderContent from '../ScrollReaderContent';
 
@@ -13,6 +13,10 @@ vi.mock('../ReaderChapterSection', () => ({
 }));
 
 describe('ScrollReaderContent', () => {
+  beforeEach(() => {
+    chapterSectionSpy.mockClear();
+  });
+
   it('keeps scroll mode paragraph rendering free of paged-only break rules', () => {
     render(
       <ScrollReaderContent
@@ -43,6 +47,7 @@ describe('ScrollReaderContent', () => {
 
     expect(forwardedProps).toEqual(expect.objectContaining({
       headingClassName: expect.not.stringContaining('break-inside-avoid'),
+      imageRenderMode: 'scroll',
       paragraphClassName: 'indent-8',
     }));
     expect(forwardedProps).not.toHaveProperty('mixedParagraphClassName');

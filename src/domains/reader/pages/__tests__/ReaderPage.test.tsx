@@ -21,6 +21,7 @@ vi.mock('../../api/readerApi', () => ({
     getProgress: vi.fn(),
     getChapterContent: vi.fn(),
     saveProgress: vi.fn(),
+    getImageBlob: vi.fn(),
     getImageUrl: vi.fn(),
   },
 }));
@@ -230,6 +231,7 @@ describe('ReaderPage', () => {
     });
     vi.mocked(readerApi.getChapterContent).mockImplementation(async (_novelId, chapterIndex) => chapterContent[chapterIndex]);
     vi.mocked(readerApi.saveProgress).mockResolvedValue({ message: 'Progress saved' });
+    vi.mocked(readerApi.getImageBlob).mockResolvedValue(null);
     vi.mocked(readerApi.getImageUrl).mockResolvedValue(null);
     vi.mocked(analysisApi.getStatus).mockResolvedValue({
       job: createJob(),

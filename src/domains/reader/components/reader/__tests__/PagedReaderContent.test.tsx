@@ -9,6 +9,7 @@ import {
 } from '../../../utils/pagedDrag';
 
 const chapterSectionSpy = vi.hoisted(() => vi.fn());
+const preloadReaderImageResourcesSpy = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 const originalClientWidthDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'clientWidth');
 const originalScrollWidthDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollWidth');
 
@@ -19,8 +20,18 @@ vi.mock('../ReaderChapterSection', () => ({
   },
 }));
 
+vi.mock('../../../utils/readerImageResourceCache', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../utils/readerImageResourceCache')>();
+  return {
+    ...actual,
+    preloadReaderImageResources: preloadReaderImageResourcesSpy,
+  };
+});
+
 describe('PagedReaderContent', () => {
   afterEach(() => {
+    vi.clearAllMocks();
+
     if (originalClientWidthDescriptor) {
       Object.defineProperty(HTMLElement.prototype, 'clientWidth', originalClientWidthDescriptor);
     } else {
@@ -71,6 +82,7 @@ describe('PagedReaderContent', () => {
 
     expect(forwardedProps).toEqual(expect.objectContaining({
       headingClassName: expect.stringContaining('break-inside-avoid'),
+      imageRenderMode: 'paged',
       paragraphClassName: 'indent-8',
       mixedParagraphClassName: 'break-inside-avoid',
     }));
@@ -180,5 +192,59 @@ describe('PagedReaderContent', () => {
       previewX: -420,
       isPreviewOnTop: true,
     });
+  });
+
+  it('preloads image keys from the current and adjacent preview chapters', () => {
+    render(
+      <PagedReaderContent
+        chapter={{
+          index: 1,
+          title: 'Chapter 2',
+          content: 'Current [IMG:current] [IMG:shared]',
+          wordCount: 100,
+          totalChapters: 3,
+          hasPrev: true,
+          hasNext: true,
+        }}
+        novelId={1}
+        pageIndex={0}
+        pageCount={2}
+        pagedViewportRef={{ current: null }}
+        pagedContentRef={{ current: null }}
+        fontSize={18}
+        lineSpacing={1.8}
+        paragraphSpacing={24}
+        readerTheme="auto"
+        textClassName=""
+        headerBgClassName=""
+        pageBgClassName="bg-[#f4ecd8]"
+        fitsTwoColumns={false}
+        twoColumnWidth={undefined}
+        twoColumnGap={48}
+        pageTurnMode="cover"
+        pageTurnDirection="next"
+        pageTurnToken={1}
+        previousChapterPreview={{
+          index: 0,
+          title: 'Chapter 1',
+          content: 'Prev [IMG:shared] [IMG:prev]',
+          wordCount: 100,
+          totalChapters: 3,
+          hasPrev: false,
+          hasNext: true,
+        }}
+        nextChapterPreview={{
+          index: 2,
+          title: 'Chapter 3',
+          content: 'Next [IMG:next]',
+          wordCount: 100,
+          totalChapters: 3,
+          hasPrev: true,
+          hasNext: false,
+        }}
+      />,
+    );
+
+    expect(preloadReaderImageResourcesSpy).toHaveBeenCalledWith(1, ['current', 'shared', 'prev', 'next']);
   });
 });

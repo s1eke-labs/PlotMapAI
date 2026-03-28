@@ -1,14 +1,21 @@
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import ReaderChapterSection from '../ReaderChapterSection';
 
-vi.mock('../../../api/readerApi', () => ({
-  readerApi: {
-    getImageUrl: vi.fn().mockResolvedValue(null),
+const chapterParagraphSpy = vi.hoisted(() => vi.fn());
+
+vi.mock('../../ChapterParagraph', () => ({
+  default: (props: unknown) => {
+    chapterParagraphSpy(props);
+    return <div data-testid="chapter-paragraph" />;
   },
 }));
 
 describe('ReaderChapterSection', () => {
+  beforeEach(() => {
+    chapterParagraphSpy.mockClear();
+  });
+
   it('renders the chapter heading once and skips a duplicated title paragraph', () => {
     const { container } = render(
       <ReaderChapterSection
@@ -21,8 +28,13 @@ describe('ReaderChapterSection', () => {
 
     expect(screen.getByRole('heading', { name: 'Chapter 1', level: 2 })).toBeInTheDocument();
     expect(screen.getAllByText('Chapter 1')).toHaveLength(1);
-    expect(screen.getByText('First paragraph')).toBeInTheDocument();
-    expect(screen.getByText('Second paragraph')).toBeInTheDocument();
+    expect(chapterParagraphSpy).toHaveBeenCalledTimes(2);
+    expect(chapterParagraphSpy).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      text: 'First paragraph',
+    }));
+    expect(chapterParagraphSpy).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      text: 'Second paragraph',
+    }));
     expect(container.querySelectorAll('[aria-hidden="true"]')).toHaveLength(1);
   });
 
@@ -33,14 +45,18 @@ describe('ReaderChapterSection', () => {
         content={'Chapter 1\n\nPlain paragraph\nBefore [IMG:cover] After'}
         novelId={1}
         paragraphSpacing={24}
+        imageRenderMode="paged"
         paragraphClassName="plain-paragraph"
         mixedParagraphClassName="mixed-paragraph"
         blankParagraphClassName="blank-paragraph"
       />,
     );
 
-    expect(screen.getByText('Plain paragraph')).toHaveClass('plain-paragraph');
     expect(container.querySelectorAll('.blank-paragraph')).toHaveLength(1);
-    expect(container.querySelector('.mixed-paragraph')).toBeInTheDocument();
+    expect(chapterParagraphSpy).toHaveBeenCalledWith(expect.objectContaining({
+      className: 'plain-paragraph',
+      containerClassName: 'mixed-paragraph',
+      imageRenderMode: 'paged',
+    }));
   });
 });

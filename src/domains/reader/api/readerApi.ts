@@ -226,12 +226,17 @@ export const readerApi = {
     return { message: 'Progress saved' };
   },
 
-  getImageUrl: async (novelId: number, imageKey: string): Promise<string | null> => {
+  getImageBlob: async (novelId: number, imageKey: string): Promise<Blob | null> => {
     const image = await db.chapterImages
       .where('[novelId+imageKey]')
       .equals([novelId, imageKey])
       .first();
-    if (!image) return null;
-    return URL.createObjectURL(image.blob);
+    return image?.blob ?? null;
+  },
+
+  getImageUrl: async (novelId: number, imageKey: string): Promise<string | null> => {
+    const blob = await readerApi.getImageBlob(novelId, imageKey);
+    if (!blob) return null;
+    return URL.createObjectURL(blob);
   },
 };
