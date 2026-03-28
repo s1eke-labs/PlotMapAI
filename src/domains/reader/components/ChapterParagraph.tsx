@@ -62,10 +62,18 @@ export interface ChapterParagraphProps {
   novelId: number;
   marginBottom: number;
   className?: string;
+  containerClassName?: string;
   style?: React.CSSProperties;
 }
 
-export default function ChapterParagraph({ text, novelId, marginBottom, className, style }: ChapterParagraphProps) {
+export default function ChapterParagraph({
+  text,
+  novelId,
+  marginBottom,
+  className,
+  containerClassName,
+  style,
+}: ChapterParagraphProps) {
   const segments = useMemo(() => parseParagraphSegments(text), [text]);
 
   if (segments.length === 1 && segments[0].type === 'text') {
@@ -77,7 +85,7 @@ export default function ChapterParagraph({ text, novelId, marginBottom, classNam
   }
 
   return (
-    <div style={{ marginBottom }}>
+    <div className={containerClassName} style={{ marginBottom }}>
       {segments.map((seg, i) =>
         seg.type === 'image' ? (
           <InlineImage key={i} novelId={novelId} imageKey={seg.value} />

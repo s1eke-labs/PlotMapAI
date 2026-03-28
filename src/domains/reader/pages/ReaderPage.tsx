@@ -240,6 +240,7 @@ export default function ReaderPage() {
     setPageIndex,
     fontSize: preferences.fontSize,
     lineSpacing: preferences.lineSpacing,
+    paragraphSpacing: preferences.paragraphSpacing,
   });
 
   const isChapterNavigationReady = !isLoading

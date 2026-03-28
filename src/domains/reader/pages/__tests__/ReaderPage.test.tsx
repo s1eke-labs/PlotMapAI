@@ -204,6 +204,15 @@ function getPagedReaderContainer(container: HTMLElement): HTMLDivElement {
   return readerContainer;
 }
 
+function getPagedViewport(container: HTMLElement): HTMLDivElement {
+  const pagedViewport = container.querySelector('main .cursor-pointer.overflow-hidden .flex-1.min-h-0.overflow-hidden') as HTMLDivElement | null;
+  if (!pagedViewport) {
+    throw new Error('Paged viewport not found');
+  }
+
+  return pagedViewport;
+}
+
 describe('ReaderPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -502,6 +511,17 @@ describe('ReaderPage', () => {
   });
 
   it('restores paged progress from chapterProgress', async () => {
+    const frameCallbacks: FrameRequestCallback[] = [];
+    const flushAnimationFrames = async () => {
+      while (frameCallbacks.length > 0) {
+        const queuedCallbacks = frameCallbacks.splice(0, frameCallbacks.length);
+        await act(async () => {
+          queuedCallbacks.forEach((callback) => callback(0));
+          await Promise.resolve();
+        });
+      }
+    };
+
     setPrototypeNumberGetter('clientWidth', 600);
     setPrototypeNumberGetter('clientHeight', 800);
     setPrototypeNumberGetter('scrollWidth', 1500);
@@ -509,13 +529,27 @@ describe('ReaderPage', () => {
       chapterIndex: 0,
       viewMode: 'original',
       isTwoColumn: true,
-      chapterProgress: 0.5,
+      chapterProgress: 1,
     }));
 
-    renderPage();
+    const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback: FrameRequestCallback) => {
+      frameCallbacks.push(callback);
+      return frameCallbacks.length;
+    });
+    const cancelAnimationFrameSpy = vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined);
 
-    expect(await screen.findByRole('heading', { name: 'Chapter 1', level: 2 })).toBeInTheDocument();
-    expect(await screen.findByText('2 / 3')).toBeInTheDocument();
+    try {
+      const { container } = renderPage();
+
+      expect(await screen.findByRole('heading', { name: 'Chapter 1', level: 2 })).toBeInTheDocument();
+      await flushAnimationFrames();
+
+      expect(await screen.findByText('3 / 3')).toBeInTheDocument();
+      expect(getPagedViewport(container).scrollLeft).toBe(900);
+    } finally {
+      requestAnimationFrameSpy.mockRestore();
+      cancelAnimationFrameSpy.mockRestore();
+    }
   });
 
   it('keeps the loading overlay visible until paged restore reaches the stored page', async () => {

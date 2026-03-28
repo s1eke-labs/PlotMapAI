@@ -25,4 +25,22 @@ describe('ReaderChapterSection', () => {
     expect(screen.getByText('Second paragraph')).toBeInTheDocument();
     expect(container.querySelectorAll('[aria-hidden="true"]')).toHaveLength(1);
   });
+
+  it('forwards distinct classes for plain, mixed, and blank paragraphs', () => {
+    const { container } = render(
+      <ReaderChapterSection
+        title="Chapter 1"
+        content={'Chapter 1\n\nPlain paragraph\nBefore [IMG:cover] After'}
+        novelId={1}
+        paragraphSpacing={24}
+        paragraphClassName="plain-paragraph"
+        mixedParagraphClassName="mixed-paragraph"
+        blankParagraphClassName="blank-paragraph"
+      />,
+    );
+
+    expect(screen.getByText('Plain paragraph')).toHaveClass('plain-paragraph');
+    expect(container.querySelectorAll('.blank-paragraph')).toHaveLength(1);
+    expect(container.querySelector('.mixed-paragraph')).toBeInTheDocument();
+  });
 });

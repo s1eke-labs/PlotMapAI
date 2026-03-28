@@ -65,8 +65,8 @@ export default function PagedReaderContent({
             paragraphSpacing={paragraphSpacing}
             headingClassName="text-xl sm:text-2xl font-bold text-center mb-8 mt-2 break-inside-avoid"
             headingStyle={{ lineHeight: '1.4' }}
-            paragraphClassName="indent-8 break-inside-avoid"
-            blankParagraphClassName="break-inside-avoid"
+            paragraphClassName="indent-8"
+            mixedParagraphClassName="break-inside-avoid"
           />
         </div>
       </div>

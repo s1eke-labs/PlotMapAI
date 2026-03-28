@@ -10,6 +10,7 @@ interface ReaderChapterSectionProps {
   headingClassName?: string;
   headingStyle?: CSSProperties;
   paragraphClassName?: string;
+  mixedParagraphClassName?: string;
   blankParagraphClassName?: string;
 }
 
@@ -21,6 +22,7 @@ export default function ReaderChapterSection({
   headingClassName,
   headingStyle,
   paragraphClassName,
+  mixedParagraphClassName,
   blankParagraphClassName,
 }: ReaderChapterSectionProps) {
   const { paragraphs, skipLineIndex } = buildChapterRenderData(content, title);
@@ -48,6 +50,7 @@ export default function ReaderChapterSection({
             novelId={novelId}
             marginBottom={paragraphSpacing}
             className={paragraphClassName}
+            containerClassName={mixedParagraphClassName}
           />
         );
       })}
