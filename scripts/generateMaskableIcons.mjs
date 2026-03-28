@@ -282,24 +282,24 @@ function encodeIco(entries) {
 
 function createBrandGeometry(scale, offsetX, offsetY) {
   const leftPage = {
-    topLeft: transformPoint([158, 146], scale, offsetX, offsetY),
-    width: 158 * scale,
-    height: 220 * scale,
+    topLeft: transformPoint([118, 114], scale, offsetX, offsetY),
+    width: 206 * scale,
+    height: 276 * scale,
   };
   const rightPage = {
-    topLeft: transformPoint([196, 146], scale, offsetX, offsetY),
-    width: 158 * scale,
-    height: 220 * scale,
+    topLeft: transformPoint([188, 114], scale, offsetX, offsetY),
+    width: 206 * scale,
+    height: 276 * scale,
   };
   const spine = {
-    start: transformPoint([256, 172], scale, offsetX, offsetY),
-    end: transformPoint([256, 342], scale, offsetX, offsetY),
+    start: transformPoint([256, 136], scale, offsetX, offsetY),
+    end: transformPoint([256, 366], scale, offsetX, offsetY),
   };
   const beam = {
-    start: transformPoint([196, 282], scale, offsetX, offsetY),
-    end: transformPoint([306, 198], scale, offsetX, offsetY),
+    start: transformPoint([162, 304], scale, offsetX, offsetY),
+    end: transformPoint([340, 170], scale, offsetX, offsetY),
   };
-  const node = transformPoint([306, 198], scale, offsetX, offsetY);
+  const node = transformPoint([340, 170], scale, offsetX, offsetY);
 
   return {
     leftPage,
@@ -308,10 +308,10 @@ function createBrandGeometry(scale, offsetX, offsetY) {
     beam,
     node,
     strokeWidths: {
-      spine: 14 * scale,
-      beam: 18 * scale,
+      spine: 18 * scale,
+      beam: 22 * scale,
     },
-    nodeRadius: 18 * scale,
+    nodeRadius: 22 * scale,
   };
 }
 
@@ -325,7 +325,7 @@ function renderBrandIcon(size, variant) {
     }
   }
 
-  const scaleFactor = variant === 'maskable' ? 0.76 : size <= 32 ? 0.9 : 0.84;
+  const scaleFactor = variant === 'maskable' ? 0.9 : size <= 32 ? 1.02 : 0.96;
   const scale = (highSize / 512) * scaleFactor;
   const offsetX = (highSize - 512 * scale) / 2;
   const offsetY = (highSize - 512 * scale) / 2 + (variant === 'maskable' ? highSize * 0.01 : highSize * 0.005);
@@ -380,11 +380,11 @@ function createBrandSvg() {
   <title>PlotMapAI Symbol</title>
   <desc>Minimal symbol for PlotMapAI built as a page beam with a single highlighted narrative point.</desc>
   <rect width="512" height="512" fill="#F8F1E8"/>
-  <path fill="#2C5D67" d="M158 146h90c38 0 68 28 68 64v156H158V146Z"/>
-  <path fill="#3B7480" d="M354 146h-90c-38 0-68 28-68 64v156h158V146Z"/>
-  <path stroke="#E8DCC8" stroke-width="14" stroke-linecap="round" d="M256 172v170"/>
-  <path stroke="#F09461" stroke-width="18" stroke-linecap="round" d="M196 282 306 198"/>
-  <circle cx="306" cy="198" r="18" fill="#F09461"/>
+  <path fill="#2C5D67" d="M118 114h118c50 0 88 34 88 84v192H118V114Z"/>
+  <path fill="#3B7480" d="M394 114H276c-50 0-88 34-88 84v192h206V114Z"/>
+  <path stroke="#E8DCC8" stroke-width="18" stroke-linecap="round" d="M256 136v230"/>
+  <path stroke="#F09461" stroke-width="22" stroke-linecap="round" d="M162 304 340 170"/>
+  <circle cx="340" cy="170" r="22" fill="#F09461"/>
 </svg>
 `;
 }
