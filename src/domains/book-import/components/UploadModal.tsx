@@ -16,10 +16,51 @@ import { cn } from '@shared/utils/cn';
 import { bookImportApi } from '../api/bookImportApi';
 import type { BookImportProgress } from '../services/progress';
 
+const MAX_BOOK_FILE_SIZE = 100 * 1024 * 1024;
+
 interface UploadModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
+}
+
+interface UploadBatchState {
+  currentFileIndex: number;
+  totalFiles: number;
+  currentFileName: string;
+  progress: BookImportProgress;
+}
+
+function validateImportFile(file: File): AppError | null {
+  const name = file.name.toLowerCase();
+  if (!name.endsWith('.txt') && !name.endsWith('.epub')) {
+    return createAppError({
+      code: AppErrorCode.UNSUPPORTED_FILE_TYPE,
+      kind: 'unsupported',
+      source: 'book-import',
+      userMessageKey: 'bookshelf.invalidType',
+      debugMessage: 'Only .txt and .epub files are supported',
+      details: { filename: file.name },
+    });
+  }
+
+  if (file.size > MAX_BOOK_FILE_SIZE) {
+    return createAppError({
+      code: AppErrorCode.BOOK_IMPORT_FAILED,
+      kind: 'validation',
+      source: 'book-import',
+      userMessageKey: 'bookshelf.sizeLimit',
+      debugMessage: 'File size must be less than 100MB',
+      debugVisible: false,
+      details: { filename: file.name },
+    });
+  }
+
+  return null;
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === 'AbortError';
 }
 
 export default function UploadModal({ isOpen, onClose, onSuccess }: UploadModalProps) {
@@ -27,11 +68,20 @@ export default function UploadModal({ isOpen, onClose, onSuccess }: UploadModalP
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<AppError | null>(null);
-  const [progress, setProgress] = useState<BookImportProgress | null>(null);
+  const [batchState, setBatchState] = useState<UploadBatchState | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  const currentStageLabel = progress ? t(`bookshelf.workerStages.${progress.stage}`) : null;
+  const currentStageLabel = batchState ? t(`bookshelf.workerStages.${batchState.progress.stage}`) : null;
+  const currentFileLabel = batchState
+    ? batchState.totalFiles > 1
+      ? t('bookshelf.batchProgressFile', {
+          current: batchState.currentFileIndex + 1,
+          total: batchState.totalFiles,
+          name: batchState.currentFileName,
+        })
+      : batchState.currentFileName
+    : null;
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -43,48 +93,61 @@ export default function UploadModal({ isOpen, onClose, onSuccess }: UploadModalP
     setIsDragging(false);
   };
 
-  const processFile = async (file: File) => {
-    // Validate extension
-    const name = file.name.toLowerCase();
-    if (!name.endsWith('.txt') && !name.endsWith('.epub')) {
-      setError(createAppError({
-        code: AppErrorCode.UNSUPPORTED_FILE_TYPE,
-        kind: 'unsupported',
-        source: 'book-import',
-        userMessageKey: 'bookshelf.invalidType',
-        debugMessage: 'Only .txt and .epub files are supported',
-      }));
+  const processFiles = async (files: File[]) => {
+    if (files.length === 0) {
       return;
     }
 
-    if (file.size > 100 * 1024 * 1024) { // 100MB
-      setError(createAppError({
-        code: AppErrorCode.BOOK_IMPORT_FAILED,
-        kind: 'validation',
-        source: 'book-import',
-        userMessageKey: 'bookshelf.sizeLimit',
-        debugMessage: 'File size must be less than 100MB',
-        debugVisible: false,
-      }));
+    const validationError = files.map(validateImportFile).find((candidate) => candidate !== null) ?? null;
+    if (validationError) {
+      setError(validationError);
       return;
     }
 
     setError(null);
     setIsUploading(true);
-    setProgress({ progress: 0, stage: 'hashing' });
     const controller = new AbortController();
     abortControllerRef.current = controller;
-    
+    let importedCount = 0;
+
     try {
-      await bookImportApi.importBook(file, {
-        signal: controller.signal,
-        onProgress: setProgress,
-      });
-      onSuccess();
-      onClose();
+      for (const [index, file] of files.entries()) {
+        controller.signal.throwIfAborted?.();
+        setBatchState({
+          currentFileIndex: index,
+          totalFiles: files.length,
+          currentFileName: file.name,
+          progress: { progress: 0, stage: 'hashing' },
+        });
+
+        await bookImportApi.importBook(file, {
+          signal: controller.signal,
+          onProgress: (progress) => {
+            setBatchState((current) => {
+              if (!current || current.currentFileIndex !== index) {
+                return current;
+              }
+
+              return {
+                ...current,
+                progress,
+              };
+            });
+          },
+        });
+        importedCount += 1;
+      }
+
+      if (importedCount > 0) {
+        onSuccess();
+        onClose();
+      }
     } catch (err) {
-      if (err instanceof Error && err.name === 'AbortError') {
+      if (isAbortError(err)) {
         setError(null);
+        if (importedCount > 0) {
+          onSuccess();
+        }
       } else {
         const normalized = toAppError(err, {
           code: AppErrorCode.BOOK_IMPORT_FAILED,
@@ -95,29 +158,29 @@ export default function UploadModal({ isOpen, onClose, onSuccess }: UploadModalP
         });
         reportAppError(normalized);
         setError(normalized);
+        if (importedCount > 0) {
+          onSuccess();
+        }
       }
     } finally {
       abortControllerRef.current = null;
       setIsUploading(false);
-      setProgress(null);
+      setBatchState(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     }
   };
 
   const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
-    
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      await processFile(e.dataTransfer.files[0]);
-    }
+
+    await processFiles(Array.from(e.dataTransfer.files ?? []));
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      await processFile(e.target.files[0]);
-      // Reset input
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }
+    await processFiles(Array.from(e.target.files ?? []));
   };
 
   const handleCancelUpload = () => {
@@ -158,6 +221,7 @@ export default function UploadModal({ isOpen, onClose, onSuccess }: UploadModalP
             ref={fileInputRef} 
             className="hidden" 
             accept=".txt,.epub"
+            multiple
             onChange={handleFileChange}
           />
           
@@ -171,17 +235,22 @@ export default function UploadModal({ isOpen, onClose, onSuccess }: UploadModalP
             </p>
             <p className="text-sm text-text-secondary mt-1 max-w-[250px] mx-auto">
               {isUploading && currentStageLabel
-                ? t('bookshelf.progressDetail', { percent: progress?.progress ?? 0, stage: currentStageLabel })
+                ? t('bookshelf.progressDetail', { percent: batchState?.progress.progress ?? 0, stage: currentStageLabel })
                 : t('bookshelf.supportHint')}
             </p>
           </div>
 
-          {isUploading && progress ? (
+          {isUploading && batchState ? (
             <div className="w-full max-w-[260px] space-y-2">
+              {currentFileLabel && (
+                <p className="truncate text-xs text-text-secondary" title={currentFileLabel}>
+                  {currentFileLabel}
+                </p>
+              )}
               <div className="h-2 overflow-hidden rounded-full bg-white/10">
                 <div
                   className="h-full rounded-full bg-accent transition-[width] duration-200"
-                  style={{ width: `${progress.progress}%` }}
+                  style={{ width: `${batchState.progress.progress}%` }}
                 />
               </div>
               <p className="text-xs text-text-secondary">{currentStageLabel}</p>

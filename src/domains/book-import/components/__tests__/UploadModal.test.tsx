@@ -68,6 +68,42 @@ describe('UploadModal', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  it('supports selecting and importing multiple books in one batch', async () => {
+    const onClose = vi.fn();
+    const onSuccess = vi.fn();
+    const user = userEvent.setup();
+    render(<UploadModal isOpen={true} onClose={onClose} onSuccess={onSuccess} />);
+    const firstFile = new File(['chapter 1'], 'first.txt', { type: 'text/plain' });
+    const secondFile = new File(['chapter 2'], 'second.epub', { type: 'application/epub+zip' });
+    const input = getFileInput();
+
+    expect(input).toHaveAttribute('multiple');
+
+    await user.upload(input, [firstFile, secondFile]);
+
+    await waitFor(() => {
+      expect(bookImportApi.importBook).toHaveBeenCalledTimes(2);
+    });
+    expect(bookImportApi.importBook).toHaveBeenNthCalledWith(
+      1,
+      firstFile,
+      expect.objectContaining({
+        onProgress: expect.any(Function),
+        signal: expect.any(AbortSignal),
+      }),
+    );
+    expect(bookImportApi.importBook).toHaveBeenNthCalledWith(
+      2,
+      secondFile,
+      expect.objectContaining({
+        onProgress: expect.any(Function),
+        signal: expect.any(AbortSignal),
+      }),
+    );
+    expect(onSuccess).toHaveBeenCalledTimes(1);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
   it('shows upload errors from the API without closing the modal', async () => {
     vi.mocked(bookImportApi.importBook).mockRejectedValueOnce(new Error('upload failed'));
     const onClose = vi.fn();
