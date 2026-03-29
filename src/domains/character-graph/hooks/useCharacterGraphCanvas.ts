@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent, RefObject } from 'react';
 import type { TFunction } from 'i18next';
 import type { CharacterGraphEdge, CharacterGraphResponse } from '@domains/analysis';
@@ -858,7 +858,7 @@ export function useCharacterGraphCanvas({
     });
   }, [defaultZoomState, getViewportPoint, graph, isMobile, stageHeight, stageSize]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const element = svgRef.current;
     if (!element) return;
     element.addEventListener('wheel', handleWheel, { passive: false });

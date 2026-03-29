@@ -218,7 +218,8 @@ describe('CharacterGraphPage', () => {
     expect(await screen.findByText('Mock Novel')).toBeInTheDocument();
 
     const svg = container.querySelector('svg[viewBox="0 0 1440 960"]');
-    const matrixGroup = svg?.querySelector('g[transform^="matrix("]');
+    const getMatrixGroup = () => container.querySelector('svg[viewBox="0 0 1440 960"] g[transform^="matrix("]');
+    const matrixGroup = getMatrixGroup();
 
     expect(svg).not.toBeNull();
     expect(matrixGroup).not.toBeNull();
@@ -227,13 +228,13 @@ describe('CharacterGraphPage', () => {
     fireEvent.wheel(svg!, { clientX: 50, clientY: 50, deltaY: -300 });
 
     await waitFor(() => {
-      expect(matrixGroup).not.toHaveAttribute('transform', 'matrix(1 0 0 1 0 0)');
+      expect(getMatrixGroup()).not.toHaveAttribute('transform', 'matrix(1 0 0 1 0 0)');
     });
 
     await user.click(screen.getByRole('button', { name: 'characterGraph.resetLayout' }));
 
     await waitFor(() => {
-      expect(matrixGroup).toHaveAttribute('transform', 'matrix(1 0 0 1 0 0)');
+      expect(getMatrixGroup()).toHaveAttribute('transform', 'matrix(1 0 0 1 0 0)');
     });
 
     rectSpy.mockRestore();
