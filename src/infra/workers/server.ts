@@ -1,9 +1,10 @@
+import type { WorkerTaskMessage, WorkerTaskResponse } from './protocol';
+
 import {
   AppErrorCode,
   serializeAppError,
   toAppError,
 } from '@shared/errors';
-import type { WorkerTaskMessage, WorkerTaskResponse } from './protocol';
 
 export type WorkerTaskHandler<Payload, Result, Progress> = (
   payload: Payload,
@@ -31,8 +32,9 @@ export function registerWorkerTaskHandlers(handlers: WorkerTaskHandlers): void {
       return;
     }
 
-    const handler = handlers[message.task];
-    if (!handler) {
+    const hasHandler = Object.prototype.hasOwnProperty.call(handlers, message.task);
+    const rawHandler = hasHandler ? handlers[message.task] : undefined;
+    if (typeof rawHandler !== 'function') {
       workerContext.postMessage({
         kind: 'error',
         requestId: message.requestId,
@@ -45,6 +47,7 @@ export function registerWorkerTaskHandlers(handlers: WorkerTaskHandlers): void {
       } satisfies WorkerTaskResponse<unknown, unknown>);
       return;
     }
+    const handler = rawHandler as WorkerTaskHandler<unknown, unknown, unknown>;
 
     const controller = new AbortController();
     controllers.set(message.requestId, controller);
