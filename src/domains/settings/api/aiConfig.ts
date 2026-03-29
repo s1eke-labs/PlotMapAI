@@ -149,10 +149,10 @@ export const aiConfigApi = {
     }
     const config = buildRuntimeAnalysisConfig({
       providerId: payload.providerId || existing?.providerId || DEFAULT_ANALYSIS_PROVIDER_ID,
-      apiBaseUrl: payload.apiBaseUrl || existing?.apiBaseUrl || '',
+      apiBaseUrl: payload.apiBaseUrl ?? existing?.apiBaseUrl ?? '',
       apiKey,
-      modelName: payload.modelName || existing?.modelName || '',
-      contextSize: payload.contextSize || existing?.contextSize || 32000,
+      modelName: payload.modelName ?? existing?.modelName ?? '',
+      contextSize: payload.contextSize ?? existing?.contextSize ?? 32000,
     });
     await setAiConfig({
       providerId: config.providerId,

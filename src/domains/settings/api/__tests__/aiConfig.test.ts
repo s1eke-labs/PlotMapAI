@@ -97,6 +97,23 @@ describe('aiConfigApi', () => {
     expect(localStorage.getItem(LEGACY_SECURE_KEYS.aiApiKey)).toBeNull();
   });
 
+  it('updateAiProviderSettings does not silently restore old values when fields are cleared', async () => {
+    await aiConfigApi.updateAiProviderSettings({
+      providerId: DEFAULT_ANALYSIS_PROVIDER_ID,
+      apiBaseUrl: 'http://localhost:5000',
+      apiKey: 'sk-test12345678',
+      modelName: 'gpt-4',
+      contextSize: 32000,
+    });
+    await expect(aiConfigApi.updateAiProviderSettings({
+      providerId: DEFAULT_ANALYSIS_PROVIDER_ID,
+      apiBaseUrl: '',
+      apiKey: 'sk-test12345678',
+      modelName: 'gpt-4',
+      contextSize: 32000,
+    })).rejects.toThrow();
+  });
+
   it('updateAiProviderSettings throws for invalid config', async () => {
     await expect(aiConfigApi.updateAiProviderSettings({
       providerId: DEFAULT_ANALYSIS_PROVIDER_ID,
