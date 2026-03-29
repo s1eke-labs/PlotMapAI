@@ -58,9 +58,9 @@ if (window.matchMedia('(display-mode: standalone)').matches) {
   }, { passive: false });
 }
 
-void initializeApp()
-
 console.log(`PlotMapAI v${__APP_VERSION__}`)
+
+await initializeApp()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
