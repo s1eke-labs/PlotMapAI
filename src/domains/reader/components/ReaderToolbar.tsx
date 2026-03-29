@@ -352,7 +352,6 @@ export default function ReaderToolbar({
                 exit="hidden"
                 className="absolute bottom-full left-1/2 mb-3 min-w-[176px] -translate-x-1/2 rounded-xl border border-border-color bg-bg-secondary px-2 py-2 shadow-xl dark:bg-brand-800"
               >
-                <div className="absolute bottom-0 left-1/2 h-2.5 w-2.5 -translate-x-1/2 translate-y-1/2 rotate-45 border-b border-r border-border-color bg-bg-secondary dark:bg-brand-800" />
                 <div className="px-2 pb-2 pt-1 text-xs text-text-secondary">{t('reader.pageTurnMode')}</div>
                 <div className="space-y-1">
                   {pageTurnModes.map(mode => (
@@ -450,8 +449,6 @@ export default function ReaderToolbar({
               exit="hidden"
               className="absolute bottom-full right-0 mb-3 min-w-[220px] space-y-4 rounded-xl border border-border-color bg-bg-secondary px-5 py-4 shadow-xl dark:bg-brand-800"
             >
-              <div className="absolute bottom-0 right-5 h-2.5 w-2.5 translate-y-1/2 rotate-45 border-b border-r border-border-color bg-bg-secondary dark:bg-brand-800" />
-
               {overflowSliders.map(renderSliderRow)}
 
               <div className="space-y-2 border-t border-border-color/50 pt-2">

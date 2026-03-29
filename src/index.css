@@ -59,15 +59,19 @@
     --border-color: #334155; /* brand-700 */
   }
 
-  body,
-  button,
-  input,
-  select,
-  textarea {
+  body {
     background-color: var(--bg-primary);
     color: var(--text-primary);
     font-family: var(--font-app);
     transition: background-color 0.3s ease, color 0.3s ease;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    color: inherit;
+    font-family: var(--font-app);
   }
 }
 
