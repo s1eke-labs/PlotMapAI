@@ -294,6 +294,13 @@ export default function ReaderPage() {
     restoreFlow.handleBeforeChapterChange,
   );
 
+  const {
+    isChromeVisible,
+    setIsChromeVisible,
+    handleContentClick,
+  } = useContentClick(isPagedMode, navigation.handlePrev, navigation.handleNext);
+  const isContentInteractionLocked = isChromeVisible || sidebar.isSidebarOpen;
+
   useReaderInput(
     contentRef,
     isPagedMode,
@@ -303,6 +310,7 @@ export default function ReaderPage() {
     chapterIndex,
     currentChapter,
     isLoading,
+    isContentInteractionLocked,
     wheelDeltaRef,
     pageTurnLockedRef,
   );
@@ -326,7 +334,15 @@ export default function ReaderPage() {
     }
   }, [preferences, restoreFlow, viewMode]);
 
-  const contentClick = useContentClick(isPagedMode, navigation.handlePrev, navigation.handleNext);
+  const handleViewportClick = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    if (sidebar.isSidebarOpen) {
+      closeSidebar();
+      setIsChromeVisible(false);
+      return;
+    }
+
+    handleContentClick(event);
+  }, [closeSidebar, handleContentClick, setIsChromeVisible, sidebar.isSidebarOpen]);
   const toolbarHasPrev = navigation.toolbarHasPrev;
   const toolbarHasNext = navigation.toolbarHasNext;
 
@@ -390,7 +406,7 @@ export default function ReaderPage() {
 
       <main className="flex-1 flex flex-col min-w-0 relative text-text-primary">
         <ReaderTopBar
-          isChromeVisible={contentClick.isChromeVisible}
+          isChromeVisible={isChromeVisible}
           isSidebarOpen={sidebar.isSidebarOpen}
           novelId={novelId}
           viewMode={viewMode}
@@ -402,12 +418,13 @@ export default function ReaderPage() {
         <ReaderViewport
           contentRef={contentRef}
           isPagedMode={isPagedMode}
+          interactionLocked={isContentInteractionLocked}
           viewMode={viewMode}
           renderableChapter={renderableChapter}
           showLoadingOverlay={showLoadingOverlay}
           isRestoringPosition={restoreFlow.isRestoringPosition}
           loadingLabel={restoreStatus === 'restoring' ? t('reader.restoringPosition') : loadingMessage}
-          onContentClick={contentClick.handleContentClick}
+          onContentClick={handleViewportClick}
           onContentScroll={restoreFlow.handleContentScroll}
           emptyHref={appPaths.novel(novelId)}
           emptyLabel={t('reader.noChapters')}
@@ -437,6 +454,7 @@ export default function ReaderPage() {
             onRequestPrevPage: navigation.goToPrevPageSilently,
             onRequestNextPage: navigation.goToNextPageSilently,
             disableAnimation: restoreFlow.isRestoringPosition,
+            interactionLocked: isContentInteractionLocked,
           } : undefined}
           scrollContentProps={renderableChapter && viewMode === 'original' && !isPagedMode ? {
             chapters: scrollReaderChapters,
@@ -482,7 +500,7 @@ export default function ReaderPage() {
             navigationMode={isPagedMode ? 'page' : 'chapter'}
             readerTheme={preferences.readerTheme}
             setReaderTheme={preferences.setReaderTheme}
-            hidden={!contentClick.isChromeVisible}
+            hidden={!isChromeVisible}
             isSidebarOpen={sidebar.isSidebarOpen}
             onToggleSidebar={sidebar.toggleSidebar}
           />

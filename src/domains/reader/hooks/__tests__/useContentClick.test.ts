@@ -124,6 +124,34 @@ describe('useContentClick', () => {
       expect(handleNext).not.toHaveBeenCalled();
     });
 
+    it('hides chrome instead of turning the page when chrome is already visible', () => {
+      const handlePrev = vi.fn();
+      const handleNext = vi.fn();
+      const { result } = renderHook(() =>
+        useContentClick(true, handlePrev, handleNext)
+      );
+
+      const target = document.createElement('div');
+      Object.defineProperty(target, 'getBoundingClientRect', {
+        value: () => ({ left: 0, top: 0, width: 100, height: 100, right: 100, bottom: 100 }),
+      });
+
+      act(() => {
+        result.current.setIsChromeVisible(true);
+      });
+
+      const event = {
+        currentTarget: target,
+        clientX: 10,
+        clientY: 50,
+      } as unknown as React.MouseEvent<HTMLDivElement>;
+
+      act(() => { result.current.handleContentClick(event); });
+      expect(result.current.isChromeVisible).toBe(false);
+      expect(handlePrev).not.toHaveBeenCalled();
+      expect(handleNext).not.toHaveBeenCalled();
+    });
+
     it('respects offset from getBoundingClientRect left', () => {
       const handlePrev = vi.fn();
       const handleNext = vi.fn();

@@ -48,6 +48,7 @@ interface PagedReaderContentProps {
   onRequestPrevPage?: () => void;
   onRequestNextPage?: () => void;
   disableAnimation?: boolean;
+  interactionLocked?: boolean;
 }
 
 interface PagedContentBodyProps {
@@ -239,6 +240,7 @@ export default function PagedReaderContent({
   onRequestPrevPage,
   onRequestNextPage,
   disableAnimation = false,
+  interactionLocked = false,
 }: PagedReaderContentProps) {
   const [layoutMetrics, setLayoutMetrics] = useState<LayoutMetrics>({
     scrollWidth: 0,
@@ -503,6 +505,7 @@ export default function PagedReaderContent({
   const canDragNext = nextPreviewTarget !== null && typeof onRequestNextPage === 'function';
   const isDragEnabled = committedDragTransition === null
     && !disableAnimation
+    && !interactionLocked
     && (pageTurnMode === 'cover' || pageTurnMode === 'slide')
     && layoutMetrics.viewportWidth > 0
     && (canDragPrev || canDragNext);

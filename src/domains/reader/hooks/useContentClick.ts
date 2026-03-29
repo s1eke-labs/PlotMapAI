@@ -8,8 +8,13 @@ export function useContentClick(
   const [isChromeVisible, setIsChromeVisible] = useState(false);
 
   const handleContentClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (isChromeVisible) {
+      setIsChromeVisible(false);
+      return;
+    }
+
     if (!isPagedMode) {
-      setIsChromeVisible(prev => !prev);
+      setIsChromeVisible(true);
       return;
     }
 
@@ -22,9 +27,9 @@ export function useContentClick(
     } else if (ratio > 0.75) {
       handleNext();
     } else {
-      setIsChromeVisible(prev => !prev);
+      setIsChromeVisible(true);
     }
-  }, [isPagedMode, handlePrev, handleNext]);
+  }, [handleNext, handlePrev, isChromeVisible, isPagedMode]);
 
   return {
     isChromeVisible,

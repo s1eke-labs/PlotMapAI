@@ -18,6 +18,7 @@ function setupHook(opts: {
   isPagedMode?: boolean;
   chapter?: ChapterContent | null;
   isLoading?: boolean;
+  interactionLocked?: boolean;
 } = {}) {
   const contentRef = { current: document.createElement('div') };
   const goToNextPage = vi.fn();
@@ -29,6 +30,7 @@ function setupHook(opts: {
   const chapter = opts.chapter !== undefined ? opts.chapter : makeChapter();
   const isPagedMode = opts.isPagedMode ?? true;
   const isLoading = opts.isLoading ?? false;
+  const interactionLocked = opts.interactionLocked ?? false;
 
   const { result } = renderHook(() =>
     useReaderInput(
@@ -40,6 +42,7 @@ function setupHook(opts: {
       chapter?.index ?? 0,
       chapter,
       isLoading,
+      interactionLocked,
       wheelDeltaRef,
       pageTurnLockedRef,
     )
@@ -141,6 +144,7 @@ describe('useReaderInput', () => {
           0,
           null, // currentChapter is null
           false,
+          false,
           wheelDeltaRef,
           pageTurnLockedRef,
         )
@@ -211,6 +215,24 @@ describe('useReaderInput', () => {
       Object.defineProperty(event, 'deltaX', { value: 0 });
       contentRef.current.dispatchEvent(event);
       expect(goToNextPage).not.toHaveBeenCalled();
+    });
+
+    it('does not turn pages while interaction is locked', () => {
+      const { contentRef, goToNextPage } = setupHook({ isPagedMode: true, interactionLocked: true });
+      const event = new WheelEvent('wheel', { deltaY: 100, bubbles: true, cancelable: true });
+      Object.defineProperty(event, 'deltaX', { value: 0 });
+      contentRef.current.dispatchEvent(event);
+      expect(goToNextPage).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('interaction lock', () => {
+    it('ignores keyboard navigation while interaction is locked', () => {
+      const { goToNextPage, goToChapter } = setupHook({ isPagedMode: true, interactionLocked: true });
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown' }));
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight' }));
+      expect(goToNextPage).not.toHaveBeenCalled();
+      expect(goToChapter).not.toHaveBeenCalled();
     });
   });
 

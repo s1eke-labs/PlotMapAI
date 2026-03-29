@@ -173,4 +173,15 @@ describe('ReaderViewport', () => {
 
     expect(screen.getByText('summary-content')).toBeInTheDocument();
   });
+
+  it('locks scroll-mode overflow when interaction is locked', () => {
+    const { container } = renderViewport({
+      renderableChapter: chapter,
+      isPagedMode: false,
+      interactionLocked: true,
+    });
+
+    expect(container.firstChild).toHaveClass('overflow-hidden');
+    expect(container.firstChild).not.toHaveClass('overflow-y-auto');
+  });
 });

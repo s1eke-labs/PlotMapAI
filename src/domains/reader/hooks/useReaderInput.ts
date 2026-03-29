@@ -4,6 +4,14 @@ import type { PageTarget } from './useReaderStatePersistence';
 
 const PAGE_TURN_LOCK_MS = 280;
 const PAGE_TURN_THRESHOLD = 48;
+const LOCKED_INTERACTION_KEYS = new Set([
+  'ArrowDown',
+  'ArrowUp',
+  'ArrowLeft',
+  'ArrowRight',
+  'PageDown',
+  'PageUp',
+]);
 
 export function useReaderInput(
   contentRef: React.RefObject<HTMLDivElement | null>,
@@ -14,6 +22,7 @@ export function useReaderInput(
   chapterIndex: number,
   currentChapter: ChapterContent | null,
   isLoading: boolean,
+  interactionLocked: boolean,
   wheelDeltaRef: React.MutableRefObject<number>,
   pageTurnLockedRef: React.MutableRefObject<boolean>,
 ) {
@@ -21,6 +30,7 @@ export function useReaderInput(
   const animationFrameId = useRef<number | null>(null);
   const wheelUnlockTimeoutRef = useRef<number | null>(null);
   const isPagedModeRef = useRef(isPagedMode);
+  const interactionLockedRef = useRef(interactionLocked);
   const scrollLoopRef = useRef<() => void>(() => {});
 
   const stopContinuousScroll = useCallback(() => {
@@ -37,6 +47,13 @@ export function useReaderInput(
       stopContinuousScroll();
     }
   }, [isPagedMode, stopContinuousScroll]);
+
+  useEffect(() => {
+    interactionLockedRef.current = interactionLocked;
+    if (interactionLocked) {
+      stopContinuousScroll();
+    }
+  }, [interactionLocked, stopContinuousScroll]);
 
   useEffect(() => {
     scrollLoopRef.current = () => {
@@ -67,6 +84,13 @@ export function useReaderInput(
   }, [pageTurnLockedRef]);
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if (interactionLockedRef.current) {
+      if (LOCKED_INTERACTION_KEYS.has(e.key)) {
+        e.preventDefault();
+      }
+      return;
+    }
+
     if (!currentChapter || isLoading) return;
 
     if (isPagedMode && (e.key === 'ArrowDown' || e.key === 'PageDown')) {
@@ -104,6 +128,11 @@ export function useReaderInput(
 
   const handlePagedWheel = useCallback((e: WheelEvent) => {
     if (!isPagedModeRef.current) return;
+
+    if (interactionLockedRef.current) {
+      e.preventDefault();
+      return;
+    }
 
     if (Math.abs(e.deltaY) < Math.abs(e.deltaX)) return;
 

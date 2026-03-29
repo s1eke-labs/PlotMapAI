@@ -9,6 +9,7 @@ import SummaryReaderContent from './SummaryReaderContent';
 interface ReaderViewportProps {
   contentRef: React.RefObject<HTMLDivElement | null>;
   isPagedMode: boolean;
+  interactionLocked?: boolean;
   viewMode: 'original' | 'summary';
   renderableChapter: ChapterContent | null;
   showLoadingOverlay: boolean;
@@ -27,6 +28,7 @@ interface ReaderViewportProps {
 export default function ReaderViewport({
   contentRef,
   isPagedMode,
+  interactionLocked = false,
   viewMode,
   renderableChapter,
   showLoadingOverlay,
@@ -44,7 +46,10 @@ export default function ReaderViewport({
   return (
     <div
       ref={contentRef}
-      className={cn('h-full w-full relative cursor-pointer', isPagedMode ? 'overflow-hidden' : 'overflow-y-auto hide-scrollbar')}
+      className={cn(
+        'h-full w-full relative cursor-pointer',
+        isPagedMode || interactionLocked ? 'overflow-hidden' : 'overflow-y-auto hide-scrollbar',
+      )}
       onClick={onContentClick}
       onScroll={onContentScroll}
     >
