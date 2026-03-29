@@ -124,6 +124,23 @@ describe('aiConfigApi', () => {
     })).rejects.toThrow();
   });
 
+  it('testAiProviderSettings does not silently use old values when fields are cleared', async () => {
+    await aiConfigApi.updateAiProviderSettings({
+      providerId: DEFAULT_ANALYSIS_PROVIDER_ID,
+      apiBaseUrl: 'http://localhost:5000',
+      apiKey: 'sk-test12345678',
+      modelName: 'gpt-4',
+      contextSize: 32000,
+    });
+    await expect(aiConfigApi.testAiProviderSettings({
+      providerId: DEFAULT_ANALYSIS_PROVIDER_ID,
+      apiBaseUrl: '',
+      apiKey: 'sk-test12345678',
+      modelName: 'gpt-4',
+      contextSize: 32000,
+    })).rejects.toThrow();
+  });
+
   describe('AI config export/import', () => {
     beforeEach(async () => {
       await aiConfigApi.updateAiProviderSettings({
