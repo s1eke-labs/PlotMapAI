@@ -24,6 +24,13 @@ export function registerWorkerTaskHandlers(handlers: WorkerTaskHandlers): void {
     postMessage: (message: WorkerTaskResponse<unknown, unknown>) => void;
   };
   const controllers = new Map<string, AbortController>();
+  const taskHandlers = new Map<string, WorkerTaskHandler<unknown, unknown, unknown>>();
+
+  for (const [taskName, handler] of Object.entries(handlers)) {
+    if (typeof handler === 'function') {
+      taskHandlers.set(taskName, handler);
+    }
+  }
 
   workerContext.onmessage = (event: MessageEvent<WorkerTaskMessage<unknown>>) => {
     const message = event.data;
@@ -32,9 +39,8 @@ export function registerWorkerTaskHandlers(handlers: WorkerTaskHandlers): void {
       return;
     }
 
-    const hasHandler = Object.prototype.hasOwnProperty.call(handlers, message.task);
-    const rawHandler = hasHandler ? handlers[message.task] : undefined;
-    if (typeof rawHandler !== 'function') {
+    const handler = taskHandlers.get(message.task);
+    if (!handler) {
       workerContext.postMessage({
         kind: 'error',
         requestId: message.requestId,
@@ -47,7 +53,6 @@ export function registerWorkerTaskHandlers(handlers: WorkerTaskHandlers): void {
       } satisfies WorkerTaskResponse<unknown, unknown>);
       return;
     }
-    const handler = rawHandler as WorkerTaskHandler<unknown, unknown, unknown>;
 
     const controller = new AbortController();
     controllers.set(message.requestId, controller);
