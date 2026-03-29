@@ -36,15 +36,11 @@ function novelToApi(novel: import('@infra/db').Novel, chapterCount: number): Nov
 
 export const libraryApi = {
   async list(): Promise<NovelView[]> {
-    const [novels, chapters] = await Promise.all([
-      db.novels.orderBy('createdAt').reverse().toArray(),
-      db.chapters.toArray(),
-    ]);
-    const countMap = new Map<number, number>();
-    for (const chapter of chapters) {
-      countMap.set(chapter.novelId, (countMap.get(chapter.novelId) ?? 0) + 1);
-    }
-    return novels.map((novel) => novelToApi(novel, countMap.get(novel.id) ?? 0));
+    const novels = await db.novels.orderBy('createdAt').reverse().toArray();
+    const counts = await Promise.all(
+      novels.map((novel) => db.chapters.where('novelId').equals(novel.id).count()),
+    );
+    return novels.map((novel, index) => novelToApi(novel, counts[index]));
   },
 
   async get(id: number): Promise<NovelView> {
