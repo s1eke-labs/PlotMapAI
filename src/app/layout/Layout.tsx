@@ -1,7 +1,8 @@
-import type { CSSProperties, ReactNode } from 'react';
+import { useEffect, type CSSProperties, type ReactNode } from 'react';
 import { BookOpen, Settings } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { type AppTheme, useReaderSessionSelector } from '@domains/reader';
 import { cn } from '@shared/utils/cn';
 
 import { appPaths } from '../router/paths';
@@ -12,14 +13,73 @@ interface LayoutProps {
   children: ReactNode;
 }
 
+const APP_SURFACE_COLORS: Record<AppTheme, string> = {
+  light: '#f8fafc',
+  dark: '#0f172a',
+};
+
+const READER_SURFACE_COLORS: Record<string, string | null> = {
+  auto: null,
+  paper: '#ffffff',
+  parchment: '#f4ecd8',
+  green: '#c7edcc',
+  night: '#1a1a1a',
+};
+
+function ensureMetaTag(name: string): HTMLMetaElement | null {
+  if (typeof document === 'undefined') {
+    return null;
+  }
+
+  const existing = document.querySelector<HTMLMetaElement>(`meta[name="${name}"]`);
+  if (existing) {
+    return existing;
+  }
+
+  const meta = document.createElement('meta');
+  meta.setAttribute('name', name);
+  document.head.appendChild(meta);
+  return meta;
+}
+
+function resolveShellSurfaceColor(
+  isReader: boolean,
+  readerTheme: string,
+  appTheme: AppTheme,
+): string {
+  if (!isReader) {
+    return APP_SURFACE_COLORS[appTheme];
+  }
+
+  return READER_SURFACE_COLORS[readerTheme] ?? APP_SURFACE_COLORS[appTheme];
+}
+
 export default function Layout({ children }: LayoutProps) {
   const { t } = useTranslation();
   const location = useLocation();
   const isReader = location.pathname.includes('/read');
+  const { appTheme, readerTheme } = useReaderSessionSelector(state => ({
+    appTheme: state.appTheme,
+    readerTheme: state.readerTheme,
+  }));
+  const shellSurfaceColor = resolveShellSurfaceColor(isReader, readerTheme, appTheme);
   const layoutStyle = {
     '--app-header-height': isReader ? '0px' : 'calc(4rem + env(safe-area-inset-top, 0px))',
     '--app-header-offset': '0px',
+    backgroundColor: shellSurfaceColor,
   } as CSSProperties;
+
+  useEffect(() => {
+    const themeColorMeta = ensureMetaTag('theme-color');
+    if (themeColorMeta) {
+      themeColorMeta.setAttribute('content', shellSurfaceColor);
+    }
+
+    if (typeof document !== 'undefined') {
+      document.documentElement.style.backgroundColor = shellSurfaceColor;
+      document.body.style.backgroundColor = shellSurfaceColor;
+    }
+  }, [shellSurfaceColor]);
 
   return (
     <div

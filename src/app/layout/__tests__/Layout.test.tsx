@@ -1,5 +1,7 @@
-import { render, screen } from '@testing-library/react';
-import { describe, it, expect, vi } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/react';
+import { beforeEach, describe, it, expect, vi } from 'vitest';
+import { CACHE_KEYS, storage } from '@infra/storage';
+import { resetReaderSessionStoreForTests } from '@domains/reader';
 import Layout from '../Layout';
 import { MemoryRouter } from 'react-router-dom';
 import { ThemeProvider } from '@app/providers/ThemeContext';
@@ -17,6 +19,12 @@ vi.mock('../../components/LanguageSwitcher', () => ({
 }));
 
 describe('Layout component', () => {
+  beforeEach(() => {
+    resetReaderSessionStoreForTests();
+    localStorage.clear();
+    document.head.querySelector('meta[name="theme-color"]')?.remove();
+  });
+
   it('shows global navigation outside reader mode', () => {
     const { getByTestId } = render(
       <MemoryRouter initialEntries={['/']}>
@@ -43,6 +51,7 @@ describe('Layout component', () => {
     expect(main).toHaveStyle({
       touchAction: 'pan-y',
     });
+    expect(document.head.querySelector('meta[name="theme-color"]')).toHaveAttribute('content', '#f8fafc');
   });
 
   it('hides the global navigation in reader mode', () => {
@@ -68,5 +77,24 @@ describe('Layout component', () => {
     const main = screen.getByText('Reader Content').closest('main');
     expect(main).not.toHaveAttribute('data-scroll-container');
     expect(main).not.toHaveClass('hide-scrollbar');
+    expect(document.head.querySelector('meta[name="theme-color"]')).toHaveAttribute('content', '#f8fafc');
+  });
+
+  it('syncs theme-color to the active reader background in reader mode', async () => {
+    storage.cache.set(CACHE_KEYS.readerTheme, 'night');
+
+    render(
+      <MemoryRouter initialEntries={['/novel/1/read']}>
+        <ThemeProvider>
+          <Layout>
+            <div>Reader Content</div>
+          </Layout>
+        </ThemeProvider>
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(document.head.querySelector('meta[name="theme-color"]')).toHaveAttribute('content', '#1a1a1a');
+    });
   });
 });
