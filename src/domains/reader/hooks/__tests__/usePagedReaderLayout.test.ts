@@ -3,6 +3,7 @@ import { act, renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  getPagedMeasuredPageTurnStep,
   getPagedPageCount,
   getPagedScrollLeft,
   usePagedReaderLayout,
@@ -122,6 +123,10 @@ describe('usePagedReaderLayout', () => {
     expect(getPagedScrollLeft(2, 647.5, 900.5)).toBe(900.5);
   });
 
+  it('derives the page turn step from the rendered column metrics when they differ from the ideal width', () => {
+    expect(getPagedMeasuredPageTurnStep(599.5, 647.5, true, 276, 48)).toBe(648);
+  });
+
   it('uses fractional viewport width for page positioning and clamps partial last pages', async () => {
     const animationFrames = createAnimationFrameController();
     const viewport = createViewport(599.5, 800);
@@ -166,6 +171,54 @@ describe('usePagedReaderLayout', () => {
     await animationFrames.flushAnimationFrames();
     expect(viewport.scrollLeft).toBeCloseTo(900.5, 4);
 
+    animationFrames.restore();
+  });
+
+  it('uses the browser-resolved column width to calibrate paged offsets', async () => {
+    const animationFrames = createAnimationFrameController();
+    const viewport = createViewport(599.5, 800);
+    const content = createContent(() => 1500);
+    const setPageCount = vi.fn();
+    const setPageIndex = vi.fn();
+    const originalGetComputedStyle = window.getComputedStyle.bind(window);
+    const getComputedStyleSpy = vi.spyOn(window, 'getComputedStyle').mockImplementation((element: Element) => {
+      const style = originalGetComputedStyle(element);
+      if (element === content) {
+        return {
+          ...style,
+          columnWidth: '276px',
+          columnGap: '48px',
+        };
+      }
+      return style;
+    });
+
+    const { result, rerender } = renderHook((props: ReturnType<typeof createHookProps>) => usePagedReaderLayout(props), {
+      initialProps: createHookProps({
+        pagedViewportRef: { current: viewport },
+        pagedContentRef: { current: content },
+        setPageCount,
+        setPageIndex,
+      }),
+    });
+
+    await animationFrames.flushAnimationFrames();
+    expect(result.current.pageTurnStep).toBe(648);
+
+    act(() => {
+      rerender(createHookProps({
+        pageIndex: 1,
+        pagedViewportRef: { current: viewport },
+        pagedContentRef: { current: content },
+        setPageCount,
+        setPageIndex,
+      }));
+    });
+    await animationFrames.flushAnimationFrames();
+
+    expect(viewport.scrollLeft).toBeCloseTo(648, 4);
+
+    getComputedStyleSpy.mockRestore();
     animationFrames.restore();
   });
 

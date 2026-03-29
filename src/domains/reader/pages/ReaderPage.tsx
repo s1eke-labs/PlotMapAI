@@ -444,6 +444,7 @@ export default function ReaderPage() {
             headerBgClassName: preferences.headerBg,
             pageBgClassName: preferences.currentTheme.bg,
             fitsTwoColumns: pagedLayout.fitsTwoColumns,
+            pageTurnStep: pagedLayout.pageTurnStep,
             twoColumnWidth: pagedLayout.twoColumnWidth,
             twoColumnGap: pagedLayout.twoColumnGap,
             pageTurnMode: preferences.pageTurnMode,

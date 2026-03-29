@@ -40,6 +40,11 @@ interface PagedViewportSize {
   height: number;
 }
 
+function parseCssLength(value: string): number | null {
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 export function getPagedViewportSize(viewport: HTMLDivElement): PagedViewportSize {
   const rect = viewport.getBoundingClientRect();
 
@@ -70,6 +75,36 @@ export function getPagedScrollLeft(pageIndex: number, pageTurnStep: number, maxS
   return Math.min(pageIndex * pageTurnStep, maxScrollLeft);
 }
 
+export function getPagedMeasuredPageTurnStep(
+  viewportWidth: number,
+  fallbackPageTurnStep: number,
+  fitsTwoColumns: boolean,
+  measuredColumnWidth: number | null,
+  measuredColumnGap: number | null,
+): number {
+  if (viewportWidth <= 0 || fallbackPageTurnStep <= 0) {
+    return 0;
+  }
+
+  if (measuredColumnWidth === null || measuredColumnWidth <= 0) {
+    return fallbackPageTurnStep;
+  }
+
+  const resolvedColumnGap = measuredColumnGap !== null && measuredColumnGap >= 0
+    ? measuredColumnGap
+    : 0;
+  const columnsPerPage = fitsTwoColumns ? 2 : 1;
+  const visiblePageWidth = measuredColumnWidth * columnsPerPage
+    + resolvedColumnGap * Math.max(0, columnsPerPage - 1);
+  const measuredPageTurnStep = visiblePageWidth + resolvedColumnGap;
+
+  if (!Number.isFinite(measuredPageTurnStep) || measuredPageTurnStep <= 0) {
+    return fallbackPageTurnStep;
+  }
+
+  return measuredPageTurnStep;
+}
+
 export function usePagedReaderLayout({
   chapterIndex,
   currentChapter,
@@ -90,6 +125,10 @@ export function usePagedReaderLayout({
 }: UsePagedReaderLayoutParams): UsePagedReaderLayoutResult {
   const prevChapterIndexRef = useRef(chapterIndex);
   const [pagedViewportSize, setPagedViewportSize] = useState({ width: 0, height: 0 });
+  const [resolvedPageTurnStep, setResolvedPageTurnStep] = useState({
+    step: 0,
+    viewportWidth: 0,
+  });
   const [resolvedLayoutChapterIndex, setResolvedLayoutChapterIndex] = useState<number | null>(null);
 
   const twoColumnWidth = pagedViewportSize.width
@@ -100,9 +139,12 @@ export function usePagedReaderLayout({
   const fitsTwoColumns = twoColumnWidth
     ? pagedViewportSize.width >= 2 * twoColumnWidth + TWO_COLUMN_GAP
     : false;
-  const pageTurnStep = pagedViewportSize.width
+  const idealPageTurnStep = pagedViewportSize.width
     ? pagedViewportSize.width + (fitsTwoColumns ? TWO_COLUMN_GAP : 0)
     : 0;
+  const pageTurnStep = resolvedPageTurnStep.viewportWidth === pagedViewportSize.width && resolvedPageTurnStep.step > 0
+    ? resolvedPageTurnStep.step
+    : idealPageTurnStep;
 
   useEffect(() => {
     if (!isPagedMode || isLoading || !currentChapter) return;
@@ -137,9 +179,18 @@ export function usePagedReaderLayout({
 
     const frameId = requestAnimationFrame(() => {
       const content = pagedContentRef.current;
-      if (!content || !pageTurnStep) return;
+      if (!content || !idealPageTurnStep) return;
 
-      const nextPageCount = getPagedPageCount(content.scrollWidth, pagedViewportSize.width, pageTurnStep);
+      const contentStyles = window.getComputedStyle(content);
+      const nextPageTurnStep = getPagedMeasuredPageTurnStep(
+        pagedViewportSize.width,
+        idealPageTurnStep,
+        fitsTwoColumns,
+        parseCssLength(contentStyles.columnWidth),
+        parseCssLength(contentStyles.columnGap),
+      );
+
+      const nextPageCount = getPagedPageCount(content.scrollWidth, pagedViewportSize.width, nextPageTurnStep);
       const pendingRestoreState = pendingRestoreStateRef.current;
       const hasRestorablePage = pendingRestoreState?.chapterIndex === chapterIndex
         && typeof pendingRestoreState.chapterProgress === 'number';
@@ -150,6 +201,15 @@ export function usePagedReaderLayout({
           : Math.min(pageIndex, nextPageCount - 1);
 
       setPageCount(nextPageCount);
+      setResolvedPageTurnStep((previous) => (
+        previous.viewportWidth === pagedViewportSize.width
+        && Math.abs(previous.step - nextPageTurnStep) < 0.01
+      )
+        ? previous
+        : {
+            step: nextPageTurnStep,
+            viewportWidth: pagedViewportSize.width,
+          });
       setPageIndex(targetPage);
       pageTargetRef.current = 'start';
       setResolvedLayoutChapterIndex(chapterIndex);
@@ -172,7 +232,7 @@ export function usePagedReaderLayout({
     paragraphSpacing,
     pageIndex,
     pageTargetRef,
-    pageTurnStep,
+    idealPageTurnStep,
     pagedViewportSize.width,
     pagedContentRef,
     pagedViewportSize.height,

@@ -38,6 +38,7 @@ interface PagedReaderContentProps {
   headerBgClassName: string;
   pageBgClassName?: string;
   fitsTwoColumns: boolean;
+  pageTurnStep?: number;
   twoColumnWidth: number | undefined;
   twoColumnGap: number;
   pageTurnMode: ReaderPageTurnMode;
@@ -230,6 +231,7 @@ export default function PagedReaderContent({
   headerBgClassName,
   pageBgClassName,
   fitsTwoColumns,
+  pageTurnStep,
   twoColumnWidth,
   twoColumnGap,
   pageTurnMode,
@@ -409,21 +411,24 @@ export default function PagedReaderContent({
     void preloadReaderImageResources(novelId, preloadImageKeys);
   }, [novelId, preloadImageKeys]);
 
-  const pageTurnStep = layoutMetrics.viewportWidth
+  const fallbackPageTurnStep = layoutMetrics.viewportWidth
     ? layoutMetrics.viewportWidth + (fitsTwoColumns ? twoColumnGap : 0)
     : 0;
+  const resolvedPageTurnStep = pageTurnStep && pageTurnStep > 0
+    ? pageTurnStep
+    : fallbackPageTurnStep;
   const currentMaxScrollLeft = Math.max(0, layoutMetrics.scrollWidth - layoutMetrics.viewportWidth);
-  const visiblePageOffset = getPagedScrollLeft(pageIndex, pageTurnStep, currentMaxScrollLeft);
+  const visiblePageOffset = getPagedScrollLeft(pageIndex, resolvedPageTurnStep, currentMaxScrollLeft);
 
   const previousPreviewTarget = useMemo<PagePreviewTarget | null>(() => {
-    if (!pageTurnStep || !layoutMetrics.viewportWidth) {
+    if (!resolvedPageTurnStep || !layoutMetrics.viewportWidth) {
       return null;
     }
 
     if (pageIndex > 0) {
       return {
         chapter,
-        pageOffset: getPagedScrollLeft(pageIndex - 1, pageTurnStep, currentMaxScrollLeft),
+        pageOffset: getPagedScrollLeft(pageIndex - 1, resolvedPageTurnStep, currentMaxScrollLeft),
         pageIndex: pageIndex - 1,
         pageCount,
       };
@@ -436,7 +441,7 @@ export default function PagedReaderContent({
     const previewPageCount = getPagedPageCount(
       previewMeasurements.previousScrollWidth,
       layoutMetrics.viewportWidth,
-      pageTurnStep,
+      resolvedPageTurnStep,
     );
 
     return {
@@ -444,7 +449,7 @@ export default function PagedReaderContent({
       pageOffset: getLastPageOffset(
         previewMeasurements.previousScrollWidth,
         layoutMetrics.viewportWidth,
-        pageTurnStep,
+        resolvedPageTurnStep,
       ),
       pageIndex: Math.max(0, previewPageCount - 1),
       pageCount: previewPageCount,
@@ -455,20 +460,20 @@ export default function PagedReaderContent({
     layoutMetrics.viewportWidth,
     pageCount,
     pageIndex,
-    pageTurnStep,
+    resolvedPageTurnStep,
     previewMeasurements.previousScrollWidth,
     previousChapterPreview,
   ]);
 
   const nextPreviewTarget = useMemo<PagePreviewTarget | null>(() => {
-    if (!pageTurnStep || !layoutMetrics.viewportWidth) {
+    if (!resolvedPageTurnStep || !layoutMetrics.viewportWidth) {
       return null;
     }
 
     if (pageIndex < pageCount - 1) {
       return {
         chapter,
-        pageOffset: getPagedScrollLeft(pageIndex + 1, pageTurnStep, currentMaxScrollLeft),
+        pageOffset: getPagedScrollLeft(pageIndex + 1, resolvedPageTurnStep, currentMaxScrollLeft),
         pageIndex: pageIndex + 1,
         pageCount,
       };
@@ -481,7 +486,7 @@ export default function PagedReaderContent({
     const previewPageCount = getPagedPageCount(
       previewMeasurements.nextScrollWidth,
       layoutMetrics.viewportWidth,
-      pageTurnStep,
+      resolvedPageTurnStep,
     );
 
     return {
@@ -497,7 +502,7 @@ export default function PagedReaderContent({
     nextChapterPreview,
     pageCount,
     pageIndex,
-    pageTurnStep,
+    resolvedPageTurnStep,
     previewMeasurements.nextScrollWidth,
   ]);
 
