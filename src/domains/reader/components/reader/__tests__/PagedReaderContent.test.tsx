@@ -83,9 +83,9 @@ describe('PagedReaderContent', () => {
     expect(forwardedProps).toEqual(expect.objectContaining({
       headingClassName: expect.stringContaining('break-inside-avoid'),
       imageRenderMode: 'paged',
-      paragraphClassName: 'indent-8',
       mixedParagraphClassName: 'break-inside-avoid',
     }));
+    expect(forwardedProps).not.toHaveProperty('paragraphClassName');
     expect(forwardedProps).not.toHaveProperty('blankParagraphClassName');
   });
 

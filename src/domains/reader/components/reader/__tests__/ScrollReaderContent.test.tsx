@@ -48,8 +48,8 @@ describe('ScrollReaderContent', () => {
     expect(forwardedProps).toEqual(expect.objectContaining({
       headingClassName: expect.not.stringContaining('break-inside-avoid'),
       imageRenderMode: 'scroll',
-      paragraphClassName: 'indent-8',
     }));
+    expect(forwardedProps).not.toHaveProperty('paragraphClassName');
     expect(forwardedProps).not.toHaveProperty('mixedParagraphClassName');
     expect(forwardedProps).not.toHaveProperty('blankParagraphClassName');
   });

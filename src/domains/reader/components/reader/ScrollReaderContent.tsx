@@ -54,7 +54,6 @@ export default function ScrollReaderContent({
                 imageRenderMode="scroll"
                 headingClassName="text-xl sm:text-2xl font-bold text-center mb-8 mt-2"
                 headingStyle={{ lineHeight: '1.4' }}
-                paragraphClassName="indent-8"
               />
             </div>
           </div>
