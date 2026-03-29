@@ -217,11 +217,9 @@ export default function BottomSheet({
             exit={{ opacity: 0 }}
             transition={BACKDROP_TRANSITION}
           >
-            <motion.button
+            <motion.div
               data-slot="sheet-backdrop"
-              type="button"
               aria-hidden="true"
-              tabIndex={-1}
               onPointerDown={handleBackdropClick}
               className="absolute inset-0 bg-[#18202a]/18 backdrop-blur-[2px]"
               style={{ opacity: backdropOpacity }}

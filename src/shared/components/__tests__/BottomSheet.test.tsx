@@ -73,7 +73,7 @@ describe('BottomSheet', () => {
       </BottomSheet>,
     );
 
-    fireEvent.pointerDown(container.querySelector('[data-slot="sheet-backdrop"]') as HTMLButtonElement);
+    fireEvent.pointerDown(container.querySelector('[data-slot="sheet-backdrop"]') as HTMLDivElement);
     expect(onClose).not.toHaveBeenCalled();
 
     rerender(
@@ -82,7 +82,7 @@ describe('BottomSheet', () => {
       </BottomSheet>,
     );
 
-    fireEvent.pointerDown(container.querySelector('[data-slot="sheet-backdrop"]') as HTMLButtonElement);
+    fireEvent.pointerDown(container.querySelector('[data-slot="sheet-backdrop"]') as HTMLDivElement);
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
@@ -116,14 +116,14 @@ describe('BottomSheet', () => {
 
     await waitFor(() => {
       expect(backdrop).not.toBeNull();
-      expect(Number((backdrop as HTMLButtonElement).style.opacity)).toBeLessThan(1);
+      expect(Number((backdrop as HTMLDivElement).style.opacity)).toBeLessThan(1);
     });
 
     fireEvent.pointerUp(handle, { pointerId: 1, clientY: 180 });
 
     await waitFor(() => {
       expect(onClose).not.toHaveBeenCalled();
-      expect(Number((backdrop as HTMLButtonElement).style.opacity)).toBeCloseTo(1, 3);
+      expect(Number((backdrop as HTMLDivElement).style.opacity)).toBeCloseTo(1, 3);
     });
   });
 

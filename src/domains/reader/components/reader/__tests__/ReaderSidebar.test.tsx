@@ -71,7 +71,7 @@ describe('ReaderSidebar', () => {
 
     expect(screen.getByRole('dialog')).toBeInTheDocument();
 
-    fireEvent.pointerDown(container.querySelector('[data-slot="sheet-backdrop"]') as HTMLButtonElement);
+    fireEvent.pointerDown(container.querySelector('[data-slot="sheet-backdrop"]') as HTMLDivElement);
     await waitFor(() => {
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     });
