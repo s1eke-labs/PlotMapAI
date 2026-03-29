@@ -24,7 +24,7 @@ export default function Layout({ children }: LayoutProps) {
   return (
     <div
       data-testid="app-layout-shell"
-      className="flex h-[100dvh] min-h-[100dvh] flex-col overflow-hidden"
+      className="flex h-[100dvh] min-h-[100dvh] flex-col overflow-hidden bg-bg-primary"
       style={layoutStyle}
     >
       {/* Header - hide in reader mode for immersion */}
