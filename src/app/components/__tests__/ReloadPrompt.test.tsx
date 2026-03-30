@@ -47,7 +47,7 @@ describe('ReloadPrompt', () => {
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: 'pwa.reload' }));
 
-    expect(updateServiceWorker).toHaveBeenCalledWith(true);
+    expect(updateServiceWorker).toHaveBeenCalledWith();
     await waitFor(() => {
       expect(setNeedRefresh).toHaveBeenCalledWith(false);
       expect(screen.queryByText('pwa.updateAvailable')).not.toBeInTheDocument();

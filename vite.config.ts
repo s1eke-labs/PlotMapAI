@@ -14,7 +14,7 @@ try {
   // git not available (e.g. shallow clone, npm publish, Docker build)
 }
 
-const base = process.env.VITE_BASE || '/PlotMapAI/'
+const base = process.env.VITE_BASE || '/'
 const PWA_DEFAULT_SURFACE_COLOR = '#f8fafc'
 
 // https://vite.dev/config/
@@ -41,13 +41,22 @@ export default defineConfig({
       manifest: {
         name: 'PlotMapAI',
         short_name: 'PlotMapAI',
-        description: 'AI-powered novel reader with chapter analysis and character graph visualization',
+        description: 'AI 驱动的小说阅读器，支持章节分析与人物关系图可视化',
         theme_color: PWA_DEFAULT_SURFACE_COLOR,
         background_color: PWA_DEFAULT_SURFACE_COLOR,
         display: 'standalone',
-        id: "/PlotMapAI/",
-        start_url: "/PlotMapAI/",
-        scope: "/PlotMapAI/",
+        id: base,
+        start_url: base,
+        scope: base,
+        file_handlers: [
+          {
+            action: base,
+            accept: {
+              'application/epub+zip': ['.epub'],
+              'text/plain': ['.txt'],
+            },
+          },
+        ],
         icons: [
           {
             src: 'pwa-192x192.png',
@@ -111,6 +120,7 @@ export default defineConfig({
         ],
       },
       workbox: {
+        clientsClaim: true,
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
       },
     }),

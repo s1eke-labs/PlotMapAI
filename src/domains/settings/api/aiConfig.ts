@@ -166,10 +166,15 @@ export const aiConfigApi = {
 
   testAiProviderSettings: async (payload: Partial<AiProviderSettingsPayload>): Promise<{ message: string; preview: string }> => {
     const existing = await getAiConfig();
+    const keepExisting = payload.keepExistingApiKey !== false;
+    let apiKey = payload.apiKey ?? '';
+    if (!apiKey && keepExisting && existing) {
+      apiKey = existing.apiKey;
+    }
     const config = buildRuntimeAnalysisConfig({
       providerId: payload.providerId ?? existing?.providerId ?? DEFAULT_ANALYSIS_PROVIDER_ID,
       apiBaseUrl: payload.apiBaseUrl ?? existing?.apiBaseUrl ?? '',
-      apiKey: payload.apiKey ?? existing?.apiKey ?? '',
+      apiKey,
       modelName: payload.modelName ?? existing?.modelName ?? '',
       contextSize: payload.contextSize ?? existing?.contextSize ?? 32000,
     });

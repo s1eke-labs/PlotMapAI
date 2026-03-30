@@ -3,6 +3,7 @@ import { Loader2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { loadUploadModal } from '@domains/book-import';
 import { reportAppError } from '@app/debug/service';
+import { useFileHandling } from '@app/providers/FileHandlingContext';
 import {
   AppErrorCode,
   toAppError,
@@ -19,6 +20,7 @@ const LazyUploadModal = lazy(loadUploadModal);
 
 export default function BookshelfPage() {
   const { t } = useTranslation();
+  const { pendingLaunchFiles, consumePendingLaunchFiles } = useFileHandling();
   const [novels, setNovels] = useState<NovelView[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<AppError | null>(null);
@@ -47,6 +49,14 @@ export default function BookshelfPage() {
   useEffect(() => {
     fetchNovels();
   }, [fetchNovels]);
+
+  useEffect(() => {
+    if (!pendingLaunchFiles || pendingLaunchFiles.length === 0) {
+      return;
+    }
+
+    setIsUploadModalOpen(true);
+  }, [pendingLaunchFiles]);
 
   return (
     <div data-testid="bookshelf-scroll-container" className="w-full">
@@ -130,6 +140,8 @@ export default function BookshelfPage() {
             isOpen={isUploadModalOpen}
             onClose={() => setIsUploadModalOpen(false)}
             onSuccess={fetchNovels}
+            initialFiles={pendingLaunchFiles}
+            onInitialFilesHandled={consumePendingLaunchFiles}
           />
         </Suspense>
       )}

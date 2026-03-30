@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { UploadCloud, FileText, Loader2 } from 'lucide-react';
 import { reportAppError } from '@app/debug/service';
@@ -22,6 +22,8 @@ interface UploadModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  initialFiles?: File[] | null;
+  onInitialFilesHandled?: () => void;
 }
 
 interface UploadBatchState {
@@ -63,7 +65,13 @@ function isAbortError(error: unknown): boolean {
   return error instanceof Error && error.name === 'AbortError';
 }
 
-export default function UploadModal({ isOpen, onClose, onSuccess }: UploadModalProps) {
+export default function UploadModal({
+  isOpen,
+  onClose,
+  onSuccess,
+  initialFiles = null,
+  onInitialFilesHandled,
+}: UploadModalProps) {
   const { t } = useTranslation();
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -71,6 +79,7 @@ export default function UploadModal({ isOpen, onClose, onSuccess }: UploadModalP
   const [batchState, setBatchState] = useState<UploadBatchState | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const autoProcessedFilesRef = useRef<File[] | null>(null);
 
   const currentStageLabel = batchState ? t(`bookshelf.workerStages.${batchState.progress.stage}`) : null;
   const currentFileLabel = batchState
@@ -93,7 +102,7 @@ export default function UploadModal({ isOpen, onClose, onSuccess }: UploadModalP
     setIsDragging(false);
   };
 
-  const processFiles = async (files: File[]) => {
+  const processFiles = useCallback(async (files: File[]) => {
     if (files.length === 0) {
       return;
     }
@@ -170,7 +179,25 @@ export default function UploadModal({ isOpen, onClose, onSuccess }: UploadModalP
         fileInputRef.current.value = '';
       }
     }
-  };
+  }, [onClose, onSuccess]);
+
+  useEffect(() => {
+    if (!isOpen || isUploading || !initialFiles || initialFiles.length === 0) {
+      return;
+    }
+
+    if (autoProcessedFilesRef.current === initialFiles) {
+      return;
+    }
+
+    autoProcessedFilesRef.current = initialFiles;
+    void processFiles(initialFiles).finally(() => {
+      onInitialFilesHandled?.();
+      if (autoProcessedFilesRef.current === initialFiles) {
+        autoProcessedFilesRef.current = null;
+      }
+    });
+  }, [initialFiles, isOpen, isUploading, onInitialFilesHandled, processFiles]);
 
   const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();

@@ -61,6 +61,21 @@ describe('PWA icon assets', () => {
     expect(viteConfig).toContain('background_color: PWA_DEFAULT_SURFACE_COLOR');
   });
 
+  it('registers native file handlers for supported novel formats', () => {
+    const viteConfig = readFileSync(resolve(process.cwd(), 'vite.config.ts'), 'utf8');
+
+    expect(viteConfig).toContain('file_handlers: [');
+    expect(viteConfig).toContain("'application/epub+zip': ['.epub']");
+    expect(viteConfig).toContain("'text/plain': ['.txt']");
+  });
+
+  it('lets the updated service worker take control immediately after activation', () => {
+    const viteConfig = readFileSync(resolve(process.cwd(), 'vite.config.ts'), 'utf8');
+
+    expect(viteConfig).toContain('workbox: {');
+    expect(viteConfig).toContain('clientsClaim: true');
+  });
+
   it('commits generated Android maskable icon assets', () => {
     const maskable192 = resolve(process.cwd(), 'public/pwa-maskable-192x192.png');
     const maskable512 = resolve(process.cwd(), 'public/pwa-maskable-512x512.png');

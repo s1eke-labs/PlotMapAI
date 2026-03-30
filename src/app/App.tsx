@@ -13,6 +13,7 @@ import { isDebugMode, registerDebugHelpers } from './debug/service';
 import DebugPanel from './debug/DebugPanel';
 import { AppErrorBoundary, registerGlobalErrorHandlers } from './errors';
 import Layout from './layout/Layout';
+import { FileHandlingProvider } from './providers/FileHandlingContext';
 import { ThemeProvider } from './providers/ThemeContext';
 import { appPaths } from './router/paths';
 
@@ -51,17 +52,19 @@ function App({ startupError = null }: AppProps) {
     <ThemeProvider>
       <Router>
         <AppErrorBoundary initialError={startupError}>
-          <Layout>
-            <Suspense fallback={<RouteFallback />}>
-              <Routes>
-                <Route path={appPaths.bookshelf()} element={<LazyBookshelfPage />} />
-                <Route path="/novel/:id" element={<LazyBookDetailPage />} />
-                <Route path="/novel/:id/read" element={<LazyReaderPage />} />
-                <Route path="/novel/:id/graph" element={<LazyCharacterGraphPage />} />
-                <Route path={appPaths.settings()} element={<LazySettingsPage />} />
-              </Routes>
-            </Suspense>
-          </Layout>
+          <FileHandlingProvider>
+            <Layout>
+              <Suspense fallback={<RouteFallback />}>
+                <Routes>
+                  <Route path={appPaths.bookshelf()} element={<LazyBookshelfPage />} />
+                  <Route path="/novel/:id" element={<LazyBookDetailPage />} />
+                  <Route path="/novel/:id/read" element={<LazyReaderPage />} />
+                  <Route path="/novel/:id/graph" element={<LazyCharacterGraphPage />} />
+                  <Route path={appPaths.settings()} element={<LazySettingsPage />} />
+                </Routes>
+              </Suspense>
+            </Layout>
+          </FileHandlingProvider>
         </AppErrorBoundary>
       </Router>
       {isDebugMode() && <DebugPanel />}

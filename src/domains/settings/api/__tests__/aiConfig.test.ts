@@ -1,12 +1,14 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
   APP_SETTING_KEYS,
+  DEVICE_KEY_STORAGE_KEY,
   LEGACY_CACHE_KEYS,
   LEGACY_SECURE_KEYS,
   SECURE_KEYS,
   storage,
 } from '@infra/storage';
 import { DEFAULT_ANALYSIS_PROVIDER_ID } from '@domains/analysis';
+import { AppErrorCode } from '@shared/errors';
 import { aiConfigApi, resetDeviceKeyForTesting } from '../aiConfig';
 import { db } from '@infra/db';
 
@@ -57,6 +59,22 @@ describe('aiConfigApi', () => {
     });
     expect(settings.apiBaseUrl).toBe('http://localhost:8080');
     expect(settings.hasApiKey).toBe(true);
+  });
+
+  it('keeps the imported API key available within the current session even if the device key storage is cleared', async () => {
+    await aiConfigApi.updateAiProviderSettings({
+      providerId: DEFAULT_ANALYSIS_PROVIDER_ID,
+      apiBaseUrl: 'http://localhost:5000',
+      apiKey: 'sk-session-secret',
+      modelName: 'gpt-4',
+      contextSize: 32000,
+    });
+
+    localStorage.removeItem(DEVICE_KEY_STORAGE_KEY);
+
+    const settings = await aiConfigApi.getAiProviderSettings();
+    expect(settings.hasApiKey).toBe(true);
+    expect(settings.maskedApiKey).toContain('sk-s');
   });
 
   it('defaults providerId for legacy AI config records', async () => {
@@ -139,6 +157,48 @@ describe('aiConfigApi', () => {
       modelName: 'gpt-4',
       contextSize: 32000,
     })).rejects.toThrow();
+  });
+
+  it('testAiProviderSettings reuses the saved token when the form keeps the token field empty', async () => {
+    await aiConfigApi.updateAiProviderSettings({
+      providerId: DEFAULT_ANALYSIS_PROVIDER_ID,
+      apiBaseUrl: 'http://localhost:5000',
+      apiKey: 'sk-test12345678',
+      modelName: 'gpt-4',
+      contextSize: 32000,
+    });
+
+    await expect(aiConfigApi.testAiProviderSettings({
+      providerId: DEFAULT_ANALYSIS_PROVIDER_ID,
+      apiBaseUrl: 'http://localhost:5000',
+      apiKey: '',
+      modelName: 'gpt-4',
+      contextSize: 100,
+      keepExistingApiKey: true,
+    })).rejects.toMatchObject({
+      code: AppErrorCode.AI_CONTEXT_SIZE_TOO_SMALL,
+    });
+  });
+
+  it('testAiProviderSettings still reports a missing token when keepExistingApiKey is disabled', async () => {
+    await aiConfigApi.updateAiProviderSettings({
+      providerId: DEFAULT_ANALYSIS_PROVIDER_ID,
+      apiBaseUrl: 'http://localhost:5000',
+      apiKey: 'sk-test12345678',
+      modelName: 'gpt-4',
+      contextSize: 32000,
+    });
+
+    await expect(aiConfigApi.testAiProviderSettings({
+      providerId: DEFAULT_ANALYSIS_PROVIDER_ID,
+      apiBaseUrl: 'http://localhost:5000',
+      apiKey: '',
+      modelName: 'gpt-4',
+      contextSize: 32000,
+      keepExistingApiKey: false,
+    })).rejects.toMatchObject({
+      code: AppErrorCode.AI_API_KEY_REQUIRED,
+    });
   });
 
   describe('AI config export/import', () => {

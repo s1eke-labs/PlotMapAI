@@ -5,6 +5,11 @@ import { MemoryRouter } from 'react-router-dom';
 import BookshelfPage from '../BookshelfPage';
 import { libraryApi } from '../../api/libraryApi';
 
+const fileHandlingMock = vi.hoisted(() => ({
+  pendingLaunchFiles: null as File[] | null,
+  consumePendingLaunchFiles: vi.fn(),
+}));
+
 const i18nMock = vi.hoisted(() => ({
   t: (key: string) => key,
 }));
@@ -19,6 +24,10 @@ vi.mock('../../api/libraryApi', () => ({
   },
 }));
 
+vi.mock('@app/providers/FileHandlingContext', () => ({
+  useFileHandling: () => fileHandlingMock,
+}));
+
 vi.mock('../../components/BookCard', () => ({
   default: ({ novel }: { novel: { title: string } }) => <div data-testid="book-card">{novel.title}</div>,
 }));
@@ -29,16 +38,24 @@ vi.mock('@domains/book-import', () => ({
       isOpen,
       onSuccess,
       onClose,
+      initialFiles,
+      onInitialFilesHandled,
     }: {
       isOpen: boolean;
       onSuccess: () => void;
       onClose: () => void;
+      initialFiles?: File[] | null;
+      onInitialFilesHandled?: () => void;
     }) => {
       if (!isOpen) return null;
       return (
         <div data-testid="upload-modal">
+          <div data-testid="upload-modal-initial-files">
+            {initialFiles?.map((file) => file.name).join(',') ?? ''}
+          </div>
           <button type="button" onClick={onSuccess}>mock-upload-success</button>
           <button type="button" onClick={onClose}>mock-upload-close</button>
+          <button type="button" onClick={onInitialFilesHandled}>mock-upload-consume</button>
         </div>
       );
     },
@@ -48,6 +65,7 @@ vi.mock('@domains/book-import', () => ({
 describe('BookshelfPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    fileHandlingMock.pendingLaunchFiles = null;
   });
 
   it('shows a loading spinner while novels are being fetched', () => {
@@ -180,5 +198,26 @@ describe('BookshelfPage', () => {
       expect(libraryApi.list).toHaveBeenCalledTimes(2);
     });
     expect(await screen.findByTestId('book-card')).toHaveTextContent('Uploaded Novel');
+  });
+
+  it('opens the upload modal automatically for files received from the File Handling API', async () => {
+    vi.mocked(libraryApi.list).mockResolvedValue([]);
+    fileHandlingMock.pendingLaunchFiles = [
+      new File(['chapter 1'], 'launch-book.txt', { type: 'text/plain' }),
+    ];
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter>
+        <BookshelfPage />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByTestId('upload-modal')).toBeInTheDocument();
+    expect(screen.getByTestId('upload-modal-initial-files')).toHaveTextContent('launch-book.txt');
+
+    await user.click(screen.getByRole('button', { name: 'mock-upload-consume' }));
+
+    expect(fileHandlingMock.consumePendingLaunchFiles).toHaveBeenCalledTimes(1);
   });
 });

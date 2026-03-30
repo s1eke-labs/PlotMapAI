@@ -117,4 +117,34 @@ describe('UploadModal', () => {
     expect(onSuccess).not.toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
   });
+
+  it('auto-imports files provided by the File Handling API', async () => {
+    const onClose = vi.fn();
+    const onSuccess = vi.fn();
+    const onInitialFilesHandled = vi.fn();
+    const initialFile = new File(['chapter 1'], 'launch-book.txt', { type: 'text/plain' });
+
+    render(
+      <UploadModal
+        isOpen={true}
+        onClose={onClose}
+        onSuccess={onSuccess}
+        initialFiles={[initialFile]}
+        onInitialFilesHandled={onInitialFilesHandled}
+      />
+    );
+
+    await waitFor(() => {
+      expect(bookImportApi.importBook).toHaveBeenCalledWith(
+        initialFile,
+        expect.objectContaining({
+          onProgress: expect.any(Function),
+          signal: expect.any(AbortSignal),
+        }),
+      );
+    });
+    expect(onSuccess).toHaveBeenCalledTimes(1);
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(onInitialFilesHandled).toHaveBeenCalledTimes(1);
+  });
 });

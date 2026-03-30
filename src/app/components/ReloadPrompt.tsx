@@ -135,7 +135,7 @@ export default function ReloadPrompt() {
     }
 
     try {
-      await updateServiceWorker(true);
+      await updateServiceWorker();
       setNeedRefresh(false);
       setDebugNeedRefresh(false);
       setDismissed(true);
