@@ -261,6 +261,24 @@ function createPagedChapterContent(index: number, totalChapters: number, minPage
   throw new Error(`Unable to build chapter ${index + 1} with at least ${minPageCount} pages`);
 }
 
+function createLongScrollChapter(index: number, totalChapters: number, paragraphCount: number) {
+  const title = `Chapter ${index + 1}`;
+  const content = Array.from({ length: paragraphCount }, (_, paragraphIndex) => (
+    `Paragraph ${paragraphIndex + 1} marker `
+    + 'alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu '.repeat(6)
+  )).join('\n');
+
+  return {
+    index,
+    title,
+    content,
+    wordCount: paragraphCount * 72,
+    totalChapters,
+    hasPrev: index > 0,
+    hasNext: index < totalChapters - 1,
+  };
+}
+
 describe('ReaderPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -503,6 +521,89 @@ describe('ReaderPage', () => {
       chapterIndex: 9,
       viewMode: 'original',
     });
+  });
+
+  it('renders later scroll blocks after the reader viewport moves deeper into the chapter', async () => {
+    const longChapter = createLongScrollChapter(0, 1, 18);
+    const scrollContainerTop = 0;
+    const scrollContainerHeight = 800;
+    const chapterBodyDocumentTop = 88;
+    const rectSpy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      if (this.dataset.testid === 'scroll-reader-content-body') {
+        const scrollContainer = this.closest('.overflow-y-auto.hide-scrollbar') as HTMLDivElement | null;
+        const scrollTop = scrollContainer?.scrollTop ?? 0;
+        const top = chapterBodyDocumentTop - scrollTop;
+        return {
+          x: 0,
+          y: top,
+          left: 0,
+          top,
+          width: 568,
+          height: 3200,
+          right: 568,
+          bottom: top + 3200,
+          toJSON: () => ({}),
+        };
+      }
+
+      if (this.classList.contains('overflow-y-auto') && this.classList.contains('hide-scrollbar')) {
+        return {
+          x: 0,
+          y: scrollContainerTop,
+          left: 0,
+          top: scrollContainerTop,
+          width: 600,
+          height: scrollContainerHeight,
+          right: 600,
+          bottom: scrollContainerTop + scrollContainerHeight,
+          toJSON: () => ({}),
+        };
+      }
+
+      return {
+        x: 0,
+        y: 0,
+        left: 0,
+        top: 0,
+        width: 0,
+        height: 0,
+        right: 0,
+        bottom: 0,
+        toJSON: () => ({}),
+      };
+    });
+
+    setPrototypeNumberGetter('clientWidth', 600);
+    setPrototypeNumberGetter('clientHeight', scrollContainerHeight);
+    vi.mocked(readerApi.getChapters).mockResolvedValueOnce([
+      { index: 0, title: longChapter.title, wordCount: longChapter.wordCount },
+    ]);
+    vi.mocked(readerApi.getChapterContent).mockImplementation(async () => longChapter);
+
+    try {
+      const { container } = renderPage();
+
+      expect(await screen.findByRole('heading', { name: 'Chapter 1', level: 1 })).toBeInTheDocument();
+      await waitFor(() => {
+        expect(screen.queryByText(/Paragraph 12 marker/)).not.toBeInTheDocument();
+      });
+
+      const readerContainer = container.querySelector('main .overflow-y-auto.hide-scrollbar') as HTMLDivElement | null;
+      expect(readerContainer).not.toBeNull();
+
+      act(() => {
+        readerContainer!.scrollTop = 1900;
+        fireEvent.scroll(readerContainer!);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText(/Paragraph 12 marker/)).toBeInTheDocument();
+      });
+    } finally {
+      rectSpy.mockRestore();
+    }
   });
 
   it('switches to summary view and shows queued analysis state when chapter analysis is missing', async () => {

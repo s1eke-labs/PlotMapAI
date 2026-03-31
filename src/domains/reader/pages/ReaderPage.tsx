@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useParams } from 'react-router-dom';
 import { appPaths } from '@app/router/paths';
@@ -42,6 +42,28 @@ import {
 } from '../utils/readerLayout';
 import { getPageIndexFromProgress, resolvePagedTargetPage } from '../utils/readerPosition';
 
+function areVisibleBlockRangesEqual(
+  previousRanges: ReadonlyMap<number, ReturnType<typeof findVisibleBlockRange>>,
+  nextRanges: ReadonlyMap<number, ReturnType<typeof findVisibleBlockRange>>,
+): boolean {
+  if (previousRanges.size !== nextRanges.size) {
+    return false;
+  }
+
+  for (const [chapterIndex, nextRange] of nextRanges) {
+    const previousRange = previousRanges.get(chapterIndex);
+    if (
+      !previousRange
+      || previousRange.startIndex !== nextRange.startIndex
+      || previousRange.endIndex !== nextRange.endIndex
+    ) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 export default function ReaderPage() {
   const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
@@ -66,7 +88,7 @@ export default function ReaderPage() {
   const [pendingPagedPageTarget, setPendingPagedPageTarget] = useState<PageTarget | null>(null);
   const [scrollModeChapters, setScrollModeChapters] = useState<number[]>([]);
   const [scrollReaderChapters, setScrollReaderChapters] = useState<Array<{ index: number; chapter: ChapterContent }>>([]);
-  const [scrollChapterBodyOffsets, setScrollChapterBodyOffsets] = useState<Map<number, number>>(new Map());
+  const [visibleScrollBlockRangeByChapter, setVisibleScrollBlockRangeByChapter] = useState<Map<number, ReturnType<typeof findVisibleBlockRange>>>(new Map());
   const [chapterCacheSnapshotState, setChapterCacheSnapshotState] = useState<{
     novelId: number;
     snapshot: Map<number, ChapterContent>;
@@ -434,74 +456,65 @@ export default function ReaderPage() {
     [renderCache.scrollLayouts, scrollReaderChapters],
   );
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const frameId = requestAnimationFrame(() => {
       if (isPagedMode || viewMode !== 'original') {
-        setScrollChapterBodyOffsets((previousOffsets) => (previousOffsets.size === 0 ? previousOffsets : new Map()));
+        setVisibleScrollBlockRangeByChapter((previousRanges) => (
+          previousRanges.size === 0 ? previousRanges : new Map()
+        ));
         return;
       }
 
-      const nextOffsets = new Map<number, number>();
-      for (const renderableChapter of renderableScrollLayouts) {
-        const chapterBodyElement = scrollChapterBodyElementsBridgeRef.current.get(renderableChapter.index);
-        if (chapterBodyElement) {
-          nextOffsets.set(renderableChapter.index, chapterBodyElement.offsetTop);
-        }
+      const viewportElement = contentRef.current;
+      if (!viewportElement) {
+        return;
       }
 
-      setScrollChapterBodyOffsets((previousOffsets) => {
-        if (previousOffsets.size !== nextOffsets.size) {
-          return nextOffsets;
+      const viewportRect = viewportElement.getBoundingClientRect();
+      const viewportHeight = viewportElement.clientHeight
+        || viewportRect.height
+        || renderCache.viewportMetrics.scrollViewportHeight;
+      if (viewportHeight <= 0) {
+        return;
+      }
+
+      const nextRanges = new Map<number, ReturnType<typeof findVisibleBlockRange>>();
+      const overscanPx = Math.max(240, Math.round(viewportHeight * 0.75));
+      const fallbackViewportTop = scrollViewportTop;
+      for (const renderableChapter of renderableScrollLayouts) {
+        const chapterBodyElement = scrollChapterBodyElementsBridgeRef.current.get(renderableChapter.index);
+        if (!chapterBodyElement) {
+          continue;
         }
 
-        for (const [chapterIndex, offsetTop] of nextOffsets) {
-          if (previousOffsets.get(chapterIndex) !== offsetTop) {
-            return nextOffsets;
-          }
-        }
+        const chapterBodyRect = chapterBodyElement.getBoundingClientRect();
+        const offsetTop = Number.isFinite(viewportRect.top) && Number.isFinite(chapterBodyRect.top)
+          ? viewportRect.top - chapterBodyRect.top
+          : fallbackViewportTop - chapterBodyElement.offsetTop;
+        nextRanges.set(
+          renderableChapter.index,
+          findVisibleBlockRange(
+            renderableChapter.layout,
+            offsetTop,
+            viewportHeight,
+            overscanPx,
+          ),
+        );
+      }
 
-        return previousOffsets;
-      });
+      setVisibleScrollBlockRangeByChapter((previousRanges) => (
+        areVisibleBlockRangesEqual(previousRanges, nextRanges) ? previousRanges : nextRanges
+      ));
     });
 
     return () => {
       cancelAnimationFrame(frameId);
     };
-  }, [isPagedMode, renderableScrollLayouts, viewMode]);
-
-  const visibleScrollBlockRangeByChapter = useMemo(() => {
-    const ranges = new Map<number, ReturnType<typeof findVisibleBlockRange>>();
-    if (isPagedMode || viewMode !== 'original') {
-      return ranges;
-    }
-
-    const viewportHeight = renderCache.viewportMetrics.scrollViewportHeight;
-    if (viewportHeight <= 0) {
-      return ranges;
-    }
-
-    const overscanPx = Math.max(240, Math.round(viewportHeight * 0.75));
-    for (const renderableChapter of renderableScrollLayouts) {
-      const chapterBodyOffsetTop = scrollChapterBodyOffsets.get(renderableChapter.index);
-      if (chapterBodyOffsetTop === undefined) {
-        continue;
-      }
-
-      const blockRange = findVisibleBlockRange(
-        renderableChapter.layout,
-        scrollViewportTop - chapterBodyOffsetTop,
-        viewportHeight,
-        overscanPx,
-      );
-      ranges.set(renderableChapter.index, blockRange);
-    }
-
-    return ranges;
   }, [
     isPagedMode,
+    contentRef,
     renderCache.viewportMetrics.scrollViewportHeight,
     renderableScrollLayouts,
-    scrollChapterBodyOffsets,
     scrollViewportTop,
     viewMode,
   ]);
