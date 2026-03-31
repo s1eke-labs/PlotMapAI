@@ -1,10 +1,20 @@
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+const useReaderImageResourceMock = vi.hoisted(() => vi.fn());
+
+vi.mock('../../../hooks/useReaderImageResource', () => ({
+  useReaderImageResource: useReaderImageResourceMock,
+}));
 
 import ReaderFlowBlock from '../ReaderFlowBlock';
 
 describe('ReaderFlowBlock', () => {
-  it('renders text lines with preserved spacing but without forcing line justification', () => {
+  afterEach(() => {
+    useReaderImageResourceMock.mockReset();
+  });
+
+  it('renders text fragments as a single preserved-whitespace node instead of per-line wrappers', () => {
     render(
       <ReaderFlowBlock
         imageRenderMode="paged"
@@ -12,62 +22,124 @@ describe('ReaderFlowBlock', () => {
         item={{
           blockIndex: 1,
           chapterIndex: 0,
-          contentHeight: 32,
+          contentHeight: 96,
           font: '400 18px sans-serif',
           fontSizePx: 18,
-          height: 32,
+          height: 96,
           key: '0:text:1:0',
           kind: 'text',
           lineHeightPx: 32,
           lineStartIndex: 0,
-          lines: [{
-            end: { graphemeIndex: 10, segmentIndex: 0 },
-            lineIndex: 0,
-            start: { graphemeIndex: 0, segmentIndex: 0 },
-            text: '未过门吧？“王照希面上一红',
-            width: 240,
-          }],
+          lines: [
+            {
+              end: { graphemeIndex: 10, segmentIndex: 0 },
+              lineIndex: 0,
+              start: { graphemeIndex: 0, segmentIndex: 0 },
+              text: '  未过门吧？',
+              width: 240,
+            },
+            {
+              end: { graphemeIndex: 10, segmentIndex: 0 },
+              lineIndex: 1,
+              start: { graphemeIndex: 0, segmentIndex: 0 },
+              text: '',
+              width: 0,
+            },
+            {
+              end: { graphemeIndex: 20, segmentIndex: 0 },
+              lineIndex: 2,
+              start: { graphemeIndex: 10, segmentIndex: 0 },
+              text: '欲知后事如何？',
+              width: 260,
+            },
+          ],
           marginAfter: 0,
           marginBefore: 0,
         }}
       />,
     );
 
-    const line = screen.getByText('未过门吧？“王照希面上一红').parentElement;
-    expect(line).not.toHaveStyle({ textAlign: 'justify' });
-    expect(line?.querySelector('[aria-hidden="true"]')).not.toBeInTheDocument();
+    const fragment = screen.getByTestId('reader-flow-text-fragment');
+    expect(fragment.tagName).toBe('DIV');
+    expect(fragment.textContent).toBe('  未过门吧？\n\u00a0\n欲知后事如何？');
+    expect(fragment).toHaveStyle({
+      overflow: 'hidden',
+      whiteSpace: 'pre',
+    });
+    expect(fragment.children).toHaveLength(0);
+    expect(fragment).not.toHaveStyle({ textAlign: 'justify' });
   });
 
-  it('renders terminal paragraph lines without injected justification helpers', () => {
+  it('renders heading fragments as a single h2 node', () => {
     render(
       <ReaderFlowBlock
         imageRenderMode="paged"
         novelId={1}
         item={{
-          blockIndex: 1,
+          blockIndex: 0,
           chapterIndex: 0,
-          contentHeight: 32,
-          font: '400 18px sans-serif',
-          fontSizePx: 18,
-          height: 48,
-          key: '0:text:1:1',
-          kind: 'text',
+          contentHeight: 64,
+          font: '700 24px sans-serif',
+          fontSizePx: 24,
+          height: 64,
+          key: '0:heading:0:0',
+          kind: 'heading',
           lineHeightPx: 32,
-          lineStartIndex: 1,
-          lines: [{
-            end: { graphemeIndex: 8, segmentIndex: 0 },
-            lineIndex: 1,
-            start: { graphemeIndex: 0, segmentIndex: 0 },
-            text: '欲知后事如何？请看下回分解。',
-            width: 260,
-          }],
+          lineStartIndex: 0,
+          lines: [
+            {
+              end: { graphemeIndex: 7, segmentIndex: 0 },
+              lineIndex: 0,
+              start: { graphemeIndex: 0, segmentIndex: 0 },
+              text: 'Chapter',
+              width: 120,
+            },
+            {
+              end: { graphemeIndex: 9, segmentIndex: 0 },
+              lineIndex: 1,
+              start: { graphemeIndex: 7, segmentIndex: 0 },
+              text: 'One',
+              width: 80,
+            },
+          ],
+          marginAfter: 0,
+          marginBefore: 0,
+        }}
+      />,
+    );
+
+    const fragment = screen.getByRole('heading', { level: 2 });
+    expect(fragment).toHaveAttribute('data-testid', 'reader-flow-text-fragment');
+    expect(fragment.textContent).toBe('Chapter\nOne');
+    expect(fragment.children).toHaveLength(0);
+  });
+
+  it('keeps the image branch unchanged for paged rendering', () => {
+    useReaderImageResourceMock.mockReturnValue('blob:reader-image');
+
+    const { container } = render(
+      <ReaderFlowBlock
+        imageRenderMode="paged"
+        novelId={1}
+        item={{
+          blockIndex: 2,
+          chapterIndex: 0,
+          displayHeight: 240,
+          displayWidth: 180,
+          edge: 'start',
+          height: 256,
+          imageKey: 'cover',
+          key: '0:image:2',
+          kind: 'image',
           marginAfter: 16,
           marginBefore: 0,
         }}
       />,
     );
 
-    const line = screen.getByText('欲知后事如何？请看下回分解。').parentElement;
-    expect(line?.querySelector('[aria-hidden="true"]')).not.toBeInTheDocument();
+    const image = container.querySelector('img');
+    expect(image).not.toBeNull();
+    expect(image).toHaveAttribute('src', 'blob:reader-image');
+    expect(image).toHaveAttribute('loading', 'eager');
   });
 });

@@ -35,6 +35,16 @@ interface RenderTextItem {
   marginBefore: number;
 }
 
+function serializeTextLines(lines: StaticTextLine[]): string {
+  if (lines.length === 0) {
+    return '\u00a0';
+  }
+
+  return lines
+    .map((line) => (line.text.length > 0 ? line.text : '\u00a0'))
+    .join('\n');
+}
+
 function ReaderLayoutImage({
   imageKey,
   imageRenderMode,
@@ -162,6 +172,7 @@ export default function ReaderFlowBlock({
     fontSize: `${textItem.fontSizePx}px`,
     lineHeight: `${textItem.lineHeightPx}px`,
   } satisfies CSSProperties;
+  const serializedText = serializeTextLines(textItem.lines);
 
   return (
     <div
@@ -174,41 +185,27 @@ export default function ReaderFlowBlock({
     >
       {textItem.kind === 'heading' ? (
         <h2
+          data-testid="reader-flow-text-fragment"
           className="text-center"
-          style={textStyle}
+          style={{
+            ...textStyle,
+            overflow: 'hidden',
+            whiteSpace: 'pre',
+          }}
         >
-          {textItem.lines.map((line) => (
-            <span
-              key={`${textItem.kind}:${line.lineIndex}`}
-              className="block"
-              style={{
-                minHeight: `${textItem.lineHeightPx}px`,
-                overflow: 'hidden',
-                whiteSpace: 'pre',
-              }}
-            >
-              {line.text || '\u00a0'}
-            </span>
-          ))}
+          {serializedText}
         </h2>
       ) : (
         <div
+          data-testid="reader-flow-text-fragment"
           className="opacity-90"
-          style={textStyle}
+          style={{
+            ...textStyle,
+            overflow: 'hidden',
+            whiteSpace: 'pre',
+          }}
         >
-          {textItem.lines.map((line) => (
-            <div
-              key={`${textItem.kind}:${line.lineIndex}`}
-              style={{
-                minHeight: `${textItem.lineHeightPx}px`,
-                overflow: 'hidden',
-              }}
-            >
-              <span style={{ whiteSpace: 'pre' }}>
-                {line.text || '\u00a0'}
-              </span>
-            </div>
-          ))}
+          {serializedText}
         </div>
       )}
     </div>

@@ -6,6 +6,7 @@ import {
   composePaginatedChapterLayout,
   createReaderTypographyMetrics,
   createReaderViewportMetrics,
+  findPageIndexForLocator,
   getPagedContentHeight,
   measureReaderChapterLayout,
 } from '../../../utils/readerLayout';
@@ -98,6 +99,39 @@ function buildMultiPageLayout() {
     chapter,
     currentLayout,
   };
+}
+
+function buildPagedLayoutForTypography(
+  chapter: {
+    content: string;
+    hasNext: boolean;
+    hasPrev: boolean;
+    index: number;
+    title: string;
+    totalChapters: number;
+    wordCount: number;
+  },
+  typographyOptions: {
+    fontSize: number;
+    lineSpacing: number;
+    paragraphSpacing: number;
+  },
+) {
+  const viewportMetrics = createReaderViewportMetrics(720, 1200, 720, 1200, typographyOptions.fontSize);
+  const typography = createReaderTypographyMetrics(
+    typographyOptions.fontSize,
+    typographyOptions.lineSpacing,
+    typographyOptions.paragraphSpacing,
+    viewportMetrics.pagedViewportWidth,
+  );
+  const measuredLayout = measureReaderChapterLayout(chapter, viewportMetrics.pagedColumnWidth, typography, new Map());
+
+  return composePaginatedChapterLayout(
+    measuredLayout,
+    getPagedContentHeight(viewportMetrics.pagedViewportHeight),
+    viewportMetrics.pagedColumnCount,
+    viewportMetrics.pagedColumnGap,
+  );
 }
 
 describe('PagedReaderContent', () => {
@@ -235,6 +269,78 @@ describe('PagedReaderContent', () => {
     });
 
     expect(screen.getByText(`${currentLayout.pageSlices.length} / ${currentLayout.pageSlices.length}`)).toBeInTheDocument();
+  });
+
+  it('renders one compact text node per paged fragment instead of one node per line', () => {
+    const { chapter, currentLayout } = buildMultiPageLayout();
+    const firstPage = currentLayout.pageSlices[0];
+    const expectedFragmentCount = firstPage?.columns.flatMap((column) => column.items).filter((item) => (
+      item.kind === 'heading' || item.kind === 'text'
+    )).length ?? 0;
+    const expectedLineCount = firstPage?.columns.flatMap((column) => column.items).reduce((total, item) => (
+      item.kind === 'heading' || item.kind === 'text'
+        ? total + item.lines.length
+        : total
+    ), 0) ?? 0;
+
+    expect(expectedLineCount).toBeGreaterThan(expectedFragmentCount);
+
+    const { container } = renderPagedContent({
+      chapter,
+      currentLayout,
+      pageIndex: 0,
+    });
+
+    const fragments = container.querySelectorAll('[data-testid="reader-flow-text-fragment"]');
+    expect(fragments).toHaveLength(expectedFragmentCount);
+    for (const fragment of fragments) {
+      expect(fragment.children).toHaveLength(0);
+    }
+  });
+
+  it('re-renders with updated typography layouts while keeping page-zero locator mapping stable', () => {
+    const { chapter, currentLayout } = buildMultiPageLayout();
+    const updatedLayout = buildPagedLayoutForTypography(chapter, {
+      fontSize: 24,
+      lineSpacing: 2.2,
+      paragraphSpacing: 32,
+    });
+    const updatedStartLocator = updatedLayout.pageSlices[0]?.startLocator ?? null;
+
+    expect(updatedLayout.pageSlices.length).toBeGreaterThanOrEqual(currentLayout.pageSlices.length);
+    expect(findPageIndexForLocator(updatedLayout, updatedStartLocator)).toBe(0);
+
+    const rendered = renderPagedContent({
+      chapter,
+      currentLayout,
+      pageIndex: 0,
+    });
+
+    expect(screen.getByText(`1 / ${currentLayout.pageSlices.length}`)).toBeInTheDocument();
+
+    rendered.rerender(
+      <PagedReaderContent
+        chapter={chapter}
+        currentLayout={updatedLayout}
+        novelId={1}
+        pageIndex={0}
+        pagedViewportRef={{ current: null }}
+        readerTheme="auto"
+        textClassName=""
+        headerBgClassName=""
+        pageBgClassName="bg-[#f4ecd8]"
+        fitsTwoColumns={false}
+        twoColumnWidth={undefined}
+        twoColumnGap={48}
+        pageTurnMode="cover"
+        pageTurnDirection="next"
+        pageTurnToken={1}
+      />,
+    );
+
+    expect(screen.getByText(`1 / ${updatedLayout.pageSlices.length}`)).toBeInTheDocument();
+    const fragments = document.querySelectorAll('[data-testid="reader-flow-text-fragment"]');
+    expect(Array.from(fragments).some((fragment) => fragment.textContent?.includes('Paragraph 1'))).toBe(true);
   });
 
   it('clamps drag offsets to the available navigation directions', () => {

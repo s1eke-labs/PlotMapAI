@@ -74,7 +74,7 @@ describe('ScrollReaderContent', () => {
   it('renders only the windowed block range when one is provided', () => {
     const { chapter, layout } = createScrollChapterLayout('First paragraph\nSecond paragraph');
 
-    render(
+    const { container } = render(
       <ScrollReaderContent
         chapters={[{
           index: 0,
@@ -94,5 +94,8 @@ describe('ScrollReaderContent', () => {
 
     expect(screen.getByText('First paragraph')).toBeInTheDocument();
     expect(screen.queryByText('Second paragraph')).not.toBeInTheDocument();
+    const fragments = container.querySelectorAll('[data-testid="reader-flow-text-fragment"]');
+    expect(fragments).toHaveLength(1);
+    expect(fragments[0]?.children).toHaveLength(0);
   });
 });
