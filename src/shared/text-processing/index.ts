@@ -1,4 +1,13 @@
 export { detectChapters, splitByChapters } from './chapterDetection';
+export {
+  buildChapterBlockSequence,
+  parseParagraphSegments,
+} from './chapterBlocks';
+export type {
+  ChapterBlockSequenceEntry,
+  ChapterBlockSource,
+  ChapterTextSegment,
+} from './chapterBlocks';
 export { detectAndConvert } from './encoding';
 export { computeHash } from './hash';
 export {

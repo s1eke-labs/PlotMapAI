@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { buildChapterImageGalleryEntries } from '@shared/text-processing';
+
 import {
   buildReaderBlocks,
   composePaginatedChapterLayout,
@@ -169,6 +171,29 @@ describe('readerLayout', () => {
     expect(blocks[1]?.marginAfter).toBe(0);
     expect(blocks[2]?.marginAfter).toBe(16);
     expect(blocks[3]?.marginAfter).toBe(0);
+  });
+
+  it('keeps image gallery block indices aligned with reader blocks', () => {
+    const chapter = {
+      index: 0,
+      title: 'Chapter 1',
+      content: 'Intro text [IMG:cover] tail text\n\nBody [IMG:map]',
+      wordCount: 100,
+      totalChapters: 1,
+      hasPrev: false,
+      hasNext: false,
+    };
+
+    const blocks = buildReaderBlocks(chapter, 16)
+      .filter((block) => block.kind === 'image');
+    const galleryEntries = buildChapterImageGalleryEntries(chapter);
+
+    expect(galleryEntries).toEqual(blocks.map((block, order) => ({
+      blockIndex: block.blockIndex,
+      chapterIndex: block.chapterIndex,
+      imageKey: block.imageKey!,
+      order,
+    })));
   });
 
   it('maps page slice locators back to their composed page index', () => {

@@ -10,8 +10,7 @@ import {
   layoutWithLines,
   prepareWithSegments,
 } from '@chenglou/pretext';
-
-import { parseParagraphSegments } from './chapterImages';
+import { buildChapterBlockSequence } from '@shared/text-processing/chapterBlocks';
 
 const MAX_PRETEXT_CACHE_SIZE = 256;
 const PRETEXT_CACHE = new Map<string, PreparedTextWithSegments | null>();
@@ -343,11 +342,6 @@ export function createReaderTypographyMetrics(
 }
 
 export function buildReaderBlocks(chapter: ChapterContent, paragraphSpacing: number): ReaderBlock[] {
-  const lines = chapter.content.split('\n');
-  const firstNonEmptyIndex = lines.findIndex((line) => line.trim().length > 0);
-  const skipLineIndex = firstNonEmptyIndex !== -1 && lines[firstNonEmptyIndex].trim() === chapter.title.trim()
-    ? firstNonEmptyIndex
-    : -1;
   const blocks: ReaderBlock[] = [{
     chapterIndex: chapter.index,
     blockIndex: 0,
@@ -359,84 +353,43 @@ export function buildReaderBlocks(chapter: ChapterContent, paragraphSpacing: num
     paragraphIndex: -1,
   }];
 
-  let nextBlockIndex = 1;
-  const hasLaterNonEmptyLine = (startIndex: number): boolean => {
-    for (let index = startIndex; index < lines.length; index += 1) {
-      if (index === skipLineIndex) {
-        continue;
-      }
-      if (lines[index]?.trim()) {
-        return true;
-      }
-    }
-    return false;
-  };
-
-  lines.forEach((line, paragraphIndex) => {
-    if (paragraphIndex === skipLineIndex) {
-      return;
-    }
-
-    if (!line.trim()) {
-      const previousLine = paragraphIndex > 0 ? lines[paragraphIndex - 1] : '';
-      if (!previousLine?.trim()) {
-        return;
-      }
-      if (!hasLaterNonEmptyLine(paragraphIndex + 1)) {
-        return;
-      }
-
-      blocks.push({
-        chapterIndex: chapter.index,
-        blockIndex: nextBlockIndex,
-        key: `${chapter.index}:blank:${nextBlockIndex}`,
+  blocks.push(...buildChapterBlockSequence(chapter).map((block): ReaderBlock => {
+    if (block.kind === 'blank') {
+      return {
+        chapterIndex: block.chapterIndex,
+        blockIndex: block.blockIndex,
+        key: `${chapter.index}:blank:${block.blockIndex}`,
         kind: 'blank',
         marginBefore: 0,
         marginAfter: paragraphSpacing,
-        paragraphIndex,
-      });
-      nextBlockIndex += 1;
-      return;
+        paragraphIndex: block.paragraphIndex,
+      };
     }
 
-    const segments = parseParagraphSegments(line)
-      .filter((segment) => segment.type === 'image' || segment.value.trim().length > 0);
-    if (segments.length === 0) {
-      return;
+    if (block.kind === 'image') {
+      return {
+        chapterIndex: block.chapterIndex,
+        blockIndex: block.blockIndex,
+        imageKey: block.imageKey,
+        key: `${chapter.index}:image:${block.blockIndex}`,
+        kind: 'image',
+        marginBefore: IMAGE_BLOCK_MARGIN_PX,
+        marginAfter: IMAGE_BLOCK_MARGIN_PX + (block.hasParagraphSpacingAfter ? paragraphSpacing : 0),
+        paragraphIndex: block.paragraphIndex,
+      };
     }
 
-    const hasImmediateBlankAfter = paragraphIndex < lines.length - 1 && !lines[paragraphIndex + 1]?.trim();
-
-    segments.forEach((segment, segmentIndex) => {
-      const isLastSegment = segmentIndex === segments.length - 1;
-      if (segment.type === 'image') {
-        blocks.push({
-          chapterIndex: chapter.index,
-          blockIndex: nextBlockIndex,
-          key: `${chapter.index}:image:${nextBlockIndex}`,
-          kind: 'image',
-          imageKey: segment.value,
-          marginBefore: IMAGE_BLOCK_MARGIN_PX,
-          marginAfter: IMAGE_BLOCK_MARGIN_PX + (isLastSegment && !hasImmediateBlankAfter ? paragraphSpacing : 0),
-          paragraphIndex,
-        });
-        nextBlockIndex += 1;
-        return;
-      }
-
-      blocks.push({
-        chapterIndex: chapter.index,
-        blockIndex: nextBlockIndex,
-        key: `${chapter.index}:text:${nextBlockIndex}`,
-        kind: 'text',
-        text: segment.value,
-        marginBefore: 0,
-        marginAfter: isLastSegment && !hasImmediateBlankAfter ? paragraphSpacing : 0,
-        paragraphIndex,
-      });
-      nextBlockIndex += 1;
-    });
-  });
+    return {
+      chapterIndex: block.chapterIndex,
+      blockIndex: block.blockIndex,
+      key: `${chapter.index}:text:${block.blockIndex}`,
+      kind: 'text',
+      marginBefore: 0,
+      marginAfter: block.hasParagraphSpacingAfter ? paragraphSpacing : 0,
+      paragraphIndex: block.paragraphIndex,
+      text: block.text,
+    };
+  }));
 
   return blocks;
 }
