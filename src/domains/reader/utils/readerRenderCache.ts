@@ -20,6 +20,7 @@ import {
   buildStaticScrollChapterTree,
   buildStaticSummaryShellTree,
   createChapterContentHash,
+  createScrollImageLayoutConstraints,
   createReaderRenderQueryManifest,
   estimateReaderRenderQueryManifest,
   serializeReaderLayoutSignature,
@@ -232,6 +233,7 @@ export async function persistReaderRenderCacheEntry<TTree extends StaticChapterR
 
 export function createReaderRenderCacheEntry<TTree extends StaticChapterRenderTree>(params: {
   chapter: ChapterContent;
+  layoutKey?: string;
   layoutSignature: ReaderLayoutSignature;
   tree: TTree;
   variantFamily: ReaderRenderVariant;
@@ -239,7 +241,7 @@ export function createReaderRenderCacheEntry<TTree extends StaticChapterRenderTr
   return {
     chapterIndex: params.chapter.index,
     contentHash: createChapterContentHash(params.chapter),
-    layoutKey: serializeReaderLayoutSignature(params.layoutSignature),
+    layoutKey: params.layoutKey ?? serializeReaderLayoutSignature(params.layoutSignature),
     layoutSignature: params.layoutSignature,
     novelId: 0,
     queryManifest: createReaderRenderQueryManifest(params.variantFamily, params.tree),
@@ -252,6 +254,7 @@ export function createReaderRenderCacheEntry<TTree extends StaticChapterRenderTr
 
 export function createReaderRenderCacheManifestEntry(params: {
   chapter: Pick<ChapterContent, 'content' | 'index' | 'title'>;
+  layoutKey?: string;
   layoutSignature: ReaderLayoutSignature;
   novelId: number;
   queryManifest: ReaderRenderQueryManifest;
@@ -260,7 +263,7 @@ export function createReaderRenderCacheManifestEntry(params: {
   return {
     chapterIndex: params.chapter.index,
     contentHash: createChapterContentHash(params.chapter),
-    layoutKey: serializeReaderLayoutSignature(params.layoutSignature),
+    layoutKey: params.layoutKey ?? serializeReaderLayoutSignature(params.layoutSignature),
     layoutSignature: params.layoutSignature,
     novelId: params.novelId,
     queryManifest: params.queryManifest,
@@ -274,6 +277,7 @@ export function createReaderRenderCacheManifestEntry(params: {
 export function buildStaticRenderTree(params: {
   chapter: ChapterContent;
   imageDimensionsByKey: Map<string, ReaderImageDimensions | null | undefined>;
+  layoutKey?: string;
   layoutSignature: ReaderLayoutSignature;
   novelId: number;
   typography: ReaderTypographyMetrics;
@@ -286,6 +290,10 @@ export function buildStaticRenderTree(params: {
       params.layoutSignature.textWidth,
       params.typography,
       params.imageDimensionsByKey,
+      createScrollImageLayoutConstraints(
+        params.layoutSignature.textWidth,
+        params.layoutSignature.pageHeight,
+      ),
     );
   } else if (params.variantFamily === 'original-paged') {
     tree = buildStaticPagedChapterTree(
@@ -303,6 +311,7 @@ export function buildStaticRenderTree(params: {
 
   const entry = createReaderRenderCacheEntry({
     chapter: params.chapter,
+    layoutKey: params.layoutKey,
     layoutSignature: params.layoutSignature,
     tree,
     variantFamily: params.variantFamily,
@@ -334,6 +343,7 @@ export function createReaderRenderCacheManifestFromEntry<TTree extends StaticCha
 export function buildStaticRenderManifest(params: {
   chapter: ChapterContent;
   imageDimensionsByKey: Map<string, ReaderImageDimensions | null | undefined>;
+  layoutKey?: string;
   layoutSignature: ReaderLayoutSignature;
   novelId: number;
   typography: ReaderTypographyMetrics;
@@ -341,6 +351,7 @@ export function buildStaticRenderManifest(params: {
 }): ReaderRenderCacheManifestEntry {
   return createReaderRenderCacheManifestEntry({
     chapter: params.chapter,
+    layoutKey: params.layoutKey,
     layoutSignature: params.layoutSignature,
     novelId: params.novelId,
     queryManifest: estimateReaderRenderQueryManifest({

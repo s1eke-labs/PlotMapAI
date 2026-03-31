@@ -170,6 +170,33 @@ function buildChapterImageDimensionsMap(novelId: number, chapter: ChapterContent
   return dimensions;
 }
 
+function buildChapterImageLayoutKey(
+  novelId: number,
+  chapter: Pick<ChapterContent, 'content'>,
+  baseLayoutKey: string,
+): string {
+  const imageKeys = extractImageKeysFromText(chapter.content);
+  if (imageKeys.length === 0) {
+    return baseLayoutKey;
+  }
+
+  const imageFingerprint = imageKeys
+    .map((imageKey) => {
+      const dimensions = peekReaderImageDimensions(novelId, imageKey);
+      if (dimensions === undefined) {
+        return `${imageKey}:pending`;
+      }
+      if (dimensions === null) {
+        return `${imageKey}:missing`;
+      }
+
+      return `${imageKey}:${Math.round(dimensions.width)}x${Math.round(dimensions.height)}`;
+    })
+    .join(',');
+
+  return `${baseLayoutKey}::img:${imageFingerprint}`;
+}
+
 function getActiveVariant(isPagedMode: boolean, viewMode: 'original' | 'summary'): ReaderRenderVariant {
   if (viewMode === 'summary') {
     return 'summary-shell';
@@ -390,6 +417,7 @@ export function useReaderRenderCache({
   }, [loadedImageKeys, novelId]);
 
   const visibleTargets = useMemo(() => {
+    void imageRevision;
     const targets: VisibleRenderTarget[] = [];
 
     if (viewMode === 'summary') {
@@ -397,7 +425,11 @@ export function useReaderRenderCache({
         return targets;
       }
       const signature = variantSignatures['summary-shell'];
-      const layoutKey = serializeReaderLayoutSignature(signature);
+      const layoutKey = buildChapterImageLayoutKey(
+        novelId,
+        currentChapter,
+        serializeReaderLayoutSignature(signature),
+      );
       targets.push({
         chapter: currentChapter,
         exactKey: buildReaderRenderCacheKey({
@@ -414,8 +446,12 @@ export function useReaderRenderCache({
 
     if (isPagedMode) {
       const signature = variantSignatures['original-paged'];
-      const layoutKey = serializeReaderLayoutSignature(signature);
       for (const chapter of pagedChapters) {
+        const layoutKey = buildChapterImageLayoutKey(
+          novelId,
+          chapter,
+          serializeReaderLayoutSignature(signature),
+        );
         targets.push({
           chapter,
           exactKey: buildReaderRenderCacheKey({
@@ -432,8 +468,12 @@ export function useReaderRenderCache({
     }
 
     const signature = variantSignatures['original-scroll'];
-    const layoutKey = serializeReaderLayoutSignature(signature);
     for (const renderableChapter of scrollChapters) {
+      const layoutKey = buildChapterImageLayoutKey(
+        novelId,
+        renderableChapter.chapter,
+        serializeReaderLayoutSignature(signature),
+      );
       targets.push({
         chapter: renderableChapter.chapter,
         exactKey: buildReaderRenderCacheKey({
@@ -450,6 +490,7 @@ export function useReaderRenderCache({
   }, [
     currentChapter,
     isPagedMode,
+    imageRevision,
     novelId,
     pagedChapters,
     scrollChapters,
@@ -462,10 +503,15 @@ export function useReaderRenderCache({
     void visibleResultsRevisionKey;
     return visibleTargets.map((target) => {
       const signature = variantSignatures[target.variantFamily];
+      const layoutKey = buildChapterImageLayoutKey(
+        novelId,
+        target.chapter,
+        serializeReaderLayoutSignature(signature),
+      );
       const lookup = {
         chapterIndex: target.chapter.index,
         contentHash: createChapterContentHash(target.chapter),
-        layoutKey: serializeReaderLayoutSignature(signature),
+        layoutKey,
         novelId,
         variantFamily: target.variantFamily,
       } as const;
@@ -482,6 +528,7 @@ export function useReaderRenderCache({
       const builtEntry = buildStaticRenderTree({
         chapter: target.chapter,
         imageDimensionsByKey: buildChapterImageDimensionsMap(novelId, target.chapter),
+        layoutKey,
         layoutSignature: signature,
         novelId,
         typography,
@@ -678,10 +725,15 @@ export function useReaderRenderCache({
           }
 
           const contentHash = createChapterContentHash(chapter);
+          const layoutKey = buildChapterImageLayoutKey(
+            novelId,
+            chapter,
+            serializeReaderLayoutSignature(signature),
+          );
           const lookup = {
             chapterIndex: chapter.index,
             contentHash,
-            layoutKey: serializeReaderLayoutSignature(signature),
+            layoutKey,
             novelId,
             variantFamily: nextTarget.variantFamily,
           } as const;
@@ -727,6 +779,7 @@ export function useReaderRenderCache({
             const manifestEntry = buildStaticRenderManifest({
               chapter,
               imageDimensionsByKey: buildChapterImageDimensionsMap(novelId, chapter),
+              layoutKey,
               layoutSignature: signature,
               novelId,
               typography,
@@ -751,6 +804,7 @@ export function useReaderRenderCache({
           const builtEntry = buildStaticRenderTree({
             chapter,
             imageDimensionsByKey: buildChapterImageDimensionsMap(novelId, chapter),
+            layoutKey,
             layoutSignature: signature,
             novelId,
             typography,

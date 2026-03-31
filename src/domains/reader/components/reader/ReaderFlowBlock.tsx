@@ -65,7 +65,7 @@ function ReaderLayoutImage({
     <img
       src={imageUrl}
       alt=""
-      className="mx-auto block rounded-lg shadow-md"
+      className="mx-auto block max-h-full max-w-full rounded-lg shadow-md object-contain object-center"
       decoding="async"
       draggable={false}
       loading={imageRenderMode === 'paged' ? 'eager' : 'lazy'}
@@ -142,6 +142,7 @@ export default function ReaderFlowBlock({
   if (imageItem) {
     return (
       <div
+        className="flex items-center justify-center overflow-hidden"
         style={{
           ...positionStyle,
           height: imageItem.height,

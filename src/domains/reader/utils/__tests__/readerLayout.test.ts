@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   buildReaderBlocks,
   composePaginatedChapterLayout,
+  createScrollImageLayoutConstraints,
   createReaderTypographyMetrics,
   createReaderViewportMetrics,
   findVisibleBlockRange,
@@ -293,6 +294,32 @@ describe('readerLayout', () => {
     expect(getOffsetForLocator(measuredLayout, imageLocator)).toBe(
       (imageMetric?.top ?? 0) + (imageMetric?.height ?? 0),
     );
+  });
+
+  it('caps scroll-mode image size to the viewport height while preserving aspect ratio', () => {
+    const typography = createReaderTypographyMetrics(18, 1.8, 16, 600);
+    const measuredLayout = measureReaderChapterLayout(
+      {
+        index: 0,
+        title: 'Chapter 1',
+        content: '[IMG:tall-illustration]',
+        wordCount: 10,
+        totalChapters: 1,
+        hasPrev: false,
+        hasNext: false,
+      },
+      400,
+      typography,
+      new Map([
+        ['tall-illustration', { width: 1200, height: 2400, aspectRatio: 0.5 }],
+      ]),
+      createScrollImageLayoutConstraints(400, 360),
+    );
+
+    const imageMetric = measuredLayout.metrics.find((metric) => metric.block.kind === 'image');
+    expect(imageMetric).toBeDefined();
+    expect(imageMetric?.displayHeight).toBe(344);
+    expect(imageMetric?.displayWidth).toBe(172);
   });
 
   it('falls back to sans-serif when document.body is unavailable', () => {

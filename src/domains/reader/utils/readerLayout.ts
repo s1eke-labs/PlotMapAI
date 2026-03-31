@@ -89,6 +89,11 @@ export interface ReaderViewportMetrics {
   pagedFitsTwoColumns: boolean;
 }
 
+export interface ReaderImageLayoutConstraints {
+  maxImageHeight?: number;
+  maxImageWidth?: number;
+}
+
 export interface ReaderMeasuredLine extends LayoutLine {
   lineIndex: number;
 }
@@ -290,6 +295,16 @@ export function getPagedContentHeight(pagedViewportHeight: number): number {
   return Math.max(0, pagedViewportHeight - PAGED_VIEWPORT_TOP_PADDING_PX);
 }
 
+export function createScrollImageLayoutConstraints(
+  scrollTextWidth: number,
+  scrollViewportHeight: number,
+): ReaderImageLayoutConstraints {
+  return {
+    maxImageHeight: getPagedContentHeight(scrollViewportHeight),
+    maxImageWidth: Math.max(0, scrollTextWidth),
+  };
+}
+
 export function serializeReaderLayoutSignature(signature: ReaderLayoutSignature): string {
   return [
     signature.textWidth,
@@ -447,6 +462,7 @@ export function measureReaderChapterLayout(
   width: number,
   typography: ReaderTypographyMetrics,
   imageDimensionsByKey: Map<string, ReaderImageDimensions | null | undefined>,
+  imageLayoutConstraints?: ReaderImageLayoutConstraints,
 ): MeasuredChapterLayout {
   const blocks = buildReaderBlocks(chapter, typography.paragraphSpacing);
   const metrics: VirtualBlockMetrics[] = [];
@@ -490,8 +506,13 @@ export function measureReaderChapterLayout(
       const aspectRatio = dimensions?.aspectRatio && Number.isFinite(dimensions.aspectRatio)
         ? dimensions.aspectRatio
         : DEFAULT_IMAGE_ASPECT_RATIO;
-      const displayWidth = Math.min(width, naturalWidth);
-      const displayHeight = Math.max(1, displayWidth / aspectRatio);
+      const resolvedImageSize = resolveConstrainedImageSize(
+        Math.min(width, naturalWidth),
+        aspectRatio,
+        imageLayoutConstraints,
+      );
+      const displayWidth = resolvedImageSize.width;
+      const displayHeight = resolvedImageSize.height;
 
       blockMetrics = {
         block,
@@ -542,8 +563,15 @@ export function buildStaticScrollChapterTree(
   width: number,
   typography: ReaderTypographyMetrics,
   imageDimensionsByKey: Map<string, ReaderImageDimensions | null | undefined>,
+  imageLayoutConstraints?: ReaderImageLayoutConstraints,
 ): StaticScrollChapterTree {
-  return measureReaderChapterLayout(chapter, width, typography, imageDimensionsByKey);
+  return measureReaderChapterLayout(
+    chapter,
+    width,
+    typography,
+    imageDimensionsByKey,
+    imageLayoutConstraints,
+  );
 }
 
 export function composePaginatedChapterLayout(
@@ -796,11 +824,15 @@ export function estimateReaderRenderQueryManifest(params: {
   }
 
   const blocks = buildReaderBlocks(params.chapter, params.typography.paragraphSpacing);
+  const scrollImageLayoutConstraints = params.variantFamily === 'original-scroll'
+    ? createScrollImageLayoutConstraints(params.layoutSignature.textWidth, params.layoutSignature.pageHeight)
+    : undefined;
   const estimatedMetrics = blocks.map((block) => estimateReaderBlockMetric(
     block,
     params.layoutSignature.textWidth,
     params.typography,
     params.imageDimensionsByKey,
+    scrollImageLayoutConstraints,
   ));
   const firstMeaningfulMetric = estimatedMetrics.find((metric) => metric.block.kind !== 'blank');
   const lastMeaningfulMetric = [...estimatedMetrics].reverse().find((metric) => metric.block.kind !== 'blank');
@@ -1365,6 +1397,7 @@ function estimateReaderBlockMetric(
   width: number,
   typography: ReaderTypographyMetrics,
   imageDimensionsByKey: Map<string, ReaderImageDimensions | null | undefined>,
+  imageLayoutConstraints?: ReaderImageLayoutConstraints,
 ): EstimatedReaderBlockMetric {
   if (block.kind === 'heading' || block.kind === 'text') {
     const fontSizePx = block.kind === 'heading'
@@ -1394,8 +1427,13 @@ function estimateReaderBlockMetric(
     const aspectRatio = dimensions?.aspectRatio && Number.isFinite(dimensions.aspectRatio)
       ? dimensions.aspectRatio
       : DEFAULT_IMAGE_ASPECT_RATIO;
-    const displayWidth = Math.min(width, naturalWidth);
-    const displayHeight = Math.max(1, displayWidth / aspectRatio);
+    const resolvedImageSize = resolveConstrainedImageSize(
+      Math.min(width, naturalWidth),
+      aspectRatio,
+      imageLayoutConstraints,
+    );
+    const displayWidth = resolvedImageSize.width;
+    const displayHeight = resolvedImageSize.height;
 
     return {
       block,
@@ -1428,6 +1466,37 @@ function estimateTextLineCount(text: string, maxWidth: number, fontSizePx: numbe
 
   const maxCharsPerLine = Math.max(1, Math.floor(maxWidth / Math.max(fontSizePx * TEXT_FALLBACK_WIDTH_RATIO, 1)));
   return Math.max(1, Math.ceil(text.length / maxCharsPerLine));
+}
+
+function resolveConstrainedImageSize(
+  baseDisplayWidth: number,
+  aspectRatio: number,
+  constraints?: ReaderImageLayoutConstraints,
+): {
+  height: number;
+  width: number;
+} {
+  let displayWidth = Math.max(1, baseDisplayWidth);
+  let displayHeight = Math.max(1, displayWidth / aspectRatio);
+
+  const maxImageWidth = constraints?.maxImageWidth;
+  if (typeof maxImageWidth === 'number' && Number.isFinite(maxImageWidth) && maxImageWidth > 0 && displayWidth > maxImageWidth) {
+    const scale = maxImageWidth / displayWidth;
+    displayWidth *= scale;
+    displayHeight *= scale;
+  }
+
+  const maxImageHeight = constraints?.maxImageHeight;
+  if (typeof maxImageHeight === 'number' && Number.isFinite(maxImageHeight) && maxImageHeight > 0 && displayHeight > maxImageHeight) {
+    const scale = maxImageHeight / displayHeight;
+    displayWidth *= scale;
+    displayHeight *= scale;
+  }
+
+  return {
+    height: Math.max(1, displayHeight),
+    width: Math.max(1, displayWidth),
+  };
 }
 
 function estimatePaginatedManifestPageCount(

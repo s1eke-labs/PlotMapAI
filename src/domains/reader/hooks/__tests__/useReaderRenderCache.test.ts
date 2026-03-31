@@ -44,9 +44,10 @@ const renderCacheMock = vi.hoisted(() => {
   const memory = new Map<string, unknown>();
   const buildKey = (params: {
     chapterIndex: number;
+    layoutKey: string;
     novelId: number;
     variantFamily: string;
-  }) => `${params.novelId}:${params.chapterIndex}:${params.variantFamily}`;
+  }) => `${params.novelId}:${params.chapterIndex}:${params.variantFamily}:${params.layoutKey}`;
 
   return {
     reset() {
@@ -55,6 +56,7 @@ const renderCacheMock = vi.hoisted(() => {
     buildReaderRenderCacheKey: vi.fn(buildKey),
     buildStaticRenderTree: vi.fn((params: {
       chapter: { index: number; title: string };
+      layoutKey?: string;
       layoutSignature: object;
       novelId: number;
       variantFamily: 'original-paged' | 'original-scroll' | 'summary-shell';
@@ -85,7 +87,7 @@ const renderCacheMock = vi.hoisted(() => {
       return {
         chapterIndex: params.chapter.index,
         contentHash: `hash:${params.chapter.index}`,
-        layoutKey: `${params.variantFamily}:${params.novelId}`,
+        layoutKey: params.layoutKey ?? `${params.variantFamily}:${params.novelId}`,
         layoutSignature: params.layoutSignature,
         novelId: params.novelId,
         queryManifest: {},
@@ -97,13 +99,14 @@ const renderCacheMock = vi.hoisted(() => {
     }),
     buildStaticRenderManifest: vi.fn((params: {
       chapter: { index: number };
+      layoutKey?: string;
       layoutSignature: object;
       novelId: number;
       variantFamily: 'original-paged' | 'original-scroll' | 'summary-shell';
     }) => ({
       chapterIndex: params.chapter.index,
       contentHash: `hash:${params.chapter.index}`,
-      layoutKey: `${params.variantFamily}:${params.novelId}`,
+      layoutKey: params.layoutKey ?? `${params.variantFamily}:${params.novelId}`,
       layoutSignature: params.layoutSignature,
       novelId: params.novelId,
       queryManifest: {
@@ -135,6 +138,7 @@ const renderCacheMock = vi.hoisted(() => {
     getReaderRenderCacheEntryFromDexie: vi.fn().mockResolvedValue(null),
     getReaderRenderCacheEntryFromMemory: vi.fn((params: {
       chapterIndex: number;
+      layoutKey: string;
       novelId: number;
       variantFamily: string;
     }) => memory.get(buildKey(params)) ?? null),
@@ -144,6 +148,7 @@ const renderCacheMock = vi.hoisted(() => {
     persistReaderRenderCacheEntry: vi.fn().mockResolvedValue(undefined),
     primeReaderRenderCacheEntry: vi.fn((entry: {
       chapterIndex: number;
+      layoutKey: string;
       novelId: number;
       variantFamily: string;
     }) => {
@@ -349,6 +354,48 @@ describe('useReaderRenderCache', () => {
       }),
       expect.any(Error),
     );
+  });
+
+  it('rebuilds visible image chapters when decoded image dimensions become available', async () => {
+    const currentChapter = {
+      ...createChapter(0, 1),
+      content: 'Before image\n[IMG:cover]\nAfter image',
+    };
+
+    imageCacheMock.preloadReaderImageResources.mockImplementation(async () => {
+      imageCacheMock.peekReaderImageDimensions.mockReturnValue({
+        aspectRatio: 5,
+        height: 240,
+        width: 1200,
+      });
+    });
+
+    renderReaderRenderCacheHook({
+      chapters: [{ index: 0, title: 'Chapter 1', wordCount: 120 }],
+      currentChapter,
+      novelId: 9,
+      scrollChapters: [{ chapter: currentChapter, index: currentChapter.index }],
+    });
+
+    const getVisibleScrollBuildCalls = () => renderCacheMock.buildStaticRenderTree.mock.calls
+      .map(([params]) => params as { chapter: { index: number }; layoutKey?: string; variantFamily: string })
+      .filter((params) => params.variantFamily === 'original-scroll' && params.chapter.index === 0);
+
+    await waitFor(() => {
+      expect(getVisibleScrollBuildCalls()).toHaveLength(2);
+    });
+
+    const [initialBuild, rebuiltWithDimensions] = getVisibleScrollBuildCalls();
+
+    expect(initialBuild.layoutKey).toContain('cover:pending');
+    expect(rebuiltWithDimensions.layoutKey).toContain('cover:1200x240');
+    expect(rebuiltWithDimensions.layoutKey).not.toBe(initialBuild.layoutKey);
+    expect(renderCacheMock.persistReaderRenderCacheEntry).toHaveBeenCalledWith(expect.objectContaining({
+      chapterIndex: 0,
+      layoutKey: expect.stringContaining('cover:1200x240'),
+      storageKind: 'render-tree',
+      variantFamily: 'original-scroll',
+    }));
   });
 
   it('logs reader layout snapshots with visible counts and cache source breakdowns', async () => {

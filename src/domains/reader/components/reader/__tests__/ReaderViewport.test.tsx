@@ -196,6 +196,20 @@ describe('ReaderViewport', () => {
     expect(onBlockedInteraction).toHaveBeenCalledTimes(1);
   });
 
+  it('dismisses blocked touchmove interactions while the menu is visible', () => {
+    const onBlockedInteraction = vi.fn();
+    const { container } = renderViewport({
+      renderableChapter: chapter,
+      isPagedMode: false,
+      interactionLocked: true,
+      onBlockedInteraction,
+    });
+
+    fireEvent.touchMove(container.firstChild as HTMLElement);
+
+    expect(onBlockedInteraction).toHaveBeenCalledTimes(1);
+  });
+
   it('dismisses blocked paged drags before they can turn the page', () => {
     const onBlockedInteraction = vi.fn();
     const { container } = renderViewport({

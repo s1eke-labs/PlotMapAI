@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import type { ChapterContent } from '../../api/readerApi';
@@ -45,6 +46,27 @@ export default function ReaderViewport({
   scrollContentProps,
   summaryContentProps,
 }: ReaderViewportProps) {
+  useEffect(() => {
+    const viewport = contentRef.current;
+    if (!viewport) {
+      return;
+    }
+
+    const handleTouchMove = (event: TouchEvent) => {
+      if (!interactionLocked) {
+        return;
+      }
+
+      event.preventDefault();
+      onBlockedInteraction?.();
+    };
+
+    viewport.addEventListener('touchmove', handleTouchMove, { passive: false });
+    return () => {
+      viewport.removeEventListener('touchmove', handleTouchMove);
+    };
+  }, [contentRef, interactionLocked, onBlockedInteraction]);
+
   return (
     <div
       ref={contentRef}
@@ -53,14 +75,6 @@ export default function ReaderViewport({
         isPagedMode || interactionLocked ? 'overflow-hidden' : 'overflow-y-auto hide-scrollbar',
       )}
       onWheelCapture={(event) => {
-        if (!interactionLocked) {
-          return;
-        }
-
-        event.preventDefault();
-        onBlockedInteraction?.();
-      }}
-      onTouchMoveCapture={(event) => {
         if (!interactionLocked) {
           return;
         }

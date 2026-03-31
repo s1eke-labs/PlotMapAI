@@ -141,5 +141,6 @@ describe('ReaderFlowBlock', () => {
     expect(image).not.toBeNull();
     expect(image).toHaveAttribute('src', 'blob:reader-image');
     expect(image).toHaveAttribute('loading', 'eager');
+    expect(image).toHaveClass('object-contain', 'object-center');
   });
 });

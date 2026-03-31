@@ -15,6 +15,7 @@ import {
 } from '../utils/readerImageResourceCache';
 import {
   composePaginatedChapterLayout,
+  createScrollImageLayoutConstraints,
   createReaderTypographyMetrics,
   createReaderViewportMetrics,
   measureReaderChapterLayout,
@@ -184,6 +185,14 @@ export function useReaderLayoutEngine({
     return dimensions;
   }, [imageKeys, imageRevision, novelId]);
 
+  const scrollImageLayoutConstraints = useMemo(() => createScrollImageLayoutConstraints(
+    viewportMetrics.scrollTextWidth,
+    viewportMetrics.scrollViewportHeight,
+  ), [
+    viewportMetrics.scrollTextWidth,
+    viewportMetrics.scrollViewportHeight,
+  ]);
+
   const scrollLayouts = useMemo(() => {
     const layouts = new Map<number, MeasuredChapterLayout>();
     if (viewportMetrics.scrollTextWidth <= 0) {
@@ -198,12 +207,13 @@ export function useReaderLayoutEngine({
           viewportMetrics.scrollTextWidth,
           typography,
           imageDimensionsByKey,
+          scrollImageLayoutConstraints,
         ),
       );
     }
 
     return layouts;
-  }, [imageDimensionsByKey, scrollChapters, typography, viewportMetrics.scrollTextWidth]);
+  }, [imageDimensionsByKey, scrollChapters, scrollImageLayoutConstraints, typography, viewportMetrics.scrollTextWidth]);
 
   const pagedLayouts = useMemo(() => {
     const layouts = new Map<number, PaginatedChapterLayout>();
