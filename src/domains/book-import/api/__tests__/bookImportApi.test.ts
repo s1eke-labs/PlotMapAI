@@ -39,6 +39,54 @@ describe('bookImportApi', () => {
     expect(novel.chapterCount).toBe(2);
   });
 
+  it('builds and stores the full-book image index during import', async () => {
+    vi.mocked(parseBook).mockResolvedValueOnce({
+      title: 'Illustrated Novel',
+      author: 'Parsed Author',
+      description: 'Parsed desc',
+      coverBlob: null,
+      chapters: [
+        {
+          title: 'Ch1',
+          content: 'Ch1\n[IMG:cover]\nBody\n[IMG:map]',
+        },
+        {
+          title: 'Ch2',
+          content: 'Body\n[IMG:diagram]',
+        },
+      ],
+      rawText: 'raw',
+      encoding: 'utf-8',
+      totalWords: 20,
+      fileHash: 'imagehash',
+      tags: ['fiction'],
+      images: [],
+    });
+
+    const file = new File(['content'], 'illustrated.txt', { type: 'text/plain' });
+    const novel = await bookImportApi.importBook(file);
+    const storedEntries = (await db.novelImageGalleryEntries
+      .where('novelId')
+      .equals(novel.id)
+      .toArray())
+      .sort((left, right) => (
+        left.chapterIndex - right.chapterIndex
+        || left.order - right.order
+        || left.blockIndex - right.blockIndex
+      ));
+
+    expect(storedEntries.map((entry) => ({
+      blockIndex: entry.blockIndex,
+      chapterIndex: entry.chapterIndex,
+      imageKey: entry.imageKey,
+      order: entry.order,
+    }))).toEqual([
+      { blockIndex: 1, chapterIndex: 0, imageKey: 'cover', order: 0 },
+      { blockIndex: 3, chapterIndex: 0, imageKey: 'map', order: 1 },
+      { blockIndex: 2, chapterIndex: 1, imageKey: 'diagram', order: 0 },
+    ]);
+  });
+
   it('upload throws for unsupported file type', async () => {
     const file = new File(['data'], 'test.pdf', { type: 'application/pdf' });
     await expect(bookImportApi.importBook(file)).rejects.toThrow('Only .txt and .epub files are supported');

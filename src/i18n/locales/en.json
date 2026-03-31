@@ -243,6 +243,10 @@
     "processingContents": "Preparing contents {{percent}}%",
     "processingChapter": "Processing chapter {{percent}}%",
     "restoringPosition": "Restoring reading position",
+    "imageViewer": {
+      "title": "Image Viewer",
+      "loadingMore": "Loading more images"
+    },
     "loadError": "Failed to load reader content.",
     "exit": "Exit Reader",
     "goBack": "Go Back"

@@ -68,6 +68,14 @@ describe('libraryApi', () => {
       viewMode: 'original',
       updatedAt: new Date().toISOString(),
     });
+    await db.novelImageGalleryEntries.add({
+      id: undefined as unknown as number,
+      novelId: id as number,
+      chapterIndex: 0,
+      blockIndex: 1,
+      imageKey: 'cover',
+      order: 0,
+    });
     localStorage.setItem(CACHE_KEYS.readerState(id as number), JSON.stringify({
       chapterIndex: 3,
       chapterProgress: 0.5,
@@ -82,6 +90,8 @@ describe('libraryApi', () => {
     expect(chapters.length).toBe(0);
     const readingProgress = await db.readingProgress.toArray();
     expect(readingProgress).toEqual([]);
+    const imageGalleryEntries = await db.novelImageGalleryEntries.toArray();
+    expect(imageGalleryEntries).toEqual([]);
     expect(localStorage.getItem(CACHE_KEYS.readerState(id as number))).toBeNull();
   });
 

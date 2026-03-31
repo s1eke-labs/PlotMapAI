@@ -3,6 +3,10 @@ import type { ReaderPageTurnMode } from '../../constants/pageTurnMode';
 import type { PageTarget } from '../../hooks/useReaderStatePersistence';
 import type { AnimationPlaybackControls, PanInfo, Variants } from 'motion/react';
 import type { PageSlice, PaginatedChapterLayout } from '../../utils/readerLayout';
+import type {
+  ReaderImageActivationPayload,
+  ReaderImageGalleryEntry,
+} from '../../utils/readerImageGallery';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { animate, AnimatePresence, motion, useMotionValue, useTransform } from 'motion/react';
@@ -41,6 +45,11 @@ interface PagedReaderContentProps {
   nextChapterPreview?: ChapterContent | null;
   nextLayout?: PaginatedChapterLayout | null;
   novelId: number;
+  onImageActivate?: (payload: ReaderImageActivationPayload) => void;
+  onRegisterImageElement?: (
+    entry: Pick<ReaderImageGalleryEntry, 'blockIndex' | 'chapterIndex' | 'imageKey'>,
+    element: HTMLButtonElement | null,
+  ) => void;
   onRequestNextPage?: () => void;
   onRequestPrevPage?: () => void;
   pageBgClassName?: string;
@@ -124,6 +133,8 @@ function PagedPageFrame({
   readerTheme,
   textClassName,
   headerBgClassName,
+  onImageActivate,
+  onRegisterImageElement,
 }: {
   chapter: ChapterContent;
   layout: PaginatedChapterLayout;
@@ -136,6 +147,11 @@ function PagedPageFrame({
   readerTheme: string;
   textClassName: string;
   headerBgClassName: string;
+  onImageActivate?: (payload: ReaderImageActivationPayload) => void;
+  onRegisterImageElement?: (
+    entry: Pick<ReaderImageGalleryEntry, 'blockIndex' | 'chapterIndex' | 'imageKey'>,
+    element: HTMLButtonElement | null,
+  ) => void;
 }) {
   return (
     <div data-testid="paged-reader-page-frame" className="flex h-full w-full flex-col">
@@ -181,6 +197,8 @@ function PagedPageFrame({
                       imageRenderMode="paged"
                       item={item}
                       novelId={novelId}
+                      onImageActivate={onImageActivate}
+                      onRegisterImageElement={onRegisterImageElement}
                     />
                   ))}
                 </div>
@@ -203,6 +221,8 @@ export default function PagedReaderContent({
   nextChapterPreview = null,
   nextLayout = null,
   novelId,
+  onImageActivate,
+  onRegisterImageElement,
   onRequestNextPage,
   onRequestPrevPage,
   pageBgClassName,
@@ -617,6 +637,8 @@ export default function PagedReaderContent({
                 readerTheme={readerTheme}
                 textClassName={textClassName}
                 headerBgClassName={headerBgClassName}
+                onImageActivate={onImageActivate}
+                onRegisterImageElement={onRegisterImageElement}
               />
             </motion.div>
 
@@ -638,6 +660,8 @@ export default function PagedReaderContent({
                 readerTheme={readerTheme}
                 textClassName={textClassName}
                 headerBgClassName={headerBgClassName}
+                onImageActivate={onImageActivate}
+                onRegisterImageElement={onRegisterImageElement}
               />
             </motion.div>
           </>
@@ -665,6 +689,8 @@ export default function PagedReaderContent({
                 readerTheme={readerTheme}
                 textClassName={textClassName}
                 headerBgClassName={headerBgClassName}
+                onImageActivate={onImageActivate}
+                onRegisterImageElement={onRegisterImageElement}
               />
             </motion.div>
           </AnimatePresence>

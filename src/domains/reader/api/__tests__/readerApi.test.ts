@@ -129,6 +129,44 @@ describe('readerApi', () => {
 
     expect(result).not.toBeNull();
   });
+
+  it('getImageGalleryEntries returns the stored full-book image order', async () => {
+    const novelId = await getNovelId();
+    await db.novelImageGalleryEntries.bulkAdd([
+      {
+        id: undefined as unknown as number,
+        novelId,
+        chapterIndex: 1,
+        blockIndex: 5,
+        imageKey: 'late',
+        order: 1,
+      },
+      {
+        id: undefined as unknown as number,
+        novelId,
+        chapterIndex: 0,
+        blockIndex: 3,
+        imageKey: 'first',
+        order: 0,
+      },
+      {
+        id: undefined as unknown as number,
+        novelId,
+        chapterIndex: 1,
+        blockIndex: 2,
+        imageKey: 'second',
+        order: 0,
+      },
+    ]);
+
+    const result = await readerApi.getImageGalleryEntries(novelId);
+
+    expect(result).toEqual([
+      { blockIndex: 3, chapterIndex: 0, imageKey: 'first', order: 0 },
+      { blockIndex: 2, chapterIndex: 1, imageKey: 'second', order: 0 },
+      { blockIndex: 5, chapterIndex: 1, imageKey: 'late', order: 1 },
+    ]);
+  });
 });
 
 describe('loadAndPurifyChapters', () => {

@@ -21,6 +21,7 @@ describe('db', () => {
       'chapterImages',
       'chapters',
       'coverImages',
+      'novelImageGalleryEntries',
       'novels',
       'purificationRules',
       'readerRenderCache',
@@ -100,6 +101,22 @@ describe('db', () => {
     const rules = await db.purificationRules.toArray();
     expect(rules.length).toBe(1);
     expect(rules[0].pattern).toBe('foo');
+  });
+
+  it('can add and retrieve novel image gallery entries', async () => {
+    await db.novelImageGalleryEntries.add({
+      id: undefined as unknown as number,
+      novelId: 1,
+      chapterIndex: 0,
+      blockIndex: 2,
+      imageKey: 'cover',
+      order: 0,
+    });
+
+    const entries = await db.novelImageGalleryEntries.where('novelId').equals(1).toArray();
+
+    expect(entries).toHaveLength(1);
+    expect(entries[0].imageKey).toBe('cover');
   });
 
   it('can add and retrieve reading progress', async () => {

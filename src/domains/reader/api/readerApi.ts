@@ -1,7 +1,9 @@
-import { db } from '@infra/db';
 import type { Chapter as DbChapter } from '@infra/db';
-import { AppErrorCode, createAppError } from '@shared/errors';
+import type { ReaderImageGalleryEntry } from '../utils/readerImageGallery';
 import type { ReaderLocator } from '../utils/readerLayout';
+
+import { db } from '@infra/db';
+import { AppErrorCode, createAppError } from '@shared/errors';
 import {
   runPurifyChapterTask,
   runPurifyChaptersTask,
@@ -9,6 +11,8 @@ import {
   type PurifyRule,
   type TextProcessingProgress,
 } from '@shared/text-processing';
+
+import { sortReaderImageGalleryEntries } from '../utils/readerImageGallery';
 
 export interface Chapter {
   index: number;
@@ -243,6 +247,20 @@ export const readerApi = {
       .equals([novelId, imageKey])
       .first();
     return image?.blob ?? null;
+  },
+
+  getImageGalleryEntries: async (novelId: number): Promise<ReaderImageGalleryEntry[]> => {
+    const entries = await db.novelImageGalleryEntries
+      .where('novelId')
+      .equals(novelId)
+      .toArray();
+
+    return sortReaderImageGalleryEntries(entries.map((entry) => ({
+      blockIndex: entry.blockIndex,
+      chapterIndex: entry.chapterIndex,
+      imageKey: entry.imageKey,
+      order: entry.order,
+    })));
   },
 
   getImageUrl: async (novelId: number, imageKey: string): Promise<string | null> => {

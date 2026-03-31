@@ -3,6 +3,10 @@ import type {
   StaticScrollChapterTree,
   VisibleBlockRange,
 } from '../../utils/readerLayout';
+import type {
+  ReaderImageActivationPayload,
+  ReaderImageGalleryEntry,
+} from '../../utils/readerImageGallery';
 
 import { cn } from '@shared/utils/cn';
 
@@ -18,6 +22,11 @@ interface ScrollReaderContentProps {
   chapters: ScrollReaderChapter[];
   headerBgClassName: string;
   novelId: number;
+  onImageActivate?: (payload: ReaderImageActivationPayload) => void;
+  onRegisterImageElement?: (
+    entry: Pick<ReaderImageGalleryEntry, 'blockIndex' | 'chapterIndex' | 'imageKey'>,
+    element: HTMLButtonElement | null,
+  ) => void;
   onChapterBodyElement?: (chapterIndex: number, element: HTMLDivElement | null) => void;
   onChapterElement: (chapterIndex: number, element: HTMLDivElement | null) => void;
   readerTheme: string;
@@ -29,6 +38,8 @@ export default function ScrollReaderContent({
   chapters,
   headerBgClassName,
   novelId,
+  onImageActivate,
+  onRegisterImageElement,
   onChapterBodyElement,
   onChapterElement,
   readerTheme,
@@ -75,6 +86,8 @@ export default function ScrollReaderContent({
                     imageRenderMode="scroll"
                     item={metric}
                     novelId={novelId}
+                    onImageActivate={onImageActivate}
+                    onRegisterImageElement={onRegisterImageElement}
                     positionStyle={{
                       left: 0,
                       position: 'absolute',

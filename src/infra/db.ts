@@ -1,5 +1,7 @@
 import Dexie, { type EntityTable } from 'dexie';
 
+import { buildChapterImageGalleryEntries } from '@shared/text-processing';
+
 interface ReaderLocatorRecord {
   chapterIndex: number;
   blockIndex: number;
@@ -336,6 +338,15 @@ export interface ChapterImage {
   blob: Blob;
 }
 
+export interface NovelImageGalleryEntryRecord {
+  id: number;
+  novelId: number;
+  chapterIndex: number;
+  blockIndex: number;
+  imageKey: string;
+  order: number;
+}
+
 export interface ReaderRenderCache {
   id: number;
   novelId: number;
@@ -350,7 +361,7 @@ export interface ReaderRenderCache {
   updatedAt: string;
 }
 
-const CURRENT_DB_VERSION = 7;
+const CURRENT_DB_VERSION = 8;
 
 const CURRENT_SCHEMA = {
   novels: '++id, createdAt',
@@ -365,6 +376,7 @@ const CURRENT_SCHEMA = {
   analysisOverviews: '++id, novelId',
   coverImages: '++id, novelId',
   chapterImages: '++id, novelId, [novelId+imageKey]',
+  novelImageGalleryEntries: '++id, novelId, [novelId+chapterIndex], [novelId+chapterIndex+blockIndex], [novelId+imageKey]',
   readerRenderCache: '++id, [novelId+chapterIndex+variantFamily], [novelId+variantFamily], updatedAt',
 } as const;
 
@@ -381,12 +393,39 @@ const db = new Dexie('PlotMapAI') as Dexie & {
   analysisOverviews: EntityTable<AnalysisOverview, 'id'>;
   coverImages: EntityTable<CoverImage, 'id'>;
   chapterImages: EntityTable<ChapterImage, 'id'>;
+  novelImageGalleryEntries: EntityTable<NovelImageGalleryEntryRecord, 'id'>;
   readerRenderCache: EntityTable<ReaderRenderCache, 'id'>;
 };
 
 // Development phase: keep a single declaration for the latest schema instead of
 // preserving every intermediate migration step. If we later need production-grade
 // upgrade compatibility, reintroduce explicit version history and upgrades here.
-db.version(CURRENT_DB_VERSION).stores(CURRENT_SCHEMA);
+db.version(CURRENT_DB_VERSION)
+  .stores(CURRENT_SCHEMA)
+  .upgrade(async (tx) => {
+    const chapters = (await tx.table('chapters').toArray() as Chapter[])
+      .sort((left, right) => (
+        left.novelId - right.novelId
+        || left.chapterIndex - right.chapterIndex
+      ));
+    const nextEntries = chapters.flatMap((chapter) => (
+      buildChapterImageGalleryEntries({
+        content: chapter.content,
+        index: chapter.chapterIndex,
+        title: chapter.title,
+      }).map((entry) => ({
+        id: undefined as unknown as number,
+        novelId: chapter.novelId,
+        chapterIndex: entry.chapterIndex,
+        blockIndex: entry.blockIndex,
+        imageKey: entry.imageKey,
+        order: entry.order,
+      }))
+    ));
+
+    if (nextEntries.length > 0) {
+      await tx.table('novelImageGalleryEntries').bulkAdd(nextEntries);
+    }
+  });
 
 export { db };

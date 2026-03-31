@@ -243,6 +243,10 @@
     "processingContents": "正在整理目录 {{percent}}%",
     "processingChapter": "正在处理章节内容 {{percent}}%",
     "restoringPosition": "正在恢复阅读位置",
+    "imageViewer": {
+      "title": "图片查看器",
+      "loadingMore": "正在加载更多图片"
+    },
     "loadError": "加载阅读内容失败。",
     "exit": "退出阅读",
     "goBack": "返回"

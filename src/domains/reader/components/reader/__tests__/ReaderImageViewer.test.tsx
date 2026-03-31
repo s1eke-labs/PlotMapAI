@@ -1,0 +1,276 @@
+import { useState } from 'react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+const useReaderImageResourceMock = vi.hoisted(() => vi.fn());
+const peekReaderImageDimensionsMock = vi.hoisted(() => vi.fn());
+const preloadReaderImageResourcesMock = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string) => key,
+  }),
+}));
+
+vi.mock('../../../hooks/useReaderImageResource', () => ({
+  useReaderImageResource: useReaderImageResourceMock,
+}));
+
+vi.mock('../../../utils/readerImageResourceCache', () => ({
+  peekReaderImageDimensions: peekReaderImageDimensionsMock,
+  preloadReaderImageResources: preloadReaderImageResourcesMock,
+}));
+
+import ReaderImageViewer from '../ReaderImageViewer';
+
+const entries = [
+  {
+    blockIndex: 1,
+    chapterIndex: 0,
+    imageKey: 'cover',
+    order: 0,
+  },
+  {
+    blockIndex: 3,
+    chapterIndex: 0,
+    imageKey: 'map',
+    order: 1,
+  },
+];
+
+function renderViewer(overrides: Partial<React.ComponentProps<typeof ReaderImageViewer>> = {}) {
+  return render(
+    <ReaderImageViewer
+      activeEntry={entries[0]}
+      activeIndex={0}
+      canNavigateNext
+      canNavigatePrev={false}
+      entries={entries}
+      getOriginRect={() => new DOMRect(40, 80, 120, 90)}
+      isIndexResolved
+      isIndexLoading={false}
+      isOpen
+      novelId={1}
+      onRequestClose={() => {}}
+      onRequestNavigate={async () => false}
+      {...overrides}
+    />,
+  );
+}
+
+describe('ReaderImageViewer', () => {
+  beforeEach(() => {
+    useReaderImageResourceMock.mockReturnValue('blob:reader-image');
+    peekReaderImageDimensionsMock.mockReturnValue({
+      aspectRatio: 2,
+      height: 600,
+      width: 1200,
+    });
+    preloadReaderImageResourcesMock.mockResolvedValue(undefined);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.clearAllMocks();
+  });
+
+  it('closes on single click after a short delay and still supports Escape', async () => {
+    vi.useFakeTimers();
+    const onRequestClose = vi.fn();
+    renderViewer({ onRequestClose });
+
+    const stage = document.body.querySelector('[data-reader-image-stage]') as HTMLDivElement | null;
+    const surface = document.body.querySelector('[data-reader-image-surface]') as HTMLDivElement | null;
+    expect(stage).not.toBeNull();
+    expect(surface).not.toBeNull();
+
+    fireEvent.click(stage!, { clientX: 12, clientY: 12 });
+    expect(onRequestClose).toHaveBeenCalledTimes(0);
+    await vi.advanceTimersByTimeAsync(320);
+    expect(onRequestClose).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(surface!, { clientX: 320, clientY: 240 });
+    expect(onRequestClose).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(320);
+    expect(onRequestClose).toHaveBeenCalledTimes(2);
+
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(onRequestClose).toHaveBeenCalledTimes(3);
+  });
+
+  it('keeps double click zooming instead of closing the viewer', async () => {
+    vi.useFakeTimers();
+    const onRequestClose = vi.fn();
+    renderViewer({ onRequestClose });
+
+    const stage = document.body.querySelector('[data-reader-image-stage]') as HTMLDivElement | null;
+    const surface = document.body.querySelector('[data-reader-image-surface]') as HTMLDivElement | null;
+    expect(stage).not.toBeNull();
+    expect(surface).not.toBeNull();
+
+    fireEvent.click(stage!, { clientX: 12, clientY: 12 });
+    fireEvent.click(stage!, { clientX: 12, clientY: 12 });
+    fireEvent.doubleClick(stage!, { clientX: 12, clientY: 12 });
+    await vi.runOnlyPendingTimersAsync();
+
+    const transformLayer = surface!.firstElementChild as HTMLDivElement | null;
+    expect(transformLayer?.style.transform).not.toContain('scale(1)');
+    expect(onRequestClose).toHaveBeenCalledTimes(0);
+
+    fireEvent.click(stage!, { clientX: 12, clientY: 12 });
+    fireEvent.click(stage!, { clientX: 12, clientY: 12 });
+    fireEvent.doubleClick(stage!, { clientX: 12, clientY: 12 });
+    await vi.runOnlyPendingTimersAsync();
+
+    expect(transformLayer?.style.transform).toContain('scale(1)');
+    expect(onRequestClose).toHaveBeenCalledTimes(0);
+  });
+
+  it('keeps touch double tap zooming instead of closing the viewer', async () => {
+    vi.useFakeTimers();
+    const onRequestClose = vi.fn();
+    renderViewer({ onRequestClose });
+
+    const stage = document.body.querySelector('[data-reader-image-stage]') as HTMLDivElement | null;
+    const surface = document.body.querySelector('[data-reader-image-surface]') as HTMLDivElement | null;
+    expect(stage).not.toBeNull();
+    expect(surface).not.toBeNull();
+
+    fireEvent.pointerDown(stage!, {
+      clientX: 220,
+      clientY: 160,
+      pointerId: 7,
+      pointerType: 'touch',
+    });
+    fireEvent.pointerUp(stage!, {
+      clientX: 220,
+      clientY: 160,
+      pointerId: 7,
+      pointerType: 'touch',
+    });
+    fireEvent.click(stage!, { clientX: 220, clientY: 160 });
+
+    fireEvent.pointerDown(stage!, {
+      clientX: 222,
+      clientY: 162,
+      pointerId: 7,
+      pointerType: 'touch',
+    });
+    fireEvent.pointerUp(stage!, {
+      clientX: 222,
+      clientY: 162,
+      pointerId: 7,
+      pointerType: 'touch',
+    });
+    fireEvent.click(stage!, { clientX: 222, clientY: 162 });
+    await vi.runOnlyPendingTimersAsync();
+
+    const transformLayer = surface!.firstElementChild as HTMLDivElement | null;
+    expect(transformLayer?.style.transform).toContain('scale(2)');
+    expect(onRequestClose).toHaveBeenCalledTimes(0);
+  });
+
+  it('navigates to the next image on a quick swipe even when no pointermove event is emitted', async () => {
+    vi.useFakeTimers();
+    const onRequestClose = vi.fn();
+    const onRequestNavigate = vi.fn().mockResolvedValue(true);
+    renderViewer({
+      canNavigatePrev: true,
+      onRequestClose,
+      onRequestNavigate,
+    });
+
+    const stage = document.body.querySelector('[data-reader-image-stage]') as HTMLDivElement | null;
+    expect(stage).not.toBeNull();
+
+    fireEvent.pointerDown(stage!, {
+      clientX: 280,
+      clientY: 180,
+      pointerId: 11,
+      pointerType: 'touch',
+    });
+    fireEvent.pointerUp(stage!, {
+      clientX: 120,
+      clientY: 184,
+      pointerId: 11,
+      pointerType: 'touch',
+    });
+    fireEvent.click(stage!, { clientX: 120, clientY: 184 });
+
+    await vi.runOnlyPendingTimersAsync();
+
+    expect(onRequestNavigate).toHaveBeenCalledWith('next');
+    expect(onRequestClose).toHaveBeenCalledTimes(0);
+  });
+
+  it('keeps the viewer open when swipe navigation remounts the stage before the synthetic click arrives', async () => {
+    vi.useFakeTimers();
+
+    function StatefulViewer() {
+      const [activeIndex, setActiveIndex] = useState(0);
+      const [isOpen, setIsOpen] = useState(true);
+      const activeEntry = entries[activeIndex] ?? null;
+
+      return (
+        <ReaderImageViewer
+          activeEntry={activeEntry}
+          activeIndex={activeIndex}
+          canNavigateNext={activeIndex < entries.length - 1}
+          canNavigatePrev={activeIndex > 0}
+          entries={entries}
+          getOriginRect={() => new DOMRect(40, 80, 120, 90)}
+          isIndexResolved
+          isIndexLoading={false}
+          isOpen={isOpen}
+          novelId={1}
+          onRequestClose={() => {
+            setIsOpen(false);
+          }}
+          onRequestNavigate={async (direction) => {
+            if (direction !== 'next') {
+              return false;
+            }
+
+            setActiveIndex(1);
+            return true;
+          }}
+        />
+      );
+    }
+
+    render(<StatefulViewer />);
+
+    let stage = document.body.querySelector('[data-reader-image-stage]') as HTMLDivElement | null;
+    expect(stage).not.toBeNull();
+
+    await act(async () => {
+      fireEvent.pointerDown(stage!, {
+        clientX: 280,
+        clientY: 180,
+        pointerId: 21,
+        pointerType: 'touch',
+      });
+      fireEvent.pointerUp(stage!, {
+        clientX: 120,
+        clientY: 184,
+        pointerId: 21,
+        pointerType: 'touch',
+      });
+    });
+
+    stage = document.body.querySelector('[data-reader-image-stage]') as HTMLDivElement | null;
+    expect(stage).not.toBeNull();
+
+    await act(async () => {
+      fireEvent.click(stage!, { clientX: 120, clientY: 184 });
+      await vi.advanceTimersByTimeAsync(320);
+    });
+
+    expect(screen.getByRole('dialog', { name: 'reader.imageViewer.title' })).toBeInTheDocument();
+    expect(screen.getByText('2 / 2')).toBeInTheDocument();
+
+    const indexOverlay = document.body.querySelector('[data-reader-image-index]') as HTMLDivElement | null;
+    expect(indexOverlay).not.toBeNull();
+    expect(indexOverlay?.closest('[data-reader-image-transition-kind]')).toBeNull();
+  });
+});

@@ -6,6 +6,10 @@ import { ensureDefaultTocRules } from '@domains/settings';
 import { db } from '@infra/db';
 import { CACHE_KEYS, storage } from '@infra/storage';
 import { AppErrorCode, createAppError, toAppError } from '@shared/errors';
+import {
+  buildChapterImageGalleryEntries,
+  sortChapterImageGalleryEntries,
+} from '@shared/text-processing';
 
 import { parseBook } from '../services/bookParser';
 import type { BookImportProgress } from '../services/progress';
@@ -65,48 +69,78 @@ export const bookImportApi = {
     options.signal?.throwIfAborted?.();
 
     const now = new Date().toISOString();
+    const imageGalleryEntries = sortChapterImageGalleryEntries(
+      parsed.chapters.flatMap((chapter, chapterIndex) => {
+        options.signal?.throwIfAborted?.();
+        return buildChapterImageGalleryEntries({
+          content: chapter.content,
+          index: chapterIndex,
+          title: chapter.title,
+        });
+      }),
+    );
     let novelId = 0;
 
     emitProgress(options.onProgress, { progress: 96, stage: 'finalizing' });
-    await db.transaction('rw', db.novels, db.chapters, db.coverImages, db.chapterImages, async () => {
-      novelId = await db.novels.add({
-        id: undefined as unknown as number,
-        title: parsed.title,
-        author: parsed.author,
-        description: parsed.description,
-        tags: parsed.tags,
-        fileType: ext,
-        fileHash: parsed.fileHash,
-        coverPath: parsed.coverBlob ? 'has_cover' : '',
-        originalFilename: filename,
-        originalEncoding: parsed.encoding || 'utf-8',
-        totalWords: parsed.totalWords,
-        createdAt: now,
-      });
-      if (parsed.coverBlob) {
-        await db.coverImages.add({
+    await db.transaction(
+      'rw',
+      [
+        db.novels,
+        db.chapters,
+        db.coverImages,
+        db.chapterImages,
+        db.novelImageGalleryEntries,
+      ],
+      async () => {
+        novelId = await db.novels.add({
           id: undefined as unknown as number,
-          novelId,
-          blob: parsed.coverBlob,
+          title: parsed.title,
+          author: parsed.author,
+          description: parsed.description,
+          tags: parsed.tags,
+          fileType: ext,
+          fileHash: parsed.fileHash,
+          coverPath: parsed.coverBlob ? 'has_cover' : '',
+          originalFilename: filename,
+          originalEncoding: parsed.encoding || 'utf-8',
+          totalWords: parsed.totalWords,
+          createdAt: now,
         });
-      }
-      await db.chapters.bulkAdd(parsed.chapters.map((chapter, chapterIndex) => ({
-        id: undefined as unknown as number,
-        novelId,
-        title: chapter.title,
-        content: chapter.content,
-        chapterIndex,
-        wordCount: chapter.content.length,
-      })));
-      if (parsed.images.length > 0) {
-        await db.chapterImages.bulkAdd(parsed.images.map((image) => ({
+        if (parsed.coverBlob) {
+          await db.coverImages.add({
+            id: undefined as unknown as number,
+            novelId,
+            blob: parsed.coverBlob,
+          });
+        }
+        await db.chapters.bulkAdd(parsed.chapters.map((chapter, chapterIndex) => ({
           id: undefined as unknown as number,
           novelId,
-          imageKey: image.imageKey,
-          blob: image.blob,
+          title: chapter.title,
+          content: chapter.content,
+          chapterIndex,
+          wordCount: chapter.content.length,
         })));
-      }
-    });
+        if (parsed.images.length > 0) {
+          await db.chapterImages.bulkAdd(parsed.images.map((image) => ({
+            id: undefined as unknown as number,
+            novelId,
+            imageKey: image.imageKey,
+            blob: image.blob,
+          })));
+        }
+        if (imageGalleryEntries.length > 0) {
+          await db.novelImageGalleryEntries.bulkAdd(imageGalleryEntries.map((entry) => ({
+            id: undefined as unknown as number,
+            novelId,
+            chapterIndex: entry.chapterIndex,
+            blockIndex: entry.blockIndex,
+            imageKey: entry.imageKey,
+            order: entry.order,
+          })));
+        }
+      },
+    );
 
     storage.cache.remove(CACHE_KEYS.readerState(novelId));
     const novel = await libraryApi.get(novelId);

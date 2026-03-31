@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { startTransition, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useParams } from 'react-router-dom';
 import { appPaths } from '@app/router/paths';
@@ -7,7 +7,14 @@ import { translateAppError, type AppError } from '@shared/errors';
 
 import type { Chapter, ChapterContent } from '../api/readerApi';
 import type { ReaderLocator } from '../utils/readerLayout';
+import type {
+  ReaderImageActivationPayload,
+  ReaderImageGalleryEntry,
+  ReaderImageViewerState,
+} from '../utils/readerImageGallery';
+import { readerApi } from '../api/readerApi';
 import ReaderSidebar from '../components/reader/ReaderSidebar';
+import ReaderImageViewer from '../components/reader/ReaderImageViewer';
 import ReaderTopBar from '../components/reader/ReaderTopBar';
 import ReaderViewport from '../components/reader/ReaderViewport';
 import ReaderToolbar from '../components/ReaderToolbar';
@@ -33,6 +40,9 @@ import {
   useReaderSessionSelector,
 } from '../hooks/sessionStore';
 import { clearReaderImageResourcesForNovel } from '../utils/readerImageResourceCache';
+import {
+  createReaderImageEntryId,
+} from '../utils/readerImageGallery';
 import {
   findVisibleBlockRange,
   findLocatorForLayoutOffset,
@@ -62,6 +72,27 @@ function areVisibleBlockRangesEqual(
   }
 
   return true;
+}
+
+const INITIAL_IMAGE_VIEWER_STATE: ReaderImageViewerState = {
+  activeEntry: null,
+  isIndexLoading: false,
+  isOpen: false,
+  originRect: null,
+  scale: 1,
+  translateX: 0,
+  translateY: 0,
+};
+
+function createClosedImageViewerState(previousState: ReaderImageViewerState): ReaderImageViewerState {
+  return {
+    ...previousState,
+    isIndexLoading: false,
+    isOpen: false,
+    scale: 1,
+    translateX: 0,
+    translateY: 0,
+  };
 }
 
 export default function ReaderPage() {
@@ -98,6 +129,9 @@ export default function ReaderPage() {
   });
   const [scrollContentVersion, setScrollContentVersion] = useState(0);
   const [pagedViewportElement, setPagedViewportElement] = useState<HTMLDivElement | null>(null);
+  const [imageGalleryEntries, setImageGalleryEntries] = useState<ReaderImageGalleryEntry[]>([]);
+  const [isImageGalleryIndexResolved, setIsImageGalleryIndexResolved] = useState(false);
+  const [imageViewerState, setImageViewerState] = useState<ReaderImageViewerState>(INITIAL_IMAGE_VIEWER_STATE);
 
   const contentRef = useRef<HTMLDivElement>(null);
   const pagedViewportRef = useRef<HTMLDivElement>(null);
@@ -107,6 +141,11 @@ export default function ReaderPage() {
   const chapterCacheRef = useRef<Map<number, ChapterContent>>(new Map());
   const scrollChapterElementsBridgeRef = useRef<Map<number, HTMLDivElement>>(new Map());
   const scrollChapterBodyElementsBridgeRef = useRef<Map<number, HTMLDivElement>>(new Map());
+  const imageGalleryEntriesRef = useRef<ReaderImageGalleryEntry[]>([]);
+  const imageElementRegistryRef = useRef<Map<string, HTMLButtonElement>>(new Map());
+  const imageViewerFocusRestoreRef = useRef<HTMLElement | null>(null);
+  const imageGalleryIndexLoadTokenRef = useRef(0);
+  const imageGalleryIndexPromiseRef = useRef<Promise<boolean> | null>(null);
   const getCurrentAnchorRef = useRef<() => ScrollModeAnchor | null>(() => null);
   const getCurrentOriginalLocatorRef = useRef<() => ReaderLocator | null>(() => null);
   const getCurrentPagedLocatorRef = useRef<() => ReaderLocator | null>(() => null);
@@ -144,6 +183,13 @@ export default function ReaderPage() {
     const nextValue = typeof nextState === 'function'
       ? nextState(currentViewMode)
       : nextState;
+    if (nextValue === 'summary') {
+      setImageViewerState((previousState) => (
+        previousState.isOpen
+          ? createClosedImageViewerState(previousState)
+          : previousState
+      ));
+    }
     const nextMode = nextValue === 'summary'
       ? 'summary'
       : isPagedPageTurnMode(preferences.pageTurnMode) ? 'paged' : 'scroll';
@@ -160,6 +206,28 @@ export default function ReaderPage() {
       return;
     }
     setSessionMode(nextValue ? 'paged' : 'scroll', { persistRemote: false });
+  }, []);
+
+  useEffect(() => {
+    imageGalleryEntriesRef.current = imageGalleryEntries;
+  }, [imageGalleryEntries]);
+
+  useEffect(() => {
+    imageGalleryEntriesRef.current = [];
+    imageElementRegistryRef.current.clear();
+    imageViewerFocusRestoreRef.current = null;
+    imageGalleryIndexLoadTokenRef.current += 1;
+    imageGalleryIndexPromiseRef.current = null;
+    startTransition(() => {
+      setIsImageGalleryIndexResolved(false);
+      setImageGalleryEntries([]);
+      setImageViewerState(INITIAL_IMAGE_VIEWER_STATE);
+    });
+  }, [novelId]);
+
+  useEffect(() => () => {
+    imageGalleryIndexLoadTokenRef.current += 1;
+    imageGalleryIndexPromiseRef.current = null;
   }, []);
 
   const restoreFlow = useReaderRestoreFlow({
@@ -193,7 +261,7 @@ export default function ReaderPage() {
   });
   const { clearPendingRestoreState, pendingRestoreStateRef, stopRestoreMask } = restoreFlow;
 
-  const handleScrollContentResolved = useCallback(() => {
+  const handleChapterContentResolved = useCallback(() => {
     setChapterCacheSnapshotState({
       novelId,
       snapshot: new Map(chapterCacheRef.current),
@@ -235,8 +303,93 @@ export default function ReaderPage() {
     startRestoreMaskForState: restoreFlow.startRestoreMaskForState,
     stopRestoreMask: restoreFlow.stopRestoreMask,
     setLoadingMessage,
-    onChapterContentResolved: handleScrollContentResolved,
+    onChapterContentResolved: handleChapterContentResolved,
   });
+
+  const setImageViewerLoading = useCallback((isIndexLoading: boolean) => {
+    setImageViewerState((previousState) => (
+      previousState.isIndexLoading === isIndexLoading
+        ? previousState
+        : {
+            ...previousState,
+            isIndexLoading,
+          }
+    ));
+  }, []);
+
+  const syncImageViewerLoadingState = useCallback(() => {
+    setImageViewerLoading(Boolean(imageGalleryIndexPromiseRef.current));
+  }, [setImageViewerLoading]);
+
+  const ensureImageGalleryEntriesLoaded = useCallback(async (): Promise<boolean> => {
+    if (isImageGalleryIndexResolved) {
+      return true;
+    }
+
+    const existingPromise = imageGalleryIndexPromiseRef.current;
+    if (existingPromise) {
+      return existingPromise;
+    }
+
+    const loadToken = imageGalleryIndexLoadTokenRef.current;
+
+    const loadPromise = readerApi.getImageGalleryEntries(novelId)
+      .then((entries) => {
+        if (imageGalleryIndexLoadTokenRef.current !== loadToken) {
+          return false;
+        }
+
+        imageGalleryEntriesRef.current = entries;
+        setImageGalleryEntries(entries);
+        setIsImageGalleryIndexResolved(true);
+        return true;
+      })
+      .catch(() => false);
+
+    const trackedPromise = loadPromise.finally(() => {
+      if (imageGalleryIndexPromiseRef.current === trackedPromise) {
+        imageGalleryIndexPromiseRef.current = null;
+      }
+      syncImageViewerLoadingState();
+    });
+
+    imageGalleryIndexPromiseRef.current = trackedPromise;
+    syncImageViewerLoadingState();
+    return trackedPromise;
+  }, [isImageGalleryIndexResolved, novelId, syncImageViewerLoadingState]);
+
+  useEffect(() => {
+    void ensureImageGalleryEntriesLoaded();
+  }, [ensureImageGalleryEntriesLoaded]);
+
+  const getImageOriginRect = useCallback((entry: ReaderImageGalleryEntry | null): DOMRect | null => {
+    if (!entry) {
+      return null;
+    }
+
+    const element = imageElementRegistryRef.current.get(createReaderImageEntryId(entry));
+    if (!element || !element.isConnected) {
+      return null;
+    }
+
+    return element.getBoundingClientRect();
+  }, []);
+
+  const handleRegisterImageElement = useCallback((
+    entry: Pick<ReaderImageGalleryEntry, 'blockIndex' | 'chapterIndex' | 'imageKey'>,
+    element: HTMLButtonElement | null,
+  ) => {
+    const entryId = createReaderImageEntryId(entry);
+    if (element) {
+      imageElementRegistryRef.current.set(entryId, element);
+      return;
+    }
+
+    const registeredElement = imageElementRegistryRef.current.get(entryId);
+    if (!registeredElement || !registeredElement.isConnected) {
+      imageElementRegistryRef.current.delete(entryId);
+    }
+  }, []);
 
   const handleReadingAnchorChange = useCallback((anchor: ScrollModeAnchor) => {
     readingAnchorHandlerRef.current(anchor);
@@ -328,6 +481,18 @@ export default function ReaderPage() {
     scrollChapters: scrollReaderChapters,
     viewMode,
   });
+  const activeImageEntryId = imageViewerState.activeEntry
+    ? createReaderImageEntryId(imageViewerState.activeEntry)
+    : null;
+  const activeImageIndex = useMemo(() => (
+    activeImageEntryId
+      ? imageGalleryEntries.findIndex((entry) => createReaderImageEntryId(entry) === activeImageEntryId)
+      : -1
+  ), [activeImageEntryId, imageGalleryEntries]);
+  const activeImageEntry = activeImageIndex >= 0
+    ? imageGalleryEntries[activeImageIndex] ?? null
+    : imageViewerState.activeEntry;
+
   const currentPagedLayout = currentChapter
     ? renderCache.pagedLayouts.get(currentChapter.index) ?? null
     : null;
@@ -547,7 +712,7 @@ export default function ReaderPage() {
     setIsChromeVisible,
     handleContentClick,
   } = useContentClick(isPagedMode, navigation.handlePrev, navigation.handleNext);
-  const isContentInteractionLocked = isChromeVisible || sidebar.isSidebarOpen;
+  const isContentInteractionLocked = isChromeVisible || sidebar.isSidebarOpen || imageViewerState.isOpen;
   const dismissBlockedInteraction = useCallback(() => {
     if (sidebar.isSidebarOpen) {
       closeSidebar();
@@ -557,6 +722,87 @@ export default function ReaderPage() {
     }
     wheelDeltaRef.current = 0;
   }, [closeSidebar, isChromeVisible, setIsChromeVisible, sidebar.isSidebarOpen]);
+
+  const closeImageViewer = useCallback(() => {
+    const focusTarget = imageViewerFocusRestoreRef.current;
+    setImageViewerState((previousState) => (
+      previousState.isOpen
+        ? createClosedImageViewerState(previousState)
+        : previousState
+    ));
+    window.setTimeout(() => {
+      if (focusTarget && focusTarget.isConnected) {
+        focusTarget.focus();
+      }
+    }, 0);
+  }, []);
+
+  const handleImageActivate = useCallback((payload: ReaderImageActivationPayload) => {
+    imageViewerFocusRestoreRef.current = payload.sourceElement;
+    dismissBlockedInteraction();
+    const nextActiveEntry = imageGalleryEntriesRef.current.find((entry) => (
+      entry.chapterIndex === payload.chapterIndex
+      && entry.blockIndex === payload.blockIndex
+      && entry.imageKey === payload.imageKey
+    )) ?? {
+      blockIndex: payload.blockIndex,
+      chapterIndex: payload.chapterIndex,
+      imageKey: payload.imageKey,
+      order: 0,
+    };
+
+    setImageViewerState({
+      activeEntry: nextActiveEntry,
+      isIndexLoading: !isImageGalleryIndexResolved,
+      isOpen: true,
+      originRect: payload.sourceElement.getBoundingClientRect(),
+      scale: 1,
+      translateX: 0,
+      translateY: 0,
+    });
+    if (!isImageGalleryIndexResolved) {
+      void ensureImageGalleryEntriesLoaded();
+    }
+  }, [
+    dismissBlockedInteraction,
+    ensureImageGalleryEntriesLoaded,
+    isImageGalleryIndexResolved,
+  ]);
+
+  const handleNavigateImage = useCallback(async (direction: 'next' | 'prev'): Promise<boolean> => {
+    const currentEntry = activeImageEntry;
+    if (!currentEntry) {
+      return false;
+    }
+
+    if (!isImageGalleryIndexResolved) {
+      const didResolveIndex = await ensureImageGalleryEntriesLoaded();
+      if (!didResolveIndex) {
+        return false;
+      }
+    }
+
+    const currentEntryId = createReaderImageEntryId(currentEntry);
+    let currentIndex = imageGalleryEntriesRef.current.findIndex((entry) => createReaderImageEntryId(entry) === currentEntryId);
+    if (currentIndex === -1) {
+      currentIndex = activeImageIndex;
+    }
+
+    const step = direction === 'next' ? 1 : -1;
+    const candidateEntry = currentIndex >= 0
+      ? imageGalleryEntriesRef.current[currentIndex + step] ?? null
+      : null;
+    if (candidateEntry) {
+      setImageViewerState((previousState) => ({
+        ...previousState,
+        activeEntry: candidateEntry,
+        isIndexLoading: false,
+      }));
+      return true;
+    }
+
+    return false;
+  }, [activeImageEntry, activeImageIndex, ensureImageGalleryEntriesLoaded, isImageGalleryIndexResolved]);
 
   useReaderInput(
     contentRef,
@@ -709,6 +955,8 @@ export default function ReaderPage() {
             chapter: renderableChapter,
             currentLayout: currentPagedLayout,
             novelId,
+            onImageActivate: handleImageActivate,
+            onRegisterImageElement: handleRegisterImageElement,
             pageIndex,
             pendingPageTarget: pendingPagedPageTarget,
             pagedViewportRef: handlePagedViewportRef,
@@ -731,6 +979,8 @@ export default function ReaderPage() {
           scrollContentProps={renderableChapter && viewMode === 'original' && !isPagedMode ? {
             chapters: renderableScrollLayouts,
             novelId,
+            onImageActivate: handleImageActivate,
+            onRegisterImageElement: handleRegisterImageElement,
             readerTheme: preferences.readerTheme,
             textClassName: preferences.currentTheme.text,
             headerBgClassName: preferences.headerBg,
@@ -779,6 +1029,30 @@ export default function ReaderPage() {
             onCloseSidebar={closeSidebar}
           />
         )}
+
+        <ReaderImageViewer
+          activeEntry={activeImageEntry}
+          activeIndex={activeImageIndex}
+          canNavigateNext={Boolean(
+            isImageGalleryIndexResolved
+            && activeImageEntry
+            && activeImageIndex >= 0
+            && activeImageIndex < imageGalleryEntries.length - 1
+          )}
+          canNavigatePrev={Boolean(
+            isImageGalleryIndexResolved
+            && activeImageEntry
+            && activeImageIndex > 0
+          )}
+          entries={imageGalleryEntries}
+          getOriginRect={getImageOriginRect}
+          isIndexResolved={isImageGalleryIndexResolved}
+          isIndexLoading={imageViewerState.isIndexLoading}
+          isOpen={imageViewerState.isOpen}
+          novelId={novelId}
+          onRequestClose={closeImageViewer}
+          onRequestNavigate={handleNavigateImage}
+        />
       </main>
     </div>
   );

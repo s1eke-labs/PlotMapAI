@@ -1,6 +1,11 @@
 export { detectChapters, splitByChapters } from './chapterDetection';
 export { detectAndConvert } from './encoding';
 export { computeHash } from './hash';
+export {
+  buildChapterImageGalleryEntries,
+  sortChapterImageGalleryEntries,
+} from './imageGallery';
+export type { ChapterImageGalleryEntry } from './imageGallery';
 export { loadRulesFromJson, purify, purifyChapter, purifyChapters, purifyTitles } from './purify';
 export { parseTxtDocument } from './txt';
 export {

@@ -4,6 +4,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import ReaderPage from '../ReaderPage';
 import { analysisApi } from '@domains/analysis';
 import type { AnalysisJobStatus } from '@domains/analysis';
+import { buildChapterImageGalleryEntries } from '@shared/text-processing';
 import { readerApi } from '../../api/readerApi';
 import { resetReaderSessionStoreForTests } from '../../hooks/sessionStore';
 import {
@@ -30,6 +31,7 @@ vi.mock('../../api/readerApi', () => ({
     getChapterContent: vi.fn(),
     saveProgress: vi.fn(),
     getImageBlob: vi.fn(),
+    getImageGalleryEntries: vi.fn(),
     getImageUrl: vi.fn(),
   },
 }));
@@ -297,6 +299,7 @@ describe('ReaderPage', () => {
     vi.mocked(readerApi.getChapterContent).mockImplementation(async (_novelId, chapterIndex) => chapterContent[chapterIndex]);
     vi.mocked(readerApi.saveProgress).mockResolvedValue({ message: 'Progress saved' });
     vi.mocked(readerApi.getImageBlob).mockResolvedValue(null);
+    vi.mocked(readerApi.getImageGalleryEntries).mockResolvedValue([]);
     vi.mocked(readerApi.getImageUrl).mockResolvedValue(null);
     vi.mocked(analysisApi.getStatus).mockResolvedValue({
       job: createJob(),
@@ -464,6 +467,117 @@ describe('ReaderPage', () => {
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: 'Chapter 2', level: 1 })).toBeInTheDocument();
     });
+  });
+
+  it('opens the image viewer from scroll mode and restores the reading surface after close', async () => {
+    const imageChapter = {
+      index: 0,
+      title: 'Chapter 1',
+      content: 'Before image\n[IMG:cover]\nAfter image',
+      wordCount: 120,
+      totalChapters: 1,
+      hasPrev: false,
+      hasNext: false,
+    };
+
+    vi.mocked(readerApi.getChapters).mockResolvedValueOnce([
+      { index: 0, title: imageChapter.title, wordCount: imageChapter.wordCount },
+    ]);
+    vi.mocked(readerApi.getChapterContent).mockResolvedValueOnce(imageChapter);
+
+    const { container } = renderPage();
+
+    expect(await screen.findByRole('heading', { name: 'Chapter 1', level: 1 })).toBeInTheDocument();
+
+    const readerContainer = container.querySelector('main .cursor-pointer.overflow-y-auto.hide-scrollbar') as HTMLDivElement | null;
+    expect(readerContainer).not.toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'reader.imageViewer.title' }));
+
+    expect(await screen.findByRole('dialog', { name: 'reader.imageViewer.title' })).toBeInTheDocument();
+    expect(readerContainer).toHaveClass('overflow-hidden');
+
+    readerContainer!.scrollTop = 0;
+    fireEvent.wheel(readerContainer!, { deltaY: 200 });
+    expect(readerContainer!.scrollTop).toBe(0);
+
+    const imageViewerStage = document.body.querySelector('[data-reader-image-stage]') as HTMLDivElement | null;
+    expect(imageViewerStage).not.toBeNull();
+
+    fireEvent.click(imageViewerStage!, { clientX: 12, clientY: 12 });
+
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: 'reader.imageViewer.title' })).not.toBeInTheDocument();
+      expect(readerContainer).toHaveClass('overflow-y-auto');
+    });
+    expect(readerContainer!.scrollTop).toBe(0);
+  });
+
+  it('resolves the image viewer index against the whole-book gallery order', async () => {
+    const imageChapters = Array.from({ length: 10 }, (_, index) => ({
+      index,
+      title: `Chapter ${index + 1}`,
+      content: `Before image\n[IMG:image-${index + 1}]\nAfter image`,
+      wordCount: 100 + index,
+      totalChapters: 10,
+      hasPrev: index > 0,
+      hasNext: index < 9,
+    }));
+
+    localStorage.setItem('reader-state:1', JSON.stringify({
+      chapterIndex: 9,
+      viewMode: 'original',
+      isTwoColumn: false,
+    }));
+    vi.mocked(readerApi.getChapters).mockResolvedValueOnce(
+      imageChapters.map(({ index, title, wordCount }) => ({ index, title, wordCount })),
+    );
+    vi.mocked(readerApi.getChapterContent).mockImplementation(async (_novelId, chapterIndex) => (
+      imageChapters[chapterIndex] ?? imageChapters[0]
+    ));
+    vi.mocked(readerApi.getImageGalleryEntries).mockResolvedValueOnce(
+      imageChapters.flatMap((chapter) => buildChapterImageGalleryEntries(chapter)),
+    );
+
+    renderPage();
+
+    expect(await screen.findByRole('heading', { name: 'Chapter 10', level: 1 })).toBeInTheDocument();
+
+    const imageButtons = screen.getAllByRole('button', { name: 'reader.imageViewer.title' });
+    fireEvent.click(imageButtons[imageButtons.length - 1]!);
+
+    expect(await screen.findByRole('dialog', { name: 'reader.imageViewer.title' })).toBeInTheDocument();
+    expect(await screen.findByText('10 / 10')).toBeInTheDocument();
+  });
+
+  it('uses the full-book image order even when a chapter contains multiple images', async () => {
+    const imageChapter = {
+      index: 0,
+      title: 'Chapter 1',
+      content: 'Intro\n[IMG:cover]\nMiddle\n[IMG:map]\nEnding\n[IMG:diagram]',
+      wordCount: 180,
+      totalChapters: 1,
+      hasPrev: false,
+      hasNext: false,
+    };
+
+    vi.mocked(readerApi.getChapters).mockResolvedValueOnce([
+      { index: 0, title: imageChapter.title, wordCount: imageChapter.wordCount },
+    ]);
+    vi.mocked(readerApi.getChapterContent).mockResolvedValueOnce(imageChapter);
+    vi.mocked(readerApi.getImageGalleryEntries).mockResolvedValueOnce([
+      ...buildChapterImageGalleryEntries(imageChapter),
+    ]);
+
+    renderPage();
+
+    expect(await screen.findByRole('heading', { name: 'Chapter 1', level: 1 })).toBeInTheDocument();
+
+    const imageButtons = screen.getAllByRole('button', { name: 'reader.imageViewer.title' });
+    fireEvent.click(imageButtons[1]!);
+
+    expect(await screen.findByRole('dialog', { name: 'reader.imageViewer.title' })).toBeInTheDocument();
+    expect(await screen.findByText('2 / 3')).toBeInTheDocument();
   });
 
   it('does not let stale scroll anchor override chapter selection from the table of contents', async () => {

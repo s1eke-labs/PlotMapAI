@@ -1,7 +1,13 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const useReaderImageResourceMock = vi.hoisted(() => vi.fn());
+
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string) => key,
+  }),
+}));
 
 vi.mock('../../../hooks/useReaderImageResource', () => ({
   useReaderImageResource: useReaderImageResourceMock,
@@ -142,5 +148,48 @@ describe('ReaderFlowBlock', () => {
     expect(image).toHaveAttribute('src', 'blob:reader-image');
     expect(image).toHaveAttribute('loading', 'eager');
     expect(image).toHaveClass('object-contain', 'object-center');
+  });
+
+  it('uses an expanded hit target for images and prevents bubbling to the reader viewport', () => {
+    useReaderImageResourceMock.mockReturnValue('blob:reader-image');
+    const onImageActivate = vi.fn();
+    const onParentClick = vi.fn();
+
+    render(
+      <div onClick={onParentClick}>
+        <ReaderFlowBlock
+          imageRenderMode="scroll"
+          novelId={1}
+          onImageActivate={onImageActivate}
+          item={{
+            blockIndex: 4,
+            chapterIndex: 2,
+            displayHeight: 180,
+            displayWidth: 240,
+            edge: 'start',
+            height: 196,
+            imageKey: 'diagram',
+            key: '2:image:4',
+            kind: 'image',
+            marginAfter: 16,
+            marginBefore: 0,
+          }}
+        />
+      </div>,
+    );
+
+    const hitTarget = screen.getByRole('button', { name: 'reader.imageViewer.title' });
+    expect(hitTarget).toHaveClass('-inset-3', 'cursor-zoom-in');
+
+    fireEvent.pointerDown(hitTarget, { pointerId: 1 });
+    fireEvent.click(hitTarget);
+
+    expect(onImageActivate).toHaveBeenCalledWith(expect.objectContaining({
+      blockIndex: 4,
+      chapterIndex: 2,
+      imageKey: 'diagram',
+      sourceElement: hitTarget,
+    }));
+    expect(onParentClick).not.toHaveBeenCalled();
   });
 });

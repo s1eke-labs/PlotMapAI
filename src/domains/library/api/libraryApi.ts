@@ -70,6 +70,7 @@ export const libraryApi = {
       await db.analysisOverviews.where('novelId').equals(id).delete();
       await db.coverImages.where('novelId').equals(id).delete();
       await db.chapterImages.where('novelId').equals(id).delete();
+      await db.novelImageGalleryEntries.where('novelId').equals(id).delete();
     });
     storage.cache.remove(CACHE_KEYS.readerState(id));
     return { message: 'Novel deleted' };
