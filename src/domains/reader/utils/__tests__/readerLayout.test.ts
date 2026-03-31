@@ -18,7 +18,13 @@ import {
   PAGED_VIEWPORT_TOP_PADDING_PX,
   resetReaderLayoutPretextCacheForTests,
 } from '../readerLayout';
-import type { MeasuredChapterLayout, ReaderMeasuredLine, VirtualBlockMetrics } from '../readerLayout';
+import type {
+  MeasuredChapterLayout,
+  PaginatedChapterLayout,
+  ReaderMeasuredLine,
+  ReaderTextPageItem,
+  VirtualBlockMetrics,
+} from '../readerLayout';
 
 function createMeasuredLine(text: string, lineIndex: number): ReaderMeasuredLine {
   return {
@@ -228,6 +234,91 @@ describe('readerLayout', () => {
     expect(paginatedLayout.pageSlices.length).toBeGreaterThan(1);
     const secondPageLocator = paginatedLayout.pageSlices[1]?.startLocator;
     expect(secondPageLocator).not.toBeNull();
+    expect(findPageIndexForLocator(paginatedLayout, secondPageLocator)).toBe(1);
+  });
+
+  it('prefers an exact page start locator over earlier overlapping fragments', () => {
+    const overlappingLine = createMeasuredLine('line-0-1', 1);
+    const firstPageItem: ReaderTextPageItem = {
+      blockIndex: 0,
+      chapterIndex: 0,
+      contentHeight: 32,
+      font: '400 16px sans-serif',
+      fontSizePx: 16,
+      height: 32,
+      key: '0:text:0:page-0',
+      kind: 'text',
+      lineHeightPx: 16,
+      lineStartIndex: 0,
+      lines: [
+        createMeasuredLine('line-0-0', 0),
+        overlappingLine,
+      ],
+      marginAfter: 0,
+      marginBefore: 0,
+    };
+    const secondPageItem: ReaderTextPageItem = {
+      ...firstPageItem,
+      key: '0:text:0:page-1',
+      lineStartIndex: 1,
+      lines: [
+        overlappingLine,
+        createMeasuredLine('line-0-2', 2),
+      ],
+    };
+    const secondPageLocator = {
+      blockIndex: 0,
+      chapterIndex: 0,
+      endCursor: overlappingLine.end,
+      kind: 'text' as const,
+      lineIndex: 1,
+      startCursor: overlappingLine.start,
+    };
+    const paginatedLayout: PaginatedChapterLayout = {
+      chapterIndex: 0,
+      columnCount: 1,
+      columnGap: 32,
+      columnWidth: 400,
+      pageHeight: 600,
+      pageSlices: [
+        {
+          columnCount: 1,
+          columns: [{ height: 32, items: [firstPageItem] }],
+          endLocator: {
+            blockIndex: 0,
+            chapterIndex: 0,
+            endCursor: overlappingLine.end,
+            kind: 'text',
+            lineIndex: 1,
+            startCursor: overlappingLine.start,
+          },
+          pageIndex: 0,
+          startLocator: {
+            blockIndex: 0,
+            chapterIndex: 0,
+            endCursor: firstPageItem.lines[0]?.end,
+            kind: 'text',
+            lineIndex: 0,
+            startCursor: firstPageItem.lines[0]?.start,
+          },
+        },
+        {
+          columnCount: 1,
+          columns: [{ height: 32, items: [secondPageItem] }],
+          endLocator: {
+            blockIndex: 0,
+            chapterIndex: 0,
+            endCursor: secondPageItem.lines[1]?.end,
+            kind: 'text',
+            lineIndex: 2,
+            startCursor: secondPageItem.lines[1]?.start,
+          },
+          pageIndex: 1,
+          startLocator: secondPageLocator,
+        },
+      ],
+    };
+
     expect(findPageIndexForLocator(paginatedLayout, secondPageLocator)).toBe(1);
   });
 

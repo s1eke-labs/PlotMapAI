@@ -1,8 +1,8 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { resetAppThemeStoreForTests } from '@app/stores/appThemeStore';
 import { APP_SETTING_KEYS, storage } from '@infra/storage';
 import { ThemeProvider, useTheme } from '../ThemeContext';
-import { resetReaderSessionStoreForTests } from '@domains/reader';
 import { db } from '@infra/db';
 
 const TestComponent = () => {
@@ -21,7 +21,7 @@ describe('ThemeContext', () => {
     await db.open();
     localStorage.clear();
     document.documentElement.classList.remove('dark');
-    resetReaderSessionStoreForTests();
+    resetAppThemeStoreForTests();
   });
 
   it('provides default light theme if no preference', () => {

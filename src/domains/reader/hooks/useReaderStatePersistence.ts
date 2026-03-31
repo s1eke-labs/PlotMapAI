@@ -106,7 +106,10 @@ export function useReaderStatePersistence(novelId: number): {
     storedState,
   }), [hasUserInteracted, restoreStatus, sessionNovelId, storedState]);
 
-  const initialStoredState = readInitialStoredReaderState(novelId);
+  const initialStoredState = useMemo(
+    () => readInitialStoredReaderState(novelId),
+    [novelId],
+  );
   const novelScopedInitialState = useMemo(
     () => buildNovelScopedInitialState(initialStoredState),
     [initialStoredState],

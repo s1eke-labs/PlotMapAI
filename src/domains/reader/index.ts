@@ -1,12 +1,10 @@
 export { readerApi, loadAndPurifyChapters } from './api/readerApi';
 export type { Chapter, ChapterContent, ReadingProgress } from './api/readerApi';
+export { useReaderPreferences } from './hooks/useReaderPreferences';
 export {
-  ensureSessionPreferencesHydrated,
-  setAppTheme,
   useReaderSessionSelector,
   resetReaderSessionStoreForTests,
 } from './hooks/sessionStore';
-export type { AppTheme } from './hooks/sessionStore';
 
 export function loadReaderPage() {
   return import('./pages/ReaderPage');

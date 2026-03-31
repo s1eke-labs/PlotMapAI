@@ -7,6 +7,7 @@ import type { ReaderLocator } from '../utils/readerLayout';
 import {
   beginRestore,
   completeRestore,
+  getReaderSessionSnapshot,
   getStoredReaderStateSnapshot,
   setPendingRestoreState as setStorePendingRestoreState,
   useReaderSessionSelector,
@@ -14,6 +15,7 @@ import {
 import {
   clampProgress,
   getContainerProgress,
+  SCROLL_READING_ANCHOR_RATIO,
   shouldMaskReaderPositionRestore,
 } from '../utils/readerPosition';
 
@@ -430,7 +432,10 @@ export function useReaderRestoreFlow({
           frameId = requestAnimationFrame(restoreScrollPosition);
           return;
         }
-        container.scrollTop = Math.round(nextScrollTop);
+        container.scrollTop = Math.max(
+          0,
+          Math.round(nextScrollTop - container.clientHeight * SCROLL_READING_ANCHOR_RATIO),
+        );
       } else if (typeof pendingState.chapterProgress === 'number') {
         container.scrollTop = Math.round(
           targetElement.offsetTop +
@@ -504,8 +509,13 @@ export function useReaderRestoreFlow({
 
   useEffect(() => {
     if (!novelId || !hasHydratedReaderState) return;
-    persistReaderState({ chapterIndex, viewMode, isTwoColumn });
-  }, [chapterIndex, hasHydratedReaderState, isTwoColumn, novelId, persistReaderState, viewMode]);
+    const sessionSnapshot = getReaderSessionSnapshot();
+    persistReaderState({
+      chapterIndex: sessionSnapshot.chapterIndex,
+      viewMode: sessionSnapshot.viewMode,
+      isTwoColumn: sessionSnapshot.isTwoColumn,
+    });
+  }, [hasHydratedReaderState, novelId, persistReaderState]);
 
   useEffect(() => {
     if (!isPagedMode || isLoading || pendingRestoreStateRef.current) return;

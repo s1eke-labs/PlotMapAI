@@ -1,4 +1,6 @@
+import { StrictMode } from 'react';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { db } from '@infra/db';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import ReaderPage from '../ReaderPage';
@@ -11,10 +13,15 @@ import {
   composePaginatedChapterLayout,
   createReaderTypographyMetrics,
   createReaderViewportMetrics,
+  findLocatorForLayoutOffset,
   getPagedContentHeight,
+  getOffsetForLocator,
   measureReaderChapterLayout,
 } from '../../utils/readerLayout';
-import { getPageIndexFromProgress } from '../../utils/readerPosition';
+import {
+  getPageIndexFromProgress,
+  SCROLL_READING_ANCHOR_RATIO,
+} from '../../utils/readerPosition';
 
 const i18nMock = vi.hoisted(() => ({
   t: (key: string) => key,
@@ -176,6 +183,18 @@ function renderPage() {
   );
 }
 
+function renderPageInStrictMode() {
+  return render(
+    <StrictMode>
+      <MemoryRouter initialEntries={['/novel/1/read']}>
+        <Routes>
+          <Route path="/novel/:id/read" element={<ReaderPage />} />
+        </Routes>
+      </MemoryRouter>
+    </StrictMode>,
+  );
+}
+
 function createDeferred<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void;
   const promise = new Promise<T>((res) => {
@@ -282,7 +301,9 @@ function createLongScrollChapter(index: number, totalChapters: number, paragraph
 }
 
 describe('ReaderPage', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    await db.delete();
+    await db.open();
     vi.clearAllMocks();
     localStorage.clear();
     resetReaderSessionStoreForTests();
@@ -606,7 +627,7 @@ describe('ReaderPage', () => {
       viewMode: 'original',
       isTwoColumn: false,
     }));
-    vi.mocked(readerApi.getChapters).mockResolvedValueOnce(longChapters);
+    vi.mocked(readerApi.getChapters).mockResolvedValue(longChapters);
     vi.mocked(readerApi.getChapterContent).mockImplementation(async (_novelId, chapterIndex) => {
       if (chapterIndex === 5) {
         return deferredTargetChapter.promise;
@@ -637,6 +658,43 @@ describe('ReaderPage', () => {
       });
     });
     expect(screen.getByRole('button', { name: /Chapter 6/i })).toHaveAttribute('data-active', 'true');
+  });
+
+  it('restores the saved scroll-mode chapter under StrictMode', async () => {
+    const longChapters = Array.from({ length: 12 }, (_, index) => ({
+      index,
+      title: `Chapter ${index + 1}`,
+      wordCount: 100 + index,
+    }));
+    const longChapterContent = longChapters.map((chapter, index) => ({
+      ...chapter,
+      content: `${chapter.title} content`,
+      totalChapters: longChapters.length,
+      hasPrev: index > 0,
+      hasNext: index < longChapters.length - 1,
+    }));
+
+    localStorage.setItem('reader-state:1', JSON.stringify({
+      chapterIndex: 7,
+      viewMode: 'original',
+      isTwoColumn: false,
+    }));
+    vi.mocked(readerApi.getChapters).mockResolvedValue(longChapters);
+    vi.mocked(readerApi.getChapterContent).mockImplementation(
+      async (_novelId, chapterIndex) => longChapterContent[chapterIndex],
+    );
+
+    renderPageInStrictMode();
+
+    expect(await screen.findByRole('heading', { name: 'Chapter 8', level: 1 })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(readerApi.getChapterContent).toHaveBeenCalledWith(1, 7, expect.any(Object));
+    });
+    expect(JSON.parse(localStorage.getItem('reader-state:1')!)).toMatchObject({
+      chapterIndex: 7,
+      viewMode: 'original',
+      isTwoColumn: false,
+    });
   });
 
   it('scrolls to the selected chapter itself in scroll mode navigation', async () => {
@@ -832,6 +890,79 @@ describe('ReaderPage', () => {
 
     await waitFor(() => {
       expect(readerContainer?.scrollTop).toBe(240);
+    });
+  });
+
+  it('restores scroll locators to the same viewport anchor instead of snapping them to the top', async () => {
+    const longChapter = createLongScrollChapter(0, 1, 18);
+    const scrollContainerHeight = 800;
+    const chapterBodyOffsetTop = 88;
+    const viewportMetrics = createReaderViewportMetrics(
+      600,
+      scrollContainerHeight,
+      600,
+      scrollContainerHeight,
+    );
+    const typography = createReaderTypographyMetrics(
+      18,
+      1.8,
+      16,
+      viewportMetrics.scrollTextWidth,
+    );
+    const measuredLayout = measureReaderChapterLayout(
+      longChapter,
+      viewportMetrics.scrollTextWidth,
+      typography,
+      new Map(),
+    );
+    const locator = findLocatorForLayoutOffset(measuredLayout, 960);
+    const locatorOffset = getOffsetForLocator(measuredLayout, locator);
+
+    expect(locator).not.toBeNull();
+    expect(locatorOffset).not.toBeNull();
+
+    localStorage.setItem('reader-state:1', JSON.stringify({
+      chapterIndex: 0,
+      viewMode: 'original',
+      isTwoColumn: false,
+      locatorVersion: 1,
+      locator,
+    }));
+
+    setPrototypeNumberGetter('clientWidth', 600);
+    setPrototypeNumberGetter('clientHeight', scrollContainerHeight);
+    Object.defineProperty(HTMLElement.prototype, 'offsetTop', {
+      configurable: true,
+      get() {
+        if ((this as HTMLElement).dataset.testid === 'scroll-reader-content-body') {
+          return chapterBodyOffsetTop;
+        }
+
+        return 0;
+      },
+    });
+    vi.mocked(readerApi.getChapters).mockResolvedValue([
+      { index: 0, title: longChapter.title, wordCount: longChapter.wordCount },
+    ]);
+    vi.mocked(readerApi.getChapterContent).mockImplementation(async () => longChapter);
+
+    const { container } = renderPage();
+
+    expect(await screen.findByRole('heading', { name: 'Chapter 1', level: 1 })).toBeInTheDocument();
+    const readerContainer = container.querySelector('main .overflow-y-auto.hide-scrollbar') as HTMLDivElement | null;
+    expect(readerContainer).not.toBeNull();
+
+    await waitFor(() => {
+      expect(readerContainer?.scrollTop).toBe(
+        Math.max(
+          0,
+          Math.round(
+            locatorOffset!
+            + chapterBodyOffsetTop
+            - scrollContainerHeight * SCROLL_READING_ANCHOR_RATIO,
+          ),
+        ),
+      );
     });
   });
 

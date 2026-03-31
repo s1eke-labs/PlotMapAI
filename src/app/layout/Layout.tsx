@@ -2,7 +2,8 @@ import { useEffect, type CSSProperties, type ReactNode } from 'react';
 import { BookOpen, Settings } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { type AppTheme, useReaderSessionSelector } from '@domains/reader';
+import { type AppTheme, useAppThemeSelector } from '@app/stores/appThemeStore';
+import { useReaderPreferences } from '@domains/reader';
 import { cn } from '@shared/utils/cn';
 
 import { appPaths } from '../router/paths';
@@ -58,8 +59,8 @@ export default function Layout({ children }: LayoutProps) {
   const { t } = useTranslation();
   const location = useLocation();
   const isReader = location.pathname.includes('/read');
-  const appTheme = useReaderSessionSelector((state) => state.appTheme);
-  const readerTheme = useReaderSessionSelector((state) => state.readerTheme);
+  const appTheme = useAppThemeSelector((state) => state.theme);
+  const { readerTheme } = useReaderPreferences();
   const shellSurfaceColor = resolveShellSurfaceColor(isReader, readerTheme, appTheme);
   const layoutStyle: CSSProperties & Record<'--app-header-height' | '--app-header-offset', string> = {
     '--app-header-height': isReader ? '0px' : 'calc(4rem + env(safe-area-inset-top, 0px))',

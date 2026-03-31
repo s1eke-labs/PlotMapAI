@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Chapter, ChapterContent } from '../api/readerApi';
+import { SCROLL_READING_ANCHOR_RATIO } from '../utils/readerPosition';
 
 export interface ScrollModeAnchor {
   chapterIndex: number;
@@ -128,7 +129,8 @@ export function useScrollModeChapters(
     }
 
     const container = contentRef.current;
-    const visibleMarker = container.scrollTop + container.clientHeight * 0.3;
+    const visibleMarker =
+      container.scrollTop + container.clientHeight * SCROLL_READING_ANCHOR_RATIO;
     let currentReadIdx = scrollModeChapters[0];
     let currentReadOffsetTop = Number.NEGATIVE_INFINITY;
 

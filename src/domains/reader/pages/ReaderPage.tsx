@@ -50,7 +50,11 @@ import {
   getOffsetForLocator,
   getPageStartLocator,
 } from '../utils/readerLayout';
-import { getPageIndexFromProgress, resolvePagedTargetPage } from '../utils/readerPosition';
+import {
+  getPageIndexFromProgress,
+  resolvePagedTargetPage,
+  SCROLL_READING_ANCHOR_RATIO,
+} from '../utils/readerPosition';
 
 function areVisibleBlockRangesEqual(
   previousRanges: ReadonlyMap<number, ReturnType<typeof findVisibleBlockRange>>,
@@ -529,7 +533,8 @@ export default function ReaderPage() {
     }
 
     const container = contentRef.current;
-    const visibleMarker = container.scrollTop + container.clientHeight * 0.3;
+    const visibleMarker =
+      container.scrollTop + container.clientHeight * SCROLL_READING_ANCHOR_RATIO;
     const initialChapterIndex = scrollReaderChapters[0]?.index ?? chapterIndex;
     let currentLayout = renderCache.scrollLayouts.get(initialChapterIndex) ?? null;
     let currentBodyElement =

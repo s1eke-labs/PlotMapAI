@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ThemeProvider } from '@app/providers/ThemeContext';
+import { resetAppThemeStoreForTests } from '@app/stores/appThemeStore';
 import ThemeToggle from '../ThemeToggle';
 
 vi.mock('react-i18next', () => ({
@@ -12,6 +13,7 @@ describe('ThemeToggle', () => {
   beforeEach(() => {
     localStorage.clear();
     document.documentElement.classList.remove('dark');
+    resetAppThemeStoreForTests();
   });
 
   it('toggles the active theme and button title through ThemeContext', async () => {
@@ -34,7 +36,7 @@ describe('ThemeToggle', () => {
 
   it('honors a persisted dark theme and toggles back to light', async () => {
     localStorage.setItem('theme', 'dark');
-    document.documentElement.classList.add('dark');
+    resetAppThemeStoreForTests();
     const user = userEvent.setup();
 
     render(

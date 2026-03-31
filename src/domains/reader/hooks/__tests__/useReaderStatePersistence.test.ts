@@ -195,6 +195,39 @@ describe('useReaderStatePersistence', () => {
     });
   });
 
+  it('keeps the local reader state when hydration runs twice before completion', async () => {
+    localStorage.setItem('reader-state:1', JSON.stringify({
+      chapterIndex: 6,
+      viewMode: 'summary',
+      isTwoColumn: false,
+    }));
+
+    const { result } = renderHook(() => useReaderStatePersistence(1));
+    let secondState!: Awaited<ReturnType<typeof result.current.loadPersistedReaderState>>;
+
+    await act(async () => {
+      const firstHydration = result.current.loadPersistedReaderState();
+      secondState = await result.current.loadPersistedReaderState();
+      await firstHydration;
+    });
+
+    expect(secondState).toEqual({
+      chapterIndex: 6,
+      mode: 'summary',
+      viewMode: 'summary',
+      isTwoColumn: false,
+      chapterProgress: 0,
+      scrollPosition: 0,
+      lastContentMode: 'scroll',
+    });
+    expect(JSON.parse(localStorage.getItem('reader-state:1')!)).toMatchObject({
+      chapterIndex: 6,
+      mode: 'summary',
+      viewMode: 'summary',
+      isTwoColumn: false,
+    });
+  });
+
   it('keeps legacy scrollPosition for one-time restoration and upgrades on next save', () => {
     localStorage.setItem('reader-state:1', JSON.stringify({
       chapterIndex: 2,

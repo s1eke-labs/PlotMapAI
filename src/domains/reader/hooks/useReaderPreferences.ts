@@ -4,12 +4,12 @@ import { useCallback, useEffect, useMemo } from 'react';
 
 import { READER_THEMES } from '../constants/readerThemes';
 import {
-  ensureSessionPreferencesHydrated,
+  ensureReaderPreferencesHydrated,
   setReaderPageTurnMode,
   setReaderTheme,
   setTypography,
-  useReaderSessionSelector,
-} from './sessionStore';
+  useReaderPreferencesSelector,
+} from './readerPreferencesStore';
 
 const HEADER_BG_MAP: Record<string, string> = {
   auto: 'bg-bg-primary',
@@ -21,14 +21,14 @@ const HEADER_BG_MAP: Record<string, string> = {
 
 export function useReaderPreferences() {
   useEffect(() => {
-    ensureSessionPreferencesHydrated();
+    ensureReaderPreferencesHydrated();
   }, []);
 
-  const fontSize = useReaderSessionSelector((state) => state.fontSize);
-  const readerTheme = useReaderSessionSelector((state) => state.readerTheme);
-  const pageTurnMode = useReaderSessionSelector((state) => state.pageTurnMode);
-  const lineSpacing = useReaderSessionSelector((state) => state.lineSpacing);
-  const paragraphSpacing = useReaderSessionSelector((state) => state.paragraphSpacing);
+  const fontSize = useReaderPreferencesSelector((state) => state.fontSize);
+  const readerTheme = useReaderPreferencesSelector((state) => state.readerTheme);
+  const pageTurnMode = useReaderPreferencesSelector((state) => state.pageTurnMode);
+  const lineSpacing = useReaderPreferencesSelector((state) => state.lineSpacing);
+  const paragraphSpacing = useReaderPreferencesSelector((state) => state.paragraphSpacing);
   const preferences = useMemo(() => ({
     fontSize,
     readerTheme,

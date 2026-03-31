@@ -5,6 +5,8 @@ export interface ChapterRenderData {
   skipLineIndex: number;
 }
 
+export const SCROLL_READING_ANCHOR_RATIO = 0.3;
+
 export function clampProgress(value: number | undefined): number {
   if (typeof value !== 'number' || Number.isNaN(value)) return 0;
   return Math.max(0, Math.min(1, value));

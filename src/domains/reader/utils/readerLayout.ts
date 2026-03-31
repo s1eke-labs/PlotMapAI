@@ -901,6 +901,12 @@ export function findPageIndexForLocator(
   }
 
   for (const page of paginatedLayout.pageSlices) {
+    if (areLocatorsEquivalent(page.startLocator, locator)) {
+      return page.pageIndex;
+    }
+  }
+
+  for (const page of paginatedLayout.pageSlices) {
     for (const column of page.columns) {
       for (const item of column.items) {
         if (item.chapterIndex !== locator.chapterIndex || item.blockIndex !== locator.blockIndex) {
@@ -922,6 +928,39 @@ export function findPageIndexForLocator(
   }
 
   return null;
+}
+
+function areLayoutCursorsEquivalent(
+  left: LayoutCursor | undefined,
+  right: LayoutCursor | undefined,
+): boolean {
+  if (!left && !right) {
+    return true;
+  }
+
+  if (!left || !right) {
+    return false;
+  }
+
+  return left.segmentIndex === right.segmentIndex
+    && left.graphemeIndex === right.graphemeIndex;
+}
+
+function areLocatorsEquivalent(
+  left: ReaderLocator | null | undefined,
+  right: ReaderLocator | null | undefined,
+): boolean {
+  if (!left || !right) {
+    return false;
+  }
+
+  return left.chapterIndex === right.chapterIndex
+    && left.blockIndex === right.blockIndex
+    && left.kind === right.kind
+    && left.lineIndex === right.lineIndex
+    && left.edge === right.edge
+    && areLayoutCursorsEquivalent(left.startCursor, right.startCursor)
+    && areLayoutCursorsEquivalent(left.endCursor, right.endCursor);
 }
 
 export function findVisibleBlockRange(

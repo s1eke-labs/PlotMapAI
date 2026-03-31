@@ -1,5 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, it, expect, vi } from 'vitest';
+import { resetAppThemeStoreForTests } from '@app/stores/appThemeStore';
 import { CACHE_KEYS, storage } from '@infra/storage';
 import { resetReaderSessionStoreForTests } from '@domains/reader';
 import Layout from '../Layout';
@@ -20,8 +21,9 @@ vi.mock('../../components/LanguageSwitcher', () => ({
 
 describe('Layout component', () => {
   beforeEach(() => {
-    resetReaderSessionStoreForTests();
     localStorage.clear();
+    resetAppThemeStoreForTests();
+    resetReaderSessionStoreForTests();
     document.head.querySelector('meta[name="theme-color"]')?.remove();
   });
 
