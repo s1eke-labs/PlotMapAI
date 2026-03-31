@@ -72,6 +72,35 @@ describe('debug', () => {
     expect(mod.MAX_LOGS).toBeGreaterThan(0);
   });
 
+  it('debug feature flags default to disabled', async () => {
+    vi.stubEnv('VITE_DEBUG', 'true');
+    const mod = await import('../service');
+    expect(mod.getDebugFeatureFlags()).toEqual({
+      readerTelemetry: false,
+    });
+    expect(mod.isDebugFeatureEnabled('readerTelemetry')).toBe(false);
+  });
+
+  it('setDebugFeatureEnabled updates feature flags and notifies subscribers', async () => {
+    vi.stubEnv('VITE_DEBUG', 'true');
+    const mod = await import('../service');
+    const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const listener = vi.fn();
+    const unsubscribe = mod.debugFeatureSubscribe(listener);
+
+    mod.setDebugFeatureEnabled('readerTelemetry', true);
+
+    expect(mod.isDebugFeatureEnabled('readerTelemetry')).toBe(true);
+    expect(listener).toHaveBeenCalledWith({
+      readerTelemetry: true,
+    });
+
+    unsubscribe();
+    mod.setDebugFeatureEnabled('readerTelemetry', false);
+    expect(listener).toHaveBeenCalledTimes(1);
+    spy.mockRestore();
+  });
+
   it('registerDebugHelpers exposes window debug methods in debug mode', async () => {
     vi.stubEnv('VITE_DEBUG', 'true');
     const mod = await import('../service');

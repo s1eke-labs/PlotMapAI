@@ -11,7 +11,11 @@ import type {
 import type { ReaderRenderCacheSource } from '../utils/readerRenderCache';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { debugLog } from '@app/debug/service';
+import {
+  debugFeatureSubscribe,
+  debugLog,
+  isDebugFeatureEnabled,
+} from '@app/debug/service';
 
 import { extractImageKeysFromText } from '../utils/chapterImages';
 import {
@@ -96,6 +100,20 @@ interface PreheatTarget {
   variantFamily: ReaderRenderVariant;
 }
 
+interface ReaderVisibleLayoutSnapshot {
+  activeVariant: ReaderRenderVariant;
+  cacheModel: 'render-tree-only';
+  currentPagedPageCount: number;
+  currentPagedPageItemCount: number;
+  scrollBlockCount: number;
+  scrollChapterCount: number;
+  visibleCacheSources: Record<ReaderRenderCacheSource, number>;
+}
+
+interface ReaderLayoutSnapshot extends ReaderVisibleLayoutSnapshot {
+  pendingPreheatCount: number;
+}
+
 const EMPTY_VIEWPORT_SIZE: ViewportSize = {
   height: 0,
   width: 0,
@@ -107,6 +125,11 @@ const RENDER_VARIANTS: ReaderRenderVariant[] = [
   'original-paged',
   'summary-shell',
 ];
+const EMPTY_CACHE_SOURCE_COUNTS: Record<ReaderRenderCacheSource, number> = {
+  built: 0,
+  dexie: 0,
+  memory: 0,
+};
 
 function readViewportSize(element: HTMLDivElement): ViewportSize {
   const rect = element.getBoundingClientRect();
@@ -149,6 +172,20 @@ function getActiveVariant(isPagedMode: boolean, viewMode: 'original' | 'summary'
   }
 
   return isPagedMode ? 'original-paged' : 'original-scroll';
+}
+
+function countPageItems(tree: StaticPagedChapterTree): number {
+  return tree.pageSlices.reduce((pageTotal, page) => (
+    pageTotal + page.columns.reduce((columnTotal, column) => columnTotal + column.items.length, 0)
+  ), 0);
+}
+
+function summarizeCacheSources(sources: Iterable<ReaderRenderCacheSource>): Record<ReaderRenderCacheSource, number> {
+  const counts = { ...EMPTY_CACHE_SOURCE_COUNTS };
+  for (const source of sources) {
+    counts[source] += 1;
+  }
+  return counts;
 }
 
 function createVariantSignatures(params: {
@@ -209,7 +246,21 @@ export function useReaderRenderCache({
   const [cacheRevision, setCacheRevision] = useState(0);
   const [pendingPreheatCount, setPendingPreheatCount] = useState(0);
   const [isPreheating, setIsPreheating] = useState(false);
+  const [readerTelemetryEnabled, setReaderTelemetryEnabled] = useState(() => isDebugFeatureEnabled('readerTelemetry'));
+  const readerTelemetryEnabledRef = useRef(readerTelemetryEnabled);
+  const pendingPreheatCountRef = useRef(pendingPreheatCount);
   const loadedChaptersRef = useRef<Map<number, ChapterContent>>(new Map());
+
+  useEffect(() => {
+    return debugFeatureSubscribe((featureFlags) => {
+      setReaderTelemetryEnabled(featureFlags.readerTelemetry);
+      readerTelemetryEnabledRef.current = featureFlags.readerTelemetry;
+    });
+  }, []);
+
+  useEffect(() => {
+    pendingPreheatCountRef.current = pendingPreheatCount;
+  }, [pendingPreheatCount]);
 
   useEffect(() => {
     const nextLoadedChapters = new Map<number, ChapterContent>();
@@ -440,6 +491,73 @@ export function useReaderRenderCache({
       };
     });
   }, [novelId, typography, variantSignatures, visibleResultsRevisionKey, visibleTargets]);
+  const visibleLayoutMetrics = useMemo(() => {
+    let scrollBlockCount = 0;
+    let currentPagedPageCount = 0;
+    let currentPagedPageItemCount = 0;
+    const visibleCacheSources = summarizeCacheSources(visibleResults.map((result) => result.source));
+
+    for (const result of visibleResults) {
+      if (result.variantFamily === 'original-scroll') {
+        const tree = coerceScrollTree(result.entry);
+        if (tree) {
+          scrollBlockCount += tree.metrics.length;
+        }
+        continue;
+      }
+
+      if (result.variantFamily === 'original-paged' && result.entry.chapterIndex === currentChapter?.index) {
+        const tree = coercePagedTree(result.entry);
+        if (tree) {
+          currentPagedPageCount = tree.pageSlices.length;
+          currentPagedPageItemCount = countPageItems(tree);
+        }
+      }
+    }
+
+    return {
+      currentPagedPageCount,
+      currentPagedPageItemCount,
+      scrollBlockCount,
+      visibleCacheSources,
+    };
+  }, [currentChapter?.index, visibleResults]);
+
+  const layoutSnapshot = useMemo<ReaderVisibleLayoutSnapshot>(() => {
+    return {
+      activeVariant,
+      cacheModel: 'render-tree-only',
+      currentPagedPageCount: visibleLayoutMetrics.currentPagedPageCount,
+      currentPagedPageItemCount: visibleLayoutMetrics.currentPagedPageItemCount,
+      scrollBlockCount: visibleLayoutMetrics.scrollBlockCount,
+      scrollChapterCount: scrollChapters.length,
+      visibleCacheSources: {
+        built: visibleLayoutMetrics.visibleCacheSources.built,
+        dexie: visibleLayoutMetrics.visibleCacheSources.dexie,
+        memory: visibleLayoutMetrics.visibleCacheSources.memory,
+      },
+    };
+  }, [
+    activeVariant,
+    scrollChapters.length,
+    visibleLayoutMetrics.currentPagedPageCount,
+    visibleLayoutMetrics.currentPagedPageItemCount,
+    visibleLayoutMetrics.scrollBlockCount,
+    visibleLayoutMetrics.visibleCacheSources.built,
+    visibleLayoutMetrics.visibleCacheSources.dexie,
+    visibleLayoutMetrics.visibleCacheSources.memory,
+  ]);
+
+  useEffect(() => {
+    if (!readerTelemetryEnabled) {
+      return;
+    }
+    const snapshot: ReaderLayoutSnapshot = {
+      ...layoutSnapshot,
+      pendingPreheatCount: pendingPreheatCountRef.current,
+    };
+    debugLog('READER', 'Reader layout snapshot', snapshot);
+  }, [layoutSnapshot, readerTelemetryEnabled]);
 
   useEffect(() => {
     for (const result of visibleResults) {
@@ -560,11 +678,25 @@ export function useReaderRenderCache({
             variantFamily: nextTarget.variantFamily,
           } as const;
           if (getReaderRenderCacheEntryFromMemory(lookup)) {
+            if (readerTelemetryEnabledRef.current) {
+              debugLog('READER', 'Reader preheat source', {
+                chapterIndex: chapter.index,
+                source: 'memory',
+                variantFamily: nextTarget.variantFamily,
+              });
+            }
             return;
           }
 
           const dexieEntry = await getReaderRenderCacheEntryFromDexie(lookup);
           if (dexieEntry) {
+            if (readerTelemetryEnabledRef.current) {
+              debugLog('READER', 'Reader preheat source', {
+                chapterIndex: chapter.index,
+                source: 'dexie',
+                variantFamily: nextTarget.variantFamily,
+              });
+            }
             if (!cancelled) {
               setCacheRevision((previous) => previous + 1);
             }
@@ -583,6 +715,13 @@ export function useReaderRenderCache({
             typography,
             variantFamily: nextTarget.variantFamily,
           });
+          if (readerTelemetryEnabledRef.current) {
+            debugLog('READER', 'Reader preheat source', {
+              chapterIndex: chapter.index,
+              source: 'built',
+              variantFamily: nextTarget.variantFamily,
+            });
+          }
           primeReaderRenderCacheEntry(builtEntry);
           await persistReaderRenderCacheEntry(builtEntry);
           if (!cancelled) {

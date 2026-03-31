@@ -1,7 +1,39 @@
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const debugLogMock = vi.hoisted(() => vi.fn());
+const debugFeatureState = vi.hoisted(() => {
+  const listeners = new Set<(featureFlags: { readerTelemetry: boolean }) => void>();
+  let featureFlags = {
+    readerTelemetry: false,
+  };
+
+  return {
+    getFlags: vi.fn(() => ({ ...featureFlags })),
+    isEnabled: vi.fn((flag: 'readerTelemetry') => featureFlags[flag]),
+    reset() {
+      featureFlags = {
+        readerTelemetry: false,
+      };
+      listeners.clear();
+    },
+    set(flag: 'readerTelemetry', enabled: boolean) {
+      featureFlags = {
+        ...featureFlags,
+        [flag]: enabled,
+      };
+      for (const listener of listeners) {
+        listener({ ...featureFlags });
+      }
+    },
+    subscribe: vi.fn((listener: (featureFlags: { readerTelemetry: boolean }) => void) => {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    }),
+  };
+});
 
 const imageCacheMock = vi.hoisted(() => ({
   peekReaderImageDimensions: vi.fn().mockReturnValue(undefined),
@@ -98,7 +130,9 @@ const renderCacheMock = vi.hoisted(() => {
 });
 
 vi.mock('@app/debug/service', () => ({
+  debugFeatureSubscribe: debugFeatureState.subscribe,
   debugLog: debugLogMock,
+  isDebugFeatureEnabled: debugFeatureState.isEnabled,
 }));
 
 vi.mock('../../utils/readerImageResourceCache', () => imageCacheMock);
@@ -147,6 +181,16 @@ function createViewport(width: number = 600, height: number = 800): HTMLDivEleme
   return viewport;
 }
 
+function createDeferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((nextResolve, nextReject) => {
+    resolve = nextResolve;
+    reject = nextReject;
+  });
+  return { promise, reject, resolve };
+}
+
 function renderReaderRenderCacheHook(options?: {
   chapters?: Chapter[];
   currentChapter?: ChapterContent | null;
@@ -188,6 +232,7 @@ describe('useReaderRenderCache', () => {
     vi.useRealTimers();
     vi.clearAllMocks();
     debugLogMock.mockReset();
+    debugFeatureState.reset();
     imageCacheMock.peekReaderImageDimensions.mockReturnValue(undefined);
     imageCacheMock.preloadReaderImageResources.mockResolvedValue(undefined);
     renderCacheMock.reset();
@@ -278,5 +323,170 @@ describe('useReaderRenderCache', () => {
       }),
       expect.any(Error),
     );
+  });
+
+  it('logs reader layout snapshots with visible counts and cache source breakdowns', async () => {
+    debugFeatureState.set('readerTelemetry', true);
+    const currentChapter = createChapter(0, 1);
+
+    renderReaderRenderCacheHook({
+      chapters: [{ index: 0, title: 'Chapter 1', wordCount: 120 }],
+      currentChapter,
+      scrollChapters: [{ chapter: currentChapter, index: currentChapter.index }],
+    });
+
+    await waitFor(() => {
+      expect(debugLogMock).toHaveBeenCalledWith(
+        'READER',
+        'Reader layout snapshot',
+        expect.objectContaining({
+          activeVariant: 'original-scroll',
+          cacheModel: 'render-tree-only',
+          currentPagedPageCount: 0,
+          currentPagedPageItemCount: 0,
+          scrollBlockCount: 0,
+          scrollChapterCount: 1,
+          visibleCacheSources: {
+            built: 1,
+            dexie: 0,
+            memory: 0,
+          },
+        }),
+      );
+    });
+  });
+
+  it('does not emit extra layout snapshots when only pending preheat state changes', async () => {
+    vi.useFakeTimers();
+    debugFeatureState.set('readerTelemetry', true);
+    const currentChapter = createChapter(0, 1);
+    const stalledPagedPersist = createDeferred<void>();
+    const stalledSummaryPersist = createDeferred<void>();
+    renderCacheMock.persistReaderRenderCacheEntry.mockImplementation((entry: {
+      chapterIndex: number;
+      variantFamily: 'original-paged' | 'original-scroll' | 'summary-shell';
+    }) => {
+      if (entry.chapterIndex === 0 && entry.variantFamily === 'original-paged') {
+        return stalledPagedPersist.promise;
+      }
+      if (entry.chapterIndex === 0 && entry.variantFamily === 'summary-shell') {
+        return stalledSummaryPersist.promise;
+      }
+      return Promise.resolve(undefined);
+    });
+
+    const { result } = renderReaderRenderCacheHook({
+      chapters: [{ index: 0, title: 'Chapter 1', wordCount: 120 }],
+      currentChapter,
+      scrollChapters: [{ chapter: currentChapter, index: currentChapter.index }],
+    });
+
+    const getLayoutSnapshotCalls = () => debugLogMock.mock.calls.filter((call) => (
+      call[0] === 'READER' && call[1] === 'Reader layout snapshot'
+    ));
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    debugLogMock.mockClear();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(16);
+    });
+
+    expect(result.current.isPreheating).toBe(true);
+    expect(result.current.pendingPreheatCount).toBe(1);
+    debugLogMock.mockClear();
+
+    await act(async () => {
+      stalledPagedPersist.resolve();
+      await vi.advanceTimersByTimeAsync(16);
+    });
+
+    expect(result.current.pendingPreheatCount).toBe(0);
+    expect(getLayoutSnapshotCalls()).toHaveLength(0);
+
+    await act(async () => {
+      stalledSummaryPersist.resolve();
+      await vi.advanceTimersByTimeAsync(500);
+    });
+  });
+
+  it('logs preheat cache sources for non-visible reader variants', async () => {
+    debugFeatureState.set('readerTelemetry', true);
+    renderReaderRenderCacheHook();
+
+    await waitFor(() => {
+      expect(debugLogMock).toHaveBeenCalledWith(
+        'READER',
+        'Reader preheat source',
+        expect.objectContaining({
+          chapterIndex: 0,
+          source: 'built',
+          variantFamily: 'original-paged',
+        }),
+      );
+    });
+  });
+
+  it('keeps verbose reader telemetry disabled by default', async () => {
+    renderReaderRenderCacheHook();
+
+    await waitFor(() => {
+      expect(renderCacheMock.warmReaderRenderImages).toHaveBeenCalled();
+    });
+
+    expect(debugLogMock).not.toHaveBeenCalledWith(
+      'READER',
+      'Reader layout snapshot',
+      expect.anything(),
+    );
+    expect(debugLogMock).not.toHaveBeenCalledWith(
+      'READER',
+      'Reader preheat source',
+      expect.anything(),
+    );
+  });
+
+  it('does not restart preheating when reader telemetry toggles', async () => {
+    vi.useFakeTimers();
+    const deferredChapter = createDeferred<ChapterContent>();
+    const fetchChapterContent = vi.fn(async (index: number) => {
+      if (index !== 1) {
+        return createChapter(index, 2);
+      }
+      return deferredChapter.promise;
+    });
+
+    const { result } = renderReaderRenderCacheHook({
+      fetchChapterContent,
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(100);
+    });
+
+    expect(fetchChapterContent).toHaveBeenCalledTimes(1);
+    expect(fetchChapterContent).toHaveBeenCalledWith(1, expect.objectContaining({
+      signal: expect.any(AbortSignal),
+    }));
+
+    await act(async () => {
+      debugFeatureState.set('readerTelemetry', true);
+      await vi.advanceTimersByTimeAsync(100);
+    });
+
+    expect(fetchChapterContent).toHaveBeenCalledTimes(1);
+    expect(result.current.isPreheating).toBe(true);
+
+    await act(async () => {
+      deferredChapter.resolve(createChapter(1, 2));
+      await vi.advanceTimersByTimeAsync(500);
+    });
+
+    expect(result.current.isPreheating).toBe(false);
+    expect(result.current.pendingPreheatCount).toBe(0);
   });
 });

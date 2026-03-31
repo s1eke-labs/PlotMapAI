@@ -12,6 +12,10 @@ export const DEBUG_SHOW_IOS_INSTALL_HINT_EVENT = 'plotmapai:debug:show-ios-insta
 export const DEBUG_SHOW_UPDATE_TOAST_EVENT = 'plotmapai:debug:show-update-toast';
 export const DEBUG_RESET_PWA_PROMPTS_EVENT = 'plotmapai:debug:reset-pwa-prompts';
 
+export interface DebugFeatureFlags {
+  readerTelemetry: boolean;
+}
+
 export interface DebugLogEntry {
   kind: 'log';
   time: number;
@@ -37,9 +41,14 @@ export interface DebugPwaTools {
 }
 
 type LogListener = (entry: DebugEntry) => void;
+type FeatureListener = (flags: DebugFeatureFlags) => void;
 
 const logs: DebugEntry[] = [];
 const listeners = new Set<LogListener>();
+const featureListeners = new Set<FeatureListener>();
+const debugFeatureFlags: DebugFeatureFlags = {
+  readerTelemetry: false,
+};
 
 export function isDebugMode(): boolean {
   return isDebug;
@@ -95,6 +104,40 @@ export function getRecentLogs(): DebugEntry[] {
 
 export function clearLogs(): void {
   logs.length = 0;
+}
+
+function notifyFeatureListeners(): void {
+  const snapshot = getDebugFeatureFlags();
+  for (const listener of featureListeners) {
+    listener(snapshot);
+  }
+}
+
+export function getDebugFeatureFlags(): DebugFeatureFlags {
+  return {
+    ...debugFeatureFlags,
+  };
+}
+
+export function isDebugFeatureEnabled(flag: keyof DebugFeatureFlags): boolean {
+  return isDebug && debugFeatureFlags[flag];
+}
+
+export function setDebugFeatureEnabled(flag: keyof DebugFeatureFlags, enabled: boolean): void {
+  if (debugFeatureFlags[flag] === enabled) {
+    return;
+  }
+
+  debugFeatureFlags[flag] = enabled;
+  notifyFeatureListeners();
+  debugLog('Debug', `feature ${flag} ${enabled ? 'enabled' : 'disabled'}`);
+}
+
+export function debugFeatureSubscribe(listener: FeatureListener): () => void {
+  featureListeners.add(listener);
+  return () => {
+    featureListeners.delete(listener);
+  };
 }
 
 function dispatchDebugEvent(eventName: string, message: string): void {

@@ -6,10 +6,22 @@ import DebugPanel from '../DebugPanel';
 const debugTest = vi.hoisted(() => {
   let logs: Array<{ time: number; category: string; message: string }> = [];
   let subscriber: ((entry: { time: number; category: string; message: string }) => void) | null = null;
+  let featureFlags = {
+    readerTelemetry: false,
+  };
+  let featureSubscriber: ((flags: { readerTelemetry: boolean }) => void) | null = null;
 
   return {
     clearMock: vi.fn(() => {
       logs = [];
+    }),
+    getFeatureFlags: vi.fn(() => ({ ...featureFlags })),
+    setDebugFeatureEnabled: vi.fn((flag: 'readerTelemetry', enabled: boolean) => {
+      featureFlags = {
+        ...featureFlags,
+        [flag]: enabled,
+      };
+      featureSubscriber?.({ ...featureFlags });
     }),
     triggerDebugInstallPrompt: vi.fn(),
     triggerDebugIosInstallHint: vi.fn(),
@@ -25,9 +37,23 @@ const debugTest = vi.hoisted(() => {
         if (subscriber === callback) subscriber = null;
       };
     },
+    subscribeFeatures(callback: (flags: { readerTelemetry: boolean }) => void) {
+      featureSubscriber = callback;
+      return () => {
+        if (featureSubscriber === callback) featureSubscriber = null;
+      };
+    },
     emit(entry: { time: number; category: string; message: string }) {
       logs = [...logs, entry];
       subscriber?.(entry);
+    },
+    reset() {
+      logs = [];
+      featureFlags = {
+        readerTelemetry: false,
+      };
+      subscriber = null;
+      featureSubscriber = null;
     },
   };
 });
@@ -35,9 +61,12 @@ const debugTest = vi.hoisted(() => {
 vi.mock('../service', () => {
   return {
     debugSubscribe: debugTest.subscribe,
+    debugFeatureSubscribe: debugTest.subscribeFeatures,
     getRecentLogs: debugTest.getLogs,
+    getDebugFeatureFlags: debugTest.getFeatureFlags,
     clearLogs: debugTest.clearMock,
     MAX_LOGS: 500,
+    setDebugFeatureEnabled: debugTest.setDebugFeatureEnabled,
     triggerDebugInstallPrompt: debugTest.triggerDebugInstallPrompt,
     triggerDebugIosInstallHint: debugTest.triggerDebugIosInstallHint,
     triggerDebugUpdateToast: debugTest.triggerDebugUpdateToast,
@@ -48,7 +77,7 @@ vi.mock('../service', () => {
 describe('DebugPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    debugTest.setLogs([]);
+    debugTest.reset();
   });
 
   it('renders existing logs and appends live log entries from the subscription', async () => {
@@ -92,5 +121,20 @@ describe('DebugPanel', () => {
     expect(debugTest.triggerDebugIosInstallHint).toHaveBeenCalledTimes(1);
     expect(debugTest.triggerDebugUpdateToast).toHaveBeenCalledTimes(1);
     expect(debugTest.triggerDebugResetPwaPrompts).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders reader telemetry toggle disabled by default and wires it to the debug feature flag', async () => {
+    const user = userEvent.setup();
+
+    render(<DebugPanel />);
+    await user.click(screen.getByTitle('Debug Panel'));
+
+    const toggle = screen.getByRole('switch');
+    expect(toggle).toHaveAttribute('aria-checked', 'false');
+
+    await user.click(toggle);
+
+    expect(debugTest.setDebugFeatureEnabled).toHaveBeenCalledWith('readerTelemetry', true);
+    expect(toggle).toHaveAttribute('aria-checked', 'true');
   });
 });

@@ -1,10 +1,16 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { ArrowLeft, Bug, ChevronDown, Download, RefreshCw, RotateCcw, Smartphone, Trash2 } from 'lucide-react';
+import Toggle from '@shared/components/Toggle';
+import { cn } from '@shared/utils/cn';
+
 import {
   debugSubscribe,
+  debugFeatureSubscribe,
   getRecentLogs,
+  getDebugFeatureFlags,
   clearLogs,
   MAX_LOGS,
+  setDebugFeatureEnabled,
   triggerDebugInstallPrompt,
   triggerDebugIosInstallHint,
   triggerDebugUpdateToast,
@@ -12,10 +18,10 @@ import {
   type DebugEntry,
 } from './service';
 
-import { cn } from '@shared/utils/cn';
-
 const CATEGORY_COLORS: Record<string, string> = {
+  Debug: 'text-slate-300',
   Reader: 'text-green-400',
+  READER: 'text-green-400',
   reader: 'text-green-400',
   Purify: 'text-yellow-400',
   TXT: 'text-blue-400',
@@ -39,6 +45,7 @@ export default function DebugPanel() {
   const [isOpen, setIsOpen] = useState(false);
   const [logs, setLogs] = useState<DebugEntry[]>(() => getRecentLogs());
   const [filter, setFilter] = useState<'all' | 'errors' | 'logs'>('all');
+  const [featureFlags, setFeatureFlags] = useState(() => getDebugFeatureFlags());
   const listRef = useRef<HTMLDivElement>(null);
   const autoScrollRef = useRef(true);
 
@@ -49,6 +56,12 @@ export default function DebugPanel() {
         if (next.length > MAX_LOGS) next.splice(0, next.length - MAX_LOGS);
         return next;
       });
+    });
+  }, []);
+
+  useEffect(() => {
+    return debugFeatureSubscribe((nextFlags) => {
+      setFeatureFlags(nextFlags);
     });
   }, []);
 
@@ -149,6 +162,19 @@ export default function DebugPanel() {
         </button>
       </div>
       <div className="grid grid-cols-2 gap-2 border-b border-border-color/50 p-2">
+        <div className="col-span-2 flex items-center justify-between rounded-lg border border-border-color/50 px-3 py-2">
+          <div className="min-w-0">
+            <div className="text-xs font-medium text-text-primary">Reader Telemetry</div>
+            <div className="text-[10px] text-text-secondary">Verbose reader layout snapshots and preheat source logs</div>
+          </div>
+          <Toggle
+            checked={featureFlags.readerTelemetry}
+            onChange={(checked) => {
+              setDebugFeatureEnabled('readerTelemetry', checked);
+            }}
+            className="ml-3"
+          />
+        </div>
         <button
           onClick={() => window.history.back()}
           className="flex items-center justify-center gap-2 rounded-lg border border-border-color/50 px-3 py-2 text-xs font-medium text-text-primary transition-colors hover:bg-white/10"
