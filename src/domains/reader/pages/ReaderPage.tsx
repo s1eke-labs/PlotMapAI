@@ -548,6 +548,15 @@ export default function ReaderPage() {
     handleContentClick,
   } = useContentClick(isPagedMode, navigation.handlePrev, navigation.handleNext);
   const isContentInteractionLocked = isChromeVisible || sidebar.isSidebarOpen;
+  const dismissBlockedInteraction = useCallback(() => {
+    if (sidebar.isSidebarOpen) {
+      closeSidebar();
+    }
+    if (isChromeVisible) {
+      setIsChromeVisible(false);
+    }
+    wheelDeltaRef.current = 0;
+  }, [closeSidebar, isChromeVisible, setIsChromeVisible, sidebar.isSidebarOpen]);
 
   useReaderInput(
     contentRef,
@@ -559,6 +568,7 @@ export default function ReaderPage() {
     currentChapter,
     isLoading,
     isContentInteractionLocked,
+    dismissBlockedInteraction,
     wheelDeltaRef,
     pageTurnLockedRef,
   );
@@ -584,13 +594,12 @@ export default function ReaderPage() {
 
   const handleViewportClick = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
     if (sidebar.isSidebarOpen) {
-      closeSidebar();
-      setIsChromeVisible(false);
+      dismissBlockedInteraction();
       return;
     }
 
     handleContentClick(event);
-  }, [closeSidebar, handleContentClick, setIsChromeVisible, sidebar.isSidebarOpen]);
+  }, [dismissBlockedInteraction, handleContentClick, sidebar.isSidebarOpen]);
   const handleRestoreContentScroll = restoreFlow.handleContentScroll;
   const handleViewportScroll = useCallback(() => {
     syncViewportState();
@@ -690,6 +699,7 @@ export default function ReaderPage() {
           showLoadingOverlay={showLoadingOverlay}
           isRestoringPosition={restoreFlow.isRestoringPosition}
           loadingLabel={restoreStatus === 'restoring' ? t('reader.restoringPosition') : loadingMessage}
+          onBlockedInteraction={dismissBlockedInteraction}
           onContentClick={handleViewportClick}
           onContentScroll={handleViewportScroll}
           emptyHref={appPaths.novel(novelId)}

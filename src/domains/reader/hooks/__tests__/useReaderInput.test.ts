@@ -24,6 +24,7 @@ function setupHook(opts: {
   const goToNextPage = vi.fn();
   const goToPrevPage = vi.fn();
   const goToChapter = vi.fn();
+  const dismissBlockedInteraction = vi.fn();
   const wheelDeltaRef = { current: 0 };
   const pageTurnLockedRef = { current: false };
 
@@ -43,12 +44,22 @@ function setupHook(opts: {
       chapter,
       isLoading,
       interactionLocked,
+      dismissBlockedInteraction,
       wheelDeltaRef,
       pageTurnLockedRef,
     )
   );
 
-  return { result, contentRef, goToNextPage, goToPrevPage, goToChapter, wheelDeltaRef, pageTurnLockedRef };
+  return {
+    result,
+    contentRef,
+    goToNextPage,
+    goToPrevPage,
+    goToChapter,
+    dismissBlockedInteraction,
+    wheelDeltaRef,
+    pageTurnLockedRef,
+  };
 }
 
 describe('useReaderInput', () => {
@@ -128,6 +139,7 @@ describe('useReaderInput', () => {
     it('does nothing when currentChapter is null', () => {
       const goToNextPage = vi.fn();
       const goToChapter = vi.fn();
+      const dismissBlockedInteraction = vi.fn();
 
       // Use a wrapper to manually call the handler
       const contentRef = { current: document.createElement('div') };
@@ -145,6 +157,7 @@ describe('useReaderInput', () => {
           null, // currentChapter is null
           false,
           false,
+          dismissBlockedInteraction,
           wheelDeltaRef,
           pageTurnLockedRef,
         )
@@ -218,21 +231,23 @@ describe('useReaderInput', () => {
     });
 
     it('does not turn pages while interaction is locked', () => {
-      const { contentRef, goToNextPage } = setupHook({ isPagedMode: true, interactionLocked: true });
+      const { contentRef, goToNextPage, dismissBlockedInteraction } = setupHook({ isPagedMode: true, interactionLocked: true });
       const event = new WheelEvent('wheel', { deltaY: 100, bubbles: true, cancelable: true });
       Object.defineProperty(event, 'deltaX', { value: 0 });
       contentRef.current.dispatchEvent(event);
       expect(goToNextPage).not.toHaveBeenCalled();
+      expect(dismissBlockedInteraction).toHaveBeenCalledTimes(1);
     });
   });
 
   describe('interaction lock', () => {
     it('ignores keyboard navigation while interaction is locked', () => {
-      const { goToNextPage, goToChapter } = setupHook({ isPagedMode: true, interactionLocked: true });
+      const { goToNextPage, goToChapter, dismissBlockedInteraction } = setupHook({ isPagedMode: true, interactionLocked: true });
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown' }));
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight' }));
       expect(goToNextPage).not.toHaveBeenCalled();
       expect(goToChapter).not.toHaveBeenCalled();
+      expect(dismissBlockedInteraction).toHaveBeenCalledTimes(2);
     });
   });
 

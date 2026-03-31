@@ -23,6 +23,7 @@ export function useReaderInput(
   currentChapter: ChapterContent | null,
   isLoading: boolean,
   interactionLocked: boolean,
+  dismissBlockedInteraction: () => void,
   wheelDeltaRef: React.MutableRefObject<number>,
   pageTurnLockedRef: React.MutableRefObject<boolean>,
 ) {
@@ -31,6 +32,7 @@ export function useReaderInput(
   const wheelUnlockTimeoutRef = useRef<number | null>(null);
   const isPagedModeRef = useRef(isPagedMode);
   const interactionLockedRef = useRef(interactionLocked);
+  const dismissBlockedInteractionRef = useRef(dismissBlockedInteraction);
   const scrollLoopRef = useRef<() => void>(() => {});
 
   const stopContinuousScroll = useCallback(() => {
@@ -54,6 +56,10 @@ export function useReaderInput(
       stopContinuousScroll();
     }
   }, [interactionLocked, stopContinuousScroll]);
+
+  useEffect(() => {
+    dismissBlockedInteractionRef.current = dismissBlockedInteraction;
+  }, [dismissBlockedInteraction]);
 
   useEffect(() => {
     scrollLoopRef.current = () => {
@@ -87,6 +93,7 @@ export function useReaderInput(
     if (interactionLockedRef.current) {
       if (LOCKED_INTERACTION_KEYS.has(e.key)) {
         e.preventDefault();
+        dismissBlockedInteractionRef.current();
       }
       return;
     }
@@ -131,6 +138,8 @@ export function useReaderInput(
 
     if (interactionLockedRef.current) {
       e.preventDefault();
+      wheelDeltaRef.current = 0;
+      dismissBlockedInteractionRef.current();
       return;
     }
 

@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import { fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import type { ChapterContent } from '../../../api/readerApi';
@@ -36,6 +37,7 @@ function renderViewport(overrides: Partial<React.ComponentProps<typeof ReaderVie
         renderableChapter={null}
         showLoadingOverlay={false}
         isRestoringPosition={false}
+        onBlockedInteraction={() => {}}
         onContentClick={() => {}}
         onContentScroll={() => {}}
         emptyHref="/novel/1"
@@ -178,5 +180,33 @@ describe('ReaderViewport', () => {
 
     expect(container.firstChild).toHaveClass('overflow-hidden');
     expect(container.firstChild).not.toHaveClass('overflow-y-auto');
+  });
+
+  it('dismisses blocked wheel interactions while the menu is visible', () => {
+    const onBlockedInteraction = vi.fn();
+    const { container } = renderViewport({
+      renderableChapter: chapter,
+      isPagedMode: false,
+      interactionLocked: true,
+      onBlockedInteraction,
+    });
+
+    fireEvent.wheel(container.firstChild as HTMLElement, { deltaY: 120 });
+
+    expect(onBlockedInteraction).toHaveBeenCalledTimes(1);
+  });
+
+  it('dismisses blocked paged drags before they can turn the page', () => {
+    const onBlockedInteraction = vi.fn();
+    const { container } = renderViewport({
+      renderableChapter: chapter,
+      isPagedMode: true,
+      interactionLocked: true,
+      onBlockedInteraction,
+    });
+
+    fireEvent.pointerMove(container.firstChild as HTMLElement, { buttons: 1, clientX: 160, clientY: 40 });
+
+    expect(onBlockedInteraction).toHaveBeenCalledTimes(1);
   });
 });

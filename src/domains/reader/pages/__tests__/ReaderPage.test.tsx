@@ -403,6 +403,44 @@ describe('ReaderPage', () => {
     });
   });
 
+  it('uses the first scroll gesture to hide reader chrome without moving content', async () => {
+    const { container } = renderPage();
+
+    expect(await screen.findByRole('heading', { name: 'Chapter 1', level: 1 })).toBeInTheDocument();
+
+    const readerContainer = container.querySelector('main .cursor-pointer.overflow-y-auto.hide-scrollbar') as HTMLDivElement | null;
+    expect(readerContainer).not.toBeNull();
+
+    Object.defineProperty(readerContainer!, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => ({
+        x: 0,
+        y: 0,
+        left: 0,
+        top: 0,
+        width: 100,
+        height: 100,
+        right: 100,
+        bottom: 100,
+        toJSON: () => ({}),
+      }),
+    });
+
+    fireEvent.click(readerContainer!, { clientX: 50, clientY: 50 });
+
+    await waitFor(() => {
+      expect(readerContainer).toHaveClass('overflow-hidden');
+    });
+
+    fireEvent.wheel(readerContainer!, { deltaY: 120 });
+
+    await waitFor(() => {
+      expect(readerContainer).toHaveClass('overflow-y-auto');
+      expect(readerContainer).not.toHaveClass('overflow-hidden');
+    });
+    expect(readerContainer!.scrollTop).toBe(0);
+  });
+
   it('renders adjacent chapters in scroll mode without waiting for a scroll event', async () => {
     const shortChapters = Array.from({ length: 4 }, (_, index) => ({
       index,

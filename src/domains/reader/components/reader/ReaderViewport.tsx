@@ -15,6 +15,7 @@ interface ReaderViewportProps {
   showLoadingOverlay: boolean;
   isRestoringPosition: boolean;
   loadingLabel?: string | null;
+  onBlockedInteraction?: () => void;
   onContentClick: React.MouseEventHandler<HTMLDivElement>;
   onContentScroll: React.UIEventHandler<HTMLDivElement>;
   emptyHref: string;
@@ -34,6 +35,7 @@ export default function ReaderViewport({
   showLoadingOverlay,
   isRestoringPosition,
   loadingLabel,
+  onBlockedInteraction,
   onContentClick,
   onContentScroll,
   emptyHref,
@@ -50,6 +52,30 @@ export default function ReaderViewport({
         'h-full w-full relative cursor-pointer',
         isPagedMode || interactionLocked ? 'overflow-hidden' : 'overflow-y-auto hide-scrollbar',
       )}
+      onWheelCapture={(event) => {
+        if (!interactionLocked) {
+          return;
+        }
+
+        event.preventDefault();
+        onBlockedInteraction?.();
+      }}
+      onTouchMoveCapture={(event) => {
+        if (!interactionLocked) {
+          return;
+        }
+
+        event.preventDefault();
+        onBlockedInteraction?.();
+      }}
+      onPointerMoveCapture={(event) => {
+        if (!interactionLocked || !isPagedMode || event.buttons === 0) {
+          return;
+        }
+
+        event.preventDefault();
+        onBlockedInteraction?.();
+      }}
       onClick={onContentClick}
       onScroll={onContentScroll}
     >
