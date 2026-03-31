@@ -1,5 +1,5 @@
 import { Download, Share2 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CACHE_KEYS, storage } from '@infra/storage';
 import {
@@ -147,11 +147,7 @@ export default function InstallPrompt() {
     };
   }, []);
 
-  if (dismissed || (!deferredPrompt && !showIosHint)) {
-    return null;
-  }
-
-  async function handleInstall(): Promise<void> {
+  const handleInstall = useCallback(async (): Promise<void> => {
     if (!deferredPrompt) {
       return;
     }
@@ -167,11 +163,15 @@ export default function InstallPrompt() {
 
     setDeferredPrompt(null);
     setDismissed(true);
-  }
+  }, [deferredPrompt]);
 
-  function handleDismiss(): void {
+  const handleDismiss = useCallback((): void => {
     rememberInstallPromptDismissal();
     setDismissed(true);
+  }, []);
+
+  if (dismissed || (!deferredPrompt && !showIosHint)) {
+    return null;
   }
 
   return (

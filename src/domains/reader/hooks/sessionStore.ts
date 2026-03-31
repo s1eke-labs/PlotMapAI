@@ -115,6 +115,14 @@ let preferenceRevision = 0;
 let storeEpoch = 0;
 let hasConfiguredPageTurnModePreference = false;
 
+function setLastSyncedRemoteSnapshot(snapshot: string): void {
+  lastSyncedRemoteSnapshot = snapshot;
+}
+
+function markPageTurnModePreferenceConfigured(): void {
+  hasConfiguredPageTurnModePreference = true;
+}
+
 function isBrowser(): boolean {
   return typeof window !== 'undefined';
 }
@@ -607,7 +615,7 @@ function enqueueRemotePersistence(
     .then(async () => {
       if (snapshot === lastSyncedRemoteSnapshot) return;
       await readerApi.saveProgress(novelId, progress);
-      lastSyncedRemoteSnapshot = snapshot;
+      setLastSyncedRemoteSnapshot(snapshot);
     })
     .catch(() => undefined);
   return syncQueue;
@@ -711,7 +719,7 @@ export async function hydrateSession(novelId: number): Promise<StoredReaderState
     remoteState = sanitizeStoredReaderState(await readerApi.getProgress(novelId));
     if (remoteState) {
       const progress = buildStoredReaderState(remoteState);
-      lastSyncedRemoteSnapshot = getRemoteProgressSnapshot({
+      setLastSyncedRemoteSnapshot(getRemoteProgressSnapshot({
         chapterIndex: progress.chapterIndex ?? 0,
         scrollPosition: progress.scrollPosition ?? 0,
         viewMode: progress.viewMode ?? 'original',
@@ -719,7 +727,7 @@ export async function hydrateSession(novelId: number): Promise<StoredReaderState
         isTwoColumn: progress.isTwoColumn,
         locatorVersion: progress.locatorVersion,
         locator: progress.locator,
-      });
+      }));
     }
   } catch {
     remoteState = null;
@@ -737,7 +745,7 @@ export async function hydrateSession(novelId: number): Promise<StoredReaderState
     isPagedPageTurnMode(resolvedPageTurnMode) ? 'paged' : 'scroll',
   );
 
-  hasConfiguredPageTurnModePreference = true;
+  markPageTurnModePreferenceConfigured();
 
   setState({
     novelId,
@@ -812,7 +820,7 @@ export function setReaderTheme(theme: string): void {
 
 export function setReaderPageTurnMode(mode: ReaderPageTurnMode): void {
   preferenceRevision += 1;
-  hasConfiguredPageTurnModePreference = true;
+  markPageTurnModePreferenceConfigured();
   setState({ pageTurnMode: mode });
   schedulePreferencePersistence();
 }

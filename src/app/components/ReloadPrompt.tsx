@@ -1,5 +1,5 @@
 import { Loader2, RefreshCw, X } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import { useTranslation } from 'react-i18next';
@@ -121,7 +121,7 @@ export default function ReloadPrompt() {
 
   const isVisible = (needRefresh || debugNeedRefresh) && !dismissed;
 
-  async function handleUpdate(): Promise<void> {
+  const handleUpdate = useCallback(async (): Promise<void> => {
     setIsUpdating(true);
     clearUpdatePromptDismissal();
 
@@ -143,14 +143,14 @@ export default function ReloadPrompt() {
     } catch {
       setIsUpdating(false);
     }
-  }
+  }, [debugNeedRefresh, needRefresh, setNeedRefresh, updateServiceWorker]);
 
-  function handleDismiss(): void {
+  const handleDismiss = useCallback((): void => {
     rememberUpdatePromptDismissal();
     setDismissed(true);
     setDebugNeedRefresh(false);
     setNeedRefresh(false);
-  }
+  }, [setNeedRefresh]);
 
   return (
     <AnimatePresence initial={false}>

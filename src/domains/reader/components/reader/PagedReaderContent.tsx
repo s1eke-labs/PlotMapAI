@@ -121,7 +121,8 @@ function assignPagedViewportRef(
     return;
   }
 
-  (ref as React.MutableRefObject<HTMLDivElement | null>).current = element;
+  const targetRef = ref as React.MutableRefObject<HTMLDivElement | null>;
+  targetRef.current = element;
 }
 
 function resolveDragDirection(offset: number): PageTurnDirection | null {
@@ -210,9 +211,13 @@ function PagedPageFrame({
                 gap: layout.columnCount > 1 ? `${layout.columnGap}px` : '0px',
               }}
             >
-              {pageSlice.columns.map((column, columnIndex) => (
+              {pageSlice.columns.map((column) => (
                 <div
-                  key={`${pageIndex}:${columnIndex}`}
+                  key={[
+                    pageIndex,
+                    column.items[0]?.key ?? 'empty',
+                    column.items[column.items.length - 1]?.key ?? 'empty',
+                  ].join(':')}
                   className="flex min-w-0 flex-1 flex-col overflow-hidden selection:bg-accent/30"
                   style={{
                     width: `${layout.columnWidth}px`,

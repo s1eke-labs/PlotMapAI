@@ -1,3 +1,6 @@
+/* eslint-disable no-param-reassign -- raster generation mutates RGBA buffers in place */
+/* eslint-disable no-bitwise -- CRC32 computation relies on bitwise operations */
+
 import { writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { deflateSync } from 'node:zlib';
@@ -371,7 +374,7 @@ function createBrandSvg() {
 function writeAsset(pathname, content) {
   const targetPath = resolve(pathname);
   writeFileSync(targetPath, content);
-  console.log(`Generated ${targetPath}`);
+  process.stdout.write(`Generated ${targetPath}\n`);
 }
 
 const pngOutputs = new Map();

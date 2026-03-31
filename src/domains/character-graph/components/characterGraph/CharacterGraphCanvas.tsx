@@ -249,27 +249,34 @@ export default function CharacterGraphCanvas({
                   }}
                 />
                 <g pointerEvents="none">
-                  {labelLayout.lines.map((line, index) => (
-                    <text
-                      key={`${node.id}-${index}`}
-                      y={(index - (labelLayout.lines.length - 1) / 2) * labelLayout.lineHeight}
-                      textAnchor="middle"
-                      dominantBaseline="middle"
-                      fontSize={labelLayout.fontSize}
-                      fontWeight="700"
-                      lengthAdjust="spacingAndGlyphs"
-                      textLength={Math.min(
-                        labelLayout.maxTextWidth,
-                        estimateTextUnits(line) * labelLayout.fontSize,
-                      )}
-                      style={{
-                        fill: node.isCore ? '#ffffff' : '#18202a',
-                        transition: colorTransition,
-                      }}
-                    >
-                      {line}
-                    </text>
-                  ))}
+                  {(() => {
+                    let lineOffset = 0;
+                    return labelLayout.lines.map((line, index) => {
+                      const lineKey = `${node.id}:${lineOffset}:${line}`;
+                      lineOffset += line.length + 1;
+                      return (
+                        <text
+                          key={lineKey}
+                          y={(index - (labelLayout.lines.length - 1) / 2) * labelLayout.lineHeight}
+                          textAnchor="middle"
+                          dominantBaseline="middle"
+                          fontSize={labelLayout.fontSize}
+                          fontWeight="700"
+                          lengthAdjust="spacingAndGlyphs"
+                          textLength={Math.min(
+                            labelLayout.maxTextWidth,
+                            estimateTextUnits(line) * labelLayout.fontSize,
+                          )}
+                          style={{
+                            fill: node.isCore ? '#ffffff' : '#18202a',
+                            transition: colorTransition,
+                          }}
+                        >
+                          {line}
+                        </text>
+                      );
+                    });
+                  })()}
                 </g>
                 <g
                   transform={`translate(0 ${node.radius + 18})`}

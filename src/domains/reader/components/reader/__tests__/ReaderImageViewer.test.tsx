@@ -240,7 +240,7 @@ describe('ReaderImageViewer', () => {
 
     render(<StatefulViewer />);
 
-    let stage = document.body.querySelector('[data-reader-image-stage]') as HTMLDivElement | null;
+    const stage = document.body.querySelector('[data-reader-image-stage]') as HTMLDivElement | null;
     expect(stage).not.toBeNull();
 
     await act(async () => {
@@ -258,11 +258,11 @@ describe('ReaderImageViewer', () => {
       });
     });
 
-    stage = document.body.querySelector('[data-reader-image-stage]') as HTMLDivElement | null;
-    expect(stage).not.toBeNull();
+    const nextStage = document.body.querySelector('[data-reader-image-stage]') as HTMLDivElement | null;
+    expect(nextStage).not.toBeNull();
 
     await act(async () => {
-      fireEvent.click(stage!, { clientX: 120, clientY: 184 });
+      fireEvent.click(nextStage!, { clientX: 120, clientY: 184 });
       await vi.advanceTimersByTimeAsync(320);
     });
 

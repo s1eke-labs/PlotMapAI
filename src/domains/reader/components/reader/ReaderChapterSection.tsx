@@ -1,4 +1,5 @@
 import type { CSSProperties } from 'react';
+import { useMemo } from 'react';
 import ChapterParagraph from '../ChapterParagraph';
 import { buildChapterRenderData } from '../../utils/readerPosition';
 
@@ -28,16 +29,27 @@ export default function ReaderChapterSection({
   blankParagraphClassName,
 }: ReaderChapterSectionProps) {
   const { paragraphs, skipLineIndex } = buildChapterRenderData(content, title);
+  const paragraphEntries = useMemo(() => {
+    let cursor = 0;
+    return paragraphs.map((paragraph) => {
+      const key = `${cursor}:${paragraph}`;
+      cursor += paragraph.length + 1;
+      return {
+        key,
+        paragraph,
+      };
+    });
+  }, [paragraphs]);
 
   return (
     <>
       <h2 className={headingClassName} style={headingStyle}>{title}</h2>
-      {paragraphs.map((paragraph, index) => {
+      {paragraphEntries.map(({ key, paragraph }, index) => {
         if (index === skipLineIndex) return null;
         if (!paragraph.trim()) {
           return (
             <div
-              key={index}
+              key={`${key}:blank`}
               className={blankParagraphClassName}
               style={{ height: paragraphSpacing }}
               aria-hidden="true"
@@ -47,7 +59,7 @@ export default function ReaderChapterSection({
 
         return (
           <ChapterParagraph
-            key={index}
+            key={key}
             text={paragraph}
             novelId={novelId}
             marginBottom={paragraphSpacing}

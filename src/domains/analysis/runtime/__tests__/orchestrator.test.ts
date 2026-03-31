@@ -145,6 +145,10 @@ function createOverviewRow(novelId: number, totalChapters: number) {
 describe('analysis runtime orchestrator', () => {
   let currentDb: typeof import('@infra/db').db;
 
+  function setCurrentDb(nextDb: typeof import('@infra/db').db): void {
+    currentDb = nextDb;
+  }
+
   beforeEach(async () => {
     currentDb?.close();
     vi.resetModules();
@@ -154,9 +158,11 @@ describe('analysis runtime orchestrator', () => {
     mockRunAnalysisExecution.mockReset();
     mockRunSingleChapterAnalysis.mockReset();
 
-    currentDb = (await import('@infra/db')).db;
-    await currentDb.delete();
-    await currentDb.open();
+    const dbModule = await import('@infra/db');
+    const nextDb = dbModule.db;
+    await nextDb.delete();
+    await nextDb.open();
+    setCurrentDb(nextDb);
     localStorage.clear();
 
     mockGetAiConfig.mockResolvedValue({

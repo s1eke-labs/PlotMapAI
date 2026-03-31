@@ -63,14 +63,15 @@ export function useReaderInput(
 
   useEffect(() => {
     scrollLoopRef.current = () => {
-      if (!contentRef.current) return;
+      const contentElement = contentRef.current;
+      if (!contentElement) return;
 
       let scrollAmount = 0;
       if (scrollKeys.current.has('ArrowDown')) scrollAmount += 10;
       if (scrollKeys.current.has('ArrowUp')) scrollAmount -= 10;
 
       if (scrollAmount !== 0) {
-        contentRef.current.scrollTop += scrollAmount;
+        contentElement.scrollTop += scrollAmount;
         animationFrameId.current = requestAnimationFrame(() => scrollLoopRef.current());
       } else {
         animationFrameId.current = null;
@@ -79,12 +80,13 @@ export function useReaderInput(
   }, [contentRef]);
 
   const unlockPageTurn = useCallback(() => {
+    const pageTurnLock = pageTurnLockedRef;
     if (wheelUnlockTimeoutRef.current) {
       window.clearTimeout(wheelUnlockTimeoutRef.current);
     }
 
     wheelUnlockTimeoutRef.current = window.setTimeout(() => {
-      pageTurnLockedRef.current = false;
+      pageTurnLock.current = false;
       wheelUnlockTimeoutRef.current = null;
     }, PAGE_TURN_LOCK_MS);
   }, [pageTurnLockedRef]);
@@ -142,11 +144,13 @@ export function useReaderInput(
   }, [isPagedMode]);
 
   const handlePagedWheel = useCallback((e: WheelEvent) => {
+    const wheelAccumulator = wheelDeltaRef;
+    const pageTurnLock = pageTurnLockedRef;
     if (!isPagedModeRef.current) return;
 
     if (interactionLockedRef.current) {
       e.preventDefault();
-      wheelDeltaRef.current = 0;
+      wheelAccumulator.current = 0;
       dismissBlockedInteractionRef.current();
       return;
     }
@@ -154,21 +158,21 @@ export function useReaderInput(
     if (Math.abs(e.deltaY) < Math.abs(e.deltaX)) return;
 
     e.preventDefault();
-    wheelDeltaRef.current += e.deltaY;
+    wheelAccumulator.current += e.deltaY;
 
-    if (pageTurnLockedRef.current || Math.abs(wheelDeltaRef.current) < PAGE_TURN_THRESHOLD) {
+    if (pageTurnLock.current || Math.abs(wheelAccumulator.current) < PAGE_TURN_THRESHOLD) {
       return;
     }
 
-    pageTurnLockedRef.current = true;
+    pageTurnLock.current = true;
 
-    if (wheelDeltaRef.current > 0) {
+    if (wheelAccumulator.current > 0) {
       goToNextPage();
     } else {
       goToPrevPage();
     }
 
-    wheelDeltaRef.current = 0;
+    wheelAccumulator.current = 0;
     unlockPageTurn();
   }, [goToNextPage, goToPrevPage, unlockPageTurn, wheelDeltaRef, pageTurnLockedRef]);
 

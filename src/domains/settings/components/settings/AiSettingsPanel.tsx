@@ -17,11 +17,12 @@ export default function AiSettingsPanel({ manager }: AiSettingsPanelProps) {
   const importFileRef = useRef<HTMLInputElement>(null);
 
   const handleImportFileSelected = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
+    const input = event.target;
+    const file = input.files?.[0];
     if (!file) return;
 
     manager.queueImportFile(file);
-    event.target.value = '';
+    input.value = '';
   };
 
   return (

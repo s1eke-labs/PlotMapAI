@@ -101,7 +101,8 @@ function createMockSvg(): SVGSVGElement {
 function attachSvg(result: ReturnType<typeof renderHook<typeof useCharacterGraphCanvas>>['result']): SVGSVGElement {
   const svg = createMockSvg();
   act(() => {
-    (result.current.svgRef as { current: SVGSVGElement | null }).current = svg;
+    const svgRef = result.current.svgRef as { current: SVGSVGElement | null };
+    svgRef.current = svg;
   });
   return svg;
 }

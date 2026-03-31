@@ -118,6 +118,7 @@ export function useReaderRestoreFlow({
   const getPagedLocator = getCurrentPagedLocatorRef ?? EMPTY_LOCATOR_REF;
   const resolveScrollLocatorOffset =
     resolveScrollLocatorOffsetRef ?? EMPTY_SCROLL_LOCATOR_OFFSET_REF;
+  const anchorHandlerRef = readingAnchorHandlerRef;
 
   useEffect(() => {
     pendingRestoreStateRef.current = pendingRestoreState;
@@ -237,11 +238,11 @@ export function useReaderRestoreFlow({
   ]);
 
   useEffect(() => {
-    readingAnchorHandlerRef.current = handleReadingAnchorChange;
+    anchorHandlerRef.current = handleReadingAnchorChange;
     return () => {
-      readingAnchorHandlerRef.current = () => {};
+      anchorHandlerRef.current = () => {};
     };
-  }, [handleReadingAnchorChange, readingAnchorHandlerRef]);
+  }, [anchorHandlerRef, handleReadingAnchorChange]);
 
   const captureCurrentReaderPosition = useCallback(
     (options?: { flush?: boolean }): StoredReaderState => {

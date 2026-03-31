@@ -405,16 +405,20 @@ export function createChapterContentHash(chapter: Pick<ChapterContent, 'content'
   const source = `${chapter.index}\u0000${chapter.title}\u0000${chapter.content}`;
   let hashA = 0x811c9dc5;
   let hashB = 0x01000193;
+  const UINT32_MOD = 0x1_0000_0000;
+
+  const normalizeUint32 = (value: number): number => {
+    const normalized = value % UINT32_MOD;
+    return normalized >= 0 ? normalized : normalized + UINT32_MOD;
+  };
 
   for (let index = 0; index < source.length; index += 1) {
     const value = source.charCodeAt(index);
-    hashA ^= value;
-    hashA = Math.imul(hashA, 0x01000193);
-    hashB ^= value;
-    hashB = Math.imul(hashB, 0x27d4eb2d);
+    hashA = normalizeUint32(Math.imul(hashA, 0x01000193) + value);
+    hashB = normalizeUint32(Math.imul(hashB, 0x27d4eb2d) + value);
   }
 
-  return `${(hashA >>> 0).toString(16).padStart(8, '0')}${(hashB >>> 0).toString(16).padStart(8, '0')}`;
+  return `${hashA.toString(16).padStart(8, '0')}${hashB.toString(16).padStart(8, '0')}`;
 }
 
 export function measureReaderChapterLayout(
@@ -1099,10 +1103,11 @@ function createPageSlice(pageIndex: number, columnCount: number): PageSlice {
 }
 
 function finalizePageLocators(page: PageSlice): void {
+  const pageSlice = page;
   let startLocator: ReaderLocator | null = null;
   let endLocator: ReaderLocator | null = null;
 
-  for (const column of page.columns) {
+  for (const column of pageSlice.columns) {
     for (const item of column.items) {
       if (!startLocator) {
         startLocator = getItemStartLocator(item);
@@ -1111,8 +1116,8 @@ function finalizePageLocators(page: PageSlice): void {
     }
   }
 
-  page.startLocator = startLocator;
-  page.endLocator = endLocator;
+  pageSlice.startLocator = startLocator;
+  pageSlice.endLocator = endLocator;
 }
 
 function findFirstVisibleMetricIndex(

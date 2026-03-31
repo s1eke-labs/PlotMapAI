@@ -48,7 +48,17 @@ export default function ChapterParagraph({
   imageRenderMode = 'scroll',
   style,
 }: ChapterParagraphProps) {
-  const segments = useMemo(() => parseParagraphSegments(text), [text]);
+  const segments = useMemo(() => {
+    let cursor = 0;
+    return parseParagraphSegments(text).map((segment) => {
+      const key = `${segment.type}:${cursor}:${segment.value}`;
+      cursor += segment.value.length;
+      return {
+        ...segment,
+        key,
+      };
+    });
+  }, [text]);
 
   if (segments.length === 1 && segments[0].type === 'text') {
     return (
@@ -60,11 +70,11 @@ export default function ChapterParagraph({
 
   return (
     <div className={containerClassName} style={{ marginBottom }}>
-      {segments.map((seg, i) => {
+      {segments.map((seg) => {
         if (seg.type === 'image') {
           return (
             <InlineImage
-              key={i}
+              key={seg.key}
               novelId={novelId}
               imageKey={seg.value}
               imageRenderMode={imageRenderMode}
@@ -77,7 +87,7 @@ export default function ChapterParagraph({
         }
 
         return (
-          <p key={i} className={className} style={style}>
+          <p key={seg.key} className={className} style={style}>
             {seg.value}
           </p>
         );

@@ -41,6 +41,9 @@ export function useReaderNavigation(
   const replayDirectionalNavigationRef = useRef<
     (direction: NavigationDirection, shouldAnimate: boolean) => void
       >(() => {});
+  const userInteractedRef = hasUserInteractedRef;
+  const chapterSourceRef = chapterChangeSourceRef;
+  const nextPageTargetRef = pageTargetRef;
   const [pageTurnState, setPageTurnState] = useState<{
     direction: NavigationDirection;
     token: number;
@@ -62,9 +65,9 @@ export function useReaderNavigation(
     }
 
     beforeChapterChange?.();
-    hasUserInteractedRef.current = true;
-    chapterChangeSourceRef.current = 'navigation';
-    pageTargetRef.current = pageTarget;
+    userInteractedRef.current = true;
+    chapterSourceRef.current = 'navigation';
+    nextPageTargetRef.current = pageTarget;
     setPendingPageTarget(pageTarget);
     setChapterIndex(targetIndex);
     persistReaderState({
@@ -74,20 +77,20 @@ export function useReaderNavigation(
     return true;
   }, [
     beforeChapterChange,
-    chapterChangeSourceRef,
+    chapterSourceRef,
     chapters.length,
-    hasUserInteractedRef,
-    pageTargetRef,
+    nextPageTargetRef,
     persistReaderState,
     setPendingPageTarget,
     setChapterIndex,
+    userInteractedRef,
   ]);
 
   const { requestChapterNavigation, requestDirectionalNavigation } = usePagedChapterTransition({
     isPagedMode,
     chapterIndex,
     isChapterNavigationReady,
-    chapterChangeSourceRef,
+    chapterChangeSourceRef: chapterSourceRef,
     onCommitChapterNavigation: commitChapterNavigation,
     onReplayDirectionalNavigation: (direction, shouldAnimate) => {
       replayDirectionalNavigationRef.current(direction, shouldAnimate);

@@ -51,81 +51,92 @@ function getOrCreateEntry(novelId: number, imageKey: string): ReaderImageResourc
 }
 
 function clearReleaseTimer(entry: ReaderImageResourceEntry): void {
-  if (entry.releaseTimerId !== null) {
-    window.clearTimeout(entry.releaseTimerId);
-    entry.releaseTimerId = null;
+  const resourceEntry = entry;
+  if (resourceEntry.releaseTimerId !== null) {
+    window.clearTimeout(resourceEntry.releaseTimerId);
+    resourceEntry.releaseTimerId = null;
   }
 }
 
 function disposeEntry(cacheKey: string, entry: ReaderImageResourceEntry): void {
-  entry.isDisposed = true;
-  clearReleaseTimer(entry);
-  if (entry.url) {
-    URL.revokeObjectURL(entry.url);
+  const resourceEntry = entry;
+  resourceEntry.isDisposed = true;
+  clearReleaseTimer(resourceEntry);
+  if (resourceEntry.url) {
+    URL.revokeObjectURL(resourceEntry.url);
   }
   imageResourceCache.delete(cacheKey);
 }
 
 function scheduleRelease(cacheKey: string, entry: ReaderImageResourceEntry): void {
-  if (entry.releaseTimerId !== null || entry.refCount > 0 || entry.loadPromise) {
+  const resourceEntry = entry;
+  if (
+    resourceEntry.releaseTimerId !== null
+    || resourceEntry.refCount > 0
+    || resourceEntry.loadPromise
+  ) {
     return;
   }
 
-  entry.releaseTimerId = window.setTimeout(() => {
-    entry.releaseTimerId = null;
-    if (entry.refCount > 0 || entry.loadPromise) {
+  resourceEntry.releaseTimerId = window.setTimeout(() => {
+    resourceEntry.releaseTimerId = null;
+    if (resourceEntry.refCount > 0 || resourceEntry.loadPromise) {
       return;
     }
 
-    disposeEntry(cacheKey, entry);
+    disposeEntry(cacheKey, resourceEntry);
   }, RELEASE_DELAY_MS);
 }
 
 async function ensureLoaded(entry: ReaderImageResourceEntry): Promise<string | null> {
-  if (entry.isDisposed) {
+  const resourceEntry = entry;
+  if (resourceEntry.isDisposed) {
     return null;
   }
 
-  clearReleaseTimer(entry);
+  clearReleaseTimer(resourceEntry);
 
-  if (entry.url !== undefined) {
-    return entry.url;
+  if (resourceEntry.url !== undefined) {
+    return resourceEntry.url;
   }
 
-  if (entry.loadPromise) {
-    return entry.loadPromise;
+  if (resourceEntry.loadPromise) {
+    return resourceEntry.loadPromise;
   }
 
-  const cacheKey = getCacheKey(entry.novelId, entry.imageKey);
-  entry.loadPromise = readerApi.getImageBlob(entry.novelId, entry.imageKey)
+  const cacheKey = getCacheKey(resourceEntry.novelId, resourceEntry.imageKey);
+  resourceEntry.loadPromise = readerApi.getImageBlob(
+    resourceEntry.novelId,
+    resourceEntry.imageKey,
+  )
     .then((blob) => {
       if (!blob) {
-        entry.url = null;
-        entry.isDecoded = true;
+        resourceEntry.url = null;
+        resourceEntry.isDecoded = true;
         return null;
       }
 
-      if (entry.isDisposed) {
+      if (resourceEntry.isDisposed) {
         return null;
       }
 
       const url = URL.createObjectURL(blob);
-      if (entry.isDisposed) {
+      if (resourceEntry.isDisposed) {
         URL.revokeObjectURL(url);
         return null;
       }
 
-      entry.url = url;
+      resourceEntry.url = url;
       return url;
     })
     .finally(() => {
-      entry.loadPromise = null;
-      if (!entry.isDisposed && entry.refCount === 0) {
-        scheduleRelease(cacheKey, entry);
+      resourceEntry.loadPromise = null;
+      if (!resourceEntry.isDisposed && resourceEntry.refCount === 0) {
+        scheduleRelease(cacheKey, resourceEntry);
       }
     });
 
-  return entry.loadPromise;
+  return resourceEntry.loadPromise;
 }
 
 async function decodeImage(url: string): Promise<ReaderImageDimensions | null> {
@@ -170,14 +181,15 @@ export async function acquireReaderImageResource(
   imageKey: string,
 ): Promise<string | null> {
   const entry = getOrCreateEntry(novelId, imageKey);
-  entry.refCount += 1;
+  const resourceEntry = entry;
+  resourceEntry.refCount += 1;
 
   try {
-    return await ensureLoaded(entry);
+    return await ensureLoaded(resourceEntry);
   } catch (error) {
-    entry.refCount = Math.max(0, entry.refCount - 1);
-    if (entry.refCount === 0) {
-      scheduleRelease(getCacheKey(novelId, imageKey), entry);
+    resourceEntry.refCount = Math.max(0, resourceEntry.refCount - 1);
+    if (resourceEntry.refCount === 0) {
+      scheduleRelease(getCacheKey(novelId, imageKey), resourceEntry);
     }
     throw error;
   }
@@ -190,9 +202,10 @@ export function releaseReaderImageResource(novelId: number, imageKey: string): v
     return;
   }
 
-  entry.refCount = Math.max(0, entry.refCount - 1);
-  if (entry.refCount === 0) {
-    scheduleRelease(cacheKey, entry);
+  const resourceEntry = entry;
+  resourceEntry.refCount = Math.max(0, resourceEntry.refCount - 1);
+  if (resourceEntry.refCount === 0) {
+    scheduleRelease(cacheKey, resourceEntry);
   }
 }
 

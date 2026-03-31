@@ -20,11 +20,12 @@ export default function TocSettingsPanel({ manager }: TocSettingsPanelProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
+    const input = event.target;
+    const file = input.files?.[0];
     if (!file) return;
 
     manager.importYaml(file);
-    event.target.value = '';
+    input.value = '';
   };
 
   const renderActions = () => (

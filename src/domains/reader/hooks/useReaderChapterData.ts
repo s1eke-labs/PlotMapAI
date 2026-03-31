@@ -103,6 +103,13 @@ export function useReaderChapterData({
   const preloadTimeoutIdsRef = useRef<number[]>([]);
   const preloadControllersRef = useRef<AbortController[]>([]);
   const chapterImageKeysRef = useRef<Map<number, string[]>>(new Map());
+  const userInteractedRef = hasUserInteractedRef;
+  const latestStoredStateRef = latestReaderStateRef;
+  const chapterSourceRef = chapterChangeSourceRef;
+  const readerContentRef = contentRef;
+  const pagedReaderViewportRef = pagedViewportRef;
+  const wheelAccumulatorRef = wheelDeltaRef;
+  const pageTurnLockRef = pageTurnLockedRef;
 
   const getChapterImageKeys = useCallback((chapter: ChapterContent): string[] => {
     const cachedKeys = chapterImageKeysRef.current.get(chapter.index);
@@ -243,8 +250,8 @@ export function useReaderChapterData({
       setLoadingMessage(t('reader.processingContents', { percent: 0 }));
       stopRestoreMask();
       setHasHydratedReaderState(false);
-      hasUserInteractedRef.current = false;
-      chapterChangeSourceRef.current = null;
+      userInteractedRef.current = false;
+      chapterSourceRef.current = null;
       chapterCacheRef.current.clear();
       chapterImageKeysRef.current.clear();
       setChapters([]);
@@ -268,7 +275,7 @@ export function useReaderChapterData({
         locator: storedState.locator,
       };
 
-      latestReaderStateRef.current = nextStoredState;
+      latestStoredStateRef.current = nextStoredState;
       setIsTwoColumn(nextStoredState.isTwoColumn ?? false);
       setViewMode(nextStoredState.viewMode ?? 'original');
       setChapterIndex(nextStoredState.chapterIndex ?? 0);
@@ -285,7 +292,7 @@ export function useReaderChapterData({
         if (cancelled) return;
         setChapters(toc);
 
-        if (!hasUserInteractedRef.current) {
+        if (!userInteractedRef.current) {
           const fallbackIndex = toc.length > 0 ? toc[0].index : 0;
           const nextChapterIndex = nextStoredState.chapterIndex ?? fallbackIndex;
           const nextViewMode = nextStoredState.viewMode ?? 'original';
@@ -302,7 +309,7 @@ export function useReaderChapterData({
             locator: hasChapter ? nextStoredState.locator : undefined,
           };
 
-          latestReaderStateRef.current = resolvedState;
+          latestStoredStateRef.current = resolvedState;
           setIsTwoColumn(resolvedState.isTwoColumn ?? false);
           setViewMode(nextViewMode);
           setChapterIndex(resolvedChapterIndex);
@@ -324,7 +331,6 @@ export function useReaderChapterData({
             userMessageKey: 'reader.loadError',
           });
           reportAppError(normalized);
-          console.error('Failed to load reader init data:', error);
           setReaderError(normalized);
           setIsLoading(false);
           setLoadingMessage(null);
@@ -345,11 +351,10 @@ export function useReaderChapterData({
     };
   }, [
     chapterCacheRef,
-    chapterChangeSourceRef,
+    chapterSourceRef,
     clearScheduledPreloads,
     clearPendingRestoreState,
-    hasUserInteractedRef,
-    latestReaderStateRef,
+    latestStoredStateRef,
     loadPersistedReaderState,
     novelId,
     setChapterIndex,
@@ -368,6 +373,7 @@ export function useReaderChapterData({
     stopRestoreMask,
     t,
     updateChapterWindow,
+    userInteractedRef,
   ]);
 
   useEffect(() => {
@@ -377,8 +383,8 @@ export function useReaderChapterData({
       return;
     }
 
-    if (!isPagedMode && viewMode === 'original' && chapterChangeSourceRef.current === 'scroll') {
-      chapterChangeSourceRef.current = null;
+    if (!isPagedMode && viewMode === 'original' && chapterSourceRef.current === 'scroll') {
+      chapterSourceRef.current = null;
       return;
     }
 
@@ -408,24 +414,26 @@ export function useReaderChapterData({
 
     const resetViewportPosition = () => {
       suppressScrollSyncTemporarily();
-      if (contentRef.current) {
-        contentRef.current.scrollTop = 0;
-        contentRef.current.scrollLeft = 0;
+      const contentElement = readerContentRef.current;
+      if (contentElement) {
+        contentElement.scrollTop = 0;
+        contentElement.scrollLeft = 0;
       }
-      if (pagedViewportRef.current) {
-        pagedViewportRef.current.scrollLeft = 0;
+      const pagedViewportElement = pagedReaderViewportRef.current;
+      if (pagedViewportElement) {
+        pagedViewportElement.scrollLeft = 0;
       }
     };
 
     const resetChapterInteractionState = () => {
       setPageIndex(0);
       setPageCount(1);
-      wheelDeltaRef.current = 0;
-      pageTurnLockedRef.current = false;
+      wheelAccumulatorRef.current = 0;
+      pageTurnLockRef.current = false;
     };
 
     const fetchContent = async () => {
-      const shouldRestoreNavigatedChapter = chapterChangeSourceRef.current === 'navigation'
+      const shouldRestoreNavigatedChapter = chapterSourceRef.current === 'navigation'
         && viewMode === 'original'
         && !isPagedMode;
       const applyCurrentChapter = async (data: ChapterContent) => {
@@ -452,7 +460,7 @@ export function useReaderChapterData({
         }
         resetViewportPosition();
         preloadAdjacent(chapterIndex);
-        chapterChangeSourceRef.current = null;
+        chapterSourceRef.current = null;
       };
 
       const cached = chapterCacheRef.current.get(chapterIndex);
@@ -499,7 +507,6 @@ export function useReaderChapterData({
             userMessageKey: 'reader.loadError',
           });
           reportAppError(normalized);
-          console.error('Failed to load chapter content', error);
           setReaderError(normalized);
           setLoadingMessage(null);
           stopRestoreMask();
@@ -520,11 +527,10 @@ export function useReaderChapterData({
     };
   }, [
     chapterCacheRef,
-    chapterChangeSourceRef,
+    chapterSourceRef,
     chapterIndex,
     chapters.length,
     clearScheduledPreloads,
-    contentRef,
     fetchChapterContent,
     getChapterImageKeys,
     isPagedMode,
@@ -532,9 +538,10 @@ export function useReaderChapterData({
     novelId,
     onChapterContentResolved,
     pageTargetRef,
-    pagedViewportRef,
-    pageTurnLockedRef,
+    pagedReaderViewportRef,
+    pageTurnLockRef,
     preloadAdjacent,
+    readerContentRef,
     setCurrentChapter,
     setIsLoading,
     setLoadingMessage,
@@ -548,7 +555,7 @@ export function useReaderChapterData({
     updateChapterWindow,
     viewMode,
     warmChapterImages,
-    wheelDeltaRef,
+    wheelAccumulatorRef,
   ]);
 
   return {

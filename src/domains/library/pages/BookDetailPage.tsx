@@ -121,6 +121,17 @@ export default function BookDetailPage() {
   );
   const isJobRunning = job?.status === 'running' || job?.status === 'pausing';
   const introText = overview?.bookIntro || novel?.description || '';
+  const introParagraphs = useMemo(() => {
+    let cursor = 0;
+    return introText.split('\n').map((paragraph) => {
+      const key = `${cursor}:${paragraph}`;
+      cursor += paragraph.length + 1;
+      return {
+        key,
+        paragraph,
+      };
+    });
+  }, [introText]);
   const jobStatusLabel = (() => {
     if (!job) {
       return t('bookDetail.analysisStatusIdle');
@@ -148,7 +159,7 @@ export default function BookDetailPage() {
     }
   })();
 
-  const handleDelete = async () => {
+  const handleDelete = useCallback(async () => {
     if (!novel) return;
     setDeleteError(null);
     setIsDeleting(true);
@@ -166,21 +177,21 @@ export default function BookDetailPage() {
       setDeleteError(normalized);
       setIsDeleting(false);
     }
-  };
+  }, [navigate, novel]);
 
-  function openDeleteModal(): void {
+  const openDeleteModal = useCallback((): void => {
     setDeleteError(null);
     setIsDeleteModalOpen(true);
-  }
+  }, []);
 
-  function closeDeleteModal(): void {
+  const closeDeleteModal = useCallback((): void => {
     if (isDeleting) {
       return;
     }
 
     setDeleteError(null);
     setIsDeleteModalOpen(false);
-  }
+  }, [isDeleting]);
 
   const runAnalysisAction = async (action: 'start' | 'pause' | 'resume' | 'restart') => {
     if (!novelId) return;
@@ -390,8 +401,8 @@ export default function BookDetailPage() {
                 {introText ? (
                   <div className="mt-4 space-y-3">
                     <div className="prose prose-sm prose-invert max-w-none text-text-primary/90 leading-relaxed">
-                      {introText.split('\n').map((para, index) => (
-                        <p key={index} className="mb-2">{para}</p>
+                      {introParagraphs.map(({ key, paragraph }) => (
+                        <p key={key} className="mb-2">{paragraph}</p>
                       ))}
                     </div>
                   </div>

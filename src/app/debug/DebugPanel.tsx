@@ -41,6 +41,10 @@ const CATEGORY_COLORS: Record<string, string> = {
   'character-graph': 'text-cyan-300',
 };
 
+function getDebugEntryKey(entry: DebugEntry): string {
+  return `${entry.kind}:${entry.time}:${entry.category}:${entry.message}`;
+}
+
 export default function DebugPanel() {
   const [isOpen, setIsOpen] = useState(false);
   const [logs, setLogs] = useState<DebugEntry[]>(() => getRecentLogs());
@@ -215,8 +219,11 @@ export default function DebugPanel() {
         {visibleLogs.length === 0 && (
           <div className="text-text-secondary text-center py-8">No logs yet</div>
         )}
-        {visibleLogs.map((entry, i) => (
-          <div key={i} className="rounded-lg border border-white/5 bg-black/10 px-2 py-1.5">
+        {visibleLogs.map((entry) => (
+          <div
+            key={getDebugEntryKey(entry)}
+            className="rounded-lg border border-white/5 bg-black/10 px-2 py-1.5"
+          >
             <div className="flex gap-1.5">
               <span className="text-text-secondary/60 shrink-0">{formatTime(entry.time)}</span>
               <span className={cn('shrink-0 font-semibold', CATEGORY_COLORS[entry.category] || 'text-text-secondary')}>

@@ -1,4 +1,5 @@
 import { AlertTriangle, Bot, GitBranch, Loader2, PauseCircle, Sparkles, Tags, Users } from 'lucide-react';
+import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { appPaths } from '@app/router/paths';
@@ -22,6 +23,33 @@ export default function ChapterAnalysisPanel({
   isAnalyzingChapter,
 }: ChapterAnalysisPanelProps) {
   const { t } = useTranslation();
+  const keyedKeyPoints = useMemo(() => {
+    const pointCounts = new Map<string, number>();
+    return analysis?.keyPoints.map((point) => {
+      const occurrence = pointCounts.get(point) ?? 0;
+      pointCounts.set(point, occurrence + 1);
+      return {
+        key: `${point}:${occurrence}`,
+        point,
+      };
+    }) ?? [];
+  }, [analysis?.keyPoints]);
+  const keyedRelationships = useMemo(() => {
+    const relationCounts = new Map<string, number>();
+    return analysis?.relationships.map((relationship) => {
+      const relationId = [
+        relationship.source,
+        relationship.target,
+        relationship.type,
+      ].join(':');
+      const occurrence = relationCounts.get(relationId) ?? 0;
+      relationCounts.set(relationId, occurrence + 1);
+      return {
+        key: `${relationId}:${occurrence}`,
+        relationship,
+      };
+    }) ?? [];
+  }, [analysis?.relationships]);
 
   if (isLoading) {
     return (
@@ -52,8 +80,8 @@ export default function ChapterAnalysisPanel({
             <h4 className="text-lg font-semibold text-text-primary mb-4">{t('reader.analysisPanel.keyPointsTitle')}</h4>
             {analysis.keyPoints.length > 0 ? (
               <ul className="space-y-3 text-text-primary">
-                {analysis.keyPoints.map((point, index) => (
-                  <li key={`${point}-${index}`} className="flex gap-3 leading-7">
+                {keyedKeyPoints.map(({ key, point }) => (
+                  <li key={key} className="flex gap-3 leading-7">
                     <span className="mt-2 h-2 w-2 rounded-full bg-accent shrink-0" />
                     <span>{point}</span>
                   </li>
@@ -115,8 +143,11 @@ export default function ChapterAnalysisPanel({
           </div>
           {analysis.relationships.length > 0 ? (
             <div className="space-y-3">
-              {analysis.relationships.map((relationship, index) => (
-                <div key={`${relationship.source}-${relationship.target}-${relationship.type}-${index}`} className="rounded-xl border border-border-color/20 bg-muted-bg/50 p-4">
+              {keyedRelationships.map(({ key, relationship }) => (
+                <div
+                  key={key}
+                  className="rounded-xl border border-border-color/20 bg-muted-bg/50 p-4"
+                >
                   <div className="flex flex-wrap items-center gap-2 mb-2">
                     <span className="font-semibold text-text-primary">{relationship.source}</span>
                     <span className="text-text-secondary">→</span>

@@ -8,7 +8,7 @@ import {
   RefreshCw,
   RotateCcw,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import type { PointerEvent as ReactPointerEvent, PointerEventHandler, ReactNode, RefObject } from 'react';
@@ -124,13 +124,13 @@ export default function CharacterGraphStage({
   const mobileSheetMode = resolveMobileSheetMode(isMobile, selectedNode, mobileSheetPreference);
   const detailNode = mobileSheetMode === 'details' ? selectedNode : null;
 
-  function handleCloseMobileSheet(): void {
+  const handleCloseMobileSheet = useCallback((): void => {
     const shouldClearSelection = mobileSheetMode === 'details' && selectedNode;
     setMobileSheetPreference(null);
     if (shouldClearSelection) {
       onClearSelection();
     }
-  }
+  }, [mobileSheetMode, onClearSelection, selectedNode]);
 
   return (
     <div className={cn(stageHeightClass, 'overflow-hidden bg-[#f5f2eb] text-[#18202a]')}>
