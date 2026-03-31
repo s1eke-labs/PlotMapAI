@@ -83,7 +83,7 @@ const graph: CharacterGraphResponse = {
 
 function createMockSvg(): SVGSVGElement {
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  vi.spyOn(svg, 'getBoundingClientRect').mockReturnValue({
+  const rect: DOMRect = {
     x: 0,
     y: 0,
     width: 100,
@@ -93,7 +93,8 @@ function createMockSvg(): SVGSVGElement {
     bottom: 100,
     left: 0,
     toJSON: () => ({}),
-  } as DOMRect);
+  };
+  vi.spyOn(svg, 'getBoundingClientRect').mockReturnValue(rect);
   return svg;
 }
 

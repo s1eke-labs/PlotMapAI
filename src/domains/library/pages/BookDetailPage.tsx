@@ -117,23 +117,32 @@ export default function BookDetailPage() {
   const characterChartData = useMemo(() => (overview?.characterStats ?? []).slice(0, 5), [overview]);
   const isJobRunning = job?.status === 'running' || job?.status === 'pausing';
   const introText = overview?.bookIntro || novel?.description || '';
-  const jobStatusLabel = !job
-    ? t('bookDetail.analysisStatusIdle')
-    : job.analysisComplete
-      ? t('bookDetail.analysisStatusCompleted')
-      : job.currentStage === 'overview' && isJobRunning
-        ? t('bookDetail.analysisStatusGeneratingOverview')
-        : job.status === 'running'
-          ? t('bookDetail.analysisStatusRunning')
-          : job.status === 'pausing'
-            ? t('bookDetail.analysisStatusPausing')
-            : job.status === 'paused'
-              ? t('bookDetail.analysisStatusPaused')
-              : job.status === 'failed'
-                ? t('bookDetail.analysisStatusFailed')
-                : job.status === 'completed'
-                  ? t('bookDetail.analysisStatusPending')
-                  : t('bookDetail.analysisStatusIdle');
+  const jobStatusLabel = (() => {
+    if (!job) {
+      return t('bookDetail.analysisStatusIdle');
+    }
+    if (job.analysisComplete) {
+      return t('bookDetail.analysisStatusCompleted');
+    }
+    if (job.currentStage === 'overview' && isJobRunning) {
+      return t('bookDetail.analysisStatusGeneratingOverview');
+    }
+
+    switch (job.status) {
+      case 'running':
+        return t('bookDetail.analysisStatusRunning');
+      case 'pausing':
+        return t('bookDetail.analysisStatusPausing');
+      case 'paused':
+        return t('bookDetail.analysisStatusPaused');
+      case 'failed':
+        return t('bookDetail.analysisStatusFailed');
+      case 'completed':
+        return t('bookDetail.analysisStatusPending');
+      default:
+        return t('bookDetail.analysisStatusIdle');
+    }
+  })();
 
   const handleDelete = async () => {
     if (!novel) return;
@@ -161,23 +170,33 @@ export default function BookDetailPage() {
     setAnalysisMessage(null);
     setAnalysisError(null);
     try {
-      const result = await (action === 'start'
-        ? analysisApi.start(novelId)
-        : action === 'pause'
-          ? analysisApi.pause(novelId)
-          : action === 'resume'
-            ? analysisApi.resume(novelId)
-            : analysisApi.restart(novelId));
+      let result: AnalysisStatusResponse;
+      switch (action) {
+        case 'start':
+          result = await analysisApi.start(novelId);
+          break;
+        case 'pause':
+          result = await analysisApi.pause(novelId);
+          break;
+        case 'resume':
+          result = await analysisApi.resume(novelId);
+          break;
+        case 'restart':
+          result = await analysisApi.restart(novelId);
+          break;
+        default:
+          result = await analysisApi.start(novelId);
+      }
       setAnalysisStatus(result);
-      setAnalysisMessage(
-        action === 'pause'
-          ? t('bookDetail.analysisActionPauseRequested')
-          : action === 'resume'
-            ? t('bookDetail.analysisActionResumed')
-            : action === 'restart'
-              ? t('bookDetail.analysisActionRestarted')
-              : t('bookDetail.analysisActionStarted'),
-      );
+      let nextMessage = t('bookDetail.analysisActionStarted');
+      if (action === 'pause') {
+        nextMessage = t('bookDetail.analysisActionPauseRequested');
+      } else if (action === 'resume') {
+        nextMessage = t('bookDetail.analysisActionResumed');
+      } else if (action === 'restart') {
+        nextMessage = t('bookDetail.analysisActionRestarted');
+      }
+      setAnalysisMessage(nextMessage);
     } catch (err) {
       const normalized = toAppError(err, {
         code: AppErrorCode.ANALYSIS_EXECUTION_FAILED,
@@ -192,6 +211,45 @@ export default function BookDetailPage() {
       setAnalysisAction(null);
     }
   };
+  const analysisPrimaryAction = (() => {
+    if (job?.status === 'running') {
+      return (
+        <DetailActionButton
+          icon={Pause}
+          label={t('bookDetail.pauseAnalysis')}
+          onClick={() => runAnalysisAction('pause')}
+          loading={analysisAction === 'pause'}
+          disabled={analysisAction !== null}
+          tone="warning"
+        />
+      );
+    }
+    if (job?.status === 'pausing' || job?.canResume) {
+      return (
+        <DetailActionButton
+          icon={Play}
+          label={t('bookDetail.resumeAnalysis')}
+          onClick={() => runAnalysisAction('resume')}
+          loading={analysisAction === 'resume'}
+          disabled={job?.status === 'pausing' || analysisAction !== null}
+          tone="brand-soft"
+        />
+      );
+    }
+    if (!job || job.canStart) {
+      return (
+        <DetailActionButton
+          icon={Bot}
+          label={t('bookDetail.startAnalysis')}
+          onClick={() => runAnalysisAction('start')}
+          loading={analysisAction === 'start'}
+          disabled={analysisAction !== null}
+          tone="brand-soft"
+        />
+      );
+    }
+    return null;
+  })();
 
   if (isLoading) {
     return (
@@ -253,44 +311,17 @@ export default function BookDetailPage() {
                 {t('bookDetail.characterGraphEntry')}
               </Link>
 
-              {job?.status === 'running' ? (
-                <DetailActionButton
-                  icon={Pause}
-                  label={t('bookDetail.pauseAnalysis')}
-                  onClick={() => runAnalysisAction('pause')}
-                  loading={analysisAction === 'pause'}
-                  disabled={analysisAction !== null}
-                  tone="warning"
-                />
-              ) : job?.status === 'pausing' || job?.canResume ? (
-                <DetailActionButton
-                  icon={Play}
-                  label={t('bookDetail.resumeAnalysis')}
-                  onClick={() => runAnalysisAction('resume')}
-                  loading={analysisAction === 'resume'}
-                  disabled={job?.status === 'pausing' || analysisAction !== null}
-                  tone="brand-soft"
-                />
-              ) : (!job || job.canStart) ? (
-                <DetailActionButton
-                  icon={Bot}
-                  label={t('bookDetail.startAnalysis')}
-                  onClick={() => runAnalysisAction('start')}
-                  loading={analysisAction === 'start'}
-                  disabled={analysisAction !== null}
-                  tone="brand-soft"
-                />
-              ) : null}
+              {analysisPrimaryAction}
 
               {job?.canRestart && (
-              <DetailActionButton
-                icon={RefreshCw}
-                label={t('bookDetail.restartAnalysis')}
-                onClick={() => runAnalysisAction('restart')}
-                loading={analysisAction === 'restart'}
-                disabled={analysisAction !== null}
-                tone="brand-soft"
-              />
+                <DetailActionButton
+                  icon={RefreshCw}
+                  label={t('bookDetail.restartAnalysis')}
+                  onClick={() => runAnalysisAction('restart')}
+                  loading={analysisAction === 'restart'}
+                  disabled={analysisAction !== null}
+                  tone="brand-soft"
+                />
               )}
 
               <button
@@ -308,9 +339,9 @@ export default function BookDetailPage() {
             <div className="mb-6">
               <h1 className="text-3xl md:text-4xl font-bold text-text-primary tracking-tight mb-2">{novel.title}</h1>
               {novel.author && (
-              <p className="text-xl text-text-secondary">
-                {t('bookDetail.byAuthor', { author: novel.author })}
-              </p>
+                <p className="text-xl text-text-secondary">
+                  {t('bookDetail.byAuthor', { author: novel.author })}
+                </p>
               )}
             </div>
 
@@ -374,60 +405,66 @@ export default function BookDetailPage() {
                   ) : (
                     <>
                       {analysisMessage && (
-                      <div className="rounded-xl border border-border-color/20 bg-black/10 px-4 py-3 text-sm text-text-secondary leading-6">
-                        {analysisMessage}
-                      </div>
+                        <div className="rounded-xl border border-border-color/20 bg-black/10 px-4 py-3 text-sm text-text-secondary leading-6">
+                          {analysisMessage}
+                        </div>
                       )}
                       {analysisError && (
-                      <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300 leading-6">
-                        {translateAppError(analysisError, t, 'bookDetail.analysisActionFailed')}
-                      </div>
+                        <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300 leading-6">
+                          {translateAppError(analysisError, t, 'bookDetail.analysisActionFailed')}
+                        </div>
                       )}
 
                       {job ? (
                         <>
                           <div className="flex flex-wrap items-start justify-between gap-4">
                             <div>
-                            <div className="flex items-center gap-2 text-text-primary font-semibold">
-                              <Bot className="w-4 h-4 text-accent" />
-                              {t('bookDetail.analysisStatusLabel')}
-                              <span>{jobStatusLabel}</span>
+                              <div className="flex items-center gap-2 text-text-primary font-semibold">
+                                <Bot className="w-4 h-4 text-accent" />
+                                {t('bookDetail.analysisStatusLabel')}
+                                <span>{jobStatusLabel}</span>
+                              </div>
                             </div>
-                          </div>
                             {job.totalChunks > 0 && (
-                            <div className="text-sm text-text-secondary">
-                              {t('bookDetail.analysisChunksSummary', {
-                                completedChunks: job.completedChunks,
-                                totalChunks: job.totalChunks,
-                                analyzedChapters: job.analyzedChapters,
-                                totalChapters: job.totalChapters,
-                              })}
-                            </div>
-                          )}
+                              <div className="text-sm text-text-secondary">
+                                {t('bookDetail.analysisChunksSummary', {
+                                  completedChunks: job.completedChunks,
+                                  totalChunks: job.totalChunks,
+                                  analyzedChapters: job.analyzedChapters,
+                                  totalChapters: job.totalChapters,
+                                })}
+                              </div>
+                            )}
                           </div>
 
                           {isJobRunning && job.totalChunks > 0 && (
-                          <div className="space-y-3">
-                            <div className="h-2 rounded-full bg-black/20 overflow-hidden">
-                              <div className="h-full bg-accent transition-all duration-300" style={{ width: `${job.progressPercent}%` }} />
+                            <div className="space-y-3">
+                              <div className="h-2 rounded-full bg-black/20 overflow-hidden">
+                                <div className="h-full bg-accent transition-all duration-300" style={{ width: `${job.progressPercent}%` }} />
+                              </div>
+                              <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-text-secondary">
+                                <span>{t('bookDetail.analysisProgress', { percent: job.progressPercent.toFixed(2) })}</span>
+                                {job.currentStage === 'overview' && (
+                                  <span>{t('bookDetail.analysisCurrentStage')}</span>
+                                )}
+                                {job.currentStage !== 'overview' && job.currentChunk && (
+                                  <span>
+                                    {t('bookDetail.analysisCurrentChunk', {
+                                      start: job.currentChunk.startChapterIndex + 1,
+                                      end: job.currentChunk.endChapterIndex + 1,
+                                    })}
+                                  </span>
+                                )}
+                                {job.lastHeartbeat && <span>{t('bookDetail.analysisLastHeartbeat', { time: new Date(job.lastHeartbeat).toLocaleString() })}</span>}
+                              </div>
                             </div>
-                            <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-text-secondary">
-                              <span>{t('bookDetail.analysisProgress', { percent: job.progressPercent.toFixed(2) })}</span>
-                              {job.currentStage === 'overview'
-                                ? <span>{t('bookDetail.analysisCurrentStage')}</span>
-                                : job.currentChunk
-                                  ? <span>{t('bookDetail.analysisCurrentChunk', { start: job.currentChunk.startChapterIndex + 1, end: job.currentChunk.endChapterIndex + 1 })}</span>
-                                  : null}
-                              {job.lastHeartbeat && <span>{t('bookDetail.analysisLastHeartbeat', { time: new Date(job.lastHeartbeat).toLocaleString() })}</span>}
-                            </div>
-                          </div>
                           )}
 
                           {job.lastError && (
-                          <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300 flex gap-3">
-                            <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
-                            <span>{t(`errors.${job.lastError}`, { defaultValue: job.lastError })}</span>
-                          </div>
+                            <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300 flex gap-3">
+                              <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+                              <span>{t(`errors.${job.lastError}`, { defaultValue: job.lastError })}</span>
+                            </div>
                           )}
                         </>
                       ) : (
@@ -442,12 +479,12 @@ export default function BookDetailPage() {
                           <div className="mt-6 border-t border-border-color/20 pt-5">
                             <p className="text-sm font-semibold text-text-secondary uppercase tracking-wider">{t('bookDetail.analysisCharactersTitle')}</p>
                             <div className="mt-4">
-                            <CharacterShareChart
-                              characters={characterChartData}
-                              emptyLabel={t('bookDetail.analysisCharactersEmpty')}
-                              roleFallback={t('bookDetail.analysisCharacterRoleFallback')}
-                            />
-                          </div>
+                              <CharacterShareChart
+                                characters={characterChartData}
+                                emptyLabel={t('bookDetail.analysisCharactersEmpty')}
+                                roleFallback={t('bookDetail.analysisCharacterRoleFallback')}
+                              />
+                            </div>
                           </div>
                         </div>
                       ) : (

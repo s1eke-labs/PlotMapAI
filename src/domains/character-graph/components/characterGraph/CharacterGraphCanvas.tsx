@@ -28,6 +28,65 @@ interface CharacterGraphCanvasProps {
   onNodePointerDown: (event: ReactPointerEvent<SVGGElement>, node: LayoutNode) => void;
 }
 
+function resolveInteractionTransition(
+  isGestureInteracting: boolean,
+  isMobile: boolean,
+  mobileTransition: string,
+  desktopTransition: string,
+): string {
+  if (isGestureInteracting) {
+    return 'none';
+  }
+
+  if (isMobile) {
+    return mobileTransition;
+  }
+
+  return desktopTransition;
+}
+
+function resolveCanvasCursor(isPanning: boolean, canPanCanvas: boolean): 'default' | 'grab' | 'grabbing' {
+  if (isPanning) {
+    return 'grabbing';
+  }
+  if (canPanCanvas) {
+    return 'grab';
+  }
+  return 'default';
+}
+
+function resolveEdgeOpacity(focusNodeId: string | null, isHighlighted: boolean): number {
+  if (focusNodeId) {
+    return isHighlighted ? 0.94 : 0.08;
+  }
+  return 0.58;
+}
+
+function resolveNodeTransform(
+  isFocused: boolean,
+  isSelected: boolean,
+  focusedLift: string,
+  selectedLift: string,
+): string {
+  if (isFocused) {
+    return focusedLift;
+  }
+  if (isSelected) {
+    return selectedLift;
+  }
+  return 'scale(1)';
+}
+
+function resolveNodeOuterStroke(nodeIsCore: boolean, isActive: boolean): string {
+  if (nodeIsCore) {
+    return '#18202a';
+  }
+  if (isActive) {
+    return '#34527a';
+  }
+  return '#9aa4af';
+}
+
 export default function CharacterGraphCanvas({
   svgRef,
   canPanCanvas,
@@ -47,15 +106,30 @@ export default function CharacterGraphCanvas({
   onNodePointerDown,
 }: CharacterGraphCanvasProps) {
   const { t } = useTranslation();
-  const opacityTransition = isGestureInteracting
-    ? 'none'
-    : (isMobile ? 'opacity 140ms ease-out' : 'opacity 220ms ease');
-  const transformTransition = isGestureInteracting
-    ? 'none'
-    : (isMobile ? 'transform 150ms cubic-bezier(0.2, 0.9, 0.2, 1)' : 'transform 240ms cubic-bezier(0.22,1,0.36,1)');
-  const colorTransition = isGestureInteracting
-    ? 'none'
-    : (isMobile ? 'fill 140ms ease-out, stroke 140ms ease-out, stroke-width 140ms ease-out, opacity 140ms ease-out' : 'fill 220ms ease, stroke 220ms ease, stroke-width 220ms ease, opacity 220ms ease');
+  const opacityTransition = resolveInteractionTransition(
+    isGestureInteracting,
+    isMobile,
+    'opacity 140ms ease-out',
+    'opacity 220ms ease',
+  );
+  const transformTransition = resolveInteractionTransition(
+    isGestureInteracting,
+    isMobile,
+    'transform 150ms cubic-bezier(0.2, 0.9, 0.2, 1)',
+    'transform 240ms cubic-bezier(0.22,1,0.36,1)',
+  );
+  const colorTransition = resolveInteractionTransition(
+    isGestureInteracting,
+    isMobile,
+    'fill 140ms ease-out, stroke 140ms ease-out, stroke-width 140ms ease-out, opacity 140ms ease-out',
+    'fill 220ms ease, stroke 220ms ease, stroke-width 220ms ease, opacity 220ms ease',
+  );
+  const badgeOpacityTransition = resolveInteractionTransition(
+    isGestureInteracting,
+    isMobile,
+    'opacity 120ms ease-out',
+    'opacity 180ms ease',
+  );
 
   return (
     <svg
@@ -64,7 +138,7 @@ export default function CharacterGraphCanvas({
       preserveAspectRatio="xMidYMid meet"
       className="relative block h-full w-full"
       style={{
-        cursor: isPanning ? 'grabbing' : (canPanCanvas ? 'grab' : 'default'),
+        cursor: resolveCanvasCursor(isPanning, canPanCanvas),
         touchAction: 'none',
       }}
       onPointerDown={onCanvasPointerDown}
@@ -87,7 +161,7 @@ export default function CharacterGraphCanvas({
       <g transform={`matrix(${zoomState.scale} 0 0 ${zoomState.scale} ${zoomState.offsetX} ${zoomState.offsetY})`}>
         {layoutEdges.map((edge) => {
           const isHighlighted = !focusNodeId || edge.source === focusNodeId || edge.target === focusNodeId;
-          const opacity = focusNodeId ? (isHighlighted ? 0.94 : 0.08) : 0.58;
+          const opacity = resolveEdgeOpacity(focusNodeId, isHighlighted);
           const strokeWidth = Math.max(1.6, Math.min(5.5, 1.2 + edge.weight / 24));
 
           return (
@@ -140,7 +214,7 @@ export default function CharacterGraphCanvas({
             >
               <g
                 style={{
-                  transform: isFocused ? focusedLift : (isSelected ? selectedLift : 'scale(1)'),
+                  transform: resolveNodeTransform(isFocused, isSelected, focusedLift, selectedLift),
                   transformBox: 'fill-box',
                   transformOrigin: 'center center',
                   transition: transformTransition,
@@ -159,7 +233,7 @@ export default function CharacterGraphCanvas({
                   filter="url(#node-shadow)"
                   style={{
                     fill: '#fffdfa',
-                    stroke: node.isCore ? '#18202a' : (isActive ? '#34527a' : '#9aa4af'),
+                    stroke: resolveNodeOuterStroke(node.isCore, isActive),
                     strokeWidth: isActive ? 2.2 : 1.4,
                     transition: colorTransition,
                   }}
@@ -197,7 +271,7 @@ export default function CharacterGraphCanvas({
                   transform={`translate(0 ${node.radius + 18})`}
                   pointerEvents="none"
                   opacity={isActive ? 1 : 0}
-                  style={{ transition: isGestureInteracting ? 'none' : (isMobile ? 'opacity 120ms ease-out' : 'opacity 180ms ease') }}
+                  style={{ transition: badgeOpacityTransition }}
                 >
                   <rect
                     x={-46}

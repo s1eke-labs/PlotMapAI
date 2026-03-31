@@ -208,7 +208,7 @@ describe('isChapterAnalysisComplete', () => {
   });
 
   it('returns false for empty summary', () => {
-    const row = {
+    const row: ChapterAnalysis = {
       id: 1,
       novelId: 1,
       chapterIndex: 0,
@@ -220,12 +220,12 @@ describe('isChapterAnalysisComplete', () => {
       tags: [],
       chunkIndex: 0,
       updatedAt: '',
-    } as ChapterAnalysis;
+    };
     expect(isChapterAnalysisComplete(row)).toBe(false);
   });
 
   it('returns true for valid complete analysis', () => {
-    const row = {
+    const row: ChapterAnalysis = {
       id: 1,
       novelId: 1,
       chapterIndex: 0,
@@ -237,12 +237,12 @@ describe('isChapterAnalysisComplete', () => {
       tags: ['action'],
       chunkIndex: 0,
       updatedAt: '',
-    } as ChapterAnalysis;
+    };
     expect(isChapterAnalysisComplete(row)).toBe(true);
   });
 
   it('returns true for analysis with all arrays present (even empty)', () => {
-    const row = {
+    const row: ChapterAnalysis = {
       id: 1,
       novelId: 1,
       chapterIndex: 0,
@@ -254,7 +254,7 @@ describe('isChapterAnalysisComplete', () => {
       tags: [],
       chunkIndex: 0,
       updatedAt: '',
-    } as ChapterAnalysis;
+    };
     expect(isChapterAnalysisComplete(row)).toBe(true);
   });
 });
@@ -265,12 +265,23 @@ describe('isOverviewComplete', () => {
   });
 
   it('returns false when totalChapters <= 0', () => {
-    const overview = {} as AnalysisOverview;
+    const overview: AnalysisOverview = {
+      id: 0,
+      novelId: 0,
+      bookIntro: '',
+      globalSummary: '',
+      themes: [],
+      characterStats: [],
+      relationshipGraph: [],
+      totalChapters: 0,
+      analyzedChapters: 0,
+      updatedAt: '',
+    };
     expect(isOverviewComplete(overview, 0)).toBe(false);
   });
 
   it('returns false for empty bookIntro', () => {
-    const overview = {
+    const overview: AnalysisOverview = {
       id: 1,
       novelId: 1,
       bookIntro: '',
@@ -281,12 +292,12 @@ describe('isOverviewComplete', () => {
       totalChapters: 10,
       analyzedChapters: 10,
       updatedAt: '',
-    } as AnalysisOverview;
+    };
     expect(isOverviewComplete(overview, 10)).toBe(false);
   });
 
   it('returns true for valid complete overview', () => {
-    const overview = {
+    const overview: AnalysisOverview = {
       id: 1,
       novelId: 1,
       bookIntro: 'A book about adventure and mystery in a faraway land.',
@@ -297,7 +308,7 @@ describe('isOverviewComplete', () => {
       totalChapters: 10,
       analyzedChapters: 10,
       updatedAt: '',
-    } as AnalysisOverview;
+    };
     expect(isOverviewComplete(overview, 10)).toBe(true);
   });
 });
@@ -308,7 +319,7 @@ describe('serializeOverview', () => {
   });
 
   it('serializes with native array fields', () => {
-    const overview = {
+    const overview: AnalysisOverview = {
       id: 1,
       novelId: 1,
       bookIntro: 'Intro',
@@ -319,7 +330,7 @@ describe('serializeOverview', () => {
       totalChapters: 5,
       analyzedChapters: 5,
       updatedAt: '2024-01-01',
-    } as AnalysisOverview;
+    };
     const result = serializeOverview(overview);
     expect(result).not.toBeNull();
     expect(result!.bookIntro).toBe('Intro');
@@ -334,7 +345,7 @@ describe('serializeChapterAnalysis', () => {
   });
 
   it('serializes with native array fields', () => {
-    const row = {
+    const row: ChapterAnalysis = {
       id: 1,
       novelId: 1,
       chapterIndex: 0,
@@ -346,7 +357,7 @@ describe('serializeChapterAnalysis', () => {
       tags: ['t1'],
       chunkIndex: 0,
       updatedAt: '',
-    } as ChapterAnalysis;
+    };
     const result = serializeChapterAnalysis(row);
     expect(result).not.toBeNull();
     expect(result!.chapterTitle).toBe('Ch1');

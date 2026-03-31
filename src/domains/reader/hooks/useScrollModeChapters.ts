@@ -61,7 +61,7 @@ export function useScrollModeChapters(
     }
 
     pendingScrollFetchesRef.current.add(nextIdx);
-    void fetchChapterContent(nextIdx)
+    fetchChapterContent(nextIdx)
       .then(() => {
         setScrollModeChapters((prev) => {
           if (prev.includes(nextIdx)) return prev;
@@ -84,7 +84,7 @@ export function useScrollModeChapters(
     }
 
     pendingScrollFetchesRef.current.add(prevIdx);
-    void fetchChapterContent(prevIdx)
+    fetchChapterContent(prevIdx)
       .then(() => {
         const container = contentRef.current;
         const prevHeight = container?.scrollHeight ?? 0;

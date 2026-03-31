@@ -61,11 +61,11 @@ export default function Layout({ children }: LayoutProps) {
   const appTheme = useReaderSessionSelector((state) => state.appTheme);
   const readerTheme = useReaderSessionSelector((state) => state.readerTheme);
   const shellSurfaceColor = resolveShellSurfaceColor(isReader, readerTheme, appTheme);
-  const layoutStyle = {
+  const layoutStyle: CSSProperties & Record<'--app-header-height' | '--app-header-offset', string> = {
     '--app-header-height': isReader ? '0px' : 'calc(4rem + env(safe-area-inset-top, 0px))',
     '--app-header-offset': '0px',
     backgroundColor: shellSurfaceColor,
-  } as CSSProperties;
+  };
 
   useEffect(() => {
     const themeColorMeta = ensureMetaTag('theme-color');

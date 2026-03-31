@@ -121,6 +121,30 @@ function assignPagedViewportRef(ref: React.Ref<HTMLDivElement> | undefined, elem
   (ref as React.MutableRefObject<HTMLDivElement | null>).current = element;
 }
 
+function resolveDragDirection(offset: number): PageTurnDirection | null {
+  if (offset > 0) {
+    return 'prev';
+  }
+  if (offset < 0) {
+    return 'next';
+  }
+  return null;
+}
+
+function resolveDragCommitOffset(
+  shouldCommit: boolean,
+  direction: PageTurnDirection,
+  viewportWidth: number,
+): number {
+  if (!shouldCommit) {
+    return 0;
+  }
+  if (direction === 'next') {
+    return -viewportWidth;
+  }
+  return viewportWidth;
+}
+
 function PagedPageFrame({
   chapter,
   layout,
@@ -270,7 +294,7 @@ export default function PagedReaderContent({
     if (imageKeys.size === 0) {
       return;
     }
-    void preloadReaderImageResources(novelId, Array.from(imageKeys.values()));
+    preloadReaderImageResources(novelId, Array.from(imageKeys.values()));
   }, [chapter, nextChapterPreview, novelId, previousChapterPreview]);
 
   useEffect(() => {
@@ -482,7 +506,7 @@ export default function PagedReaderContent({
       canDragPrev,
       canDragNext,
     );
-    const nextDirection = nextOffset > 0 ? 'prev' : nextOffset < 0 ? 'next' : null;
+    const nextDirection = resolveDragDirection(nextOffset);
     if (!nextDirection || Math.abs(nextOffset) < DRAG_START_THRESHOLD_PX) {
       suppressNextClickRef.current = false;
       resetDragState();
@@ -497,11 +521,7 @@ export default function PagedReaderContent({
       return;
     }
 
-    const targetOffset = shouldCommit
-      ? nextDirection === 'next'
-        ? -resolvedViewportWidth
-        : resolvedViewportWidth
-      : 0;
+    const targetOffset = resolveDragCommitOffset(shouldCommit, nextDirection, resolvedViewportWidth);
     const animation = getPageTurnAnimation(pageTurnMode);
     const settleDuration = getPageTurnSettleDuration(
       pageTurnMode,
@@ -578,19 +598,28 @@ export default function PagedReaderContent({
     center: (custom: PageTurnDirection) => pageTurnAnimation.animate({ direction: custom }) as never,
     exit: (custom: PageTurnDirection) => pageTurnAnimation.exit({ direction: custom }) as never,
   };
-  const livePreviewTarget = dragDirection === 'prev'
-    ? previousPreviewTarget
-    : dragDirection === 'next'
-      ? nextPreviewTarget
-      : null;
-  const activeDragTransition = committedDragTransition || (dragDirection && livePreviewTarget && (pageTurnMode === 'cover' || pageTurnMode === 'slide') && currentPreviewTarget
-    ? {
+  let livePreviewTarget = null;
+  if (dragDirection === 'prev') {
+    livePreviewTarget = previousPreviewTarget;
+  } else if (dragDirection === 'next') {
+    livePreviewTarget = nextPreviewTarget;
+  }
+
+  let activeDragTransition = committedDragTransition;
+  if (
+    !activeDragTransition
+    && dragDirection
+    && livePreviewTarget
+    && (pageTurnMode === 'cover' || pageTurnMode === 'slide')
+    && currentPreviewTarget
+  ) {
+    activeDragTransition = {
       current: currentPreviewTarget,
       direction: dragDirection,
       mode: pageTurnMode,
       preview: livePreviewTarget,
-    }
-    : null);
+    };
+  }
   const dragLayerOffsets = activeDragTransition
     ? getPagedDragLayerOffsets(
       activeDragTransition.mode,

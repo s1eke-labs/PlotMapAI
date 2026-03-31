@@ -2,7 +2,6 @@ import type { WorkerTaskMessage, WorkerTaskResponse } from './protocol';
 import type {
   WorkerTaskHandler,
   WorkerTaskHandlerMap,
-  WorkerTaskSpecMap,
 } from './types';
 
 import {
@@ -35,7 +34,8 @@ function getWorkerTaskRegistrations(handlers: WorkerTaskHandlers): WorkerTaskReg
   return registrations;
 }
 
-export function registerWorkerTaskHandlers<TMap extends WorkerTaskSpecMap>(
+export function registerWorkerTaskHandlers(handlers: WorkerTaskHandlers): void;
+export function registerWorkerTaskHandlers<TMap extends object>(
   handlers: WorkerTaskHandlerMap<TMap>,
 ): void;
 export function registerWorkerTaskHandlers(handlers: WorkerTaskHandlers): void {

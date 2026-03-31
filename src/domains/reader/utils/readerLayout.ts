@@ -234,11 +234,12 @@ export function createReaderViewportMetrics(
   pagedViewportHeight: number,
   bodyFontSize = 18,
 ): ReaderViewportMetrics {
-  const scrollHorizontalPadding = scrollViewportWidth >= 768
-    ? 48
-    : scrollViewportWidth >= 640
-      ? 32
-      : 16;
+  let scrollHorizontalPadding = 16;
+  if (scrollViewportWidth >= 768) {
+    scrollHorizontalPadding = 48;
+  } else if (scrollViewportWidth >= 640) {
+    scrollHorizontalPadding = 32;
+  }
   const scrollAvailableWidth = Math.max(0, scrollViewportWidth - scrollHorizontalPadding * 2);
   const scrollTextWidth = scrollAvailableWidth <= 0
     ? 0

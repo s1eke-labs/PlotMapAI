@@ -117,7 +117,7 @@ function renderPage(initialEntry: string) {
 }
 
 function mockSvgBoundingRect() {
-  return vi.spyOn(SVGSVGElement.prototype, 'getBoundingClientRect').mockReturnValue({
+  const rect: DOMRect = {
     x: 0,
     y: 0,
     width: 100,
@@ -127,7 +127,9 @@ function mockSvgBoundingRect() {
     bottom: 100,
     left: 0,
     toJSON: () => ({}),
-  } as DOMRect);
+  };
+
+  return vi.spyOn(SVGSVGElement.prototype, 'getBoundingClientRect').mockReturnValue(rect);
 }
 
 function mockViewport(isMobile: boolean) {
@@ -151,7 +153,8 @@ describe('CharacterGraphPage', () => {
     vi.clearAllMocks();
     vi.mocked(libraryApi.get).mockResolvedValue(novel);
     vi.mocked(analysisApi.getCharacterGraph).mockResolvedValue(graphResponse);
-    vi.mocked(analysisApi.refreshOverview).mockResolvedValue({ job: { status: 'running' }, overview: null, chunks: [] } as never);
+    const refreshOverviewResponse = { job: { status: 'running' }, overview: null, chunks: [] };
+    vi.mocked(analysisApi.refreshOverview).mockResolvedValue(refreshOverviewResponse as never);
     mockViewport(false);
   });
 

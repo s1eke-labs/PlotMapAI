@@ -404,7 +404,7 @@ export function useReaderRenderCache({
     }
 
     let cancelled = false;
-    void preloadReaderImageResources(novelId, loadedImageKeys)
+    preloadReaderImageResources(novelId, loadedImageKeys)
       .finally(() => {
         if (!cancelled) {
           setImageRevision((previous) => previous + 1);
@@ -417,7 +417,6 @@ export function useReaderRenderCache({
   }, [loadedImageKeys, novelId]);
 
   const visibleTargets = useMemo(() => {
-    void imageRevision;
     const targets: VisibleRenderTarget[] = [];
 
     if (viewMode === 'summary') {
@@ -500,7 +499,6 @@ export function useReaderRenderCache({
   const visibleResultsRevisionKey = `${cacheRevision}:${imageRevision}`;
 
   const visibleResults = useMemo<VisibleRenderResult[]>(() => {
-    void visibleResultsRevisionKey;
     return visibleTargets.map((target) => {
       const signature = variantSignatures[target.variantFamily];
       const layoutKey = buildChapterImageLayoutKey(
@@ -617,7 +615,7 @@ export function useReaderRenderCache({
       }
 
       primeReaderRenderCacheEntry(result.entry);
-      void persistReaderRenderCacheEntry(result.entry).catch((error) => {
+      persistReaderRenderCacheEntry(result.entry).catch((error) => {
         debugLog('READER', 'Visible render cache persistence failed', {
           chapterIndex: result.entry.chapterIndex,
           variantFamily: result.entry.variantFamily,
@@ -698,16 +696,16 @@ export function useReaderRenderCache({
         return;
       }
 
-      void (async () => {
+      async function runPreheatTask(target: PreheatTarget): Promise<void> {
         try {
-          let chapter = loadedChaptersRef.current.get(nextTarget.chapterIndex) ?? null;
-          const signature = variantSignatures[nextTarget.variantFamily];
+          let chapter = loadedChaptersRef.current.get(target.chapterIndex) ?? null;
+          const signature = variantSignatures[target.variantFamily];
 
           if (!chapter) {
             const controller = new AbortController();
             controllers.add(controller);
             try {
-              chapter = await fetchChapterContent(nextTarget.chapterIndex, {
+              chapter = await fetchChapterContent(target.chapterIndex, {
                 signal: controller.signal,
               });
               if (!cancelled) {
@@ -735,7 +733,7 @@ export function useReaderRenderCache({
             contentHash,
             layoutKey,
             novelId,
-            variantFamily: nextTarget.variantFamily,
+            variantFamily: target.variantFamily,
           } as const;
           if (getReaderRenderCacheEntryFromMemory(lookup)) {
             if (readerTelemetryEnabledRef.current) {
@@ -743,7 +741,7 @@ export function useReaderRenderCache({
                 chapterIndex: chapter.index,
                 source: 'memory',
                 storageKind: 'render-tree',
-                variantFamily: nextTarget.variantFamily,
+                variantFamily: target.variantFamily,
               });
             }
             return;
@@ -751,7 +749,7 @@ export function useReaderRenderCache({
 
           const dexieRecord = await getReaderRenderCacheRecordFromDexie(lookup);
           if (dexieRecord && (
-            nextTarget.storageKind === 'manifest'
+            target.storageKind === 'manifest'
             || dexieRecord.storageKind === 'render-tree'
           )) {
             if (readerTelemetryEnabledRef.current) {
@@ -759,15 +757,15 @@ export function useReaderRenderCache({
                 chapterIndex: chapter.index,
                 source: 'dexie',
                 storageKind: dexieRecord.storageKind,
-                variantFamily: nextTarget.variantFamily,
+                variantFamily: target.variantFamily,
               });
             }
-            if (nextTarget.storageKind === 'render-tree' && isMaterializedReaderRenderCacheEntry(dexieRecord)) {
+            if (target.storageKind === 'render-tree' && isMaterializedReaderRenderCacheEntry(dexieRecord)) {
               primeReaderRenderCacheEntry(dexieRecord);
             }
             if (
               !cancelled
-              && nextTarget.storageKind === 'render-tree'
+              && target.storageKind === 'render-tree'
               && isMaterializedReaderRenderCacheEntry(dexieRecord)
             ) {
               setCacheRevision((previous) => previous + 1);
@@ -775,7 +773,7 @@ export function useReaderRenderCache({
             return;
           }
 
-          if (nextTarget.storageKind === 'manifest') {
+          if (target.storageKind === 'manifest') {
             const manifestEntry = buildStaticRenderManifest({
               chapter,
               imageDimensionsByKey: buildChapterImageDimensionsMap(novelId, chapter),
@@ -783,21 +781,21 @@ export function useReaderRenderCache({
               layoutSignature: signature,
               novelId,
               typography,
-              variantFamily: nextTarget.variantFamily,
+              variantFamily: target.variantFamily,
             });
             if (readerTelemetryEnabledRef.current) {
               debugLog('READER', 'Reader preheat source', {
                 chapterIndex: chapter.index,
                 source: 'built',
                 storageKind: manifestEntry.storageKind,
-                variantFamily: nextTarget.variantFamily,
+                variantFamily: target.variantFamily,
               });
             }
             await persistReaderRenderCacheEntry(manifestEntry);
             return;
           }
 
-          if (nextTarget.variantFamily !== 'summary-shell') {
+          if (target.variantFamily !== 'summary-shell') {
             await warmReaderRenderImages(novelId, chapter);
           }
 
@@ -808,14 +806,14 @@ export function useReaderRenderCache({
             layoutSignature: signature,
             novelId,
             typography,
-            variantFamily: nextTarget.variantFamily,
+            variantFamily: target.variantFamily,
           });
           if (readerTelemetryEnabledRef.current) {
             debugLog('READER', 'Reader preheat source', {
               chapterIndex: chapter.index,
               source: 'built',
               storageKind: builtEntry.storageKind,
-              variantFamily: nextTarget.variantFamily,
+              variantFamily: target.variantFamily,
             });
           }
           primeReaderRenderCacheEntry(builtEntry);
@@ -825,15 +823,22 @@ export function useReaderRenderCache({
           }
         } catch (error) {
           debugLog('READER', 'Reader render preheat failed', {
-            chapterIndex: nextTarget.chapterIndex,
-            variantFamily: nextTarget.variantFamily,
+            chapterIndex: target.chapterIndex,
+            variantFamily: target.variantFamily,
           }, error);
         } finally {
           if (!cancelled) {
             idleHandle = scheduleIdleTask(runNext);
           }
         }
-      })();
+      }
+
+      runPreheatTask(nextTarget).catch((error) => {
+        debugLog('READER', 'Reader render preheat scheduling failed', {
+          chapterIndex: nextTarget.chapterIndex,
+          variantFamily: nextTarget.variantFamily,
+        }, error);
+      });
     };
 
     idleHandle = scheduleIdleTask(runNext);

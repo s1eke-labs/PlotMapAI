@@ -61,6 +61,22 @@ interface CharacterGraphStageProps {
   onToggleFullscreen: () => void;
 }
 
+type MobileSheetMode = 'details' | 'help' | null;
+
+function resolveMobileSheetMode(
+  isMobile: boolean,
+  selectedNode: LayoutNode | null,
+  mobileSheetPreference: 'help' | null,
+): MobileSheetMode {
+  if (!isMobile) {
+    return null;
+  }
+  if (selectedNode) {
+    return 'details';
+  }
+  return mobileSheetPreference;
+}
+
 export default function CharacterGraphStage({
   fullscreenRef,
   actionMessage,
@@ -105,7 +121,7 @@ export default function CharacterGraphStage({
     ? t('characterGraph.metaGeneratedAt', { time: new Date(graphGeneratedAt).toLocaleString() })
     : null;
   const [mobileSheetPreference, setMobileSheetPreference] = useState<'help' | null>(null);
-  const mobileSheetMode = !isMobile ? null : (selectedNode ? 'details' : mobileSheetPreference);
+  const mobileSheetMode = resolveMobileSheetMode(isMobile, selectedNode, mobileSheetPreference);
   const detailNode = mobileSheetMode === 'details' ? selectedNode : null;
 
   function handleCloseMobileSheet(): void {

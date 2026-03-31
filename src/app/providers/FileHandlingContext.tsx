@@ -79,7 +79,7 @@ export function FileHandlingProvider({ children }: { children: ReactNode }) {
 
     debugLog('PWA', 'File Handling API consumer registered');
     launchQueue.setConsumer((launchParams) => {
-      void handleLaunch(launchParams);
+      handleLaunch(launchParams);
     });
   }, []);
 

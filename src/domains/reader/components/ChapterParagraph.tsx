@@ -60,21 +60,28 @@ export default function ChapterParagraph({
 
   return (
     <div className={containerClassName} style={{ marginBottom }}>
-      {segments.map((seg, i) =>
-        (seg.type === 'image' ? (
-          <InlineImage
-            key={i}
-            novelId={novelId}
-            imageKey={seg.value}
-            imageRenderMode={imageRenderMode}
-          />
-        ) : (
-          seg.value.trim() ? (
-            <p key={i} className={className} style={style}>
-              {seg.value}
-            </p>
-          ) : null
-        )))}
+      {segments.map((seg, i) => {
+        if (seg.type === 'image') {
+          return (
+            <InlineImage
+              key={i}
+              novelId={novelId}
+              imageKey={seg.value}
+              imageRenderMode={imageRenderMode}
+            />
+          );
+        }
+
+        if (!seg.value.trim()) {
+          return null;
+        }
+
+        return (
+          <p key={i} className={className} style={style}>
+            {seg.value}
+          </p>
+        );
+      })}
     </div>
   );
 }

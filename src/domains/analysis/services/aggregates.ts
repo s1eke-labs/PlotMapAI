@@ -201,9 +201,14 @@ export function buildCharacterGraphPayload(
 ): CharacterGraphPayload {
   const totalChapters = chapters.length;
   const overviewPayload = serializeOverview(overview);
+  const emptyAggregates: Pick<AnalysisAggregates, 'allCharacterStats' | 'relationshipGraph' | 'analyzedChapters'> = {
+    allCharacterStats: [],
+    relationshipGraph: [],
+    analyzedChapters: 0,
+  };
   const aggregates = chapterRows.length > 0
     ? collectAnalysisAggregates(chapterRows)
-    : { allCharacterStats: [], relationshipGraph: [], analyzedChapters: 0 } as Pick<AnalysisAggregates, 'allCharacterStats' | 'relationshipGraph' | 'analyzedChapters'>;
+    : emptyAggregates;
 
   const aggregateCharacterMap = new Map<string, Record<string, unknown>>();
   for (const item of aggregates.allCharacterStats) {

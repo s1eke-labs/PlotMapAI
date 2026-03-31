@@ -21,7 +21,7 @@ export function useReaderImageResource(novelId: number, imageKey: string): strin
 
     let cancelled = false;
 
-    void acquireReaderImageResource(novelId, imageKey).then((nextUrl) => {
+    acquireReaderImageResource(novelId, imageKey).then((nextUrl) => {
       if (!cancelled) {
         setResourceState({
           key: `${novelId}:${imageKey}`,

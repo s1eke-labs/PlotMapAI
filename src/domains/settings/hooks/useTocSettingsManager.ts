@@ -59,7 +59,7 @@ export function useTocSettingsManager(): TocSettingsManager {
   }, [t]);
 
   useEffect(() => {
-    void loadRules();
+    loadRules();
   }, [loadRules]);
 
   const openCreateRule = useCallback(() => {

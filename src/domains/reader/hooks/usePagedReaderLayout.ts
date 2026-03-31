@@ -131,11 +131,13 @@ export function usePagedReaderLayout({
   });
   const [resolvedLayoutChapterIndex, setResolvedLayoutChapterIndex] = useState<number | null>(null);
 
-  const twoColumnWidth = pagedViewportSize.width
-    ? pagedViewportSize.width >= 2 * MIN_COLUMN_WIDTH + TWO_COLUMN_GAP
+  let twoColumnWidth: number | undefined;
+  if (pagedViewportSize.width) {
+    const canUseTwoColumns = pagedViewportSize.width >= 2 * MIN_COLUMN_WIDTH + TWO_COLUMN_GAP;
+    twoColumnWidth = canUseTwoColumns
       ? Math.max((pagedViewportSize.width - TWO_COLUMN_GAP) / 2, MIN_COLUMN_WIDTH)
-      : pagedViewportSize.width
-    : undefined;
+      : pagedViewportSize.width;
+  }
   const fitsTwoColumns = twoColumnWidth
     ? pagedViewportSize.width >= 2 * twoColumnWidth + TWO_COLUMN_GAP
     : false;

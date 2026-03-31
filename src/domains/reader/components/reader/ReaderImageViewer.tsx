@@ -866,7 +866,7 @@ function ReaderImageViewerSurface({
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={(event) => {
-        void handlePointerUp(event);
+        handlePointerUp(event);
       }}
       onWheel={handleStageWheel}
     >
@@ -1090,7 +1090,7 @@ export default function ReaderImageViewer({
       neighborKeys.add(nextEntry.imageKey);
     }
 
-    void preloadReaderImageResources(novelId, neighborKeys);
+    preloadReaderImageResources(novelId, neighborKeys);
   }, [activeEntry, activeIndex, entries, isOpen, novelId]);
 
   if (typeof document === 'undefined') {

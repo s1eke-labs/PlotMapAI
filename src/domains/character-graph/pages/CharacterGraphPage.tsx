@@ -75,7 +75,7 @@ export default function CharacterGraphPage() {
   }, [novelId]);
 
   useEffect(() => {
-    void loadData();
+    loadData();
   }, [loadData]);
 
   useEffect(() => {

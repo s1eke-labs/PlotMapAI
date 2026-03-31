@@ -46,6 +46,15 @@ export default function ReaderViewport({
   scrollContentProps,
   summaryContentProps,
 }: ReaderViewportProps) {
+  let content: React.ReactNode = null;
+  if (isPagedMode) {
+    content = pagedContentProps ? <PagedReaderContent {...pagedContentProps} /> : null;
+  } else if (viewMode === 'summary') {
+    content = summaryContentProps ? <SummaryReaderContent {...summaryContentProps} /> : null;
+  } else {
+    content = scrollContentProps ? <ScrollReaderContent {...scrollContentProps} /> : null;
+  }
+
   useEffect(() => {
     const viewport = contentRef.current;
     if (!viewport) {
@@ -93,17 +102,12 @@ export default function ReaderViewport({
       onClick={onContentClick}
       onScroll={onContentScroll}
     >
-      {renderableChapter ? (
+      {renderableChapter && (
         <div className={cn('h-full transition-opacity duration-150', isRestoringPosition && 'opacity-0 pointer-events-none select-none')}>
-          {isPagedMode ? (
-            pagedContentProps ? <PagedReaderContent {...pagedContentProps} /> : null
-          ) : viewMode === 'summary' ? (
-            summaryContentProps ? <SummaryReaderContent {...summaryContentProps} /> : null
-          ) : (
-            scrollContentProps ? <ScrollReaderContent {...scrollContentProps} /> : null
-          )}
+          {content}
         </div>
-      ) : !showLoadingOverlay ? (
+      )}
+      {!renderableChapter && !showLoadingOverlay && (
         <div className="absolute inset-0 flex flex-col items-center justify-center text-text-secondary">
           <p>{emptyLabel}</p>
           <Link to={emptyHref} className="text-accent underline mt-4 flex items-center gap-2">
@@ -111,7 +115,7 @@ export default function ReaderViewport({
             {goBackLabel}
           </Link>
         </div>
-      ) : null}
+      )}
       {showLoadingOverlay && (
         <div
           role="status"

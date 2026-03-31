@@ -20,7 +20,7 @@ export function useReaderNavigation(
   pageTargetRef: React.MutableRefObject<PageTarget | null>,
   setPendingPageTarget: React.Dispatch<React.SetStateAction<PageTarget | null>>,
   chapters: Chapter[],
-  scrollModeChapters: number[],
+  _scrollModeChapters: number[],
   hasUserInteractedRef: React.MutableRefObject<boolean>,
   chapterChangeSourceRef: React.MutableRefObject<ChapterChangeSource>,
   isChapterNavigationReady: boolean,
@@ -229,14 +229,10 @@ export function useReaderNavigation(
 
   const toolbarHasPrev = isPagedMode
     ? pageIndex > 0 || Boolean(currentChapter?.hasPrev)
-    : scrollModeChapters.length > 0
-      ? chapterIndex > 0
-      : chapterIndex > 0;
+    : chapterIndex > 0;
   const toolbarHasNext = isPagedMode
     ? pageIndex < pageCount - 1 || Boolean(currentChapter?.hasNext)
-    : scrollModeChapters.length > 0
-      ? chapterIndex < chapters.length - 1
-      : chapterIndex < chapters.length - 1;
+    : chapterIndex < chapters.length - 1;
 
   return {
     goToChapter,

@@ -135,47 +135,84 @@ export default function ChapterAnalysisPanel({ novelId, analysis, job, isLoading
   const isFailed = job?.status === 'failed';
   const isOverviewStage = job?.currentStage === 'overview';
   const hasIncompleteOutputs = Boolean(job && !job.analysisComplete);
+  const statusIcon = (() => {
+    if (isRunning) {
+      return <Loader2 className="w-8 h-8 text-accent animate-spin" />;
+    }
+    if (isPaused) {
+      return <PauseCircle className="w-8 h-8 text-yellow-400" />;
+    }
+    if (isFailed) {
+      return <AlertTriangle className="w-8 h-8 text-red-400" />;
+    }
+    return <Bot className="w-8 h-8 text-accent opacity-80" />;
+  })();
+  const statusTitle = (() => {
+    if (isRunning) {
+      if (isOverviewStage) {
+        return t('reader.analysisPanel.statusGeneratingOverview');
+      }
+      return t('reader.analysisPanel.statusQueued');
+    }
+    if (isPaused) {
+      return t('reader.analysisPanel.statusPaused');
+    }
+    if (isFailed) {
+      return t('reader.analysisPanel.statusFailed');
+    }
+    if (hasIncompleteOutputs) {
+      return t('reader.analysisPanel.statusIncomplete');
+    }
+    return t('reader.analysisPanel.statusEmpty');
+  })();
+  const statusHint = (() => {
+    if (isRunning) {
+      if (isOverviewStage) {
+        return t('reader.analysisPanel.hintGeneratingOverview');
+      }
+      return t('reader.analysisPanel.hintRunning');
+    }
+    if (isPaused) {
+      return t('reader.analysisPanel.hintPaused');
+    }
+    if (isFailed) {
+      return t(`errors.${job?.lastError}`, { defaultValue: job?.lastError })
+        || t('reader.analysisPanel.hintFailed');
+    }
+    if (hasIncompleteOutputs) {
+      return t('reader.analysisPanel.hintIncomplete');
+    }
+    return t('reader.analysisPanel.hintEmpty');
+  })();
+  const progressStage = (() => {
+    if (isOverviewStage) {
+      return <span>{t('reader.analysisPanel.progressOverviewStage')}</span>;
+    }
+    if (job?.currentChunk) {
+      return (
+        <span>
+          {t('reader.analysisPanel.progressCurrentChunk', {
+            start: job.currentChunk.startChapterIndex + 1,
+            end: job.currentChunk.endChapterIndex + 1,
+          })}
+        </span>
+      );
+    }
+    return null;
+  })();
 
   return (
     <div className="max-w-3xl mx-auto bg-card-bg rounded-2xl p-8 border border-border-color/20 text-center animate-fade-in shadow-xl">
       <div className="w-16 h-16 bg-muted-bg rounded-full flex items-center justify-center mx-auto mb-6">
-        {isRunning ? (
-          <Loader2 className="w-8 h-8 text-accent animate-spin" />
-        ) : isPaused ? (
-          <PauseCircle className="w-8 h-8 text-yellow-400" />
-        ) : isFailed ? (
-          <AlertTriangle className="w-8 h-8 text-red-400" />
-        ) : (
-          <Bot className="w-8 h-8 text-accent opacity-80" />
-        )}
+        {statusIcon}
       </div>
 
       <h3 className="text-xl font-medium mb-4 text-text-primary">
-        {isRunning
-          ? isOverviewStage
-            ? t('reader.analysisPanel.statusGeneratingOverview')
-            : t('reader.analysisPanel.statusQueued')
-          : isPaused
-            ? t('reader.analysisPanel.statusPaused')
-            : isFailed
-              ? t('reader.analysisPanel.statusFailed')
-              : hasIncompleteOutputs
-                ? t('reader.analysisPanel.statusIncomplete')
-                : t('reader.analysisPanel.statusEmpty')}
+        {statusTitle}
       </h3>
 
       <p className="text-text-secondary leading-relaxed max-w-xl mx-auto mb-6">
-        {isRunning
-          ? isOverviewStage
-            ? t('reader.analysisPanel.hintGeneratingOverview')
-            : t('reader.analysisPanel.hintRunning')
-          : isPaused
-            ? t('reader.analysisPanel.hintPaused')
-            : isFailed
-              ? t(`errors.${job?.lastError}`, { defaultValue: job?.lastError }) || t('reader.analysisPanel.hintFailed')
-              : hasIncompleteOutputs
-                ? t('reader.analysisPanel.hintIncomplete')
-                : t('reader.analysisPanel.hintEmpty')}
+        {statusHint}
       </p>
 
       {isRunning && job && job.totalChunks > 0 && (
@@ -189,11 +226,7 @@ export default function ChapterAnalysisPanel({ novelId, analysis, job, isLoading
           </div>
           <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-text-secondary">
             <span>{t('reader.analysisPanel.progressChapters', { done: job.analyzedChapters, total: job.totalChapters })}</span>
-            {isOverviewStage
-              ? <span>{t('reader.analysisPanel.progressOverviewStage')}</span>
-              : job.currentChunk
-                ? <span>{t('reader.analysisPanel.progressCurrentChunk', { start: job.currentChunk.startChapterIndex + 1, end: job.currentChunk.endChapterIndex + 1 })}</span>
-                : null}
+            {progressStage}
           </div>
         </div>
       )}

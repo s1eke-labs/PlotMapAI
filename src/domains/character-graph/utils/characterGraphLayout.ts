@@ -206,19 +206,56 @@ export function getAnchorPosition(index: number, total: number): { x: number; y:
     return { x: STAGE_WIDTH / 2, y: STAGE_HEIGHT / 2 };
   }
 
-  const ring = index <= 5 ? 0 : index <= 13 ? 1 : 2;
-  const ringStart = ring === 0 ? 1 : ring === 1 ? 6 : 14;
-  const ringSize = ring === 0
-    ? Math.min(total - 1, 5)
-    : ring === 1
-      ? Math.min(Math.max(total - 6, 0), 8)
-      : Math.max(total - 14, 0);
+  let ring = 2;
+  if (index <= 5) {
+    ring = 0;
+  } else if (index <= 13) {
+    ring = 1;
+  }
+
+  let ringStart = 14;
+  if (ring === 0) {
+    ringStart = 1;
+  } else if (ring === 1) {
+    ringStart = 6;
+  }
+
+  let ringSize = Math.max(total - 14, 0);
+  if (ring === 0) {
+    ringSize = Math.min(total - 1, 5);
+  } else if (ring === 1) {
+    ringSize = Math.min(Math.max(total - 6, 0), 8);
+  }
+
   const positionInRing = index - ringStart;
-  const angleOffset = ring === 0 ? -Math.PI / 2 : ring === 1 ? -Math.PI / 2 + 0.16 : -Math.PI / 2 + 0.34;
+  let angleOffset = -Math.PI / 2 + 0.34;
+  if (ring === 0) {
+    angleOffset = -Math.PI / 2;
+  } else if (ring === 1) {
+    angleOffset = -Math.PI / 2 + 0.16;
+  }
+
   const angle = angleOffset + (positionInRing / Math.max(ringSize, 1)) * Math.PI * 2;
-  const radiusX = ring === 0 ? 300 : ring === 1 ? 500 : 660;
-  const radiusY = ring === 0 ? 220 : ring === 1 ? 360 : 440;
-  const jitter = ring === 0 ? 0 : ring === 1 ? 14 : 20;
+  let radiusX = 660;
+  if (ring === 0) {
+    radiusX = 300;
+  } else if (ring === 1) {
+    radiusX = 500;
+  }
+
+  let radiusY = 440;
+  if (ring === 0) {
+    radiusY = 220;
+  } else if (ring === 1) {
+    radiusY = 360;
+  }
+
+  let jitter = 20;
+  if (ring === 0) {
+    jitter = 0;
+  } else if (ring === 1) {
+    jitter = 14;
+  }
 
   return {
     x: Number((STAGE_WIDTH / 2 + Math.cos(angle) * radiusX + Math.sin(index * 1.21) * jitter).toFixed(2)),

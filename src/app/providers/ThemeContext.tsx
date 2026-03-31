@@ -13,7 +13,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const theme = useReaderSessionSelector((state) => state.appTheme);
 
   useEffect(() => {
-    void ensureSessionPreferencesHydrated();
+    ensureSessionPreferencesHydrated();
   }, []);
 
   const value = useMemo<ThemeContextType>(() => ({

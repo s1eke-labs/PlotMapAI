@@ -19,6 +19,13 @@ interface PersistReaderStateOptions {
 export type { PageTarget, StoredReaderState } from './sessionStore';
 
 function buildNovelScopedInitialState(initialStoredState: StoredReaderState | null): StoredReaderState {
+  function resolveInitialMode(): StoredReaderState['mode'] {
+    if (initialStoredState?.mode) return initialStoredState.mode;
+    if (initialStoredState?.viewMode === 'summary') return 'summary';
+    if (initialStoredState?.isTwoColumn) return 'paged';
+    return 'scroll';
+  }
+
   if (!initialStoredState) {
     return {
       chapterIndex: 0,
@@ -35,11 +42,7 @@ function buildNovelScopedInitialState(initialStoredState: StoredReaderState | nu
 
   return {
     chapterIndex: initialStoredState.chapterIndex ?? 0,
-    mode: initialStoredState.mode ?? (initialStoredState.viewMode === 'summary'
-      ? 'summary'
-      : initialStoredState.isTwoColumn
-        ? 'paged'
-        : 'scroll'),
+    mode: resolveInitialMode(),
     viewMode: initialStoredState.viewMode ?? (initialStoredState.mode === 'summary' ? 'summary' : 'original'),
     isTwoColumn: initialStoredState.isTwoColumn ?? (initialStoredState.mode === 'paged'),
     chapterProgress: initialStoredState.chapterProgress,
@@ -149,13 +152,14 @@ export function useReaderStatePersistence(novelId: number): {
     if (novelId) {
       setSessionNovelId(novelId);
     }
-    const inferredMode = nextState.viewMode === 'summary'
-      ? 'summary'
-      : nextState.isTwoColumn === true
-        ? 'paged'
-        : nextState.viewMode === 'original' || nextState.isTwoColumn === false
-          ? 'scroll'
-          : undefined;
+    let inferredMode: StoredReaderState['mode'] | undefined;
+    if (nextState.viewMode === 'summary') {
+      inferredMode = 'summary';
+    } else if (nextState.isTwoColumn === true) {
+      inferredMode = 'paged';
+    } else if (nextState.viewMode === 'original' || nextState.isTwoColumn === false) {
+      inferredMode = 'scroll';
+    }
     const shouldRecomputeMode = inferredMode !== undefined && nextState.mode !== inferredMode;
     const mergedState: StoredReaderState = {
       ...latestReaderStateRef.current,
@@ -185,11 +189,11 @@ export function useReaderStatePersistence(novelId: number): {
   useEffect(() => {
     if (!novelId) return undefined;
     const handlePageHide = () => {
-      void flushReaderState();
+      flushReaderState();
     };
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'hidden') {
-        void flushReaderState();
+        flushReaderState();
       }
     };
     window.addEventListener('pagehide', handlePageHide);
@@ -197,7 +201,7 @@ export function useReaderStatePersistence(novelId: number): {
     return () => {
       window.removeEventListener('pagehide', handlePageHide);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
-      void flushReaderState();
+      flushReaderState();
     };
   }, [flushReaderState, novelId]);
 

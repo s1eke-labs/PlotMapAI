@@ -8,6 +8,8 @@ import { isPagedPageTurnMode } from '../constants/pageTurnMode';
 
 export type PageTarget = 'start' | 'end';
 export type ReaderMode = 'scroll' | 'paged' | 'summary';
+type ReaderContentMode = 'scroll' | 'paged';
+type ReaderViewMode = 'original' | 'summary';
 export type AppTheme = 'light' | 'dark';
 export type RestoreStatus = 'hydrating' | 'restoring' | 'ready' | 'error';
 
@@ -600,8 +602,23 @@ function scheduleRemotePersistence(): void {
   }
   syncTimerId = window.setTimeout(() => {
     syncTimerId = null;
-    void enqueueRemotePersistence(toRemoteProgress(state));
+    enqueueRemotePersistence(toRemoteProgress(state));
   }, READER_STATE_SYNC_DELAY_MS);
+}
+
+function resolveLastContentMode(mode: ReaderMode, fallbackMode: ReaderContentMode): ReaderContentMode {
+  if (mode === 'summary') return fallbackMode;
+  if (mode === 'paged') return 'paged';
+  return 'scroll';
+}
+
+function resolveReaderModeFromView(
+  currentViewMode: ReaderViewMode,
+  pageTurnMode: ReaderPageTurnMode,
+): ReaderMode {
+  if (currentViewMode === 'summary') return 'summary';
+  if (isPagedPageTurnMode(pageTurnMode)) return 'paged';
+  return 'scroll';
 }
 
 function updateStoredReaderState(
@@ -612,7 +629,7 @@ function updateStoredReaderState(
   const mode = resolveModeFromStoredState(merged);
   const viewState = deriveViewState(mode);
   const nextLastContentMode = merged.lastContentMode
-    ?? (mode === 'summary' ? state.lastContentMode : mode === 'paged' ? 'paged' : 'scroll');
+    ?? resolveLastContentMode(mode, state.lastContentMode);
   setState({
     ...viewState,
     chapterIndex: merged.chapterIndex ?? 0,
@@ -622,12 +639,12 @@ function updateStoredReaderState(
       : undefined,
     locatorVersion: merged.locator ? 1 : undefined,
     locator: merged.locator,
-    lastContentMode: mode === 'summary' ? nextLastContentMode : mode === 'paged' ? 'paged' : 'scroll',
+    lastContentMode: resolveLastContentMode(mode, nextLastContentMode),
     hasUserInteracted: options.markUserInteracted ?? state.hasUserInteracted,
   });
   if (options.persistRemote) {
     if (options.flush) {
-      void enqueueRemotePersistence(toRemoteProgress(state));
+      enqueueRemotePersistence(toRemoteProgress(state));
     } else {
       scheduleRemotePersistence();
     }
@@ -692,16 +709,11 @@ export async function hydrateSession(novelId: number): Promise<StoredReaderState
   const resolvedPageTurnMode = hadConfiguredPageTurnModePreference
     ? (localState?.pageTurnMode ?? preferences.pageTurnMode)
     : inferLegacyPageTurnMode(mergedState);
-  const mode = currentViewMode === 'summary'
-    ? 'summary'
-    : isPagedPageTurnMode(resolvedPageTurnMode)
-      ? 'paged'
-      : 'scroll';
-  const nextLastContentMode = mode === 'summary'
-    ? (isPagedPageTurnMode(resolvedPageTurnMode) ? 'paged' : 'scroll')
-    : mode === 'paged'
-      ? 'paged'
-      : 'scroll';
+  const mode = resolveReaderModeFromView(currentViewMode, resolvedPageTurnMode);
+  const nextLastContentMode = resolveLastContentMode(
+    mode,
+    isPagedPageTurnMode(resolvedPageTurnMode) ? 'paged' : 'scroll',
+  );
 
   hasConfiguredPageTurnModePreference = true;
 
@@ -723,7 +735,7 @@ export async function hydrateSession(novelId: number): Promise<StoredReaderState
   });
 
   if (!hadConfiguredPageTurnModePreference) {
-    void persistPreferenceSettings({
+    persistPreferenceSettings({
       ...preferences,
       pageTurnMode: resolvedPageTurnMode,
     }).catch(() => undefined);
@@ -739,22 +751,14 @@ export async function hydrateSession(novelId: number): Promise<StoredReaderState
 }
 
 export function setMode(mode: ReaderMode, options: SessionUpdateOptions = {}): void {
-  const nextMode = mode === 'summary'
-    ? 'summary'
-    : mode === 'paged'
-      ? 'paged'
-      : 'scroll';
+  const nextMode = mode;
   updateStoredReaderState(
     {
       chapterIndex: state.chapterIndex,
       chapterProgress: state.chapterProgress,
       scrollPosition: state.scrollPosition,
       mode: nextMode,
-      lastContentMode: nextMode === 'summary'
-        ? state.lastContentMode
-        : nextMode === 'paged'
-          ? 'paged'
-          : 'scroll',
+      lastContentMode: resolveLastContentMode(nextMode, state.lastContentMode),
     },
     { persistRemote: true, markUserInteracted: options.markUserInteracted, flush: options.flush },
   );

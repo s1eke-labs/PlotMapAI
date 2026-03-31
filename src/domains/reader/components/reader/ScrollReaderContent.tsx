@@ -51,11 +51,12 @@ export default function ScrollReaderContent({
       <div className="pt-6">
         {chapters.map(({ chapter, index, layout }) => {
           const visibleRange = visibleBlockRangeByChapter?.get(index);
-          const visibleMetrics = visibleRange
-            ? visibleRange.endIndex >= visibleRange.startIndex
+          let visibleMetrics = layout.metrics;
+          if (visibleRange) {
+            visibleMetrics = visibleRange.endIndex >= visibleRange.startIndex
               ? layout.metrics.slice(visibleRange.startIndex, visibleRange.endIndex + 1)
-              : []
-            : layout.metrics;
+              : [];
+          }
 
           return (
             <div

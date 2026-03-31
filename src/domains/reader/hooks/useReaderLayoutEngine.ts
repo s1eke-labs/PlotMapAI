@@ -164,7 +164,7 @@ export function useReaderLayoutEngine({
     }
 
     let cancelled = false;
-    void preloadReaderImageResources(novelId, missingImageKeys)
+    preloadReaderImageResources(novelId, missingImageKeys)
       .finally(() => {
         if (!cancelled) {
           setImageRevision((previous) => previous + 1);
@@ -177,7 +177,6 @@ export function useReaderLayoutEngine({
   }, [imageKeys, novelId]);
 
   const imageDimensionsByKey = useMemo(() => {
-    void imageRevision;
     const dimensions = new Map<string, ReturnType<typeof peekReaderImageDimensions>>();
     for (const imageKey of imageKeys) {
       dimensions.set(imageKey, peekReaderImageDimensions(novelId, imageKey));

@@ -68,7 +68,7 @@ export function usePurificationSettingsManager(): PurificationSettingsManager {
   }, [t]);
 
   useEffect(() => {
-    void loadRules();
+    loadRules();
   }, [loadRules]);
 
   const groupedRules = useMemo(

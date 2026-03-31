@@ -23,20 +23,20 @@ class FakeWorker {
     this.messages.push(message);
     if (message.kind === 'run') {
       queueMicrotask(() => {
-        this.emit('message', {
+        this.emit('message', new MessageEvent('message', {
           data: {
             kind: 'progress',
             requestId: message.requestId,
             progress: { progress: 55 },
           },
-        } as MessageEvent);
-        this.emit('message', {
+        }));
+        this.emit('message', new MessageEvent('message', {
           data: {
             kind: 'result',
             requestId: message.requestId,
             result: 'done',
           },
-        } as MessageEvent);
+        }));
       });
     }
   }

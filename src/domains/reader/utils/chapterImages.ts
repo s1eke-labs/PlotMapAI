@@ -11,9 +11,10 @@ export function extractImageKeysFromText(text: string): string[] {
   const imageKeys = new Set<string>();
 
   IMG_PATTERN.lastIndex = 0;
-  let match: RegExpExecArray | null;
-  while ((match = IMG_PATTERN.exec(text)) !== null) {
+  let match = IMG_PATTERN.exec(text);
+  while (match !== null) {
     imageKeys.add(match[1]);
+    match = IMG_PATTERN.exec(text);
   }
 
   return Array.from(imageKeys);

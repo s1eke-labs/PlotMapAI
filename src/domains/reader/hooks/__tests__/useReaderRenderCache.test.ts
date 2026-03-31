@@ -61,28 +61,31 @@ const renderCacheMock = vi.hoisted(() => {
       novelId: number;
       variantFamily: 'original-paged' | 'original-scroll' | 'summary-shell';
     }) => {
-      const tree = params.variantFamily === 'original-paged'
-        ? {
+      let tree;
+      if (params.variantFamily === 'original-paged') {
+        tree = {
           chapterIndex: params.chapter.index,
           columnCount: 1,
           columnGap: 0,
           columnWidth: 400,
           pageHeight: 400,
           pageSlices: [],
-        }
-        : params.variantFamily === 'original-scroll'
-          ? {
-            blockCount: 0,
-            chapterIndex: params.chapter.index,
-            metrics: [],
-            textWidth: 400,
-            totalHeight: 0,
-          }
-          : {
-            chapterIndex: params.chapter.index,
-            title: params.chapter.title,
-            variant: 'summary-shell',
-          };
+        };
+      } else if (params.variantFamily === 'original-scroll') {
+        tree = {
+          blockCount: 0,
+          chapterIndex: params.chapter.index,
+          metrics: [],
+          textWidth: 400,
+          totalHeight: 0,
+        };
+      } else {
+        tree = {
+          chapterIndex: params.chapter.index,
+          title: params.chapter.title,
+          variant: 'summary-shell',
+        };
+      }
 
       return {
         chapterIndex: params.chapter.index,
@@ -433,8 +436,8 @@ describe('useReaderRenderCache', () => {
     vi.useFakeTimers();
     debugFeatureState.set('readerTelemetry', true);
     const currentChapter = createChapter(0, 1);
-    const stalledPagedPersist = createDeferred<void>();
-    const stalledSummaryPersist = createDeferred<void>();
+    const stalledPagedPersist = createDeferred<undefined>();
+    const stalledSummaryPersist = createDeferred<undefined>();
     renderCacheMock.persistReaderRenderCacheEntry.mockImplementation((entry: {
       chapterIndex: number;
       variantFamily: 'original-paged' | 'original-scroll' | 'summary-shell';

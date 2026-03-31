@@ -23,7 +23,7 @@ export default function PurificationSettingsPanel({ manager }: PurificationSetti
     const file = event.target.files?.[0];
     if (!file) return;
 
-    void manager.importYaml(file);
+    manager.importYaml(file);
     event.target.value = '';
   };
 
@@ -53,7 +53,7 @@ export default function PurificationSettingsPanel({ manager }: PurificationSetti
           {
             label: t('settings.common.export'),
             icon: <Download className="w-4 h-4" />,
-            onClick: () => void manager.exportYaml(),
+            onClick: () => manager.exportYaml(),
           },
           ...(manager.rules.length > 0
             ? [{
@@ -67,6 +67,59 @@ export default function PurificationSettingsPanel({ manager }: PurificationSetti
       />
     </>
   );
+  const content = (() => {
+    if (manager.isLoading) {
+      return (
+        <div className="py-12 flex justify-center">
+          <Loader2 className="w-8 h-8 animate-spin text-accent" />
+        </div>
+      );
+    }
+    if (manager.groupedRules.length === 0) {
+      return (
+        <SettingsEmptyState
+          title={t('settings.purification.emptyTitle')}
+          description={t('settings.purification.emptyDescription')}
+        />
+      );
+    }
+
+    return (
+      <div className="space-y-8">
+        {manager.groupedRules.map((group) => (
+          <div key={group.name} className="space-y-4">
+            <div className="text-lg font-semibold text-text-primary border-l-4 border-accent pl-3 flex items-center gap-2">
+              {group.name}
+              <span className="text-xs font-normal text-text-secondary bg-white/5 px-2 py-0.5 rounded-full">
+                {group.rules.length}
+              </span>
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {group.rules.map((rule) => (
+                <RuleCard
+                  key={rule.id}
+                  name={rule.name}
+                  pattern={rule.pattern}
+                  isEnabled={rule.isEnabled}
+                  priority={rule.order}
+                  isDefault={rule.isDefault}
+                  type={rule.isRegex ? 'regex' : 'text'}
+                  scopes={[
+                    rule.scopeTitle ? t('settings.purification.scopeTitle') : '',
+                    rule.scopeContent ? t('settings.purification.scopeContent') : '',
+                  ].filter(Boolean)}
+                  onToggle={(checked) => manager.toggleRule(rule.id, checked)}
+                  onEdit={() => manager.openEditRule(rule)}
+                  onDelete={rule.isDefault ? undefined : () => manager.requestDeleteRule(rule)}
+                  isCustom={!rule.isDefault}
+                />
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  })();
 
   return (
     <div className="space-y-6">
@@ -78,50 +131,7 @@ export default function PurificationSettingsPanel({ manager }: PurificationSetti
 
       <SettingsFeedbackBanner feedback={manager.feedback} onDismiss={manager.clearFeedback} />
 
-      {manager.isLoading ? (
-        <div className="py-12 flex justify-center">
-          <Loader2 className="w-8 h-8 animate-spin text-accent" />
-        </div>
-      ) : manager.groupedRules.length === 0 ? (
-        <SettingsEmptyState
-          title={t('settings.purification.emptyTitle')}
-          description={t('settings.purification.emptyDescription')}
-        />
-      ) : (
-        <div className="space-y-8">
-          {manager.groupedRules.map((group) => (
-            <div key={group.name} className="space-y-4">
-              <div className="text-lg font-semibold text-text-primary border-l-4 border-accent pl-3 flex items-center gap-2">
-                {group.name}
-                <span className="text-xs font-normal text-text-secondary bg-white/5 px-2 py-0.5 rounded-full">
-                  {group.rules.length}
-                </span>
-              </div>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                {group.rules.map((rule) => (
-                  <RuleCard
-                    key={rule.id}
-                    name={rule.name}
-                    pattern={rule.pattern}
-                    isEnabled={rule.isEnabled}
-                    priority={rule.order}
-                    isDefault={rule.isDefault}
-                    type={rule.isRegex ? 'regex' : 'text'}
-                    scopes={[
-                      rule.scopeTitle ? t('settings.purification.scopeTitle') : '',
-                      rule.scopeContent ? t('settings.purification.scopeContent') : '',
-                    ].filter(Boolean)}
-                    onToggle={(checked) => void manager.toggleRule(rule.id, checked)}
-                    onEdit={() => manager.openEditRule(rule)}
-                    onDelete={rule.isDefault ? undefined : () => manager.requestDeleteRule(rule)}
-                    isCustom={!rule.isDefault}
-                  />
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+      {content}
 
       <PurificationRuleModal
         isOpen={manager.isRuleModalOpen}
@@ -133,7 +143,7 @@ export default function PurificationSettingsPanel({ manager }: PurificationSetti
       <SettingsConfirmModal
         isOpen={Boolean(manager.pendingDeleteRule)}
         onClose={manager.cancelDeleteRule}
-        onConfirm={() => void manager.confirmDeleteRule()}
+        onConfirm={() => manager.confirmDeleteRule()}
         title={t('settings.purification.deleteTitle')}
         description={t('settings.purification.deleteConfirm')}
         cancelLabel={t('common.actions.cancel')}
@@ -145,7 +155,7 @@ export default function PurificationSettingsPanel({ manager }: PurificationSetti
       <SettingsConfirmModal
         isOpen={manager.isClearAllModalOpen}
         onClose={manager.cancelClearAll}
-        onConfirm={() => void manager.confirmClearAll()}
+        onConfirm={() => manager.confirmClearAll()}
         title={t('settings.purification.clearAllTitle')}
         description={t('settings.purification.clearAllConfirm', { count: manager.rules.length })}
         cancelLabel={t('common.actions.cancel')}

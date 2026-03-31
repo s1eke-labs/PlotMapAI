@@ -355,8 +355,8 @@ export function useReaderRestoreFlow({
   useEffect(() => {
     if (isLoading || viewMode !== 'original' || isPagedMode) return;
 
-    const pendingRestoreState = pendingRestoreStateRef.current;
-    if (!pendingRestoreState) return;
+    const pendingState = pendingRestoreStateRef.current;
+    if (!pendingState) return;
 
     let frameId = 0;
     let cancelled = false;
@@ -365,7 +365,7 @@ export function useReaderRestoreFlow({
       if (cancelled) return;
 
       const container = contentRef.current;
-      const targetIndex = pendingRestoreState.chapterIndex ?? chapterIndex;
+      const targetIndex = pendingState.chapterIndex ?? chapterIndex;
       const targetElement = scrollChapterElementsRef.current.get(targetIndex);
 
       if (!container || !targetElement) {
@@ -375,20 +375,20 @@ export function useReaderRestoreFlow({
 
       chapterChangeSourceRef.current = 'restore';
       suppressScrollSyncTemporarily();
-      if (pendingRestoreState.locator) {
-        const nextScrollTop = resolveScrollLocatorOffset.current(pendingRestoreState.locator);
+      if (pendingState.locator) {
+        const nextScrollTop = resolveScrollLocatorOffset.current(pendingState.locator);
         if (nextScrollTop === null) {
           chapterChangeSourceRef.current = null;
           frameId = requestAnimationFrame(restoreScrollPosition);
           return;
         }
         container.scrollTop = Math.round(nextScrollTop);
-      } else if (typeof pendingRestoreState.chapterProgress === 'number') {
+      } else if (typeof pendingState.chapterProgress === 'number') {
         container.scrollTop = Math.round(
-          targetElement.offsetTop + targetElement.offsetHeight * clampProgress(pendingRestoreState.chapterProgress),
+          targetElement.offsetTop + targetElement.offsetHeight * clampProgress(pendingState.chapterProgress),
         );
-      } else if (typeof pendingRestoreState.scrollPosition === 'number') {
-        container.scrollTop = pendingRestoreState.scrollPosition;
+      } else if (typeof pendingState.scrollPosition === 'number') {
+        container.scrollTop = pendingState.scrollPosition;
       }
       chapterChangeSourceRef.current = null;
       clearPendingRestoreState();
@@ -419,20 +419,20 @@ export function useReaderRestoreFlow({
   useEffect(() => {
     if (isLoading || viewMode !== 'summary') return;
 
-    const pendingRestoreState = pendingRestoreStateRef.current;
-    if (!pendingRestoreState || !contentRef.current) return;
+    const pendingState = pendingRestoreStateRef.current;
+    if (!pendingState || !contentRef.current) return;
 
     const container = contentRef.current;
     const frameId = requestAnimationFrame(() => {
       chapterChangeSourceRef.current = 'restore';
       suppressScrollSyncTemporarily();
-      if (typeof pendingRestoreState.chapterProgress === 'number') {
+      if (typeof pendingState.chapterProgress === 'number') {
         const maxScroll = container.scrollHeight - container.clientHeight;
         if (maxScroll > 0) {
-          container.scrollTop = Math.round(maxScroll * clampProgress(pendingRestoreState.chapterProgress));
+          container.scrollTop = Math.round(maxScroll * clampProgress(pendingState.chapterProgress));
         }
-      } else if (typeof pendingRestoreState.scrollPosition === 'number') {
-        container.scrollTop = pendingRestoreState.scrollPosition;
+      } else if (typeof pendingState.scrollPosition === 'number') {
+        container.scrollTop = pendingState.scrollPosition;
       }
       chapterChangeSourceRef.current = null;
       clearPendingRestoreState();

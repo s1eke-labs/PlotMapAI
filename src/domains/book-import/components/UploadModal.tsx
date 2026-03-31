@@ -82,15 +82,18 @@ export default function UploadModal({
   const autoProcessedFilesRef = useRef<File[] | null>(null);
 
   const currentStageLabel = batchState ? t(`bookshelf.workerStages.${batchState.progress.stage}`) : null;
-  const currentFileLabel = batchState
-    ? batchState.totalFiles > 1
-      ? t('bookshelf.batchProgressFile', {
+  let currentFileLabel: string | null = null;
+  if (batchState) {
+    if (batchState.totalFiles > 1) {
+      currentFileLabel = t('bookshelf.batchProgressFile', {
         current: batchState.currentFileIndex + 1,
         total: batchState.totalFiles,
         name: batchState.currentFileName,
-      })
-      : batchState.currentFileName
-    : null;
+      });
+    } else {
+      currentFileLabel = batchState.currentFileName;
+    }
+  }
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -191,7 +194,7 @@ export default function UploadModal({
     }
 
     autoProcessedFilesRef.current = initialFiles;
-    void processFiles(initialFiles).finally(() => {
+    processFiles(initialFiles).finally(() => {
       onInitialFilesHandled?.();
       if (autoProcessedFilesRef.current === initialFiles) {
         autoProcessedFilesRef.current = null;

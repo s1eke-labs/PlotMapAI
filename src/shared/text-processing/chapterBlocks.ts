@@ -43,8 +43,8 @@ export function parseParagraphSegments(text: string): ChapterTextSegment[] {
   let lastIndex = 0;
 
   IMAGE_PATTERN.lastIndex = 0;
-  let match: RegExpExecArray | null;
-  while ((match = IMAGE_PATTERN.exec(text)) !== null) {
+  let match = IMAGE_PATTERN.exec(text);
+  while (match !== null) {
     if (match.index > lastIndex) {
       segments.push({
         type: 'text',
@@ -57,6 +57,7 @@ export function parseParagraphSegments(text: string): ChapterTextSegment[] {
       value: match[1],
     });
     lastIndex = match.index + match[0].length;
+    match = IMAGE_PATTERN.exec(text);
   }
 
   if (lastIndex < text.length) {

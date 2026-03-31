@@ -3,7 +3,6 @@ import type {
   WorkerTaskPayload,
   WorkerTaskProgress,
   WorkerTaskResult,
-  WorkerTaskSpecMap,
 } from './types';
 
 import {
@@ -25,7 +24,7 @@ export interface CreateWorkerTaskRunnerOptions<Payload, Result, Progress> {
 }
 
 interface CreateMappedWorkerTaskRunnerOptions<
-  TMap extends WorkerTaskSpecMap,
+  TMap extends object,
   TTask extends keyof TMap & string,
 > {
   createWorker: () => Worker;
@@ -64,7 +63,7 @@ function createRequestId(): string {
 }
 
 export function createWorkerTaskRunner<
-  TMap extends WorkerTaskSpecMap,
+  TMap extends object,
   TTask extends keyof TMap & string,
 >(
   options: CreateMappedWorkerTaskRunnerOptions<TMap, TTask>,
@@ -232,8 +231,8 @@ export function createWorkerTaskRunner<Payload, Result, Progress>({
         Promise.resolve()
           .then(() => fallback(payload, options))
           .then(resolve)
-          .catch((error) => {
-            reject(toAppError(error, {
+          .catch((fallbackError) => {
+            reject(toAppError(fallbackError, {
               code: AppErrorCode.WORKER_EXECUTION_FAILED,
               kind: 'execution',
               source: 'worker',

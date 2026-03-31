@@ -190,9 +190,10 @@ export default function ReaderPage() {
           : previousState
       ));
     }
-    const nextMode = nextValue === 'summary'
-      ? 'summary'
-      : isPagedPageTurnMode(preferences.pageTurnMode) ? 'paged' : 'scroll';
+    let nextMode: 'paged' | 'scroll' | 'summary' = 'summary';
+    if (nextValue !== 'summary') {
+      nextMode = isPagedPageTurnMode(preferences.pageTurnMode) ? 'paged' : 'scroll';
+    }
     setSessionMode(nextMode, { persistRemote: false });
   }, [preferences.pageTurnMode]);
 
@@ -359,7 +360,7 @@ export default function ReaderPage() {
   }, [isImageGalleryIndexResolved, novelId, syncImageViewerLoadingState]);
 
   useEffect(() => {
-    void ensureImageGalleryEntriesLoaded();
+    ensureImageGalleryEntriesLoaded();
   }, [ensureImageGalleryEntriesLoaded]);
 
   const getImageOriginRect = useCallback((entry: ReaderImageGalleryEntry | null): DOMRect | null => {
@@ -584,11 +585,13 @@ export default function ReaderPage() {
         : null;
       const hasRestorableProgress = pendingRestoreState?.chapterIndex === chapterIndex
         && typeof pendingRestoreState.chapterProgress === 'number';
-      const targetPage = restoredPageIndex !== null
-        ? restoredPageIndex
-        : hasRestorableProgress
-          ? getPageIndexFromProgress(pendingRestoreState?.chapterProgress, nextPageCount)
-          : resolvePagedTargetPage(pageTargetRef.current, pageIndex, nextPageCount);
+      let targetPage = resolvePagedTargetPage(pageTargetRef.current, pageIndex, nextPageCount);
+      if (hasRestorableProgress) {
+        targetPage = getPageIndexFromProgress(pendingRestoreState?.chapterProgress, nextPageCount);
+      }
+      if (restoredPageIndex !== null) {
+        targetPage = restoredPageIndex;
+      }
 
       setPageCount(nextPageCount);
       setPageIndex(targetPage);
@@ -761,7 +764,7 @@ export default function ReaderPage() {
       translateY: 0,
     });
     if (!isImageGalleryIndexResolved) {
-      void ensureImageGalleryEntriesLoaded();
+      ensureImageGalleryEntriesLoaded();
     }
   }, [
     dismissBlockedInteraction,

@@ -105,7 +105,7 @@ export function useAiSettingsManager(): AiSettingsManager {
   }, [syncForm, t]);
 
   useEffect(() => {
-    void loadSettings();
+    loadSettings();
   }, [loadSettings]);
 
   const buildPayload = useCallback((): AiProviderSettingsPayload => {

@@ -138,40 +138,6 @@ function fillRect(buffer, size, x, y, width, height, color) {
   }
 }
 
-function pointInPolygon(x, y, points) {
-  let inside = false;
-
-  for (let index = 0, previous = points.length - 1; index < points.length; previous = index, index += 1) {
-    const [xi, yi] = points[index];
-    const [xj, yj] = points[previous];
-
-    const intersects = ((yi > y) !== (yj > y))
-      && (x < (xj - xi) * (y - yi) / ((yj - yi) || 1e-9) + xi);
-    if (intersects) {
-      inside = !inside;
-    }
-  }
-
-  return inside;
-}
-
-function fillPolygon(buffer, size, points, color) {
-  const xs = points.map(([x]) => x);
-  const ys = points.map(([, y]) => y);
-  const minX = Math.floor(Math.min(...xs));
-  const maxX = Math.ceil(Math.max(...xs));
-  const minY = Math.floor(Math.min(...ys));
-  const maxY = Math.ceil(Math.max(...ys));
-
-  for (let y = minY; y <= maxY; y += 1) {
-    for (let x = minX; x <= maxX; x += 1) {
-      if (pointInPolygon(x + 0.5, y + 0.5, points)) {
-        fillPixel(buffer, size, x, y, color);
-      }
-    }
-  }
-}
-
 function downsample(buffer, highSize, scale) {
   const outputSize = highSize / scale;
   const output = new Uint8Array(outputSize * outputSize * 4);
@@ -315,6 +281,16 @@ function createBrandGeometry(scale, offsetX, offsetY) {
   };
 }
 
+function resolveScaleFactor(variant, size) {
+  if (variant === 'maskable') {
+    return 0.9;
+  }
+  if (size <= 32) {
+    return 1.02;
+  }
+  return 0.96;
+}
+
 function renderBrandIcon(size, variant) {
   const highSize = size * SUPERSAMPLE;
   const buffer = createBuffer(highSize);
@@ -325,7 +301,7 @@ function renderBrandIcon(size, variant) {
     }
   }
 
-  const scaleFactor = variant === 'maskable' ? 0.9 : size <= 32 ? 1.02 : 0.96;
+  const scaleFactor = resolveScaleFactor(variant, size);
   const scale = (highSize / 512) * scaleFactor;
   const offsetX = (highSize - 512 * scale) / 2;
   const offsetY = (highSize - 512 * scale) / 2 + (variant === 'maskable' ? highSize * 0.01 : highSize * 0.005);

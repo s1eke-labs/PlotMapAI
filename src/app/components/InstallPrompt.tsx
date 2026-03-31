@@ -68,15 +68,16 @@ function clearInstallPromptDismissal(): void {
 }
 
 function createDebugInstallPromptEvent(): BeforeInstallPromptEvent {
-  return {
-    prompt: async () => {
-      debugLog('PWA', 'debug install prompt action invoked');
-    },
-    userChoice: Promise.resolve({
-      outcome: 'accepted',
-      platform: 'debug',
-    }),
-  } as BeforeInstallPromptEvent;
+  const debugEvent = new Event('beforeinstallprompt') as BeforeInstallPromptEvent;
+  debugEvent.prompt = async () => {
+    debugLog('PWA', 'debug install prompt action invoked');
+  };
+  debugEvent.userChoice = Promise.resolve({
+    outcome: 'accepted',
+    platform: 'debug',
+  });
+
+  return debugEvent;
 }
 
 export default function InstallPrompt() {

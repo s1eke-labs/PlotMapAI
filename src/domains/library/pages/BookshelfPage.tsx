@@ -86,52 +86,66 @@ export default function BookshelfPage() {
           </p>
         </div>
 
-        {isLoading ? (
-          <div className="flex min-h-[42vh] items-center justify-center">
-            <Loader2 className="h-8 w-8 animate-spin text-accent" />
-          </div>
-        ) : error ? (
-          <div className="flex min-h-[42vh] items-center justify-center py-4 sm:py-6">
-            <div className="w-full max-w-md rounded-3xl border border-red-500/15 bg-red-500/6 px-5 py-7 text-center shadow-sm sm:px-8 sm:py-8">
-              <p className="mb-4 text-sm leading-6 text-red-500 sm:text-base">
-                {translateAppError(error, t, 'bookshelf.loadError')}
-              </p>
-              <button
-                onClick={fetchNovels}
-                className="rounded-full bg-bg-secondary px-4 py-2 text-sm font-medium text-accent shadow-sm transition-colors hover:text-accent-hover"
-              >
-                {t('bookshelf.tryAgain')}
-              </button>
-            </div>
-          </div>
-        ) : novels.length === 0 ? (
-          <div className="flex min-h-[42vh] items-center justify-center py-4 sm:py-6">
-            <div className="w-full max-w-md rounded-[2rem] border border-border-color/70 bg-bg-secondary px-5 py-8 text-center shadow-[0_16px_36px_rgba(15,23,42,0.06)] sm:px-8 sm:py-10">
-              <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-brand-800 text-2xl shadow-inner">
-                <span>📚</span>
+        {(() => {
+          if (isLoading) {
+            return (
+              <div className="flex min-h-[42vh] items-center justify-center">
+                <Loader2 className="h-8 w-8 animate-spin text-accent" />
               </div>
-              <h2 className="mb-2 text-xl font-semibold text-text-primary">{t('bookshelf.noBooks')}</h2>
-              <p className="mx-auto mb-6 max-w-sm text-sm leading-6 text-text-secondary sm:text-base">
-                {t('bookshelf.noBooksHint')}
-              </p>
-              <button
-                onClick={() => setIsUploadModalOpen(true)}
-                className="rounded-full bg-brand-700 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-600 sm:rounded-lg sm:px-6 sm:py-3"
-              >
-                {t('common.actions.upload')}
-              </button>
+            );
+          }
+
+          if (error) {
+            return (
+              <div className="flex min-h-[42vh] items-center justify-center py-4 sm:py-6">
+                <div className="w-full max-w-md rounded-3xl border border-red-500/15 bg-red-500/6 px-5 py-7 text-center shadow-sm sm:px-8 sm:py-8">
+                  <p className="mb-4 text-sm leading-6 text-red-500 sm:text-base">
+                    {translateAppError(error, t, 'bookshelf.loadError')}
+                  </p>
+                  <button
+                    onClick={fetchNovels}
+                    className="rounded-full bg-bg-secondary px-4 py-2 text-sm font-medium text-accent shadow-sm transition-colors hover:text-accent-hover"
+                  >
+                    {t('bookshelf.tryAgain')}
+                  </button>
+                </div>
+              </div>
+            );
+          }
+
+          if (novels.length === 0) {
+            return (
+              <div className="flex min-h-[42vh] items-center justify-center py-4 sm:py-6">
+                <div className="w-full max-w-md rounded-[2rem] border border-border-color/70 bg-bg-secondary px-5 py-8 text-center shadow-[0_16px_36px_rgba(15,23,42,0.06)] sm:px-8 sm:py-10">
+                  <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-brand-800 text-2xl shadow-inner">
+                    <span>📚</span>
+                  </div>
+                  <h2 className="mb-2 text-xl font-semibold text-text-primary">{t('bookshelf.noBooks')}</h2>
+                  <p className="mx-auto mb-6 max-w-sm text-sm leading-6 text-text-secondary sm:text-base">
+                    {t('bookshelf.noBooksHint')}
+                  </p>
+                  <button
+                    onClick={() => setIsUploadModalOpen(true)}
+                    className="rounded-full bg-brand-700 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-600 sm:rounded-lg sm:px-6 sm:py-3"
+                  >
+                    {t('common.actions.upload')}
+                  </button>
+                </div>
+              </div>
+            );
+          }
+
+          return (
+            <div
+              data-testid="bookshelf-grid"
+              className="grid grid-cols-[repeat(auto-fill,minmax(6.5rem,1fr))] gap-x-2.5 gap-y-4 sm:grid-cols-[repeat(auto-fill,minmax(9.5rem,1fr))] sm:gap-x-4 sm:gap-y-6"
+            >
+              {novels.map((novel) => (
+                <BookCard key={novel.id} novel={novel} />
+              ))}
             </div>
-          </div>
-        ) : (
-          <div
-            data-testid="bookshelf-grid"
-            className="grid grid-cols-[repeat(auto-fill,minmax(6.5rem,1fr))] gap-x-2.5 gap-y-4 sm:grid-cols-[repeat(auto-fill,minmax(9.5rem,1fr))] sm:gap-x-4 sm:gap-y-6"
-          >
-            {novels.map((novel) => (
-              <BookCard key={novel.id} novel={novel} />
-            ))}
-          </div>
-        )}
+          );
+        })()}
       </div>
 
       {isUploadModalOpen && (

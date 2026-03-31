@@ -17,7 +17,8 @@ vi.mock('../../api/bookImportApi', () => ({
 describe('UploadModal', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(bookImportApi.importBook).mockResolvedValue({ id: 1, title: 'Test' } as never);
+    const importedBook = { id: 1, title: 'Test' };
+    vi.mocked(bookImportApi.importBook).mockResolvedValue(importedBook as never);
   });
 
   function getFileInput(): HTMLInputElement {

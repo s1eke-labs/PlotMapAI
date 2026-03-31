@@ -55,6 +55,8 @@ export default function TocRuleModal({ isOpen, onClose, onSave, rule }: TocRuleM
     }
   };
 
+  const submitActionLabel = rule ? t('common.actions.save') : t('common.actions.add');
+
   return (
     <Modal
       isOpen={isOpen}
@@ -134,7 +136,7 @@ export default function TocRuleModal({ isOpen, onClose, onSave, rule }: TocRuleM
             disabled={isSubmitting}
             className="px-6 py-2 bg-brand-700 hover:bg-brand-600 disabled:opacity-50 text-white rounded-xl transition-all shadow-lg shadow-brand-900/20 text-sm font-medium flex items-center gap-2"
           >
-            {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : rule ? t('common.actions.save') : t('common.actions.add')}
+            {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : submitActionLabel}
           </button>
         </div>
       </form>

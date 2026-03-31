@@ -21,7 +21,7 @@ const HEADER_BG_MAP: Record<string, string> = {
 
 export function useReaderPreferences() {
   useEffect(() => {
-    void ensureSessionPreferencesHydrated();
+    ensureSessionPreferencesHydrated();
   }, []);
 
   const fontSize = useReaderSessionSelector((state) => state.fontSize);
@@ -40,24 +40,24 @@ export function useReaderPreferences() {
   const currentTheme = READER_THEMES[preferences.readerTheme] || READER_THEMES.auto;
   const headerBg = HEADER_BG_MAP[preferences.readerTheme] || HEADER_BG_MAP.auto;
 
-  const handleSetFontSize = useCallback((fontSize: number) => {
-    setTypography({ fontSize });
+  const handleSetFontSize = useCallback((nextFontSize: number) => {
+    setTypography({ fontSize: nextFontSize });
   }, []);
 
-  const handleSetReaderTheme = useCallback((readerTheme: string) => {
-    setReaderTheme(readerTheme);
+  const handleSetReaderTheme = useCallback((nextReaderTheme: string) => {
+    setReaderTheme(nextReaderTheme);
   }, []);
 
-  const handleSetPageTurnMode = useCallback((pageTurnMode: ReaderPageTurnMode) => {
-    setReaderPageTurnMode(pageTurnMode);
+  const handleSetPageTurnMode = useCallback((nextPageTurnMode: ReaderPageTurnMode) => {
+    setReaderPageTurnMode(nextPageTurnMode);
   }, []);
 
-  const handleSetLineSpacing = useCallback((lineSpacing: number) => {
-    setTypography({ lineSpacing });
+  const handleSetLineSpacing = useCallback((nextLineSpacing: number) => {
+    setTypography({ lineSpacing: nextLineSpacing });
   }, []);
 
-  const handleSetParagraphSpacing = useCallback((paragraphSpacing: number) => {
-    setTypography({ paragraphSpacing });
+  const handleSetParagraphSpacing = useCallback((nextParagraphSpacing: number) => {
+    setTypography({ paragraphSpacing: nextParagraphSpacing });
   }, []);
 
   return {

@@ -185,7 +185,7 @@ export function useReaderChapterData({
               return;
             }
 
-            void warmChapterImages(data)
+            warmChapterImages(data)
               .catch(() => undefined)
               .finally(() => {
                 onChapterContentResolved?.(adjacentIndex);
@@ -332,7 +332,7 @@ export function useReaderChapterData({
       }
     };
 
-    void init();
+    init();
     return () => {
       cancelled = true;
       initController.abort();
@@ -388,17 +388,17 @@ export function useReaderChapterData({
         }
       }
       updateChapterWindow(nextWindow);
-      for (const index of nextWindow) {
-        if (!chapterCacheRef.current.has(index)) {
-          void fetchChapterContent(index)
+      nextWindow.forEach((windowIndex) => {
+        if (!chapterCacheRef.current.has(windowIndex)) {
+          fetchChapterContent(windowIndex)
             .then((data) => {
               if (!cancelled) {
-                chapterCacheRef.current.set(index, data);
+                chapterCacheRef.current.set(windowIndex, data);
               }
             })
             .catch(() => {});
         }
-      }
+      });
     };
 
     const resetViewportPosition = () => {
@@ -507,7 +507,7 @@ export function useReaderChapterData({
       }
     };
 
-    void fetchContent();
+    fetchContent();
     return () => {
       cancelled = true;
       chapterController.abort();

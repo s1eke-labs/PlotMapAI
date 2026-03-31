@@ -323,7 +323,7 @@ export function useCharacterGraphCanvas({
       }
     };
 
-    void run();
+    run();
 
     return () => {
       controller.abort();

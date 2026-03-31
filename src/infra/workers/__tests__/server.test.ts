@@ -28,9 +28,10 @@ function dispatchMessage(
   context: FakeWorkerContext,
   message: WorkerTaskMessage<unknown>,
 ): void {
-  context.onmessage?.({
+  const event = new MessageEvent<WorkerTaskMessage<unknown>>('message', {
     data: message,
-  } as MessageEvent<WorkerTaskMessage<unknown>>);
+  });
+  context.onmessage?.(event);
 }
 
 describe('registerWorkerTaskHandlers', () => {
