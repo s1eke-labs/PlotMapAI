@@ -33,6 +33,7 @@ interface ReaderLayoutSignatureRecord {
 
 interface ReaderRenderQueryManifestRecord {
   blockCount?: number;
+  lineCount?: number;
   pageCount?: number;
   totalHeight?: number;
   startLocator?: ReaderLocatorRecord | null;
@@ -340,10 +341,11 @@ export interface ReaderRenderCache {
   novelId: number;
   chapterIndex: number;
   variantFamily: 'original-scroll' | 'original-paged' | 'summary-shell';
+  storageKind?: 'render-tree' | 'manifest';
   layoutKey: string;
   layoutSignature: ReaderLayoutSignatureRecord;
   contentHash: string;
-  tree: ReaderRenderTreeRecord;
+  tree?: ReaderRenderTreeRecord | null;
   queryManifest: ReaderRenderQueryManifestRecord;
   updatedAt: string;
 }

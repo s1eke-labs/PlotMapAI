@@ -9,6 +9,7 @@ import type {
   StaticSummaryShellTree,
 } from '../utils/readerLayout';
 import type { ReaderRenderCacheSource } from '../utils/readerRenderCache';
+import type { ReaderRenderStorageKind } from '../utils/readerRenderCache';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -28,13 +29,15 @@ import {
 } from '../utils/readerLayout';
 import {
   buildReaderRenderCacheKey,
+  buildStaticRenderManifest,
   buildStaticRenderTree,
   clearReaderRenderCacheMemoryForNovel,
   coercePagedTree,
   coerceScrollTree,
   coerceSummaryShellTree,
-  getReaderRenderCacheEntryFromDexie,
+  getReaderRenderCacheRecordFromDexie,
   getReaderRenderCacheEntryFromMemory,
+  isMaterializedReaderRenderCacheEntry,
   persistReaderRenderCacheEntry,
   primeReaderRenderCacheEntry,
   warmReaderRenderImages,
@@ -97,12 +100,13 @@ interface VisibleRenderResult {
 
 interface PreheatTarget {
   chapterIndex: number;
+  storageKind: ReaderRenderStorageKind;
   variantFamily: ReaderRenderVariant;
 }
 
 interface ReaderVisibleLayoutSnapshot {
   activeVariant: ReaderRenderVariant;
-  cacheModel: 'render-tree-only';
+  cacheModel: 'layered-render-cache';
   currentPagedPageCount: number;
   currentPagedPageItemCount: number;
   scrollBlockCount: number;
@@ -526,7 +530,7 @@ export function useReaderRenderCache({
   const layoutSnapshot = useMemo<ReaderVisibleLayoutSnapshot>(() => {
     return {
       activeVariant,
-      cacheModel: 'render-tree-only',
+      cacheModel: 'layered-render-cache',
       currentPagedPageCount: visibleLayoutMetrics.currentPagedPageCount,
       currentPagedPageItemCount: visibleLayoutMetrics.currentPagedPageItemCount,
       scrollBlockCount: visibleLayoutMetrics.scrollBlockCount,
@@ -582,19 +586,27 @@ export function useReaderRenderCache({
 
     const targets: PreheatTarget[] = [];
     const seen = new Set<string>();
-    const pushTarget = (chapterIndex: number, variantFamily: ReaderRenderVariant) => {
-      const key = `${chapterIndex}:${variantFamily}`;
+    const pushTarget = (
+      chapterIndex: number,
+      variantFamily: ReaderRenderVariant,
+      storageKind: ReaderRenderStorageKind,
+    ) => {
+      const key = `${chapterIndex}:${variantFamily}:${storageKind}`;
       if (seen.has(key)) {
         return;
       }
       seen.add(key);
-      targets.push({ chapterIndex, variantFamily });
+      targets.push({ chapterIndex, storageKind, variantFamily });
     };
 
     for (const variantFamily of RENDER_VARIANTS) {
       if (variantFamily !== activeVariant) {
-        pushTarget(currentChapter.index, variantFamily);
+        pushTarget(currentChapter.index, variantFamily, 'render-tree');
       }
+    }
+
+    if (activeVariant === 'summary-shell') {
+      return targets;
     }
 
     for (let distance = 1; distance < chapters.length; distance += 1) {
@@ -602,15 +614,11 @@ export function useReaderRenderCache({
       const nextIndex = currentChapter.index + distance;
 
       if (previousIndex >= 0) {
-        for (const variantFamily of RENDER_VARIANTS) {
-          pushTarget(previousIndex, variantFamily);
-        }
+        pushTarget(previousIndex, activeVariant, 'manifest');
       }
 
       if (nextIndex < chapters.length) {
-        for (const variantFamily of RENDER_VARIANTS) {
-          pushTarget(nextIndex, variantFamily);
-        }
+        pushTarget(nextIndex, activeVariant, 'manifest');
       }
     }
 
@@ -682,24 +690,57 @@ export function useReaderRenderCache({
               debugLog('READER', 'Reader preheat source', {
                 chapterIndex: chapter.index,
                 source: 'memory',
+                storageKind: 'render-tree',
                 variantFamily: nextTarget.variantFamily,
               });
             }
             return;
           }
 
-          const dexieEntry = await getReaderRenderCacheEntryFromDexie(lookup);
-          if (dexieEntry) {
+          const dexieRecord = await getReaderRenderCacheRecordFromDexie(lookup);
+          if (dexieRecord && (
+            nextTarget.storageKind === 'manifest'
+            || dexieRecord.storageKind === 'render-tree'
+          )) {
             if (readerTelemetryEnabledRef.current) {
               debugLog('READER', 'Reader preheat source', {
                 chapterIndex: chapter.index,
                 source: 'dexie',
+                storageKind: dexieRecord.storageKind,
                 variantFamily: nextTarget.variantFamily,
               });
             }
-            if (!cancelled) {
+            if (nextTarget.storageKind === 'render-tree' && isMaterializedReaderRenderCacheEntry(dexieRecord)) {
+              primeReaderRenderCacheEntry(dexieRecord);
+            }
+            if (
+              !cancelled
+              && nextTarget.storageKind === 'render-tree'
+              && isMaterializedReaderRenderCacheEntry(dexieRecord)
+            ) {
               setCacheRevision((previous) => previous + 1);
             }
+            return;
+          }
+
+          if (nextTarget.storageKind === 'manifest') {
+            const manifestEntry = buildStaticRenderManifest({
+              chapter,
+              imageDimensionsByKey: buildChapterImageDimensionsMap(novelId, chapter),
+              layoutSignature: signature,
+              novelId,
+              typography,
+              variantFamily: nextTarget.variantFamily,
+            });
+            if (readerTelemetryEnabledRef.current) {
+              debugLog('READER', 'Reader preheat source', {
+                chapterIndex: chapter.index,
+                source: 'built',
+                storageKind: manifestEntry.storageKind,
+                variantFamily: nextTarget.variantFamily,
+              });
+            }
+            await persistReaderRenderCacheEntry(manifestEntry);
             return;
           }
 
@@ -719,6 +760,7 @@ export function useReaderRenderCache({
             debugLog('READER', 'Reader preheat source', {
               chapterIndex: chapter.index,
               source: 'built',
+              storageKind: builtEntry.storageKind,
               variantFamily: nextTarget.variantFamily,
             });
           }

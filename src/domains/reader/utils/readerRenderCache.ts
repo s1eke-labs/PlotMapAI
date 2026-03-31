@@ -21,6 +21,7 @@ import {
   buildStaticSummaryShellTree,
   createChapterContentHash,
   createReaderRenderQueryManifest,
+  estimateReaderRenderQueryManifest,
   serializeReaderLayoutSignature,
 } from './readerLayout';
 import { preloadReaderImageResources } from './readerImageResourceCache';
@@ -28,18 +29,34 @@ import { preloadReaderImageResources } from './readerImageResourceCache';
 const MEMORY_CACHE_LIMIT = 36;
 
 export type ReaderRenderCacheSource = 'memory' | 'dexie' | 'built';
+export type ReaderRenderStorageKind = 'render-tree' | 'manifest';
 
-export interface ReaderRenderCacheEntry<TTree extends StaticChapterRenderTree = StaticChapterRenderTree> {
+interface ReaderRenderCacheRecordBase {
   chapterIndex: number;
   contentHash: string;
   layoutKey: string;
   layoutSignature: ReaderLayoutSignature;
   novelId: number;
   queryManifest: ReaderRenderQueryManifest;
-  tree: TTree;
+  storageKind: ReaderRenderStorageKind;
   updatedAt: string;
   variantFamily: ReaderRenderVariant;
 }
+
+export interface ReaderRenderCacheEntry<TTree extends StaticChapterRenderTree = StaticChapterRenderTree>
+  extends ReaderRenderCacheRecordBase {
+  storageKind: 'render-tree';
+  tree: TTree;
+}
+
+export interface ReaderRenderCacheManifestEntry extends ReaderRenderCacheRecordBase {
+  storageKind: 'manifest';
+  tree: null;
+}
+
+export type ReaderRenderCacheRecord<TTree extends StaticChapterRenderTree = StaticChapterRenderTree> =
+  | ReaderRenderCacheEntry<TTree>
+  | ReaderRenderCacheManifestEntry;
 
 interface ReaderRenderCacheLookupParams {
   chapterIndex: number;
@@ -108,9 +125,28 @@ export function getReaderRenderCacheEntryFromMemory<TTree extends StaticChapterR
   return touchMemoryEntry(cacheKey, cached);
 }
 
-function toDomainEntry<TTree extends StaticChapterRenderTree>(
+function toDomainRecord<TTree extends StaticChapterRenderTree>(
   persisted: PersistedReaderRenderCacheRecord,
-): ReaderRenderCacheEntry<TTree> {
+): ReaderRenderCacheRecord<TTree> {
+  const storageKind = persisted.storageKind === 'manifest' || !persisted.tree
+    ? 'manifest'
+    : 'render-tree';
+
+  if (storageKind === 'manifest') {
+    return {
+      chapterIndex: persisted.chapterIndex,
+      contentHash: persisted.contentHash,
+      layoutKey: persisted.layoutKey,
+      layoutSignature: persisted.layoutSignature,
+      novelId: persisted.novelId,
+      queryManifest: persisted.queryManifest,
+      storageKind,
+      tree: null,
+      updatedAt: persisted.updatedAt,
+      variantFamily: persisted.variantFamily,
+    };
+  }
+
   return {
     chapterIndex: persisted.chapterIndex,
     contentHash: persisted.contentHash,
@@ -118,15 +154,22 @@ function toDomainEntry<TTree extends StaticChapterRenderTree>(
     layoutSignature: persisted.layoutSignature,
     novelId: persisted.novelId,
     queryManifest: persisted.queryManifest,
+    storageKind,
     tree: persisted.tree as TTree,
     updatedAt: persisted.updatedAt,
     variantFamily: persisted.variantFamily,
   };
 }
 
-export async function getReaderRenderCacheEntryFromDexie<TTree extends StaticChapterRenderTree>(
+export function isMaterializedReaderRenderCacheEntry<TTree extends StaticChapterRenderTree>(
+  entry: ReaderRenderCacheRecord<TTree> | null | undefined,
+): entry is ReaderRenderCacheEntry<TTree> {
+  return Boolean(entry && entry.storageKind === 'render-tree' && entry.tree);
+}
+
+export async function getReaderRenderCacheRecordFromDexie<TTree extends StaticChapterRenderTree>(
   params: ReaderRenderCacheLookupParams,
-): Promise<ReaderRenderCacheEntry<TTree> | null> {
+): Promise<ReaderRenderCacheRecord<TTree> | null> {
   const familyRecord = await db.readerRenderCache
     .where('[novelId+chapterIndex+variantFamily]')
     .equals([params.novelId, params.chapterIndex, params.variantFamily])
@@ -139,9 +182,19 @@ export async function getReaderRenderCacheEntryFromDexie<TTree extends StaticCha
     return null;
   }
 
-  const entry = toDomainEntry<TTree>(familyRecord);
-  primeReaderRenderCacheEntry(entry);
-  return entry;
+  return toDomainRecord<TTree>(familyRecord);
+}
+
+export async function getReaderRenderCacheEntryFromDexie<TTree extends StaticChapterRenderTree>(
+  params: ReaderRenderCacheLookupParams,
+): Promise<ReaderRenderCacheEntry<TTree> | null> {
+  const record = await getReaderRenderCacheRecordFromDexie<TTree>(params);
+  if (!isMaterializedReaderRenderCacheEntry(record)) {
+    return null;
+  }
+
+  primeReaderRenderCacheEntry(record);
+  return record;
 }
 
 export function primeReaderRenderCacheEntry<TTree extends StaticChapterRenderTree>(
@@ -153,7 +206,7 @@ export function primeReaderRenderCacheEntry<TTree extends StaticChapterRenderTre
 }
 
 export async function persistReaderRenderCacheEntry<TTree extends StaticChapterRenderTree>(
-  entry: ReaderRenderCacheEntry<TTree>,
+  entry: ReaderRenderCacheRecord<TTree>,
 ): Promise<void> {
   await db.transaction('rw', db.readerRenderCache, async () => {
     await db.readerRenderCache
@@ -169,6 +222,7 @@ export async function persistReaderRenderCacheEntry<TTree extends StaticChapterR
       layoutKey: entry.layoutKey,
       layoutSignature: entry.layoutSignature,
       contentHash: entry.contentHash,
+      storageKind: entry.storageKind,
       tree: entry.tree,
       queryManifest: entry.queryManifest,
       updatedAt: entry.updatedAt,
@@ -189,7 +243,29 @@ export function createReaderRenderCacheEntry<TTree extends StaticChapterRenderTr
     layoutSignature: params.layoutSignature,
     novelId: 0,
     queryManifest: createReaderRenderQueryManifest(params.variantFamily, params.tree),
+    storageKind: 'render-tree',
     tree: params.tree,
+    updatedAt: new Date().toISOString(),
+    variantFamily: params.variantFamily,
+  };
+}
+
+export function createReaderRenderCacheManifestEntry(params: {
+  chapter: Pick<ChapterContent, 'content' | 'index' | 'title'>;
+  layoutSignature: ReaderLayoutSignature;
+  novelId: number;
+  queryManifest: ReaderRenderQueryManifest;
+  variantFamily: ReaderRenderVariant;
+}): ReaderRenderCacheManifestEntry {
+  return {
+    chapterIndex: params.chapter.index,
+    contentHash: createChapterContentHash(params.chapter),
+    layoutKey: serializeReaderLayoutSignature(params.layoutSignature),
+    layoutSignature: params.layoutSignature,
+    novelId: params.novelId,
+    queryManifest: params.queryManifest,
+    storageKind: 'manifest',
+    tree: null,
     updatedAt: new Date().toISOString(),
     variantFamily: params.variantFamily,
   };
@@ -236,6 +312,46 @@ export function buildStaticRenderTree(params: {
     ...entry,
     novelId: params.novelId,
   };
+}
+
+export function createReaderRenderCacheManifestFromEntry<TTree extends StaticChapterRenderTree>(
+  entry: ReaderRenderCacheEntry<TTree>,
+): ReaderRenderCacheManifestEntry {
+  return {
+    chapterIndex: entry.chapterIndex,
+    contentHash: entry.contentHash,
+    layoutKey: entry.layoutKey,
+    layoutSignature: entry.layoutSignature,
+    novelId: entry.novelId,
+    queryManifest: entry.queryManifest,
+    storageKind: 'manifest',
+    tree: null,
+    updatedAt: entry.updatedAt,
+    variantFamily: entry.variantFamily,
+  };
+}
+
+export function buildStaticRenderManifest(params: {
+  chapter: ChapterContent;
+  imageDimensionsByKey: Map<string, ReaderImageDimensions | null | undefined>;
+  layoutSignature: ReaderLayoutSignature;
+  novelId: number;
+  typography: ReaderTypographyMetrics;
+  variantFamily: ReaderRenderVariant;
+}): ReaderRenderCacheManifestEntry {
+  return createReaderRenderCacheManifestEntry({
+    chapter: params.chapter,
+    layoutSignature: params.layoutSignature,
+    novelId: params.novelId,
+    queryManifest: estimateReaderRenderQueryManifest({
+      chapter: params.chapter,
+      imageDimensionsByKey: params.imageDimensionsByKey,
+      layoutSignature: params.layoutSignature,
+      typography: params.typography,
+      variantFamily: params.variantFamily,
+    }),
+    variantFamily: params.variantFamily,
+  });
 }
 
 export async function warmReaderRenderImages(
