@@ -57,7 +57,6 @@ export function usePurificationSettingsManager(): PurificationSettingsManager {
       const data = await purificationRulesApi.getPurificationRules();
       setRules(data);
     } catch (error) {
-      console.error('Failed to load purification rules', error);
       setFeedback({
         type: 'error',
         message: getTranslatedErrorMessage(error, t, 'settings.common.loadFailed'),

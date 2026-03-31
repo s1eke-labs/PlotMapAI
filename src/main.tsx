@@ -58,7 +58,6 @@ if (window.matchMedia('(display-mode: standalone)').matches) {
   }, { passive: false });
 }
 
-console.log(`PlotMapAI v${__APP_VERSION__}`);
 
 const startupError = await initializeAppSafely();
 

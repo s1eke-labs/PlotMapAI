@@ -20,16 +20,14 @@ describe('debug', () => {
   it('debugLog is a no-op when not in debug mode', async () => {
     vi.stubEnv('VITE_DEBUG', '');
     const mod = await import('../service');
-    const spy = vi.spyOn(console, 'log');
+    mod.clearLogs();
     mod.debugLog('Test', 'should not log');
-    expect(spy).not.toHaveBeenCalled();
-    spy.mockRestore();
+    expect(mod.getRecentLogs()).toHaveLength(0);
   });
 
   it('debugLog adds entries and notifies listeners when in debug mode', async () => {
     vi.stubEnv('VITE_DEBUG', 'true');
     const mod = await import('../service');
-    const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
     mod.clearLogs();
 
     const listener = vi.fn();
@@ -49,21 +47,17 @@ describe('debug', () => {
     unsub();
     mod.debugLog('TestCategory', 'after unsub');
     expect(listener).toHaveBeenCalledTimes(1);
-
-    spy.mockRestore();
   });
 
   it('clearLogs removes all entries', async () => {
     vi.stubEnv('VITE_DEBUG', 'true');
     const mod = await import('../service');
-    const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
     mod.clearLogs();
     mod.debugLog('A', '1');
     mod.debugLog('B', '2');
     expect(mod.getRecentLogs().length).toBe(2);
     mod.clearLogs();
     expect(mod.getRecentLogs().length).toBe(0);
-    spy.mockRestore();
   });
 
   it('MAX_LOGS is exported and is a positive number', async () => {
@@ -84,7 +78,6 @@ describe('debug', () => {
   it('setDebugFeatureEnabled updates feature flags and notifies subscribers', async () => {
     vi.stubEnv('VITE_DEBUG', 'true');
     const mod = await import('../service');
-    const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
     const listener = vi.fn();
     const unsubscribe = mod.debugFeatureSubscribe(listener);
 
@@ -98,7 +91,6 @@ describe('debug', () => {
     unsubscribe();
     mod.setDebugFeatureEnabled('readerTelemetry', false);
     expect(listener).toHaveBeenCalledTimes(1);
-    spy.mockRestore();
   });
 
   it('registerDebugHelpers exposes window debug methods in debug mode', async () => {

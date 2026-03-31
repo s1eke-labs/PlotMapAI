@@ -42,19 +42,22 @@ export default function PurificationRuleModal({ isOpen, onClose, onSave, rule }:
   );
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   useEffect(() => {
     setFormData(createInitialFormData(defaultGroup, rule));
+    setSubmitError(null);
   }, [defaultGroup, isOpen, rule]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
+    setSubmitError(null);
     try {
       await onSave(formData);
       onClose();
     } catch (err) {
-      console.error(err);
+      setSubmitError(err instanceof Error ? err.message : String(err));
     } finally {
       setIsSubmitting(false);
     }
@@ -212,6 +215,9 @@ export default function PurificationRuleModal({ isOpen, onClose, onSave, rule }:
         </div>
 
         {/* Footer */}
+        {submitError && (
+          <p className="text-sm text-red-400 px-1">{submitError}</p>
+        )}
         <div className="flex justify-end gap-3 pt-4 border-t border-white/5 mt-6">
           <button
             type="button"

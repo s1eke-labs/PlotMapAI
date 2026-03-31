@@ -486,6 +486,7 @@ export function useReaderRenderCache({
       });
     }
     return targets;
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- imageRevision forces visible keys to refresh after async image metadata loads
   }, [
     currentChapter,
     isPagedMode,
@@ -539,6 +540,7 @@ export function useReaderRenderCache({
         variantFamily: target.variantFamily,
       };
     });
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- visibleResultsRevisionKey forces visible trees to refresh after cache/image updates
   }, [novelId, typography, variantSignatures, visibleResultsRevisionKey, visibleTargets]);
   const visibleLayoutMetrics = useMemo(() => {
     let scrollBlockCount = 0;

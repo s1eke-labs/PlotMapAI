@@ -34,6 +34,7 @@ export default function BookDetailPage() {
   const [analysisAction, setAnalysisAction] = useState<'start' | 'pause' | 'resume' | 'restart' | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [deleteError, setDeleteError] = useState<AppError | null>(null);
   const [coverUrl, setCoverUrl] = useState<string | null>(null);
 
   useEffect(() => {
@@ -146,6 +147,7 @@ export default function BookDetailPage() {
 
   const handleDelete = async () => {
     if (!novel) return;
+    setDeleteError(null);
     setIsDeleting(true);
     try {
       await libraryApi.delete(novel.id);
@@ -158,11 +160,24 @@ export default function BookDetailPage() {
         userMessageKey: 'bookDetail.deleteFailed',
       });
       reportAppError(normalized);
-      alert(translateAppError(normalized, t, 'bookDetail.deleteFailed'));
+      setDeleteError(normalized);
       setIsDeleting(false);
-      setIsDeleteModalOpen(false);
     }
   };
+
+  function openDeleteModal(): void {
+    setDeleteError(null);
+    setIsDeleteModalOpen(true);
+  }
+
+  function closeDeleteModal(): void {
+    if (isDeleting) {
+      return;
+    }
+
+    setDeleteError(null);
+    setIsDeleteModalOpen(false);
+  }
 
   const runAnalysisAction = async (action: 'start' | 'pause' | 'resume' | 'restart') => {
     if (!novelId) return;
@@ -326,7 +341,7 @@ export default function BookDetailPage() {
 
               <button
                 type="button"
-                onClick={() => setIsDeleteModalOpen(true)}
+                onClick={openDeleteModal}
                 className="mt-1 inline-flex w-fit items-center gap-2 self-center rounded-full px-3 py-1.5 text-xs text-text-secondary/80 transition-colors hover:bg-red-500/6 hover:text-red-400"
               >
                 <Trash2 className="h-3.5 w-3.5" />
@@ -503,14 +518,19 @@ export default function BookDetailPage() {
 
       <Modal
         isOpen={isDeleteModalOpen}
-        onClose={() => !isDeleting && setIsDeleteModalOpen(false)}
+        onClose={closeDeleteModal}
         title={t('bookDetail.deleteTitle')}
       >
         <div className="flex flex-col gap-6">
           <p className="text-text-primary">{t('bookDetail.deleteConfirm', { title: novel.title })}</p>
+          {deleteError && (
+            <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300 leading-6">
+              {translateAppError(deleteError, t, 'bookDetail.deleteFailed')}
+            </div>
+          )}
           <div className="flex justify-end gap-3">
             <button
-              onClick={() => setIsDeleteModalOpen(false)}
+              onClick={closeDeleteModal}
               disabled={isDeleting}
               className="px-4 py-2 rounded-lg font-medium hover:bg-white/10 transition-colors disabled:opacity-50"
             >

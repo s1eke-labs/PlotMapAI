@@ -24,7 +24,6 @@ export function useChapterAnalysis(novelId: number, chapterIndex: number) {
         source: 'analysis',
         userMessageKey: 'errors.ANALYSIS_EXECUTION_FAILED',
       }));
-      console.error('Failed to load analysis status', err);
       setAnalysisStatus(null);
     }
   }, [novelId]);
@@ -58,7 +57,6 @@ export function useChapterAnalysis(novelId: number, chapterIndex: number) {
         source: 'analysis',
         userMessageKey: 'errors.ANALYSIS_EXECUTION_FAILED',
       }));
-      console.error('Failed to load chapter analysis', err);
       if (!hasCachedAnalysis) {
         setChapterAnalysis(null);
       }
@@ -81,7 +79,6 @@ export function useChapterAnalysis(novelId: number, chapterIndex: number) {
         source: 'analysis',
         userMessageKey: 'errors.ANALYSIS_EXECUTION_FAILED',
       }));
-      console.error('Failed to analyze chapter', err);
     } finally {
       setIsAnalyzingChapter(false);
     }

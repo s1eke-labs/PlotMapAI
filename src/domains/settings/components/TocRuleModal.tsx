@@ -21,6 +21,7 @@ export default function TocRuleModal({ isOpen, onClose, onSave, rule }: TocRuleM
     isEnabled: true,
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   useEffect(() => {
     if (rule) {
@@ -40,16 +41,18 @@ export default function TocRuleModal({ isOpen, onClose, onSave, rule }: TocRuleM
         isEnabled: true,
       });
     }
+    setSubmitError(null);
   }, [rule, isOpen]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
+    setSubmitError(null);
     try {
       await onSave(formData);
       onClose();
     } catch (err) {
-      console.error(err);
+      setSubmitError(err instanceof Error ? err.message : String(err));
     } finally {
       setIsSubmitting(false);
     }
@@ -95,7 +98,7 @@ export default function TocRuleModal({ isOpen, onClose, onSave, rule }: TocRuleM
               min="0"
               max="100"
               value={formData.priority}
-              onChange={(e) => setFormData({ ...formData, priority: parseInt(e.target.value) || 0 })}
+              onChange={(e) => setFormData({ ...formData, priority: parseInt(e.target.value, 10) || 0 })}
               className="w-full bg-muted-bg border border-white/10 rounded-xl px-4 py-2.5 text-text-primary focus:border-accent focus:ring-1 focus:ring-accent outline-none transition-all"
             />
           </div>
@@ -123,6 +126,9 @@ export default function TocRuleModal({ isOpen, onClose, onSave, rule }: TocRuleM
           />
         </div>
 
+        {submitError && (
+          <p className="text-sm text-red-400 px-1">{submitError}</p>
+        )}
         <div className="flex justify-end gap-3 pt-4 border-t border-white/5 mt-6">
           <button
             type="button"

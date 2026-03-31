@@ -248,6 +248,28 @@ describe('BookDetailPage', () => {
     expect(navigateMock).toHaveBeenCalledWith('/', { replace: true });
   });
 
+  it('keeps the detail page visible when deleting the novel fails', async () => {
+    vi.mocked(libraryApi.delete).mockRejectedValueOnce(createAppError({
+      code: AppErrorCode.STORAGE_OPERATION_FAILED,
+      kind: 'storage',
+      source: 'library',
+      userMessageKey: 'bookDetail.deleteFailed',
+      debugMessage: 'Delete failed',
+    }));
+    const user = userEvent.setup();
+    renderPage();
+
+    expect(await screen.findByRole('heading', { name: 'Mock Novel', level: 1 })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'bookDetail.deleteBook' }));
+    await user.click(screen.getByRole('button', { name: 'common.actions.delete' }));
+
+    expect(await screen.findByText('bookDetail.deleteFailed')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Mock Novel', level: 1 })).toBeInTheDocument();
+    expect(screen.getByText('bookDetail.deleteConfirm')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'common.actions.backToBookshelf' })).not.toBeInTheDocument();
+    expect(navigateMock).not.toHaveBeenCalled();
+  });
+
   it('resets the main scroll container to the top when the page opens', async () => {
     const scrollContainer = document.createElement('main');
     scrollContainer.setAttribute('data-scroll-container', 'true');

@@ -69,7 +69,6 @@ export function debugLog(category: string, message: string, ...args: unknown[]):
     message: args.length > 0 ? `${message} ${args.map((a) => (typeof a === 'string' ? a : JSON.stringify(a))).join(' ')}` : message,
   };
   pushEntry(entry);
-  console.log(`[PlotMapAI][${category}]`, message, ...args);
 }
 
 export function reportAppError(error: unknown, context: ToAppErrorContext = {}) {
@@ -87,9 +86,6 @@ export function reportAppError(error: unknown, context: ToAppErrorContext = {}) 
   };
 
   pushEntry(entry);
-  if (isDebug) {
-    console.error(`[PlotMapAI][${normalized.source}]`, normalized);
-  }
   return normalized;
 }
 

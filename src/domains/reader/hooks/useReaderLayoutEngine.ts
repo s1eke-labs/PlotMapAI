@@ -182,6 +182,7 @@ export function useReaderLayoutEngine({
       dimensions.set(imageKey, peekReaderImageDimensions(novelId, imageKey));
     }
     return dimensions;
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- imageRevision triggers re-computation after image preloading
   }, [imageKeys, imageRevision, novelId]);
 
   const scrollImageLayoutConstraints = useMemo(() => createScrollImageLayoutConstraints(

@@ -364,8 +364,10 @@ describe('useReaderRenderCache', () => {
       ...createChapter(0, 1),
       content: 'Before image\n[IMG:cover]\nAfter image',
     };
+    const preload = createDeferred<undefined>();
 
     imageCacheMock.preloadReaderImageResources.mockImplementation(async () => {
+      await preload.promise;
       imageCacheMock.peekReaderImageDimensions.mockReturnValue({
         aspectRatio: 5,
         height: 240,
@@ -385,14 +387,24 @@ describe('useReaderRenderCache', () => {
       .filter((params) => params.variantFamily === 'original-scroll' && params.chapter.index === 0);
 
     await waitFor(() => {
-      expect(getVisibleScrollBuildCalls()).toHaveLength(2);
+      expect(getVisibleScrollBuildCalls()).not.toHaveLength(0);
     });
 
-    const [initialBuild, rebuiltWithDimensions] = getVisibleScrollBuildCalls();
-
+    const [initialBuild] = getVisibleScrollBuildCalls();
     expect(initialBuild.layoutKey).toContain('cover:pending');
-    expect(rebuiltWithDimensions.layoutKey).toContain('cover:1200x240');
-    expect(rebuiltWithDimensions.layoutKey).not.toBe(initialBuild.layoutKey);
+    renderCacheMock.buildStaticRenderTree.mockClear();
+
+    preload.resolve(undefined);
+    await Promise.resolve();
+
+    await waitFor(() => {
+      expect(getVisibleScrollBuildCalls()).not.toHaveLength(0);
+    });
+
+    const rebuiltWithDimensions = getVisibleScrollBuildCalls().at(-1);
+    expect(rebuiltWithDimensions).toBeDefined();
+    expect(rebuiltWithDimensions?.layoutKey).toContain('cover:1200x240');
+    expect(rebuiltWithDimensions?.layoutKey).not.toBe(initialBuild.layoutKey);
     expect(renderCacheMock.persistReaderRenderCacheEntry).toHaveBeenCalledWith(expect.objectContaining({
       chapterIndex: 0,
       layoutKey: expect.stringContaining('cover:1200x240'),

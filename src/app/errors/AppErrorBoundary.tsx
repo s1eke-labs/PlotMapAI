@@ -70,10 +70,6 @@ function AppErrorFallback({ error }: AppErrorFallbackProps) {
 }
 
 export default class AppErrorBoundary extends Component<AppErrorBoundaryProps, AppErrorBoundaryState> {
-  override state: AppErrorBoundaryState = {
-    error: null,
-  };
-
   static getDerivedStateFromError(error: Error): AppErrorBoundaryState {
     return {
       error: toAppError(error, {
@@ -84,6 +80,10 @@ export default class AppErrorBoundary extends Component<AppErrorBoundaryProps, A
       }),
     };
   }
+
+  override state: AppErrorBoundaryState = {
+    error: null,
+  };
 
   override componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
     const normalized = toAppError(error, {

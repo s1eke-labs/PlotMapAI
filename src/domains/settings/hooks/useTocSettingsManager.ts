@@ -48,7 +48,6 @@ export function useTocSettingsManager(): TocSettingsManager {
       const data = await tocRulesApi.getTocRules();
       setRules(data);
     } catch (error) {
-      console.error('Failed to load TOC rules', error);
       setFeedback({
         type: 'error',
         message: getTranslatedErrorMessage(error, t, 'settings.common.loadFailed'),

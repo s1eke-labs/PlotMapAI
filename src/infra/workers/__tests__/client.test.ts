@@ -6,8 +6,8 @@ interface TestProgress {
 }
 
 class FakeWorker {
-  private listeners = new Map<string, Set<(event: MessageEvent) => void>>();
   messages: unknown[] = [];
+  private listeners = new Map<string, Set<(event: MessageEvent) => void>>();
 
   addEventListener(type: string, listener: (event: MessageEvent) => void) {
     const current = this.listeners.get(type) ?? new Set();

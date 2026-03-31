@@ -91,7 +91,6 @@ export function useAiSettingsManager(): AiSettingsManager {
       setSettings(data);
       syncForm(data);
     } catch (error) {
-      console.error('Failed to load AI settings', error);
       setFeedback({
         type: 'error',
         message: translateAppError(error, t, 'settings.ai.loadFailed', {
