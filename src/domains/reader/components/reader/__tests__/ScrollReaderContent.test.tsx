@@ -2,10 +2,13 @@ import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
 import ScrollReaderContent from '../ScrollReaderContent';
+import { createFakeReaderTextLayoutEngine } from '../../../test/createFakeReaderTextLayoutEngine';
 import {
   createReaderTypographyMetrics,
   measureReaderChapterLayout,
 } from '../../../utils/readerLayout';
+
+const TEXT_LAYOUT_ENGINE = createFakeReaderTextLayoutEngine({ maxCharsPerLine: 28 });
 
 function createScrollChapterLayout(content: string) {
   const chapter = {
@@ -20,7 +23,14 @@ function createScrollChapterLayout(content: string) {
   const typography = createReaderTypographyMetrics(18, 1.8, 24, 920);
   return {
     chapter,
-    layout: measureReaderChapterLayout(chapter, 920, typography, new Map()),
+    layout: measureReaderChapterLayout(
+      chapter,
+      920,
+      typography,
+      new Map(),
+      undefined,
+      TEXT_LAYOUT_ENGINE,
+    ),
   };
 }
 

@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import PagedReaderContent from '../PagedReaderContent';
+import { createFakeReaderTextLayoutEngine } from '../../../test/createFakeReaderTextLayoutEngine';
 import {
   composePaginatedChapterLayout,
   createReaderTypographyMetrics,
@@ -17,6 +18,7 @@ import {
 } from '../../../utils/pagedDrag';
 
 const preloadReaderImageResourcesSpy = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+const TEXT_LAYOUT_ENGINE = createFakeReaderTextLayoutEngine({ maxCharsPerLine: 22 });
 
 vi.mock('../../../utils/readerImageResourceCache', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../../utils/readerImageResourceCache')>();
@@ -45,6 +47,8 @@ function renderPagedContent(
     viewportMetrics.pagedColumnWidth,
     typography,
     new Map(),
+    undefined,
+    TEXT_LAYOUT_ENGINE,
   );
   const defaultLayout = composePaginatedChapterLayout(
     measuredLayout,
@@ -95,6 +99,8 @@ function buildMultiPageLayout() {
     viewportMetrics.pagedColumnWidth,
     typography,
     new Map(),
+    undefined,
+    TEXT_LAYOUT_ENGINE,
   );
   const currentLayout = composePaginatedChapterLayout(
     measuredLayout,
@@ -147,6 +153,8 @@ function buildPagedLayoutForTypography(
     viewportMetrics.pagedColumnWidth,
     typography,
     new Map(),
+    undefined,
+    TEXT_LAYOUT_ENGINE,
   );
 
   return composePaginatedChapterLayout(
@@ -262,6 +270,8 @@ describe('PagedReaderContent', () => {
       viewportMetrics.pagedColumnWidth,
       typography,
       new Map(),
+      undefined,
+      TEXT_LAYOUT_ENGINE,
     );
     const currentLayout = composePaginatedChapterLayout(
       measuredLayout,
