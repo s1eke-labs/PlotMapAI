@@ -424,8 +424,6 @@ export async function hydrateSession(novelId: number): Promise<StoredReaderState
   storeEpoch += 1;
   const epochAtStart = storeEpoch;
   const localState = readLocalSessionState(novelId);
-  const hadConfiguredPageTurnModePreference =
-    hasConfiguredReaderPageTurnMode() || localState?.pageTurnMode !== undefined;
 
   setReaderPreferencesNovelId(novelId);
   setAppThemeNovelId(novelId);
@@ -455,6 +453,8 @@ export async function hydrateSession(novelId: number): Promise<StoredReaderState
   const localPreferenceOverrides = buildHydratedPreferenceOverrides(localState);
   applyHydratedReaderPreferences(localPreferenceOverrides);
   applyHydratedAppTheme(localState?.appTheme);
+  const hadConfiguredPageTurnModePreference =
+    hasConfiguredReaderPageTurnMode() || localState?.pageTurnMode !== undefined;
 
   let remoteState: StoredReaderState | null = null;
   try {
@@ -483,7 +483,10 @@ export async function hydrateSession(novelId: number): Promise<StoredReaderState
   const resolvedPageTurnMode = hadConfiguredPageTurnModePreference
     ? preferences.pageTurnMode
     : inferLegacyPageTurnMode(mergedState);
-  const mode = mergedState.mode ?? resolveContentModeFromPageTurnMode(resolvedPageTurnMode);
+  const resolvedContentMode = resolveContentModeFromPageTurnMode(resolvedPageTurnMode);
+  const mode = mergedState.mode === 'summary'
+    ? 'summary'
+    : resolvedContentMode;
   const nextLastContentMode = resolveLastContentMode(
     mode,
     isPagedPageTurnMode(resolvedPageTurnMode) ? 'paged' : 'scroll',

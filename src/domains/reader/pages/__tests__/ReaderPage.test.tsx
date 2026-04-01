@@ -5,6 +5,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { db } from '@infra/db';
+import { APP_SETTING_KEYS, storage } from '@infra/storage';
 import { analysisApi } from '@domains/analysis';
 import { buildChapterImageGalleryEntries } from '@shared/text-processing';
 
@@ -242,6 +243,25 @@ describe('ReaderPage', () => {
 
     expect(await screen.findByTestId('paged-reader-page-frame')).toBeInTheDocument();
     expect(await screen.findByText('1 / 2')).toBeInTheDocument();
+  });
+
+  it('prefers the stored paged page-turn mode over a stale scroll reading mode on startup', async () => {
+    setPrototypeNumberGetter('clientWidth', 600);
+    setPrototypeNumberGetter('clientHeight', 800);
+    await storage.primary.settings.set(APP_SETTING_KEYS.readerPageTurnMode, 'cover');
+    localStorage.setItem('reader-state:1', JSON.stringify({
+      chapterIndex: 0,
+      mode: 'scroll',
+      lastContentMode: 'scroll',
+    }));
+    vi.mocked(readerApi.getChapterContent).mockResolvedValueOnce({
+      ...chapterContent[0],
+      content: 'First page\nSecond page\nThird page\nFourth page',
+    });
+
+    renderPage();
+
+    expect(await screen.findByTestId('paged-reader-page-frame')).toBeInTheDocument();
   });
 
   it('advances within the current paged chapter before navigating to the next chapter', async () => {
