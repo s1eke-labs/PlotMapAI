@@ -130,7 +130,7 @@ export function useScrollModeChapters(
     const container = contentRef.current;
     const visibleMarker =
       container.scrollTop + container.clientHeight * SCROLL_READING_ANCHOR_RATIO;
-    let currentReadIdx = scrollModeChapters[0];
+    let currentReadIdx: number | null = null;
     let currentReadOffsetTop = Number.NEGATIVE_INFINITY;
 
     for (const idx of scrollModeChapters) {
@@ -145,12 +145,13 @@ export function useScrollModeChapters(
       }
     }
 
+    if (currentReadIdx === null) {
+      return null;
+    }
+
     const chapterElement = scrollChapterElementsRef.current.get(currentReadIdx);
     if (!chapterElement) {
-      return {
-        chapterIndex: currentReadIdx,
-        chapterProgress: 0,
-      };
+      return null;
     }
 
     const chapterHeight = Math.max(chapterElement.offsetHeight, 1);

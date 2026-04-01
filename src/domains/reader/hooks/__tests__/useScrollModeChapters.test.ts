@@ -253,6 +253,20 @@ describe('useScrollModeChapters', () => {
   });
 
   describe('forward chapter loading', () => {
+    it('returns null when no measurable chapter elements are registered yet', () => {
+      const { result, contentRef } = setupHook({
+        scrollModeChapters: [1, 2, 3],
+      });
+
+      contentRef.current.scrollTop = 150;
+
+      expect(result.current.getCurrentAnchor()).toBeNull();
+
+      act(() => { result.current.handleScroll(); });
+
+      expect(result.current.getCurrentAnchor()).toBeNull();
+    });
+
     it('reports the current reading anchor', () => {
       const onReadingAnchorChange = vi.fn();
       const { result, contentRef } = setupHook({

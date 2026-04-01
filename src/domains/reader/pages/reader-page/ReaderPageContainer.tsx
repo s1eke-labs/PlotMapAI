@@ -74,6 +74,7 @@ export default function ReaderPageContainer() {
       lineSpacing: preferences.lineSpacing,
       paragraphSpacing: preferences.paragraphSpacing,
     },
+    pendingRestoreTarget: restoreFlow.pendingRestoreTarget,
     pendingRestoreTargetRef: restoreFlow.pendingRestoreTargetRef,
     clearPendingRestoreTarget: restoreFlow.clearPendingRestoreTarget,
     stopRestoreMask: restoreFlow.stopRestoreMask,

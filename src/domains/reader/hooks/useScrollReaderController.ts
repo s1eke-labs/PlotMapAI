@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import type { Chapter, ChapterContent } from '../api/readerApi';
 import type { ReaderRestoreTarget } from './useReaderStatePersistence';
@@ -37,6 +37,7 @@ interface UseScrollReaderControllerParams {
   ) => Promise<ChapterContent>;
   preloadAdjacent: (index: number, prune?: boolean) => void;
   preferences: ScrollReaderControllerPreferences;
+  pendingRestoreTarget: ReaderRestoreTarget | null;
   pendingRestoreTargetRef: React.MutableRefObject<ReaderRestoreTarget | null>;
   clearPendingRestoreTarget: () => void;
   stopRestoreMask: () => void;
@@ -118,6 +119,7 @@ export function useScrollReaderController({
   fetchChapterContent,
   preloadAdjacent,
   preferences,
+  pendingRestoreTarget,
   pendingRestoreTargetRef,
   clearPendingRestoreTarget,
   stopRestoreMask,
@@ -133,6 +135,7 @@ export function useScrollReaderController({
     setChapterIndex,
     persistReaderState,
     restoreSettledHandlerRef,
+    isScrollSyncSuppressedRef,
     suppressScrollSyncTemporarilyRef,
     getCurrentAnchorRef,
     getCurrentOriginalLocatorRef,
@@ -142,6 +145,17 @@ export function useScrollReaderController({
   const [scrollModeChapters, setScrollModeChapters] = useState<number[]>([]);
   const [visibleScrollBlockRangeByChapter, setVisibleScrollBlockRangeByChapter] =
     useState<Map<number, VisibleScrollBlockRange>>(new Map());
+  const scrollAnchorSnapshotRef = useRef<{
+    chapterIndex: number | null;
+    chapterOffsetTop: number | null;
+    firstRenderableChapterIndex: number | null;
+    scrollTop: number;
+  }>({
+    chapterIndex: null,
+    chapterOffsetTop: null,
+    firstRenderableChapterIndex: null,
+    scrollTop: 0,
+  });
 
   useEffect(() => {
     if (!enabled) {
@@ -151,6 +165,12 @@ export function useScrollReaderController({
       setVisibleScrollBlockRangeByChapter((previousRanges) => (
         previousRanges.size === 0 ? previousRanges : new Map()
       ));
+      scrollAnchorSnapshotRef.current = {
+        chapterIndex: null,
+        chapterOffsetTop: null,
+        firstRenderableChapterIndex: null,
+        scrollTop: 0,
+      };
       scrollChapterElementsBridgeRef.current.clear();
       scrollChapterBodyElementsBridgeRef.current.clear();
     }
@@ -189,6 +209,7 @@ export function useScrollReaderController({
 
   const handleReadingAnchorChange = useCallback((anchor: ScrollModeAnchor) => {
     if (!enabled) return;
+    if (isScrollSyncSuppressedRef.current) return;
     if (pendingRestoreTargetRef.current) return;
     if (
       navigationSourceRef.current === 'navigation'
@@ -220,6 +241,7 @@ export function useScrollReaderController({
     pendingRestoreTargetRef,
     persistReaderState,
     setChapterIndex,
+    isScrollSyncSuppressedRef,
   ]);
 
   const fetchScrollChapterContent = useCallback((index: number) => {
@@ -294,6 +316,56 @@ export function useScrollReaderController({
     }),
     [renderCache.scrollLayouts, scrollReaderChapters],
   );
+
+  useLayoutEffect(() => {
+    if (!enabled) {
+      return;
+    }
+
+    const container = contentRef.current;
+    const activeChapterElement = scrollChapterElementsBridgeRef.current.get(chapterIndex) ?? null;
+    const nextChapterOffsetTop = activeChapterElement?.offsetTop ?? null;
+    const nextFirstRenderableChapterIndex = renderableScrollLayouts[0]?.index ?? null;
+    const nextScrollTop = container?.scrollTop ?? 0;
+    const previousSnapshot = scrollAnchorSnapshotRef.current;
+
+    if (
+      container
+      && previousSnapshot.chapterIndex === chapterIndex
+      && previousSnapshot.chapterOffsetTop !== null
+      && previousSnapshot.firstRenderableChapterIndex !== null
+      && nextChapterOffsetTop !== null
+      && nextFirstRenderableChapterIndex !== null
+      && nextFirstRenderableChapterIndex < previousSnapshot.firstRenderableChapterIndex
+    ) {
+      const chapterOffsetDelta = nextChapterOffsetTop - previousSnapshot.chapterOffsetTop;
+      if (chapterOffsetDelta > 0.5) {
+        const scrollTopDelta = nextScrollTop - previousSnapshot.scrollTop;
+        const uncompensatedOffsetDelta = chapterOffsetDelta - scrollTopDelta;
+
+        if (Math.abs(uncompensatedOffsetDelta) > 0.5) {
+          suppressScrollSyncTemporarilyRef.current();
+          container.scrollTop += uncompensatedOffsetDelta;
+          syncViewportState({ force: true });
+        }
+      }
+    }
+
+    scrollAnchorSnapshotRef.current = {
+      chapterIndex,
+      chapterOffsetTop: nextChapterOffsetTop,
+      firstRenderableChapterIndex: nextFirstRenderableChapterIndex,
+      scrollTop: container?.scrollTop ?? nextScrollTop,
+    };
+  }, [
+    chapterIndex,
+    contentRef,
+    enabled,
+    renderableScrollLayouts,
+    scrollChapterElementsBridgeRef,
+    suppressScrollSyncTemporarilyRef,
+    syncViewportState,
+  ]);
 
   const getCurrentScrollLocator = useCallback(() => {
     return resolveCurrentScrollLocator({
@@ -382,12 +454,13 @@ export function useScrollReaderController({
       return;
     }
 
-    const pendingTarget = pendingRestoreTargetRef.current;
+    const pendingTarget = pendingRestoreTarget ?? pendingRestoreTargetRef.current;
     if (!pendingTarget || pendingTarget.mode !== 'scroll') {
       return;
     }
 
     if (canSkipReaderRestore(pendingTarget)) {
+      navigationSourceRef.current = null;
       clearPendingRestoreTarget();
       stopRestoreMask();
       restoreSettledHandlerRef.current('skipped');
@@ -452,6 +525,7 @@ export function useScrollReaderController({
     currentChapter,
     enabled,
     navigationSourceRef,
+    pendingRestoreTarget,
     pendingRestoreTargetRef,
     resolveScrollLocatorOffsetRef,
     restoreSettledHandlerRef,
@@ -491,8 +565,13 @@ export function useScrollReaderController({
       return;
     }
 
+    if (isScrollSyncSuppressedRef.current) {
+      syncViewportState({ force: true });
+      return;
+    }
+
     handleScroll();
-  }, [enabled, handleScroll]);
+  }, [enabled, handleScroll, isScrollSyncSuppressedRef, syncViewportState]);
 
   return {
     handleContentScroll,

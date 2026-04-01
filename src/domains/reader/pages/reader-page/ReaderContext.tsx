@@ -49,6 +49,7 @@ export interface ReaderContextValue {
   chapterChangeSourceRef: React.MutableRefObject<ChapterChangeSource>;
   pagedStateRef: React.MutableRefObject<{ pageCount: number; pageIndex: number }>;
   restoreSettledHandlerRef: React.MutableRefObject<(result: RestoreSettledResult) => void>;
+  isScrollSyncSuppressedRef: React.MutableRefObject<boolean>;
   suppressScrollSyncTemporarilyRef: React.MutableRefObject<() => void>;
   getCurrentAnchorRef: React.MutableRefObject<() => ScrollModeAnchor | null>;
   handleScrollModeScrollRef: React.MutableRefObject<() => void>;
@@ -103,6 +104,7 @@ export function ReaderProvider({
   const chapterChangeSourceRef = useRef<ChapterChangeSource>(null);
   const pagedStateRef = useRef({ pageCount: 1, pageIndex: 0 });
   const restoreSettledHandlerRef = useRef<(result: RestoreSettledResult) => void>(() => {});
+  const isScrollSyncSuppressedRef = useRef(false);
   const suppressScrollSyncTemporarilyRef = useRef<() => void>(() => {});
   const getCurrentAnchorRef = useRef<() => ScrollModeAnchor | null>(() => null);
   const handleScrollModeScrollRef = useRef<() => void>(() => {});
@@ -153,6 +155,7 @@ export function ReaderProvider({
     chapterChangeSourceRef,
     pagedStateRef,
     restoreSettledHandlerRef,
+    isScrollSyncSuppressedRef,
     suppressScrollSyncTemporarilyRef,
     getCurrentAnchorRef,
     handleScrollModeScrollRef,

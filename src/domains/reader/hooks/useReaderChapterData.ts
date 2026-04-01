@@ -421,10 +421,14 @@ export function useReaderChapterData({
           pageTarget: pageTargetRef.current === 'end' ? 'end' : 'start',
         } satisfies ReaderNavigationIntent, params.mode)
         : null;
+      const shouldHoldNavigationSourceUntilRestore =
+        shouldRestoreNavigatedChapter && params.mode === 'scroll';
 
       resetViewportPosition();
       preloadAdjacent(params.chapterIndex);
-      chapterSourceRef.current = null;
+      if (!shouldHoldNavigationSourceUntilRestore) {
+        chapterSourceRef.current = null;
+      }
       setLoadingMessage(null);
 
       return { navigationRestoreTarget };

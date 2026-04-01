@@ -107,6 +107,7 @@ describe('ReaderProvider', () => {
       chapterChangeSourceRef,
       pagedStateRef,
       restoreSettledHandlerRef,
+      isScrollSyncSuppressedRef,
       suppressScrollSyncTemporarilyRef,
     } = result.current;
 
@@ -114,6 +115,7 @@ describe('ReaderProvider', () => {
       result.current.chapterChangeSourceRef.current = 'navigation';
       result.current.pagedStateRef.current = { pageCount: 4, pageIndex: 2 };
       result.current.restoreSettledHandlerRef.current('completed');
+      result.current.isScrollSyncSuppressedRef.current = true;
       result.current.suppressScrollSyncTemporarilyRef.current();
       result.current.setMode('summary');
     });
@@ -123,6 +125,8 @@ describe('ReaderProvider', () => {
     expect(result.current.pagedStateRef).toBe(pagedStateRef);
     expect(result.current.pagedStateRef.current).toEqual({ pageCount: 4, pageIndex: 2 });
     expect(result.current.restoreSettledHandlerRef).toBe(restoreSettledHandlerRef);
+    expect(result.current.isScrollSyncSuppressedRef).toBe(isScrollSyncSuppressedRef);
+    expect(result.current.isScrollSyncSuppressedRef.current).toBe(true);
     expect(result.current.suppressScrollSyncTemporarilyRef).toBe(suppressScrollSyncTemporarilyRef);
   });
 });

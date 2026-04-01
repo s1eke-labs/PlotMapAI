@@ -76,6 +76,7 @@ function createReaderContextValue(
     chapterChangeSourceRef: { current: null as ChapterChangeSource },
     pagedStateRef: { current: { pageCount: 1, pageIndex: 0 } },
     restoreSettledHandlerRef: { current: vi.fn() },
+    isScrollSyncSuppressedRef: { current: false },
     suppressScrollSyncTemporarilyRef: { current: vi.fn() },
     getCurrentAnchorRef: { current: () => null },
     handleScrollModeScrollRef: { current: vi.fn() },

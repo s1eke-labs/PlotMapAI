@@ -59,6 +59,7 @@ export function useReaderRestoreFlow({
     chapterChangeSourceRef,
     pagedStateRef,
     restoreSettledHandlerRef,
+    isScrollSyncSuppressedRef,
     suppressScrollSyncTemporarilyRef,
     getCurrentAnchorRef,
     getCurrentOriginalLocatorRef,
@@ -76,7 +77,6 @@ export function useReaderRestoreFlow({
     summary: null,
   });
   const summaryProgressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const suppressScrollSyncRef = useRef(false);
   const scrollSyncReleaseFrameRef = useRef<number | null>(null);
   const getOriginalLocator = getCurrentOriginalLocatorRef;
   const getPagedLocator = getCurrentPagedLocatorRef;
@@ -149,7 +149,7 @@ export function useReaderRestoreFlow({
   }, []);
 
   const suppressScrollSyncTemporarily = useCallback(() => {
-    suppressScrollSyncRef.current = true;
+    isScrollSyncSuppressedRef.current = true;
 
     if (scrollSyncReleaseFrameRef.current !== null) {
       cancelAnimationFrame(scrollSyncReleaseFrameRef.current);
@@ -158,13 +158,13 @@ export function useReaderRestoreFlow({
 
     const releaseAfterLayout = () => {
       scrollSyncReleaseFrameRef.current = requestAnimationFrame(() => {
-        suppressScrollSyncRef.current = false;
+        isScrollSyncSuppressedRef.current = false;
         scrollSyncReleaseFrameRef.current = null;
       });
     };
 
     scrollSyncReleaseFrameRef.current = requestAnimationFrame(releaseAfterLayout);
-  }, []);
+  }, [isScrollSyncSuppressedRef]);
 
   suppressScrollSyncTemporarilyRef.current = suppressScrollSyncTemporarily;
 
@@ -445,7 +445,7 @@ export function useReaderRestoreFlow({
   }, [clearPendingRestoreTarget, stopRestoreMask, suppressScrollSyncTemporarily]);
 
   const handleContentScroll = useCallback(() => {
-    if (suppressScrollSyncRef.current) return;
+    if (isScrollSyncSuppressedRef.current) return;
 
     if (mode !== 'summary' || pendingRestoreTargetRef.current) return;
 
@@ -464,6 +464,7 @@ export function useReaderRestoreFlow({
     contentRef,
     mode,
     persistReaderState,
+    isScrollSyncSuppressedRef,
   ]);
 
   return {
