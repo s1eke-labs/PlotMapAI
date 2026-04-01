@@ -1,9 +1,13 @@
+import type { ReactNode } from 'react';
+import type { Chapter, ChapterContent } from '../../api/readerApi';
+import type { ReaderContextValue } from '../../pages/reader-page/ReaderContext';
+import type { ChapterChangeSource } from '../navigationTypes';
+import type { PageTarget, ReaderMode } from '../useReaderStatePersistence';
+
 import { act, renderHook } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { Chapter, ChapterContent } from '../../api/readerApi';
-import type { ChapterChangeSource } from '../navigationTypes';
-import type { PageTarget } from '../useReaderStatePersistence';
+import { ReaderContextProvider } from '../../pages/reader-page/ReaderContext';
 import { useReaderNavigation } from '../useReaderNavigation';
 
 const chapters: Chapter[] = [
@@ -41,7 +45,55 @@ function createPagedNavigation() {
   };
 }
 
-function setupHook(overrides: Partial<Parameters<typeof useReaderNavigation>[0]> = {}) {
+function createReaderContextValue(
+  overrides: Partial<ReaderContextValue> = {},
+): ReaderContextValue {
+  const mode = overrides.mode ?? 'scroll';
+  const setChapterIndex = overrides.setChapterIndex ?? vi.fn();
+  const setMode = overrides.setMode ?? vi.fn();
+
+  return {
+    novelId: 1,
+    chapterIndex: overrides.chapterIndex ?? 0,
+    mode,
+    viewMode: overrides.viewMode ?? (mode === 'summary' ? 'summary' : 'original'),
+    isPagedMode: overrides.isPagedMode ?? mode === 'paged',
+    setChapterIndex,
+    setMode,
+    latestReaderStateRef: { current: {} },
+    hasUserInteractedRef: { current: false },
+    markUserInteracted: vi.fn(),
+    persistReaderState: vi.fn(),
+    loadPersistedReaderState: vi.fn(async () => ({})),
+    contentRef: { current: null },
+    pagedViewportRef: { current: null },
+    pageTargetRef: { current: null },
+    wheelDeltaRef: { current: 0 },
+    pageTurnLockedRef: { current: false },
+    chapterCacheRef: { current: new Map() },
+    scrollChapterElementsBridgeRef: { current: new Map() },
+    scrollChapterBodyElementsBridgeRef: { current: new Map() },
+    chapterChangeSourceRef: { current: null as ChapterChangeSource },
+    pagedStateRef: { current: { pageCount: 1, pageIndex: 0 } },
+    restoreSettledHandlerRef: { current: vi.fn() },
+    suppressScrollSyncTemporarilyRef: { current: vi.fn() },
+    getCurrentAnchorRef: { current: () => null },
+    handleScrollModeScrollRef: { current: vi.fn() },
+    readingAnchorHandlerRef: { current: vi.fn() },
+    getCurrentOriginalLocatorRef: { current: () => null },
+    getCurrentPagedLocatorRef: { current: () => null },
+    resolveScrollLocatorOffsetRef: { current: () => null },
+    ...overrides,
+  };
+}
+
+function setupHook({
+  contextOverrides,
+  hookOverrides,
+}: {
+  contextOverrides?: Partial<ReaderContextValue>;
+  hookOverrides?: Partial<Parameters<typeof useReaderNavigation>[0]>;
+} = {}) {
   const setChapterIndex = vi.fn();
   const persistReaderState = vi.fn();
   const pageTargetRef = { current: null as PageTarget | null };
@@ -49,24 +101,33 @@ function setupHook(overrides: Partial<Parameters<typeof useReaderNavigation>[0]>
   const chapterChangeSourceRef = { current: null as ChapterChangeSource };
   const beforeChapterChange = vi.fn();
   const pagedNavigation = createPagedNavigation();
+  const mode = contextOverrides?.mode ?? 'scroll';
+  const chapterIndex = contextOverrides?.chapterIndex ?? 0;
+  const contextValue = createReaderContextValue({
+    chapterIndex,
+    mode,
+    setChapterIndex,
+    persistReaderState,
+    pageTargetRef,
+    hasUserInteractedRef,
+    chapterChangeSourceRef,
+    ...contextOverrides,
+  });
 
   const { result, rerender } = renderHook(
     (props: Parameters<typeof useReaderNavigation>[0]) => useReaderNavigation(props),
     {
       initialProps: {
-        chapterIndex: 0,
         chapters,
-        currentChapter: makeChapter(),
-        hasUserInteractedRef,
-        chapterChangeSourceRef,
-        mode: 'scroll',
+        currentChapter: makeChapter({ index: chapterIndex }),
         pagedNavigation,
-        persistReaderState,
-        pageTargetRef,
-        setChapterIndex,
         beforeChapterChange,
-        ...overrides,
+        ...hookOverrides,
       },
+      wrapper: ({ children }: { children: ReactNode }) => ReaderContextProvider({
+        value: contextValue,
+        children,
+      }),
     },
   );
 
@@ -93,7 +154,9 @@ describe('useReaderNavigation', () => {
       hasUserInteractedRef,
       chapterChangeSourceRef,
       beforeChapterChange,
-    } = setupHook({ mode: 'scroll' });
+    } = setupHook({
+      contextOverrides: { mode: 'scroll' as ReaderMode },
+    });
 
     act(() => {
       result.current.goToChapter(2, 'end');
@@ -113,9 +176,13 @@ describe('useReaderNavigation', () => {
 
   it('uses simple chapter stepping for next and previous navigation in non-paged modes', () => {
     const { result, setChapterIndex } = setupHook({
-      chapterIndex: 1,
-      currentChapter: makeChapter({ index: 1, hasPrev: true, hasNext: true }),
-      mode: 'summary',
+      contextOverrides: {
+        chapterIndex: 1,
+        mode: 'summary' as ReaderMode,
+      },
+      hookOverrides: {
+        currentChapter: makeChapter({ index: 1, hasPrev: true, hasNext: true }),
+      },
     });
 
     act(() => {
@@ -131,8 +198,10 @@ describe('useReaderNavigation', () => {
 
   it('does not navigate to an out-of-range chapter', () => {
     const { result, setChapterIndex, persistReaderState } = setupHook({
-      chapterIndex: 0,
-      mode: 'scroll',
+      contextOverrides: {
+        chapterIndex: 0,
+        mode: 'scroll' as ReaderMode,
+      },
     });
 
     act(() => {
@@ -146,9 +215,13 @@ describe('useReaderNavigation', () => {
 
   it('combines chapter bounds with current chapter flags for toolbar state in non-paged modes', () => {
     const { result } = setupHook({
-      chapterIndex: 0,
-      currentChapter: makeChapter({ hasPrev: true, hasNext: false }),
-      mode: 'scroll',
+      contextOverrides: {
+        chapterIndex: 0,
+        mode: 'scroll' as ReaderMode,
+      },
+      hookOverrides: {
+        currentChapter: makeChapter({ hasPrev: true, hasNext: false }),
+      },
     });
 
     expect(result.current.toolbarHasPrev).toBe(true);
@@ -157,7 +230,7 @@ describe('useReaderNavigation', () => {
 
   it('delegates to the paged controller contract in paged mode', () => {
     const { result, pagedNavigation } = setupHook({
-      mode: 'paged',
+      contextOverrides: { mode: 'paged' as ReaderMode },
     });
 
     expect(result.current.goToChapter).toBe(pagedNavigation.goToChapter);

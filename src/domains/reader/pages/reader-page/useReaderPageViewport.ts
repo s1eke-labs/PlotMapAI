@@ -19,7 +19,7 @@ import {
   resolvePagedTargetPage,
   SCROLL_READING_ANCHOR_RATIO,
 } from '../../utils/readerPosition';
-import { useReaderPageContext } from './ReaderPageContext';
+import { useReaderContext } from './ReaderContext';
 
 interface ReaderPageViewportChapterData {
   fetchChapterContent: (
@@ -310,7 +310,7 @@ export function useReaderPageViewport({
     getCurrentOriginalLocatorRef,
     getCurrentPagedLocatorRef,
     resolveScrollLocatorOffsetRef,
-  } = useReaderPageContext();
+  } = useReaderContext();
   const chapterContentResolvedBridgeRef = onChapterContentResolvedRef;
   const [scrollReaderChapters, setScrollReaderChapters] = useState<
     Array<{ index: number; chapter: ChapterContent }>

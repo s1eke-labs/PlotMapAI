@@ -1,8 +1,8 @@
 import type { Dispatch, ReactNode, RefObject, SetStateAction } from 'react';
 import type { ChapterContent } from '../../api/readerApi';
 import type {
-  ReaderPageContextValue,
-} from '../../pages/reader-page/ReaderPageContext';
+  ReaderContextValue,
+} from '../../pages/reader-page/ReaderContext';
 import type { ChapterChangeSource } from '../navigationTypes';
 import type { ReaderRestoreTarget } from '../useReaderStatePersistence';
 
@@ -114,8 +114,8 @@ vi.mock('../useReaderRenderCache', async () => {
 
 import { SCROLL_READING_ANCHOR_RATIO } from '../../utils/readerPosition';
 import {
-  ReaderPageContextProvider,
-} from '../../pages/reader-page/ReaderPageContext';
+  ReaderContextProvider,
+} from '../../pages/reader-page/ReaderContext';
 import { createDeterministicScrollLayout } from '../../test/deterministicRenderCacheStub';
 import { useScrollReaderController } from '../useScrollReaderController';
 
@@ -247,11 +247,19 @@ function makeChapterBodyElement({
   return element;
 }
 
-function createReaderPageContextValue(
-  overrides: Partial<ReaderPageContextValue> = {},
-): ReaderPageContextValue {
+function createReaderContextValue(
+  overrides: Partial<ReaderContextValue> = {},
+): ReaderContextValue {
+  const mode = overrides.mode ?? 'scroll';
+
   return {
     novelId: 1,
+    chapterIndex: overrides.chapterIndex ?? 1,
+    mode,
+    viewMode: overrides.viewMode ?? (mode === 'summary' ? 'summary' : 'original'),
+    isPagedMode: overrides.isPagedMode ?? mode === 'paged',
+    setChapterIndex: overrides.setChapterIndex ?? vi.fn(),
+    setMode: overrides.setMode ?? vi.fn(),
     latestReaderStateRef: { current: {} },
     hasUserInteractedRef: { current: false },
     markUserInteracted: vi.fn(),
@@ -265,6 +273,10 @@ function createReaderPageContextValue(
     chapterCacheRef: { current: new Map() },
     scrollChapterElementsBridgeRef: { current: new Map() },
     scrollChapterBodyElementsBridgeRef: { current: new Map() },
+    chapterChangeSourceRef: { current: null as ChapterChangeSource },
+    pagedStateRef: { current: { pageCount: 1, pageIndex: 0 } },
+    restoreSettledHandlerRef: { current: vi.fn() },
+    suppressScrollSyncTemporarilyRef: { current: vi.fn() },
     getCurrentAnchorRef: { current: () => null },
     handleScrollModeScrollRef: { current: vi.fn() },
     readingAnchorHandlerRef: { current: vi.fn() },
@@ -286,7 +298,6 @@ function createHookProps(overrides: Partial<Parameters<typeof useScrollReaderCon
 
   return {
     enabled: true,
-    chapterIndex: currentChapter.index,
     chapters,
     currentChapter,
     contentVersion: 0,
@@ -300,11 +311,6 @@ function createHookProps(overrides: Partial<Parameters<typeof useScrollReaderCon
     pendingRestoreTargetRef: { current: null as ReaderRestoreTarget | null },
     clearPendingRestoreTarget: vi.fn(),
     stopRestoreMask: vi.fn(),
-    suppressScrollSyncTemporarily: vi.fn(),
-    chapterChangeSourceRef: { current: null as ChapterChangeSource },
-    setChapterIndex: vi.fn(),
-    persistReaderState: vi.fn(),
-    onRestoreSettled: vi.fn(),
     ...overrides,
   };
 }
@@ -324,11 +330,11 @@ describe('useScrollReaderController', () => {
     const chapterCacheRef = {
       current: new Map<number, ChapterContent>([[currentChapter.index, currentChapter]]),
     };
-    const contextValue = createReaderPageContextValue({
+    const contextValue = createReaderContextValue({
+      chapterIndex: 1,
       chapterCacheRef,
     });
     const props = createHookProps({
-      chapterIndex: 1,
       chapters: [
         { index: 0, title: 'Chapter 1', wordCount: 100 },
         { index: 1, title: 'Chapter 2', wordCount: 100 },
@@ -343,7 +349,7 @@ describe('useScrollReaderController', () => {
       (hookProps: ReturnType<typeof createHookProps>) => useScrollReaderController(hookProps),
       {
         initialProps: props,
-        wrapper: ({ children }: { children: ReactNode }) => ReaderPageContextProvider({
+        wrapper: ({ children }: { children: ReactNode }) => ReaderContextProvider({
           value: contextValue,
           children,
         }),
@@ -375,17 +381,16 @@ describe('useScrollReaderController', () => {
     const chapterChangeSourceRef = {
       current: 'navigation' as ChapterChangeSource,
     };
-    const contextValue = createReaderPageContextValue({
-      persistReaderState,
-    });
-    const props = createHookProps({
+    const contextValue = createReaderContextValue({
+      chapterIndex: 1,
+      setChapterIndex,
       chapterChangeSourceRef,
       persistReaderState,
-      setChapterIndex,
     });
+    const props = createHookProps();
 
     renderHook(() => useScrollReaderController(props), {
-      wrapper: ({ children }: { children: ReactNode }) => ReaderPageContextProvider({
+      wrapper: ({ children }: { children: ReactNode }) => ReaderContextProvider({
         value: contextValue,
         children,
       }),
@@ -409,10 +414,14 @@ describe('useScrollReaderController', () => {
     const stopRestoreMask = vi.fn();
     const onRestoreSettled = vi.fn();
     const currentChapter = createChapter(1, 3);
-    const contextValue = createReaderPageContextValue({
+    const contextValue = createReaderContextValue({
+      chapterIndex: 1,
       contentRef,
       chapterCacheRef: {
         current: new Map([[currentChapter.index, currentChapter]]),
+      },
+      restoreSettledHandlerRef: {
+        current: onRestoreSettled,
       },
     });
     const props = createHookProps({
@@ -426,14 +435,13 @@ describe('useScrollReaderController', () => {
       },
       clearPendingRestoreTarget,
       stopRestoreMask,
-      onRestoreSettled,
     });
 
     try {
       const { result } = renderHook(
         () => useScrollReaderController(props),
         {
-          wrapper: ({ children }: { children: ReactNode }) => ReaderPageContextProvider({
+          wrapper: ({ children }: { children: ReactNode }) => ReaderContextProvider({
             value: contextValue,
             children,
           }),
@@ -478,7 +486,8 @@ describe('useScrollReaderController', () => {
     };
     const clearPendingRestoreTarget = vi.fn();
     const stopRestoreMask = vi.fn();
-    const contextValue = createReaderPageContextValue({
+    const contextValue = createReaderContextValue({
+      chapterIndex: 1,
       contentRef,
       chapterCacheRef: {
         current: new Map([[currentChapter.index, currentChapter]]),
@@ -502,7 +511,7 @@ describe('useScrollReaderController', () => {
       const { result } = renderHook(
         () => useScrollReaderController(props),
         {
-          wrapper: ({ children }: { children: ReactNode }) => ReaderPageContextProvider({
+          wrapper: ({ children }: { children: ReactNode }) => ReaderContextProvider({
             value: contextValue,
             children,
           }),
@@ -557,14 +566,14 @@ describe('useScrollReaderController', () => {
       offsetTop: 80,
       top: 80,
     });
-    const contextValue = createReaderPageContextValue({
+    const contextValue = createReaderContextValue({
+      chapterIndex: 0,
       contentRef,
       chapterCacheRef: {
         current: new Map([[currentChapter.index, currentChapter]]),
       },
     });
     const props = createHookProps({
-      chapterIndex: 0,
       chapters: [{ index: 0, title: 'Chapter 1', wordCount: 100 }],
       currentChapter,
     });
@@ -574,7 +583,7 @@ describe('useScrollReaderController', () => {
         (hookProps: ReturnType<typeof createHookProps>) => useScrollReaderController(hookProps),
         {
           initialProps: props,
-          wrapper: ({ children }: { children: ReactNode }) => ReaderPageContextProvider({
+          wrapper: ({ children }: { children: ReactNode }) => ReaderContextProvider({
             value: contextValue,
             children,
           }),
@@ -625,14 +634,14 @@ describe('useScrollReaderController', () => {
       offsetTop: 80,
       top: 80,
     });
-    const contextValue = createReaderPageContextValue({
+    const contextValue = createReaderContextValue({
+      chapterIndex: 0,
       contentRef,
       chapterCacheRef: {
         current: new Map([[currentChapter.index, currentChapter]]),
       },
     });
     const props = createHookProps({
-      chapterIndex: 0,
       chapters: [{ index: 0, title: 'Chapter 1', wordCount: 100 }],
       currentChapter,
     });
@@ -642,7 +651,7 @@ describe('useScrollReaderController', () => {
         (hookProps: ReturnType<typeof createHookProps>) => useScrollReaderController(hookProps),
         {
           initialProps: props,
-          wrapper: ({ children }: { children: ReactNode }) => ReaderPageContextProvider({
+          wrapper: ({ children }: { children: ReactNode }) => ReaderContextProvider({
             value: contextValue,
             children,
           }),

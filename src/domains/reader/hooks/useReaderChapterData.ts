@@ -15,14 +15,13 @@ import {
   areReaderImageResourcesReady,
   preloadReaderImageResources,
 } from '../utils/readerImageResourceCache';
-import type { ChapterChangeSource } from './navigationTypes';
 import type {
   ReaderNavigationIntent,
   ReaderMode,
   ReaderRestoreTarget,
   StoredReaderState,
 } from './useReaderStatePersistence';
-import { useReaderPageContext } from '../pages/reader-page/ReaderPageContext';
+import { useReaderContext } from '../pages/reader-page/ReaderContext';
 
 export interface ReaderHydrateDataResult {
   hasChapters: boolean;
@@ -41,11 +40,6 @@ export interface ReaderLoadActiveChapterResult {
 }
 
 interface UseReaderChapterDataParams {
-  mode: ReaderMode;
-  setChapterIndex: React.Dispatch<React.SetStateAction<number>>;
-  setMode: React.Dispatch<React.SetStateAction<ReaderMode>>;
-  chapterChangeSourceRef: React.MutableRefObject<ChapterChangeSource>;
-  suppressScrollSyncTemporarily: () => void;
   onChapterContentResolved?: (chapterIndex: number) => void;
 }
 
@@ -70,16 +64,14 @@ export interface UseReaderChapterDataResult {
 }
 
 export function useReaderChapterData({
-  mode,
-  setChapterIndex,
-  setMode,
-  chapterChangeSourceRef,
-  suppressScrollSyncTemporarily,
   onChapterContentResolved,
 }: UseReaderChapterDataParams): UseReaderChapterDataResult {
   const { t } = useTranslation();
   const {
     novelId,
+    mode,
+    setChapterIndex,
+    setMode,
     latestReaderStateRef,
     hasUserInteractedRef,
     loadPersistedReaderState,
@@ -89,7 +81,9 @@ export function useReaderChapterData({
     pageTargetRef,
     wheelDeltaRef,
     pageTurnLockedRef,
-  } = useReaderPageContext();
+    chapterChangeSourceRef,
+    suppressScrollSyncTemporarilyRef,
+  } = useReaderContext();
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [currentChapter, setCurrentChapter] = useState<ChapterContent | null>(null);
   const [loadingMessage, setLoadingMessage] = useState<string | null>(null);
@@ -391,7 +385,7 @@ export function useReaderChapterData({
     activeChapterControllerRef.current = controller;
 
     const resetViewportPosition = () => {
-      suppressScrollSyncTemporarily();
+      suppressScrollSyncTemporarilyRef.current();
       const contentElement = readerContentRef.current;
       if (contentElement) {
         contentElement.scrollTop = 0;
@@ -494,7 +488,7 @@ export function useReaderChapterData({
     pageTurnLockRef,
     preloadAdjacent,
     readerContentRef,
-    suppressScrollSyncTemporarily,
+    suppressScrollSyncTemporarilyRef,
     t,
     warmChapterImages,
     wheelAccumulatorRef,

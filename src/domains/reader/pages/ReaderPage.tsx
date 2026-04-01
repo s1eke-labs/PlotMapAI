@@ -1,15 +1,15 @@
 import { useParams } from 'react-router-dom';
 
 import ReaderPageContainer from './reader-page/ReaderPageContainer';
-import { ReaderPageProvider } from './reader-page/ReaderPageContext';
+import { ReaderProvider } from './reader-page/ReaderContext';
 
 export default function ReaderPage() {
   const { id } = useParams<{ id: string }>();
   const novelId = Number(id);
 
   return (
-    <ReaderPageProvider novelId={novelId}>
+    <ReaderProvider novelId={novelId}>
       <ReaderPageContainer />
-    </ReaderPageProvider>
+    </ReaderProvider>
   );
 }

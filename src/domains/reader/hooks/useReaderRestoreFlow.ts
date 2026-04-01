@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
 import type { ChapterContent } from '../api/readerApi';
-import type { ChapterChangeSource } from './navigationTypes';
 import type { ReaderMode, ReaderRestoreTarget, StoredReaderState } from './useReaderStatePersistence';
 import {
   beginRestore,
@@ -17,23 +16,15 @@ import {
   shouldKeepReaderRestoreMask,
 } from '../utils/readerPosition';
 import { getReaderViewMode } from '../utils/readerMode';
-import { useReaderPageContext } from '../pages/reader-page/ReaderPageContext';
+import { useReaderContext } from '../pages/reader-page/ReaderContext';
 
 interface UseReaderRestoreFlowParams {
-  chapterIndex: number;
-  setChapterIndex: React.Dispatch<React.SetStateAction<number>>;
-  chapterChangeSourceRef?: React.MutableRefObject<ChapterChangeSource>;
-  mode: ReaderMode;
-  setMode: React.Dispatch<React.SetStateAction<ReaderMode>>;
-  pagedStateRef: React.MutableRefObject<{ pageCount: number; pageIndex: number }>;
   currentChapter: ChapterContent | null;
   summaryRestoreSignal: unknown;
   isChapterAnalysisLoading: boolean;
-  onRestoreSettled?: (result: 'completed' | 'skipped' | 'failed') => void;
 }
 
 interface UseReaderRestoreFlowResult {
-  chapterChangeSourceRef: React.MutableRefObject<ChapterChangeSource>;
   pendingRestoreTarget: ReaderRestoreTarget | null;
   pendingRestoreTargetRef: React.MutableRefObject<ReaderRestoreTarget | null>;
   captureCurrentReaderPosition: (options?: { flush?: boolean }) => StoredReaderState;
@@ -52,31 +43,33 @@ interface UseReaderRestoreFlowResult {
 }
 
 export function useReaderRestoreFlow({
-  chapterIndex,
-  setChapterIndex,
-  chapterChangeSourceRef: externalChapterChangeSourceRef,
-  mode,
-  setMode,
-  pagedStateRef,
   currentChapter,
   summaryRestoreSignal,
   isChapterAnalysisLoading,
-  onRestoreSettled,
 }: UseReaderRestoreFlowParams): UseReaderRestoreFlowResult {
   const {
+    chapterIndex,
+    mode,
+    setChapterIndex,
+    setMode,
     latestReaderStateRef,
     markUserInteracted,
     persistReaderState,
     contentRef,
+    chapterChangeSourceRef,
+    pagedStateRef,
+    restoreSettledHandlerRef,
+    suppressScrollSyncTemporarilyRef,
     getCurrentAnchorRef,
     getCurrentOriginalLocatorRef,
     getCurrentPagedLocatorRef,
-  } = useReaderPageContext();
-  const internalChapterChangeSourceRef = useRef<ChapterChangeSource>(null);
-  const chapterChangeSourceRef = externalChapterChangeSourceRef ?? internalChapterChangeSourceRef;
+  } = useReaderContext();
   const pendingRestoreTarget = useReaderSessionSelector((state) => state.pendingRestoreTarget);
   const lastContentMode = useReaderSessionSelector((state) => state.lastContentMode);
   const pendingRestoreTargetRef = useRef<ReaderRestoreTarget | null>(pendingRestoreTarget);
+  const captureCurrentReaderPositionRef = useRef<
+    (options?: { flush?: boolean }) => StoredReaderState
+      >(() => ({}));
   const modeSnapshotRef = useRef<Record<ReaderMode, ReaderRestoreTarget | null>>({
     paged: null,
     scroll: null,
@@ -173,6 +166,8 @@ export function useReaderRestoreFlow({
     scrollSyncReleaseFrameRef.current = requestAnimationFrame(releaseAfterLayout);
   }, []);
 
+  suppressScrollSyncTemporarilyRef.current = suppressScrollSyncTemporarily;
+
   const rememberModeState = useCallback((target: ReaderRestoreTarget) => {
     modeSnapshotRef.current[target.mode] = target;
   }, []);
@@ -261,6 +256,10 @@ export function useReaderRestoreFlow({
       toRestoreTarget,
     ],
   );
+
+  useEffect(() => {
+    captureCurrentReaderPositionRef.current = captureCurrentReaderPosition;
+  }, [captureCurrentReaderPosition]);
 
   const handleSetContentMode = useCallback((nextMode: 'scroll' | 'paged') => {
     if (nextMode === mode) return;
@@ -356,7 +355,7 @@ export function useReaderRestoreFlow({
     if (canSkipReaderRestore(pendingTarget)) {
       clearPendingRestoreTarget();
       stopRestoreMask();
-      onRestoreSettled?.('skipped');
+      restoreSettledHandlerRef.current('skipped');
       return;
     }
 
@@ -377,7 +376,7 @@ export function useReaderRestoreFlow({
       chapterChangeSourceRef.current = null;
       clearPendingRestoreTarget();
       stopRestoreMask();
-      onRestoreSettled?.('completed');
+      restoreSettledHandlerRef.current('completed');
     });
 
     return () => cancelAnimationFrame(frameId);
@@ -390,7 +389,7 @@ export function useReaderRestoreFlow({
     isChapterAnalysisLoading,
     isActiveChapterResolved,
     mode,
-    onRestoreSettled,
+    restoreSettledHandlerRef,
     stopRestoreMask,
     summaryRestoreSignal,
     suppressScrollSyncTemporarily,
@@ -414,6 +413,12 @@ export function useReaderRestoreFlow({
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [captureCurrentReaderPosition]);
+
+  useEffect(() => {
+    return () => {
+      captureCurrentReaderPositionRef.current({ flush: true });
+    };
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -462,7 +467,6 @@ export function useReaderRestoreFlow({
   ]);
 
   return {
-    chapterChangeSourceRef,
     pendingRestoreTarget,
     pendingRestoreTargetRef,
     captureCurrentReaderPosition,

@@ -1,18 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { Chapter, ChapterContent } from '../api/readerApi';
-import type { ChapterChangeSource } from './navigationTypes';
 import type {
   PageTarget,
   ReaderRestoreTarget,
-  StoredReaderState,
 } from './useReaderStatePersistence';
 import { usePagedChapterTransition } from './usePagedChapterTransition';
 import { usePagedReaderLayout } from './usePagedReaderLayout';
 import { useReaderRenderCache } from './useReaderRenderCache';
 import { resolveCurrentPagedLocator } from '../pages/reader-page/useReaderPageViewport';
 import { clampProgress } from '../utils/readerPosition';
-import { useReaderPageContext } from '../pages/reader-page/ReaderPageContext';
+import { useReaderContext } from '../pages/reader-page/ReaderContext';
 
 type NavigationDirection = 'next' | 'prev';
 type DirectionalNavigationReplay = (
@@ -36,7 +34,6 @@ interface PagedReaderControllerPreferences {
 
 interface UsePagedReaderControllerParams {
   enabled: boolean;
-  chapterIndex: number;
   chapters: Chapter[];
   currentChapter: ChapterContent | null;
   contentVersion: number;
@@ -51,13 +48,6 @@ interface UsePagedReaderControllerParams {
   pendingRestoreTargetRef: React.MutableRefObject<ReaderRestoreTarget | null>;
   clearPendingRestoreTarget: () => void;
   stopRestoreMask: () => void;
-  persistReaderState: (
-    nextState: StoredReaderState,
-    options?: { flush?: boolean },
-  ) => void;
-  chapterChangeSourceRef: React.MutableRefObject<ChapterChangeSource>;
-  hasUserInteractedRef: React.MutableRefObject<boolean>;
-  setChapterIndex: (idx: number) => void;
   beforeChapterChange?: () => void;
 }
 
@@ -88,7 +78,6 @@ export interface UsePagedReaderControllerResult {
 
 export function usePagedReaderController({
   enabled,
-  chapterIndex,
   chapters,
   currentChapter,
   contentVersion,
@@ -97,22 +86,24 @@ export function usePagedReaderController({
   pendingRestoreTargetRef,
   clearPendingRestoreTarget,
   stopRestoreMask,
-  persistReaderState,
-  chapterChangeSourceRef,
-  hasUserInteractedRef,
-  setChapterIndex,
   beforeChapterChange,
 }: UsePagedReaderControllerParams): UsePagedReaderControllerResult {
-  const userInteractedRef = hasUserInteractedRef;
-  const navigationSourceRef = chapterChangeSourceRef;
   const {
+    chapterIndex,
     novelId,
     contentRef,
     pagedViewportRef,
     pageTargetRef,
     chapterCacheRef,
+    chapterChangeSourceRef,
+    hasUserInteractedRef,
+    pagedStateRef,
+    persistReaderState,
+    setChapterIndex,
     getCurrentPagedLocatorRef,
-  } = useReaderPageContext();
+  } = useReaderContext();
+  const userInteractedRef = hasUserInteractedRef;
+  const navigationSourceRef = chapterChangeSourceRef;
   const pagedContentRef = useRef<HTMLDivElement | null>(null);
   const [pageIndex, setPageIndex] = useState(0);
   const [pageCount, setPageCount] = useState(1);
@@ -447,6 +438,13 @@ export function usePagedReaderController({
     pendingRestoreTargetRef,
     persistReaderState,
   ]);
+
+  useEffect(() => {
+    pagedStateRef.current = {
+      pageCount: effectivePageCount,
+      pageIndex,
+    };
+  }, [effectivePageCount, pageIndex, pagedStateRef]);
 
   return {
     currentPagedLayout,

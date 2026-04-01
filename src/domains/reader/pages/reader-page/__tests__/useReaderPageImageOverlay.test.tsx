@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { ReaderPageContextValue } from '../ReaderPageContext';
+import type { ReaderContextValue } from '../ReaderContext';
 import type { ReaderImageGalleryEntry } from '../../../utils/readerImageGallery';
 
 import { act, renderHook, waitFor } from '@testing-library/react';
@@ -9,8 +9,8 @@ const clearReaderImageResourcesForNovelMock = vi.hoisted(() => vi.fn());
 const preloadReaderImageResourcesMock = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 
 import {
-  ReaderPageContextProvider,
-} from '../ReaderPageContext';
+  ReaderContextProvider,
+} from '../ReaderContext';
 import { useReaderPageImageOverlay } from '../useReaderPageImageOverlay';
 import { readerApi } from '../../../api/readerApi';
 
@@ -34,12 +34,20 @@ function createDeferred<T>() {
   return { promise, resolve };
 }
 
-function createReaderPageContextValue(
+function createReaderContextValue(
   novelId: number,
-  overrides: Partial<ReaderPageContextValue> = {},
-): ReaderPageContextValue {
+  overrides: Partial<ReaderContextValue> = {},
+): ReaderContextValue {
+  const mode = overrides.mode ?? 'scroll';
+
   return {
     novelId,
+    chapterIndex: overrides.chapterIndex ?? 0,
+    mode,
+    viewMode: overrides.viewMode ?? (mode === 'summary' ? 'summary' : 'original'),
+    isPagedMode: overrides.isPagedMode ?? mode === 'paged',
+    setChapterIndex: overrides.setChapterIndex ?? vi.fn(),
+    setMode: overrides.setMode ?? vi.fn(),
     latestReaderStateRef: { current: {} },
     hasUserInteractedRef: { current: false },
     markUserInteracted: vi.fn(),
@@ -53,6 +61,10 @@ function createReaderPageContextValue(
     chapterCacheRef: { current: new Map() },
     scrollChapterElementsBridgeRef: { current: new Map() },
     scrollChapterBodyElementsBridgeRef: { current: new Map() },
+    chapterChangeSourceRef: { current: null },
+    pagedStateRef: { current: { pageCount: 1, pageIndex: 0 } },
+    restoreSettledHandlerRef: { current: vi.fn() },
+    suppressScrollSyncTemporarilyRef: { current: vi.fn() },
     getCurrentAnchorRef: { current: () => null },
     handleScrollModeScrollRef: { current: () => undefined },
     readingAnchorHandlerRef: { current: () => undefined },
@@ -92,11 +104,11 @@ describe('useReaderPageImageOverlay', () => {
     const deferred = createDeferred<ReaderImageGalleryEntry[]>();
     vi.mocked(readerApi.getImageGalleryEntries).mockReturnValueOnce(deferred.promise);
 
-    const contextValue = createReaderPageContextValue(1);
+    const contextValue = createReaderContextValue(1);
     const wrapper = ({ children }: { children: ReactNode }) => (
-      <ReaderPageContextProvider value={contextValue}>
+      <ReaderContextProvider value={contextValue}>
         {children}
-      </ReaderPageContextProvider>
+      </ReaderContextProvider>
     );
     const { result } = renderHook(
       ({ isEnabled }) => useReaderPageImageOverlay({
@@ -146,11 +158,11 @@ describe('useReaderPageImageOverlay', () => {
       .mockReturnValueOnce(firstRequest.promise)
       .mockReturnValueOnce(secondRequest.promise);
 
-    let contextValue = createReaderPageContextValue(1);
+    let contextValue = createReaderContextValue(1);
     const wrapper = ({ children }: { children: ReactNode }) => (
-      <ReaderPageContextProvider value={contextValue}>
+      <ReaderContextProvider value={contextValue}>
         {children}
-      </ReaderPageContextProvider>
+      </ReaderContextProvider>
     );
 
     const { result, rerender } = renderHook(
@@ -164,7 +176,7 @@ describe('useReaderPageImageOverlay', () => {
       },
     );
 
-    contextValue = createReaderPageContextValue(2);
+    contextValue = createReaderContextValue(2);
     rerender({ isEnabled: true });
 
     firstRequest.resolve([createEntry(0, 0, 'stale', 0)]);
@@ -182,11 +194,11 @@ describe('useReaderPageImageOverlay', () => {
       createEntry(0, 0, 'cover', 0),
     ]);
 
-    const contextValue = createReaderPageContextValue(1);
+    const contextValue = createReaderContextValue(1);
     const wrapper = ({ children }: { children: ReactNode }) => (
-      <ReaderPageContextProvider value={contextValue}>
+      <ReaderContextProvider value={contextValue}>
         {children}
-      </ReaderPageContextProvider>
+      </ReaderContextProvider>
     );
     const { result } = renderHook(
       ({ isEnabled }) => useReaderPageImageOverlay({
@@ -237,11 +249,11 @@ describe('useReaderPageImageOverlay', () => {
       createEntry(1, 1, 'third', 1),
     ]);
 
-    const contextValue = createReaderPageContextValue(1);
+    const contextValue = createReaderContextValue(1);
     const wrapper = ({ children }: { children: ReactNode }) => (
-      <ReaderPageContextProvider value={contextValue}>
+      <ReaderContextProvider value={contextValue}>
         {children}
-      </ReaderPageContextProvider>
+      </ReaderContextProvider>
     );
     const { result } = renderHook(
       ({ isEnabled }) => useReaderPageImageOverlay({
@@ -297,11 +309,11 @@ describe('useReaderPageImageOverlay', () => {
       createEntry(1, 1, 'third', 1),
     ]);
 
-    const contextValue = createReaderPageContextValue(1);
+    const contextValue = createReaderContextValue(1);
     const wrapper = ({ children }: { children: ReactNode }) => (
-      <ReaderPageContextProvider value={contextValue}>
+      <ReaderContextProvider value={contextValue}>
         {children}
-      </ReaderPageContextProvider>
+      </ReaderContextProvider>
     );
     const { result } = renderHook(
       ({ isEnabled }) => useReaderPageImageOverlay({

@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react';
 
 import type { Chapter, ChapterContent } from '../api/readerApi';
-import type { ChapterChangeSource } from './navigationTypes';
-import type { ReaderRestoreTarget, StoredReaderState } from './useReaderStatePersistence';
+import type { ReaderRestoreTarget } from './useReaderStatePersistence';
 import type { ScrollModeAnchor } from './useScrollModeChapters';
 import { useReaderRenderCache } from './useReaderRenderCache';
 import { useScrollModeChapters } from './useScrollModeChapters';
@@ -16,7 +15,7 @@ import {
   clampProgress,
   SCROLL_READING_ANCHOR_RATIO,
 } from '../utils/readerPosition';
-import { useReaderPageContext } from '../pages/reader-page/ReaderPageContext';
+import { useReaderContext } from '../pages/reader-page/ReaderContext';
 
 interface ScrollReaderControllerPreferences {
   fontSize: number;
@@ -26,7 +25,6 @@ interface ScrollReaderControllerPreferences {
 
 interface UseScrollReaderControllerParams {
   enabled: boolean;
-  chapterIndex: number;
   chapters: Chapter[];
   currentChapter: ChapterContent | null;
   contentVersion: number;
@@ -42,14 +40,6 @@ interface UseScrollReaderControllerParams {
   pendingRestoreTargetRef: React.MutableRefObject<ReaderRestoreTarget | null>;
   clearPendingRestoreTarget: () => void;
   stopRestoreMask: () => void;
-  suppressScrollSyncTemporarily: () => void;
-  chapterChangeSourceRef: React.MutableRefObject<ChapterChangeSource>;
-  setChapterIndex: React.Dispatch<React.SetStateAction<number>>;
-  persistReaderState: (
-    nextState: StoredReaderState,
-    options?: { flush?: boolean },
-  ) => void;
-  onRestoreSettled?: (result: 'completed' | 'skipped' | 'failed') => void;
 }
 
 type ScrollReaderRenderCache = ReturnType<typeof useReaderRenderCache>;
@@ -122,7 +112,6 @@ function buildScrollWindow(
 
 export function useScrollReaderController({
   enabled,
-  chapterIndex,
   chapters,
   currentChapter,
   contentVersion,
@@ -132,23 +121,24 @@ export function useScrollReaderController({
   pendingRestoreTargetRef,
   clearPendingRestoreTarget,
   stopRestoreMask,
-  suppressScrollSyncTemporarily,
-  chapterChangeSourceRef,
-  setChapterIndex,
-  persistReaderState,
-  onRestoreSettled,
 }: UseScrollReaderControllerParams): UseScrollReaderControllerResult {
-  const navigationSourceRef = chapterChangeSourceRef;
   const {
+    chapterIndex,
     novelId,
     contentRef,
     chapterCacheRef,
     scrollChapterElementsBridgeRef,
     scrollChapterBodyElementsBridgeRef,
+    chapterChangeSourceRef,
+    setChapterIndex,
+    persistReaderState,
+    restoreSettledHandlerRef,
+    suppressScrollSyncTemporarilyRef,
     getCurrentAnchorRef,
     getCurrentOriginalLocatorRef,
     resolveScrollLocatorOffsetRef,
-  } = useReaderPageContext();
+  } = useReaderContext();
+  const navigationSourceRef = chapterChangeSourceRef;
   const [scrollModeChapters, setScrollModeChapters] = useState<number[]>([]);
   const [visibleScrollBlockRangeByChapter, setVisibleScrollBlockRangeByChapter] =
     useState<Map<number, VisibleScrollBlockRange>>(new Map());
@@ -400,7 +390,7 @@ export function useScrollReaderController({
     if (canSkipReaderRestore(pendingTarget)) {
       clearPendingRestoreTarget();
       stopRestoreMask();
-      onRestoreSettled?.('skipped');
+      restoreSettledHandlerRef.current('skipped');
       return;
     }
 
@@ -421,7 +411,7 @@ export function useScrollReaderController({
       }
 
       navigationSourceRef.current = 'restore';
-      suppressScrollSyncTemporarily();
+      suppressScrollSyncTemporarilyRef.current();
       if (pendingTarget.locator) {
         const nextScrollTop = resolveScrollLocatorOffsetRef.current(pendingTarget.locator);
         if (nextScrollTop === null) {
@@ -446,7 +436,7 @@ export function useScrollReaderController({
       navigationSourceRef.current = null;
       clearPendingRestoreTarget();
       stopRestoreMask();
-      onRestoreSettled?.('completed');
+      restoreSettledHandlerRef.current('completed');
     };
 
     frameId = requestAnimationFrame(restoreScrollPosition);
@@ -462,12 +452,12 @@ export function useScrollReaderController({
     currentChapter,
     enabled,
     navigationSourceRef,
-    onRestoreSettled,
     pendingRestoreTargetRef,
     resolveScrollLocatorOffsetRef,
+    restoreSettledHandlerRef,
     scrollChapterElementsBridgeRef,
     stopRestoreMask,
-    suppressScrollSyncTemporarily,
+    suppressScrollSyncTemporarilyRef,
   ]);
 
   const handleScrollChapterElement = useCallback(

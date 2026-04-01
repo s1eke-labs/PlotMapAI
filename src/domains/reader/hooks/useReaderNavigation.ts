@@ -1,19 +1,15 @@
 import { useCallback, useMemo } from 'react';
 
 import type { Chapter, ChapterContent } from '../api/readerApi';
-import type { ChapterChangeSource } from './navigationTypes';
 import type { UsePagedReaderControllerResult } from './usePagedReaderController';
-import type { PageTarget, ReaderMode, StoredReaderState } from './useReaderStatePersistence';
+import type { PageTarget } from './useReaderStatePersistence';
+import { useReaderContext } from '../pages/reader-page/ReaderContext';
 
 type NavigationDirection = 'next' | 'prev';
 
 interface UseReaderNavigationParams {
-  chapterIndex: number;
   chapters: Chapter[];
   currentChapter: ChapterContent | null;
-  hasUserInteractedRef: React.MutableRefObject<boolean>;
-  chapterChangeSourceRef: React.MutableRefObject<ChapterChangeSource>;
-  mode: ReaderMode;
   pagedNavigation: Pick<
     UsePagedReaderControllerResult,
     | 'goToChapter'
@@ -28,9 +24,6 @@ interface UseReaderNavigationParams {
     | 'pageTurnDirection'
     | 'pageTurnToken'
   >;
-  persistReaderState: (state: StoredReaderState) => void;
-  pageTargetRef: React.MutableRefObject<PageTarget | null>;
-  setChapterIndex: (idx: number) => void;
   beforeChapterChange?: () => void;
 }
 
@@ -49,18 +42,20 @@ interface UseReaderNavigationResult {
 }
 
 export function useReaderNavigation({
-  chapterIndex,
   chapters,
   currentChapter,
-  hasUserInteractedRef,
-  chapterChangeSourceRef,
-  mode,
   pagedNavigation,
-  persistReaderState,
-  pageTargetRef,
-  setChapterIndex,
   beforeChapterChange,
 }: UseReaderNavigationParams): UseReaderNavigationResult {
+  const {
+    chapterIndex,
+    mode,
+    hasUserInteractedRef,
+    chapterChangeSourceRef,
+    persistReaderState,
+    pageTargetRef,
+    setChapterIndex,
+  } = useReaderContext();
   const userInteractedRef = hasUserInteractedRef;
   const navigationSourceRef = chapterChangeSourceRef;
   const pendingPageTargetRef = pageTargetRef;

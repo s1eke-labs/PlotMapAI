@@ -1,15 +1,35 @@
 import type { ReactNode } from 'react';
 import type { ChapterContent } from '../../api/readerApi';
+import type { ChapterChangeSource } from '../../hooks/navigationTypes';
 import type { ScrollModeAnchor } from '../../hooks/useScrollModeChapters';
-import type { PageTarget, StoredReaderState } from '../../hooks/useReaderStatePersistence';
+import type {
+  PageTarget,
+  ReaderMode,
+  StoredReaderState,
+} from '../../hooks/useReaderStatePersistence';
 import type { ReaderLocator } from '../../utils/readerLayout';
 
-import { createContext, useContext, useMemo, useRef } from 'react';
+import { createContext, useCallback, useContext, useMemo, useRef } from 'react';
 
+import {
+  getReaderSessionSnapshot,
+  setChapterIndex as setSessionChapterIndex,
+  setMode as setSessionMode,
+  useReaderSessionSelector,
+} from '../../hooks/sessionStore';
 import { useReaderStatePersistence } from '../../hooks/useReaderStatePersistence';
+import { getReaderViewMode, isPagedReaderMode } from '../../utils/readerMode';
 
-export interface ReaderPageContextValue {
+type RestoreSettledResult = 'completed' | 'skipped' | 'failed';
+
+export interface ReaderContextValue {
   novelId: number;
+  chapterIndex: number;
+  mode: ReaderMode;
+  viewMode: 'original' | 'summary';
+  isPagedMode: boolean;
+  setChapterIndex: React.Dispatch<React.SetStateAction<number>>;
+  setMode: React.Dispatch<React.SetStateAction<ReaderMode>>;
   latestReaderStateRef: React.MutableRefObject<StoredReaderState>;
   hasUserInteractedRef: React.MutableRefObject<boolean>;
   markUserInteracted: () => void;
@@ -26,6 +46,10 @@ export interface ReaderPageContextValue {
   chapterCacheRef: React.MutableRefObject<Map<number, ChapterContent>>;
   scrollChapterElementsBridgeRef: React.MutableRefObject<Map<number, HTMLDivElement>>;
   scrollChapterBodyElementsBridgeRef: React.MutableRefObject<Map<number, HTMLDivElement>>;
+  chapterChangeSourceRef: React.MutableRefObject<ChapterChangeSource>;
+  pagedStateRef: React.MutableRefObject<{ pageCount: number; pageIndex: number }>;
+  restoreSettledHandlerRef: React.MutableRefObject<(result: RestoreSettledResult) => void>;
+  suppressScrollSyncTemporarilyRef: React.MutableRefObject<() => void>;
   getCurrentAnchorRef: React.MutableRefObject<() => ScrollModeAnchor | null>;
   handleScrollModeScrollRef: React.MutableRefObject<() => void>;
   readingAnchorHandlerRef: React.MutableRefObject<(anchor: ScrollModeAnchor) => void>;
@@ -36,34 +60,38 @@ export interface ReaderPageContextValue {
   >;
 }
 
-const ReaderPageContext = createContext<ReaderPageContextValue | undefined>(undefined);
+const ReaderContext = createContext<ReaderContextValue | undefined>(undefined);
 
-interface ReaderPageContextProviderProps {
+interface ReaderContextProviderProps {
   children: ReactNode;
-  value: ReaderPageContextValue;
+  value: ReaderContextValue;
 }
 
-interface ReaderPageProviderProps {
+interface ReaderProviderProps {
   children: ReactNode;
   novelId: number;
 }
 
-export function ReaderPageContextProvider({
+export function ReaderContextProvider({
   children,
   value,
-}: ReaderPageContextProviderProps) {
+}: ReaderContextProviderProps) {
   return (
-    <ReaderPageContext.Provider value={value}>
+    <ReaderContext.Provider value={value}>
       {children}
-    </ReaderPageContext.Provider>
+    </ReaderContext.Provider>
   );
 }
 
-export function ReaderPageProvider({
+export function ReaderProvider({
   children,
   novelId,
-}: ReaderPageProviderProps) {
+}: ReaderProviderProps) {
   const readerStatePersistence = useReaderStatePersistence(novelId);
+  const chapterIndex = useReaderSessionSelector((state) => state.chapterIndex);
+  const mode = useReaderSessionSelector((state) => state.mode);
+  const viewMode = getReaderViewMode(mode);
+  const isPagedMode = isPagedReaderMode(mode);
   const contentRef = useRef<HTMLDivElement>(null);
   const pagedViewportRef = useRef<HTMLDivElement>(null);
   const pageTargetRef = useRef<PageTarget | null>(null);
@@ -72,6 +100,10 @@ export function ReaderPageProvider({
   const chapterCacheRef = useRef<Map<number, ChapterContent>>(new Map());
   const scrollChapterElementsBridgeRef = useRef<Map<number, HTMLDivElement>>(new Map());
   const scrollChapterBodyElementsBridgeRef = useRef<Map<number, HTMLDivElement>>(new Map());
+  const chapterChangeSourceRef = useRef<ChapterChangeSource>(null);
+  const pagedStateRef = useRef({ pageCount: 1, pageIndex: 0 });
+  const restoreSettledHandlerRef = useRef<(result: RestoreSettledResult) => void>(() => {});
+  const suppressScrollSyncTemporarilyRef = useRef<() => void>(() => {});
   const getCurrentAnchorRef = useRef<() => ScrollModeAnchor | null>(() => null);
   const handleScrollModeScrollRef = useRef<() => void>(() => {});
   const readingAnchorHandlerRef = useRef<(anchor: ScrollModeAnchor) => void>(() => {});
@@ -81,8 +113,30 @@ export function ReaderPageProvider({
     (locator: ReaderLocator) => number | null
       >(() => null);
 
-  const value = useMemo<ReaderPageContextValue>(() => ({
+  const setChapterIndex = useCallback((nextState: React.SetStateAction<number>) => {
+    const current = getReaderSessionSnapshot().chapterIndex;
+    const nextValue = typeof nextState === 'function'
+      ? nextState(current)
+      : nextState;
+    setSessionChapterIndex(nextValue, { persistRemote: false });
+  }, []);
+
+  const setMode = useCallback((nextState: React.SetStateAction<ReaderMode>) => {
+    const currentMode = getReaderSessionSnapshot().mode;
+    const nextValue = typeof nextState === 'function'
+      ? nextState(currentMode)
+      : nextState;
+    setSessionMode(nextValue, { persistRemote: false });
+  }, []);
+
+  const value = useMemo<ReaderContextValue>(() => ({
     novelId,
+    chapterIndex,
+    mode,
+    viewMode,
+    isPagedMode,
+    setChapterIndex,
+    setMode,
     latestReaderStateRef: readerStatePersistence.latestReaderStateRef,
     hasUserInteractedRef: readerStatePersistence.hasUserInteractedRef,
     markUserInteracted: readerStatePersistence.markUserInteracted,
@@ -96,6 +150,10 @@ export function ReaderPageProvider({
     chapterCacheRef,
     scrollChapterElementsBridgeRef,
     scrollChapterBodyElementsBridgeRef,
+    chapterChangeSourceRef,
+    pagedStateRef,
+    restoreSettledHandlerRef,
+    suppressScrollSyncTemporarilyRef,
     getCurrentAnchorRef,
     handleScrollModeScrollRef,
     readingAnchorHandlerRef,
@@ -103,26 +161,32 @@ export function ReaderPageProvider({
     getCurrentPagedLocatorRef,
     resolveScrollLocatorOffsetRef,
   }), [
+    chapterIndex,
+    isPagedMode,
+    mode,
     novelId,
     readerStatePersistence.hasUserInteractedRef,
     readerStatePersistence.latestReaderStateRef,
     readerStatePersistence.loadPersistedReaderState,
     readerStatePersistence.markUserInteracted,
     readerStatePersistence.persistReaderState,
+    setChapterIndex,
+    setMode,
+    viewMode,
   ]);
 
   return (
-    <ReaderPageContextProvider value={value}>
+    <ReaderContextProvider value={value}>
       {children}
-    </ReaderPageContextProvider>
+    </ReaderContextProvider>
   );
 }
 
 // eslint-disable-next-line react-refresh/only-export-components
-export function useReaderPageContext(): ReaderPageContextValue {
-  const context = useContext(ReaderPageContext);
+export function useReaderContext(): ReaderContextValue {
+  const context = useContext(ReaderContext);
   if (!context) {
-    throw new Error('useReaderPageContext must be used within a ReaderPageProvider');
+    throw new Error('useReaderContext must be used within a ReaderProvider');
   }
 
   return context;
