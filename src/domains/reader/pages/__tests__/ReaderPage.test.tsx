@@ -244,6 +244,54 @@ describe('ReaderPage', () => {
     expect(await screen.findByText('1 / 2')).toBeInTheDocument();
   });
 
+  it('advances within the current paged chapter before navigating to the next chapter', async () => {
+    setPrototypeNumberGetter('clientWidth', 600);
+    setPrototypeNumberGetter('clientHeight', 800);
+    localStorage.setItem('reader-state:1', JSON.stringify({
+      chapterIndex: 0,
+      mode: 'paged',
+    }));
+    vi.mocked(readerApi.getChapterContent).mockImplementation(async (_novelId, chapterIndex) => ({
+      ...chapterContent[chapterIndex],
+      content: [
+        'Paragraph 1',
+        'Paragraph 2',
+        'Paragraph 3',
+        'Paragraph 4',
+      ].join('\n'),
+    }));
+
+    renderPage();
+
+    expect(await screen.findByText('1 / 2')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(
+        screen.queryByRole('status', { name: 'Loading reader content' }),
+      ).not.toBeInTheDocument();
+    });
+    const readerViewport = screen.getByTestId('reader-viewport');
+
+    Object.defineProperty(readerViewport, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => ({
+        x: 0,
+        y: 0,
+        left: 0,
+        top: 0,
+        width: 600,
+        height: 800,
+        right: 600,
+        bottom: 800,
+        toJSON: () => ({}),
+      }),
+    });
+
+    fireEvent.click(readerViewport, { clientX: 540, clientY: 200 });
+
+    expect(await screen.findByText('2 / 2')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Chapter 1' })).toBeInTheDocument();
+  });
+
   it('opens the mobile contents sheet and closes it after selecting a chapter', async () => {
     renderPage();
 

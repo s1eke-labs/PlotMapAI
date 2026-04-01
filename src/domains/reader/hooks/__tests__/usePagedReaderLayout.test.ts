@@ -1,4 +1,4 @@
-import type { Dispatch, RefObject, SetStateAction } from 'react';
+import type { Dispatch, SetStateAction } from 'react';
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -92,8 +92,8 @@ function createHookProps(overrides?: {
   pageTarget?: 'start' | 'end' | null;
   paragraphSpacing?: number;
   pendingRestoreTarget?: { chapterIndex: number; mode: 'paged'; chapterProgress?: number } | null;
-  pagedViewportRef?: RefObject<HTMLDivElement | null>;
-  pagedContentRef?: RefObject<HTMLDivElement | null>;
+  pagedViewportElement?: HTMLDivElement | null;
+  pagedContentElement?: HTMLDivElement | null;
   setPageCount?: Dispatch<SetStateAction<number>>;
   setPageIndex?: Dispatch<SetStateAction<number>>;
 }) {
@@ -102,8 +102,8 @@ function createHookProps(overrides?: {
     currentChapter: { title: 'Chapter 1' },
     isLoading: false,
     enabled: overrides?.enabled ?? true,
-    pagedViewportRef: overrides?.pagedViewportRef ?? { current: null },
-    pagedContentRef: overrides?.pagedContentRef ?? { current: null },
+    pagedViewportElement: overrides?.pagedViewportElement ?? null,
+    pagedContentElement: overrides?.pagedContentElement ?? null,
     pageIndex: overrides?.pageIndex ?? 0,
     pageTargetRef: { current: overrides?.pageTarget ?? null },
     pendingRestoreTargetRef: { current: overrides?.pendingRestoreTarget ?? null },
@@ -146,8 +146,8 @@ describe('usePagedReaderLayout', () => {
       (props: ReturnType<typeof createHookProps>) => usePagedReaderLayout(props),
       {
         initialProps: createHookProps({
-          pagedViewportRef: { current: viewport },
-          pagedContentRef: { current: content },
+          pagedViewportElement: viewport,
+          pagedContentElement: content,
           setPageCount,
           setPageIndex,
         }),
@@ -160,8 +160,8 @@ describe('usePagedReaderLayout', () => {
     act(() => {
       rerender(createHookProps({
         pageIndex: 1,
-        pagedViewportRef: { current: viewport },
-        pagedContentRef: { current: content },
+        pagedViewportElement: viewport,
+        pagedContentElement: content,
         setPageCount,
         setPageIndex,
       }));
@@ -172,8 +172,8 @@ describe('usePagedReaderLayout', () => {
     act(() => {
       rerender(createHookProps({
         pageIndex: 2,
-        pagedViewportRef: { current: viewport },
-        pagedContentRef: { current: content },
+        pagedViewportElement: viewport,
+        pagedContentElement: content,
         setPageCount,
         setPageIndex,
       }));
@@ -209,8 +209,8 @@ describe('usePagedReaderLayout', () => {
       (props: ReturnType<typeof createHookProps>) => usePagedReaderLayout(props),
       {
         initialProps: createHookProps({
-          pagedViewportRef: { current: viewport },
-          pagedContentRef: { current: content },
+          pagedViewportElement: viewport,
+          pagedContentElement: content,
           setPageCount,
           setPageIndex,
         }),
@@ -223,8 +223,8 @@ describe('usePagedReaderLayout', () => {
     act(() => {
       rerender(createHookProps({
         pageIndex: 1,
-        pagedViewportRef: { current: viewport },
-        pagedContentRef: { current: content },
+        pagedViewportElement: viewport,
+        pagedContentElement: content,
         setPageCount,
         setPageIndex,
       }));
@@ -234,6 +234,43 @@ describe('usePagedReaderLayout', () => {
     expect(viewport.scrollLeft).toBeCloseTo(648, 4);
 
     getComputedStyleSpy.mockRestore();
+    animationFrames.restore();
+  });
+
+  it('remeasures once paged elements attach after the initial null render', async () => {
+    const animationFrames = createAnimationFrameController();
+    const viewport = createViewport(600, 800);
+    const content = createContent(() => 1896);
+    const setPageCount = vi.fn();
+    const setPageIndex = vi.fn();
+
+    const { rerender } = renderHook(
+      (props: ReturnType<typeof createHookProps>) => usePagedReaderLayout(props),
+      {
+        initialProps: createHookProps({
+          pagedViewportElement: null,
+          pagedContentElement: null,
+          setPageCount,
+          setPageIndex,
+        }),
+      },
+    );
+
+    await animationFrames.flushAnimationFrames();
+    expect(setPageCount).toHaveBeenLastCalledWith(1);
+
+    act(() => {
+      rerender(createHookProps({
+        pagedViewportElement: viewport,
+        pagedContentElement: content,
+        setPageCount,
+        setPageIndex,
+      }));
+    });
+
+    await animationFrames.flushAnimationFrames();
+    expect(setPageCount).toHaveBeenLastCalledWith(3);
+
     animationFrames.restore();
   });
 
@@ -249,8 +286,8 @@ describe('usePagedReaderLayout', () => {
       (props: ReturnType<typeof createHookProps>) => usePagedReaderLayout(props),
       {
         initialProps: createHookProps({
-          pagedViewportRef: { current: viewport },
-          pagedContentRef: { current: content },
+          pagedViewportElement: viewport,
+          pagedContentElement: content,
           paragraphSpacing: 16,
           setPageCount,
           setPageIndex,
@@ -265,8 +302,8 @@ describe('usePagedReaderLayout', () => {
 
     act(() => {
       rerender(createHookProps({
-        pagedViewportRef: { current: viewport },
-        pagedContentRef: { current: content },
+        pagedViewportElement: viewport,
+        pagedContentElement: content,
         paragraphSpacing: 32,
         setPageCount,
         setPageIndex,
@@ -290,8 +327,8 @@ describe('usePagedReaderLayout', () => {
 
     renderHook(() => usePagedReaderLayout({
       ...createHookProps({
-        pagedViewportRef: { current: viewport },
-        pagedContentRef: { current: content },
+        pagedViewportElement: viewport,
+        pagedContentElement: content,
         pendingRestoreTarget: {
           chapterIndex: 0,
           mode: 'paged',
@@ -310,6 +347,45 @@ describe('usePagedReaderLayout', () => {
     expect(setPageIndex).toHaveBeenLastCalledWith(2);
     expect(clearPendingRestoreTarget).toHaveBeenCalled();
     expect(stopRestoreMask).toHaveBeenCalled();
+
+    animationFrames.restore();
+  });
+
+  it('does not reapply the current page index during ordinary paged turns', async () => {
+    const animationFrames = createAnimationFrameController();
+    const viewport = createViewport(600, 800);
+    const content = createContent(() => 1896);
+    const setPageCount = vi.fn();
+    const setPageIndex = vi.fn();
+
+    const { rerender } = renderHook(
+      (props: ReturnType<typeof createHookProps>) => usePagedReaderLayout(props),
+      {
+        initialProps: createHookProps({
+          pagedViewportElement: viewport,
+          pagedContentElement: content,
+          pageIndex: 0,
+          setPageCount,
+          setPageIndex,
+        }),
+      },
+    );
+
+    await animationFrames.flushAnimationFrames();
+    setPageIndex.mockClear();
+
+    act(() => {
+      rerender(createHookProps({
+        pagedViewportElement: viewport,
+        pagedContentElement: content,
+        pageIndex: 1,
+        setPageCount,
+        setPageIndex,
+      }));
+    });
+
+    await animationFrames.flushAnimationFrames();
+    expect(setPageIndex).not.toHaveBeenCalled();
 
     animationFrames.restore();
   });

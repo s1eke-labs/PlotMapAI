@@ -14,8 +14,8 @@ interface UsePagedReaderLayoutParams {
   currentPagedLayout?: PaginatedChapterLayout | null;
   isLoading: boolean;
   enabled: boolean;
-  pagedViewportRef: React.RefObject<HTMLDivElement | null>;
-  pagedContentRef: React.RefObject<HTMLDivElement | null>;
+  pagedViewportElement: HTMLDivElement | null;
+  pagedContentElement: HTMLDivElement | null;
   pageIndex: number;
   pageTargetRef: React.MutableRefObject<'start' | 'end' | null>;
   pendingRestoreTargetRef: React.MutableRefObject<ReaderRestoreTarget | null>;
@@ -30,8 +30,6 @@ interface UsePagedReaderLayoutParams {
 }
 
 interface UsePagedReaderLayoutResult {
-  pagedViewportRef: React.RefObject<HTMLDivElement | null>;
-  pagedContentRef: React.RefObject<HTMLDivElement | null>;
   fitsTwoColumns: boolean;
   pageTurnStep: number;
   twoColumnGap: number;
@@ -126,8 +124,8 @@ export function usePagedReaderLayout({
   currentPagedLayout = null,
   isLoading,
   enabled,
-  pagedViewportRef,
-  pagedContentRef,
+  pagedViewportElement,
+  pagedContentElement,
   pageIndex,
   pageTargetRef,
   pendingRestoreTargetRef,
@@ -141,6 +139,7 @@ export function usePagedReaderLayout({
   paragraphSpacing,
 }: UsePagedReaderLayoutParams): UsePagedReaderLayoutResult {
   const prevChapterIndexRef = useRef(chapterIndex);
+  const latestPageIndexRef = useRef(pageIndex);
   const [pagedViewportSize, setPagedViewportSize] = useState({ width: 0, height: 0 });
   const [resolvedPageTurnStep, setResolvedPageTurnStep] = useState({
     step: 0,
@@ -148,7 +147,7 @@ export function usePagedReaderLayout({
   });
   const [resolvedLayoutChapterIndex, setResolvedLayoutChapterIndex] = useState<number | null>(null);
   const nextPageTargetRef = pageTargetRef;
-  const readerPagedViewportRef = pagedViewportRef;
+  latestPageIndexRef.current = pageIndex;
 
   let twoColumnWidth: number | undefined;
   if (pagedViewportSize.width) {
@@ -172,7 +171,7 @@ export function usePagedReaderLayout({
   useEffect(() => {
     if (!enabled || isLoading || !currentChapter) return;
 
-    const viewport = readerPagedViewportRef.current;
+    const viewport = pagedViewportElement;
     if (!viewport) return;
 
     const updateViewportSize = () => {
@@ -192,7 +191,7 @@ export function usePagedReaderLayout({
       cancelAnimationFrame(frameId);
       observer.disconnect();
     };
-  }, [currentChapter, enabled, isLoading, readerPagedViewportRef]);
+  }, [currentChapter, enabled, isLoading, pagedViewportElement]);
 
   useEffect(() => {
     if (
@@ -207,7 +206,7 @@ export function usePagedReaderLayout({
     }
 
     const frameId = requestAnimationFrame(() => {
-      const content = pagedContentRef.current;
+      const content = pagedContentElement;
       if (!content || !idealPageTurnStep) return;
 
       const contentStyles = window.getComputedStyle(content);
@@ -220,6 +219,8 @@ export function usePagedReaderLayout({
       );
 
       const pendingRestoreTarget = pendingRestoreTargetRef.current;
+      const pendingPageTarget = nextPageTargetRef.current;
+      const currentPageIndex = latestPageIndexRef.current;
       const nextPageCount = currentPagedLayout
         ? Math.max(1, currentPagedLayout.pageSlices.length)
         : getPagedPageCount(
@@ -235,11 +236,21 @@ export function usePagedReaderLayout({
           : null;
       const hasRestorableProgress = hasRestorableTarget
         && typeof pendingRestoreTarget?.chapterProgress === 'number';
-      const resolvedTargetPage = restoredPageIndex ?? (
-        hasRestorableProgress
-          ? getPageIndexFromProgress(pendingRestoreTarget?.chapterProgress, nextPageCount)
-          : resolvePagedTargetPage(nextPageTargetRef.current, pageIndex, nextPageCount)
-      );
+      let resolvedTargetPage: number | null = restoredPageIndex;
+      if (resolvedTargetPage === null && hasRestorableProgress) {
+        resolvedTargetPage = getPageIndexFromProgress(
+          pendingRestoreTarget?.chapterProgress,
+          nextPageCount,
+        );
+      }
+      if (resolvedTargetPage === null && pendingPageTarget) {
+        resolvedTargetPage = resolvePagedTargetPage(
+          pendingPageTarget,
+          currentPageIndex,
+          nextPageCount,
+        );
+      }
+      const clampedPageIndex = Math.max(0, Math.min(nextPageCount - 1, currentPageIndex));
 
       setPageCount(nextPageCount);
       setResolvedPageTurnStep((previous) => ((
@@ -251,14 +262,22 @@ export function usePagedReaderLayout({
           step: nextPageTurnStep,
           viewportWidth: pagedViewportSize.width,
         }));
-      setPageIndex(resolvedTargetPage);
-      nextPageTargetRef.current = null;
-      setPendingPageTarget(null);
-      setResolvedLayoutChapterIndex(chapterIndex);
+      if (resolvedTargetPage !== null && resolvedTargetPage !== currentPageIndex) {
+        setPageIndex(resolvedTargetPage);
+      } else if (resolvedTargetPage === null && clampedPageIndex !== currentPageIndex) {
+        setPageIndex(clampedPageIndex);
+      }
+      if (pendingPageTarget !== null) {
+        nextPageTargetRef.current = null;
+        setPendingPageTarget(null);
+      }
+      setResolvedLayoutChapterIndex((previousChapterIndex) => (
+        previousChapterIndex === chapterIndex ? previousChapterIndex : chapterIndex
+      ));
       if (hasRestorableTarget) {
         clearPendingRestoreTarget();
+        stopRestoreMask();
       }
-      stopRestoreMask();
     });
 
     return () => cancelAnimationFrame(frameId);
@@ -273,11 +292,10 @@ export function usePagedReaderLayout({
     isLoading,
     lineSpacing,
     paragraphSpacing,
-    pageIndex,
     nextPageTargetRef,
     idealPageTurnStep,
+    pagedContentElement,
     pagedViewportSize.width,
-    pagedContentRef,
     pagedViewportSize.height,
     pendingRestoreTargetRef,
     setPageCount,
@@ -295,30 +313,28 @@ export function usePagedReaderLayout({
   }, [chapterIndex, setPageIndex]);
 
   useLayoutEffect(() => {
-    const pagedViewportElement = readerPagedViewportRef.current;
     if (!enabled || !pagedViewportElement || !pageTurnStep) return;
 
-    const content = pagedContentRef.current;
+    const viewportElement = pagedViewportElement;
+    const content = pagedContentElement;
     if (!content) return;
 
     const maxScrollLeft = Math.max(0, content.scrollWidth - pagedViewportSize.width);
-    pagedViewportElement.scrollLeft = getPagedScrollLeft(
+    viewportElement.scrollLeft = getPagedScrollLeft(
       pageIndex,
       pageTurnStep,
       maxScrollLeft,
     );
   }, [
     enabled,
+    pagedContentElement,
     pageIndex,
     pageTurnStep,
-    pagedContentRef,
-    readerPagedViewportRef,
+    pagedViewportElement,
     pagedViewportSize.width,
   ]);
 
   return {
-    pagedViewportRef,
-    pagedContentRef,
     fitsTwoColumns,
     pageTurnStep,
     twoColumnGap: TWO_COLUMN_GAP,

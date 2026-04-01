@@ -79,6 +79,7 @@ export default function ReaderViewport({
   return (
     <div
       ref={contentRef}
+      data-testid="reader-viewport"
       className={cn(
         'h-full w-full relative cursor-pointer',
         isPagedMode || interactionLocked ? 'overflow-hidden' : 'overflow-y-auto hide-scrollbar',

@@ -48,7 +48,6 @@ export default function ReaderPageContainer() {
     () => {},
   );
   const chapterChangeSourceRef = useRef<ChapterChangeSource>(null);
-  const pagedNavigationReadyRef = useRef(false);
   const pagedStateRef = useRef({ pageCount: 1, pageIndex: 0 });
   const suppressScrollSyncTemporarilyRef = useRef<() => void>(() => {});
   const handleChapterDataSuppressScrollSync = useCallback(() => {
@@ -159,7 +158,6 @@ export default function ReaderPageContainer() {
     persistReaderState,
     chapterChangeSourceRef,
     hasUserInteractedRef,
-    isChapterNavigationReady: pagedNavigationReadyRef.current,
     setChapterIndex: (nextChapterIndex) => {
       setChapterIndex(nextChapterIndex);
     },
@@ -176,7 +174,6 @@ export default function ReaderPageContainer() {
   });
 
   restoreSettledHandlerRef.current = lifecycle.handleRestoreSettled;
-  pagedNavigationReadyRef.current = lifecycle.isChapterNavigationReady;
   pagedStateRef.current = {
     pageCount: pagedController.pageCount,
     pageIndex: pagedController.pageIndex,
