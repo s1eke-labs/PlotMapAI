@@ -3,7 +3,6 @@ import type { ChapterContent } from '../api/readerApi';
 import type { ChapterChangeSource } from './navigationTypes';
 import type { ScrollModeAnchor } from './useScrollModeChapters';
 import type { StoredReaderState } from './useReaderStatePersistence';
-import type { ReaderLocator } from '../utils/readerLayout';
 import {
   beginRestore,
   completeRestore,
@@ -15,12 +14,14 @@ import {
 import {
   clampProgress,
   getContainerProgress,
+  hasReaderPositionTarget,
+  hasRestorableReaderPosition,
   SCROLL_READING_ANCHOR_RATIO,
   shouldMaskReaderPositionRestore,
 } from '../utils/readerPosition';
+import { useReaderPageContext } from '../pages/reader-page/ReaderPageContext';
 
 interface UseReaderRestoreFlowParams {
-  novelId: number;
   chapterIndex: number;
   setChapterIndex: React.Dispatch<React.SetStateAction<number>>;
   viewMode: 'original' | 'summary';
@@ -32,19 +33,6 @@ interface UseReaderRestoreFlowParams {
   pageCount: number;
   currentChapter: ChapterContent | null;
   isLoading: boolean;
-  scrollModeChapters: number[];
-  contentRef: React.RefObject<HTMLDivElement | null>;
-  scrollChapterElementsRef: React.MutableRefObject<Map<number, HTMLDivElement>>;
-  latestReaderStateRef: React.MutableRefObject<StoredReaderState>;
-  hasHydratedReaderState: boolean;
-  markUserInteracted: () => void;
-  persistReaderState: (state: StoredReaderState, options?: { flush?: boolean }) => void;
-  getCurrentAnchorRef: React.MutableRefObject<() => ScrollModeAnchor | null>;
-  handleScrollModeScrollRef: React.MutableRefObject<() => void>;
-  readingAnchorHandlerRef: React.MutableRefObject<(anchor: ScrollModeAnchor) => void>;
-  getCurrentOriginalLocatorRef?: React.MutableRefObject<() => ReaderLocator | null>;
-  getCurrentPagedLocatorRef?: React.MutableRefObject<() => ReaderLocator | null>;
-  resolveScrollLocatorOffsetRef?: React.MutableRefObject<(locator: ReaderLocator) => number | null>;
   summaryRestoreSignal: unknown;
   isChapterAnalysisLoading: boolean;
 }
@@ -68,18 +56,7 @@ interface UseReaderRestoreFlowResult {
   suppressScrollSyncTemporarily: () => void;
 }
 
-const EMPTY_LOCATOR_REF: React.MutableRefObject<() => ReaderLocator | null> = {
-  current: () => null,
-};
-
-const EMPTY_SCROLL_LOCATOR_OFFSET_REF: React.MutableRefObject<
-  (locator: ReaderLocator) => number | null
-> = {
-  current: () => null,
-};
-
 export function useReaderRestoreFlow({
-  novelId,
   chapterIndex,
   setChapterIndex,
   viewMode,
@@ -91,22 +68,24 @@ export function useReaderRestoreFlow({
   pageCount,
   currentChapter,
   isLoading,
-  scrollModeChapters,
-  contentRef,
-  scrollChapterElementsRef,
-  latestReaderStateRef,
-  hasHydratedReaderState,
-  markUserInteracted,
-  persistReaderState,
-  getCurrentAnchorRef,
-  handleScrollModeScrollRef,
-  readingAnchorHandlerRef,
-  getCurrentOriginalLocatorRef,
-  getCurrentPagedLocatorRef,
-  resolveScrollLocatorOffsetRef,
   summaryRestoreSignal,
   isChapterAnalysisLoading,
 }: UseReaderRestoreFlowParams): UseReaderRestoreFlowResult {
+  const {
+    novelId,
+    hasHydratedReaderState,
+    latestReaderStateRef,
+    markUserInteracted,
+    persistReaderState,
+    contentRef,
+    scrollChapterElementsBridgeRef,
+    getCurrentAnchorRef,
+    handleScrollModeScrollRef,
+    readingAnchorHandlerRef,
+    getCurrentOriginalLocatorRef,
+    getCurrentPagedLocatorRef,
+    resolveScrollLocatorOffsetRef,
+  } = useReaderPageContext();
   const chapterChangeSourceRef = useRef<ChapterChangeSource>(null);
   const pendingRestoreState = useReaderSessionSelector((state) => state.pendingRestoreState);
   const restoreStatus = useReaderSessionSelector((state) => state.restoreStatus);
@@ -116,10 +95,9 @@ export function useReaderRestoreFlow({
   const summaryProgressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const suppressScrollSyncRef = useRef(false);
   const scrollSyncReleaseFrameRef = useRef<number | null>(null);
-  const getOriginalLocator = getCurrentOriginalLocatorRef ?? EMPTY_LOCATOR_REF;
-  const getPagedLocator = getCurrentPagedLocatorRef ?? EMPTY_LOCATOR_REF;
-  const resolveScrollLocatorOffset =
-    resolveScrollLocatorOffsetRef ?? EMPTY_SCROLL_LOCATOR_OFFSET_REF;
+  const getOriginalLocator = getCurrentOriginalLocatorRef;
+  const getPagedLocator = getCurrentPagedLocatorRef;
+  const resolveScrollLocatorOffset = resolveScrollLocatorOffsetRef;
   const anchorHandlerRef = readingAnchorHandlerRef;
 
   useEffect(() => {
@@ -143,12 +121,8 @@ export function useReaderRestoreFlow({
         return;
       }
 
-      const hasChapterProgress =
-        typeof nextState.chapterProgress === 'number' && nextState.chapterProgress > 0;
-      const hasLegacyScrollPosition =
-        typeof nextState.scrollPosition === 'number' && nextState.scrollPosition > 0;
       setStorePendingRestoreState(
-        nextState.locator || hasChapterProgress || hasLegacyScrollPosition
+        hasRestorableReaderPosition(nextState)
           ? nextState
           : null,
       );
@@ -403,10 +377,15 @@ export function useReaderRestoreFlow({
   ]);
 
   useEffect(() => {
-    if (isLoading || viewMode !== 'original' || isPagedMode) return;
+    if (isLoading || viewMode !== 'original' || isPagedMode || !currentChapter) return;
 
     const pendingState = pendingRestoreStateRef.current;
     if (!pendingState) return;
+    if (!hasReaderPositionTarget(pendingState)) {
+      clearPendingRestoreState();
+      stopRestoreMask();
+      return;
+    }
 
     let frameId = 0;
     let cancelled = false;
@@ -416,7 +395,7 @@ export function useReaderRestoreFlow({
 
       const container = contentRef.current;
       const targetIndex = pendingState.chapterIndex ?? chapterIndex;
-      const targetElement = scrollChapterElementsRef.current.get(targetIndex);
+      const targetElement = scrollChapterElementsBridgeRef.current.get(targetIndex);
 
       if (!container || !targetElement) {
         frameId = requestAnimationFrame(restoreScrollPosition);
@@ -462,8 +441,7 @@ export function useReaderRestoreFlow({
     currentChapter,
     isLoading,
     isPagedMode,
-    scrollChapterElementsRef,
-    scrollModeChapters,
+    scrollChapterElementsBridgeRef,
     stopRestoreMask,
     suppressScrollSyncTemporarily,
     resolveScrollLocatorOffset,
@@ -475,6 +453,11 @@ export function useReaderRestoreFlow({
 
     const pendingState = pendingRestoreStateRef.current;
     if (!pendingState || !contentRef.current) return;
+    if (!hasReaderPositionTarget(pendingState)) {
+      clearPendingRestoreState();
+      stopRestoreMask();
+      return;
+    }
 
     const container = contentRef.current;
     const frameId = requestAnimationFrame(() => {

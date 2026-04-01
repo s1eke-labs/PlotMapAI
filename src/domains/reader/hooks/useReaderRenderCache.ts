@@ -286,6 +286,9 @@ export function useReaderRenderCache({
   const readerTelemetryEnabledRef = useRef(readerTelemetryEnabled);
   const pendingPreheatCountRef = useRef(pendingPreheatCount);
   const loadedChaptersRef = useRef<Map<number, ChapterContent>>(new Map());
+  const hasRenderableContent = Boolean(currentChapter)
+    || pagedChapters.length > 0
+    || scrollChapters.length > 0;
 
   useEffect(() => {
     return debugFeatureSubscribe((featureFlags) => {
@@ -313,13 +316,23 @@ export function useReaderRenderCache({
   }, [currentChapter, pagedChapters, scrollChapters]);
 
   useEffect(() => {
+    if (!hasRenderableContent) {
+      return;
+    }
+
     const viewport = contentRef.current;
     if (!viewport) {
       return;
     }
 
     const updateViewportSize = () => {
-      setScrollViewportSize(readViewportSize(viewport));
+      const nextViewportSize = readViewportSize(viewport);
+      setScrollViewportSize((previousViewportSize) => (
+        previousViewportSize.width === nextViewportSize.width
+          && previousViewportSize.height === nextViewportSize.height
+          ? previousViewportSize
+          : nextViewportSize
+      ));
     };
 
     updateViewportSize();
@@ -328,16 +341,26 @@ export function useReaderRenderCache({
     return () => {
       observer.disconnect();
     };
-  }, [contentRef]);
+  }, [contentRef, hasRenderableContent]);
 
   useEffect(() => {
+    if (!hasRenderableContent) {
+      return;
+    }
+
     const viewport = pagedViewportElement;
     if (!viewport) {
       return;
     }
 
     const updateViewportSize = () => {
-      setPagedViewportSize(readViewportSize(viewport));
+      const nextViewportSize = readViewportSize(viewport);
+      setPagedViewportSize((previousViewportSize) => (
+        previousViewportSize.width === nextViewportSize.width
+          && previousViewportSize.height === nextViewportSize.height
+          ? previousViewportSize
+          : nextViewportSize
+      ));
     };
 
     updateViewportSize();
@@ -346,7 +369,7 @@ export function useReaderRenderCache({
     return () => {
       observer.disconnect();
     };
-  }, [pagedViewportElement]);
+  }, [hasRenderableContent, pagedViewportElement]);
 
   const viewportMetrics = useMemo(() => createReaderViewportMetrics(
     scrollViewportSize.width,
@@ -687,8 +710,8 @@ export function useReaderRenderCache({
 
   useEffect(() => {
     if (!novelId || !currentChapter || preheatTargets.length === 0) {
-      setIsPreheating(false);
-      setPendingPreheatCount(0);
+      setIsPreheating((previousState) => (previousState ? false : previousState));
+      setPendingPreheatCount((previousCount) => (previousCount === 0 ? previousCount : 0));
       return;
     }
 
@@ -696,8 +719,12 @@ export function useReaderRenderCache({
     let idleHandle: number | null = null;
     const controllers = new Set<AbortController>();
     const queue = [...preheatTargets];
-    setIsPreheating(queue.length > 0);
-    setPendingPreheatCount(queue.length);
+    setIsPreheating((previousState) => (
+      previousState === (queue.length > 0) ? previousState : queue.length > 0
+    ));
+    setPendingPreheatCount((previousCount) => (
+      previousCount === queue.length ? previousCount : queue.length
+    ));
 
     const runNext = () => {
       if (cancelled) {
@@ -705,9 +732,11 @@ export function useReaderRenderCache({
       }
 
       const nextTarget = queue.shift();
-      setPendingPreheatCount(queue.length);
+      setPendingPreheatCount((previousCount) => (
+        previousCount === queue.length ? previousCount : queue.length
+      ));
       if (!nextTarget) {
-        setIsPreheating(false);
+        setIsPreheating((previousState) => (previousState ? false : previousState));
         return;
       }
 

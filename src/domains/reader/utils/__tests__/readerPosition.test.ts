@@ -4,6 +4,7 @@ import {
   clampProgress,
   getContainerProgress,
   getPageIndexFromProgress,
+  hasReaderPositionTarget,
   resolvePagedTargetPage,
   shouldMaskReaderPositionRestore,
 } from '../readerPosition';
@@ -54,17 +55,7 @@ describe('readerPosition', () => {
       chapterIndex: 2,
       viewMode: 'original',
       isTwoColumn: false,
-    })).toBe(true);
-    expect(shouldMaskReaderPositionRestore({
-      chapterIndex: 0,
-      viewMode: 'summary',
-      isTwoColumn: false,
-    })).toBe(true);
-    expect(shouldMaskReaderPositionRestore({
-      chapterIndex: 0,
-      viewMode: 'original',
-      isTwoColumn: true,
-    })).toBe(true);
+    })).toBe(false);
     expect(shouldMaskReaderPositionRestore({
       chapterIndex: 0,
       viewMode: 'original',
@@ -76,6 +67,27 @@ describe('readerPosition', () => {
       viewMode: 'original',
       isTwoColumn: false,
       scrollPosition: 120,
+    })).toBe(true);
+  });
+
+  it('detects whether a pending restore state still carries an explicit target', () => {
+    expect(hasReaderPositionTarget(null)).toBe(false);
+    expect(hasReaderPositionTarget({
+      chapterIndex: 2,
+      viewMode: 'original',
+      isTwoColumn: false,
+    })).toBe(false);
+    expect(hasReaderPositionTarget({
+      chapterIndex: 0,
+      viewMode: 'original',
+      isTwoColumn: false,
+      chapterProgress: 0,
+    })).toBe(true);
+    expect(hasReaderPositionTarget({
+      chapterIndex: 0,
+      viewMode: 'original',
+      isTwoColumn: false,
+      scrollPosition: 0,
     })).toBe(true);
   });
 

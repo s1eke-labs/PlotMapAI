@@ -5,15 +5,16 @@ import { AppErrorCode, toAppError, type AppError } from '@shared/errors';
 import { readerApi } from '../api/readerApi';
 import type { Chapter, ChapterContent } from '../api/readerApi';
 import { extractImageKeysFromText } from '../utils/chapterImages';
+import { hasRestorableReaderPosition } from '../utils/readerPosition';
 import {
   areReaderImageResourcesReady,
   preloadReaderImageResources,
 } from '../utils/readerImageResourceCache';
 import type { ChapterChangeSource } from './navigationTypes';
-import type { PageTarget, StoredReaderState } from './useReaderStatePersistence';
+import type { StoredReaderState } from './useReaderStatePersistence';
+import { useReaderPageContext } from '../pages/reader-page/ReaderPageContext';
 
 interface UseReaderChapterDataParams {
-  novelId: number;
   chapterIndex: number;
   viewMode: 'original' | 'summary';
   isPagedMode: boolean;
@@ -29,17 +30,7 @@ interface UseReaderChapterDataParams {
   setPageIndex: React.Dispatch<React.SetStateAction<number>>;
   setPageCount: React.Dispatch<React.SetStateAction<number>>;
   setReaderError: React.Dispatch<React.SetStateAction<AppError | null>>;
-  contentRef: React.RefObject<HTMLDivElement | null>;
-  pagedViewportRef: React.RefObject<HTMLDivElement | null>;
-  chapterCacheRef: React.MutableRefObject<Map<number, ChapterContent>>;
-  latestReaderStateRef: React.MutableRefObject<StoredReaderState>;
-  hasUserInteractedRef: React.MutableRefObject<boolean>;
-  wheelDeltaRef: React.MutableRefObject<number>;
-  pageTurnLockedRef: React.MutableRefObject<boolean>;
-  pageTargetRef: React.MutableRefObject<PageTarget | null>;
   chapterChangeSourceRef: React.MutableRefObject<ChapterChangeSource>;
-  loadPersistedReaderState: () => Promise<StoredReaderState>;
-  setHasHydratedReaderState: React.Dispatch<React.SetStateAction<boolean>>;
   setPendingRestoreState: (
     nextState: StoredReaderState | null,
     options?: { force?: boolean },
@@ -64,7 +55,6 @@ interface UseReaderChapterDataResult {
 }
 
 export function useReaderChapterData({
-  novelId,
   chapterIndex,
   viewMode,
   isPagedMode,
@@ -80,17 +70,7 @@ export function useReaderChapterData({
   setPageIndex,
   setPageCount,
   setReaderError,
-  contentRef,
-  pagedViewportRef,
-  chapterCacheRef,
-  latestReaderStateRef,
-  hasUserInteractedRef,
-  wheelDeltaRef,
-  pageTurnLockedRef,
-  pageTargetRef,
   chapterChangeSourceRef,
-  loadPersistedReaderState,
-  setHasHydratedReaderState,
   setPendingRestoreState,
   clearPendingRestoreState,
   suppressScrollSyncTemporarily,
@@ -100,6 +80,19 @@ export function useReaderChapterData({
   onChapterContentResolved,
 }: UseReaderChapterDataParams): UseReaderChapterDataResult {
   const { t } = useTranslation();
+  const {
+    novelId,
+    setHasHydratedReaderState,
+    latestReaderStateRef,
+    hasUserInteractedRef,
+    loadPersistedReaderState,
+    contentRef,
+    pagedViewportRef,
+    chapterCacheRef,
+    pageTargetRef,
+    wheelDeltaRef,
+    pageTurnLockedRef,
+  } = useReaderPageContext();
   const preloadTimeoutIdsRef = useRef<number[]>([]);
   const preloadControllersRef = useRef<AbortController[]>([]);
   const chapterImageKeysRef = useRef<Map<number, string[]>>(new Map());
@@ -313,11 +306,16 @@ export function useReaderChapterData({
           setIsTwoColumn(resolvedState.isTwoColumn ?? false);
           setViewMode(nextViewMode);
           setChapterIndex(resolvedChapterIndex);
-          setPendingRestoreState(resolvedState, { force: true });
-          startRestoreMaskForState(resolvedState);
+
+          const nextRestoreState = hasRestorableReaderPosition(resolvedState)
+            ? resolvedState
+            : null;
+          setPendingRestoreState(nextRestoreState);
+          startRestoreMaskForState(nextRestoreState);
         }
 
         if (toc.length === 0) {
+          clearPendingRestoreState();
           setIsLoading(false);
           setLoadingMessage(null);
           stopRestoreMask();

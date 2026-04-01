@@ -1,0 +1,285 @@
+import type { ReactNode } from 'react';
+import type { ReaderPageContextValue } from '../ReaderPageContext';
+import type { ReaderImageGalleryEntry } from '../../../utils/readerImageGallery';
+
+import { act, renderHook, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import {
+  ReaderPageContextProvider,
+} from '../ReaderPageContext';
+import { useReaderPageImageOverlay } from '../useReaderPageImageOverlay';
+import { readerApi } from '../../../api/readerApi';
+
+vi.mock('../../../api/readerApi', () => ({
+  readerApi: {
+    getImageGalleryEntries: vi.fn(),
+  },
+}));
+
+function createDeferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  const promise = new Promise<T>((res) => {
+    resolve = res;
+  });
+
+  return { promise, resolve };
+}
+
+function createReaderPageContextValue(
+  novelId: number,
+  overrides: Partial<ReaderPageContextValue> = {},
+): ReaderPageContextValue {
+  return {
+    novelId,
+    hasHydratedReaderState: true,
+    setHasHydratedReaderState: vi.fn(),
+    latestReaderStateRef: { current: {} },
+    hasUserInteractedRef: { current: false },
+    markUserInteracted: vi.fn(),
+    persistReaderState: vi.fn(),
+    loadPersistedReaderState: vi.fn(async () => ({})),
+    contentRef: { current: null },
+    pagedViewportRef: { current: null },
+    pageTargetRef: { current: null },
+    wheelDeltaRef: { current: 0 },
+    pageTurnLockedRef: { current: false },
+    chapterCacheRef: { current: new Map() },
+    scrollChapterElementsBridgeRef: { current: new Map() },
+    scrollChapterBodyElementsBridgeRef: { current: new Map() },
+    getCurrentAnchorRef: { current: () => null },
+    handleScrollModeScrollRef: { current: () => undefined },
+    readingAnchorHandlerRef: { current: () => undefined },
+    getCurrentOriginalLocatorRef: { current: () => null },
+    getCurrentPagedLocatorRef: { current: () => null },
+    resolveScrollLocatorOffsetRef: { current: () => null },
+    ...overrides,
+  };
+}
+
+function createEntry(
+  chapterIndex: number,
+  blockIndex: number,
+  imageKey: string,
+  order: number,
+): ReaderImageGalleryEntry {
+  return {
+    blockIndex,
+    chapterIndex,
+    imageKey,
+    order,
+  };
+}
+
+describe('useReaderPageImageOverlay', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(readerApi.getImageGalleryEntries).mockResolvedValue([]);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('deduplicates gallery index loading while opening the viewer', async () => {
+    const deferred = createDeferred<ReaderImageGalleryEntry[]>();
+    vi.mocked(readerApi.getImageGalleryEntries).mockReturnValueOnce(deferred.promise);
+
+    const contextValue = createReaderPageContextValue(1);
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <ReaderPageContextProvider value={contextValue}>
+        {children}
+      </ReaderPageContextProvider>
+    );
+    const { result } = renderHook(
+      ({ isEnabled }) => useReaderPageImageOverlay({
+        dismissBlockedInteraction: vi.fn(),
+        isEnabled,
+      }),
+      {
+        initialProps: { isEnabled: true },
+        wrapper,
+      },
+    );
+
+    const sourceElement = document.createElement('button');
+    Object.defineProperty(sourceElement, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => new DOMRect(0, 0, 20, 20),
+    });
+
+    act(() => {
+      result.current.handleImageActivate({
+        blockIndex: 0,
+        chapterIndex: 0,
+        imageKey: 'cover',
+        sourceElement,
+      });
+      result.current.handleImageActivate({
+        blockIndex: 0,
+        chapterIndex: 0,
+        imageKey: 'cover',
+        sourceElement,
+      });
+    });
+
+    expect(readerApi.getImageGalleryEntries).toHaveBeenCalledTimes(1);
+    expect(result.current.imageViewerProps.isIndexLoading).toBe(true);
+
+    deferred.resolve([createEntry(0, 0, 'cover', 0)]);
+    await waitFor(() => {
+      expect(result.current.imageViewerProps.isIndexResolved).toBe(true);
+    });
+  });
+
+  it('ignores stale gallery results after switching novels', async () => {
+    const firstRequest = createDeferred<ReaderImageGalleryEntry[]>();
+    const secondRequest = createDeferred<ReaderImageGalleryEntry[]>();
+    vi.mocked(readerApi.getImageGalleryEntries)
+      .mockReturnValueOnce(firstRequest.promise)
+      .mockReturnValueOnce(secondRequest.promise);
+
+    let contextValue = createReaderPageContextValue(1);
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <ReaderPageContextProvider value={contextValue}>
+        {children}
+      </ReaderPageContextProvider>
+    );
+
+    const { result, rerender } = renderHook(
+      ({ isEnabled }) => useReaderPageImageOverlay({
+        dismissBlockedInteraction: vi.fn(),
+        isEnabled,
+      }),
+      {
+        initialProps: { isEnabled: true },
+        wrapper,
+      },
+    );
+
+    contextValue = createReaderPageContextValue(2);
+    rerender({ isEnabled: true });
+
+    firstRequest.resolve([createEntry(0, 0, 'stale', 0)]);
+    secondRequest.resolve([createEntry(1, 0, 'fresh', 0)]);
+
+    await waitFor(() => {
+      expect(result.current.imageViewerProps.entries).toEqual([
+        createEntry(1, 0, 'fresh', 0),
+      ]);
+    });
+  });
+
+  it('restores focus to the activating element when the viewer closes', async () => {
+    vi.mocked(readerApi.getImageGalleryEntries).mockResolvedValueOnce([
+      createEntry(0, 0, 'cover', 0),
+    ]);
+
+    const contextValue = createReaderPageContextValue(1);
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <ReaderPageContextProvider value={contextValue}>
+        {children}
+      </ReaderPageContextProvider>
+    );
+    const { result } = renderHook(
+      ({ isEnabled }) => useReaderPageImageOverlay({
+        dismissBlockedInteraction: vi.fn(),
+        isEnabled,
+      }),
+      {
+        initialProps: { isEnabled: true },
+        wrapper,
+      },
+    );
+
+    await waitFor(() => {
+      expect(result.current.imageViewerProps.isIndexResolved).toBe(true);
+    });
+
+    const sourceElement = document.createElement('button');
+    document.body.append(sourceElement);
+    Object.defineProperty(sourceElement, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => new DOMRect(0, 0, 20, 20),
+    });
+
+    act(() => {
+      result.current.handleImageActivate({
+        blockIndex: 0,
+        chapterIndex: 0,
+        imageKey: 'cover',
+        sourceElement,
+      });
+    });
+
+    sourceElement.blur();
+
+    vi.useFakeTimers();
+    act(() => {
+      result.current.closeImageViewer();
+      vi.runAllTimers();
+    });
+
+    expect(document.activeElement).toBe(sourceElement);
+  });
+
+  it('navigates using the full-book image order', async () => {
+    vi.mocked(readerApi.getImageGalleryEntries).mockResolvedValueOnce([
+      createEntry(0, 0, 'first', 0),
+      createEntry(1, 0, 'second', 0),
+      createEntry(1, 1, 'third', 1),
+    ]);
+
+    const contextValue = createReaderPageContextValue(1);
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <ReaderPageContextProvider value={contextValue}>
+        {children}
+      </ReaderPageContextProvider>
+    );
+    const { result } = renderHook(
+      ({ isEnabled }) => useReaderPageImageOverlay({
+        dismissBlockedInteraction: vi.fn(),
+        isEnabled,
+      }),
+      {
+        initialProps: { isEnabled: true },
+        wrapper,
+      },
+    );
+
+    await waitFor(() => {
+      expect(result.current.imageViewerProps.entries).toHaveLength(3);
+    });
+
+    const sourceElement = document.createElement('button');
+    Object.defineProperty(sourceElement, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => new DOMRect(0, 0, 20, 20),
+    });
+
+    act(() => {
+      result.current.handleImageActivate({
+        blockIndex: 0,
+        chapterIndex: 1,
+        imageKey: 'second',
+        sourceElement,
+      });
+    });
+
+    await act(async () => {
+      const didNavigate = await result.current.imageViewerProps.onRequestNavigate('next');
+      expect(didNavigate).toBe(true);
+    });
+    expect(result.current.imageViewerProps.activeEntry).toEqual(
+      createEntry(1, 1, 'third', 1),
+    );
+
+    await act(async () => {
+      const didNavigate = await result.current.imageViewerProps.onRequestNavigate('prev');
+      expect(didNavigate).toBe(true);
+    });
+    expect(result.current.imageViewerProps.activeEntry).toEqual(
+      createEntry(1, 0, 'second', 0),
+    );
+  });
+});

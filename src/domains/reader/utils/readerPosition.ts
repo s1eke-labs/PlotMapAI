@@ -49,17 +49,30 @@ export function resolvePagedTargetPage(
   return Math.max(0, Math.min(totalPages - 1, pageIndex));
 }
 
-export function shouldMaskReaderPositionRestore(
+export function hasRestorableReaderPosition(
   state: StoredReaderState | null | undefined,
 ): boolean {
   if (!state) return false;
 
-  return (state.chapterIndex ?? 0) > 0
-    || state.viewMode === 'summary'
-    || state.isTwoColumn === true
-    || state.locator !== undefined
+  return state.locator !== undefined
     || (typeof state.chapterProgress === 'number' && state.chapterProgress > 0)
     || (typeof state.scrollPosition === 'number' && state.scrollPosition > 0);
+}
+
+export function hasReaderPositionTarget(
+  state: StoredReaderState | null | undefined,
+): boolean {
+  if (!state) return false;
+
+  return state.locator !== undefined
+    || (typeof state.chapterProgress === 'number' && Number.isFinite(state.chapterProgress))
+    || (typeof state.scrollPosition === 'number' && Number.isFinite(state.scrollPosition));
+}
+
+export function shouldMaskReaderPositionRestore(
+  state: StoredReaderState | null | undefined,
+): boolean {
+  return hasRestorableReaderPosition(state);
 }
 
 export function buildChapterRenderData(content: string, title: string): ChapterRenderData {

@@ -24,6 +24,7 @@ import {
   resetReaderPreferencesStoreForTests,
   setReaderPreferencesNovelId,
 } from './readerPreferencesStore';
+import { hasRestorableReaderPosition } from '../utils/readerPosition';
 import type {
   ReaderMode,
   ReaderSessionSnapshot,
@@ -194,14 +195,7 @@ function resolveModeFromStoredState(state: StoredReaderState | null | undefined)
 }
 
 function shouldMaskRestore(state: StoredReaderState | null | undefined): boolean {
-  if (!state) return false;
-  const mode = resolveModeFromStoredState(state);
-  return (state.chapterIndex ?? 0) > 0
-    || mode === 'summary'
-    || mode === 'paged'
-    || state.locator !== undefined
-    || (typeof state.chapterProgress === 'number' && state.chapterProgress > 0)
-    || (typeof state.scrollPosition === 'number' && state.scrollPosition > 0);
+  return hasRestorableReaderPosition(state);
 }
 
 function deriveViewState(mode: ReaderMode): Pick<ReaderSessionInternalState, 'mode' | 'viewMode' | 'isTwoColumn'> {

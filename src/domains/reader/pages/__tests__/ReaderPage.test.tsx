@@ -1,3 +1,5 @@
+import type { RefObject } from 'react';
+
 import { StrictMode } from 'react';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { db } from '@infra/db';
@@ -8,6 +10,7 @@ import { analysisApi } from '@domains/analysis';
 import type { AnalysisJobStatus } from '@domains/analysis';
 import { buildChapterImageGalleryEntries } from '@shared/text-processing';
 import { readerApi } from '../../api/readerApi';
+import type { ChapterContent } from '../../api/readerApi';
 import { resetReaderSessionStoreForTests } from '../../hooks/sessionStore';
 import {
   composePaginatedChapterLayout,
@@ -56,6 +59,122 @@ vi.mock('@domains/analysis', async (importOriginal) => {
       analyzeChapter: vi.fn(),
     },
     useChapterAnalysis: useChapterAnalysisMock,
+  };
+});
+
+vi.mock('../../hooks/useReaderRenderCache', async () => {
+  const React = await import('react');
+  const layout = await import('../../utils/readerLayout');
+
+  return {
+    useReaderRenderCache: (params: {
+      contentRef: RefObject<HTMLDivElement | null>;
+      currentChapter: ChapterContent | null;
+      fontSize: number;
+      lineSpacing: number;
+      pagedChapters: ChapterContent[];
+      pagedViewportElement: HTMLDivElement | null;
+      paragraphSpacing: number;
+      scrollChapters: Array<{ chapter: ChapterContent; index: number }>;
+    }) => {
+      const scrollViewportElement = params.contentRef.current;
+      const scrollViewportRect = scrollViewportElement?.getBoundingClientRect();
+      const pagedViewportRect = params.pagedViewportElement?.getBoundingClientRect();
+      const scrollViewportWidth =
+        scrollViewportElement?.clientWidth || scrollViewportRect?.width || 1024;
+      const scrollViewportHeight =
+        scrollViewportElement?.clientHeight || scrollViewportRect?.height || 800;
+      const pagedViewportWidth =
+        params.pagedViewportElement?.clientWidth
+        || pagedViewportRect?.width
+        || scrollViewportWidth;
+      const pagedViewportHeight =
+        params.pagedViewportElement?.clientHeight
+        || pagedViewportRect?.height
+        || scrollViewportHeight;
+      const viewportMetrics = React.useMemo(() => layout.createReaderViewportMetrics(
+        scrollViewportWidth,
+        scrollViewportHeight,
+        pagedViewportWidth,
+        pagedViewportHeight,
+        params.fontSize,
+      ), [
+        pagedViewportHeight,
+        pagedViewportWidth,
+        params.fontSize,
+        scrollViewportHeight,
+        scrollViewportWidth,
+      ]);
+      const typography = React.useMemo(() => layout.createReaderTypographyMetrics(
+        params.fontSize,
+        params.lineSpacing,
+        params.paragraphSpacing,
+        pagedViewportWidth || scrollViewportWidth,
+      ), [
+        pagedViewportWidth,
+        params.fontSize,
+        params.lineSpacing,
+        params.paragraphSpacing,
+        scrollViewportWidth,
+      ]);
+      const pagedLayouts = React.useMemo(() => new Map(
+        params.pagedChapters.map((chapter) => {
+          const measuredLayout = layout.measureReaderChapterLayout(
+            chapter,
+            viewportMetrics.pagedColumnWidth,
+            typography,
+            new Map(),
+          );
+          return [
+            chapter.index,
+            layout.composePaginatedChapterLayout(
+              measuredLayout,
+              layout.getPagedContentHeight(viewportMetrics.pagedViewportHeight),
+              viewportMetrics.pagedColumnCount,
+              viewportMetrics.pagedColumnGap,
+            ),
+          ];
+        }),
+      ), [
+        params.pagedChapters,
+        typography,
+        viewportMetrics.pagedColumnCount,
+        viewportMetrics.pagedColumnGap,
+        viewportMetrics.pagedColumnWidth,
+        viewportMetrics.pagedViewportHeight,
+      ]);
+      const scrollLayouts = React.useMemo(() => new Map(
+        params.scrollChapters.map(({ chapter, index }) => [
+          index,
+          layout.measureReaderChapterLayout(
+            chapter,
+            viewportMetrics.scrollTextWidth,
+            typography,
+            new Map(),
+          ),
+        ]),
+      ), [
+        params.scrollChapters,
+        typography,
+        viewportMetrics.scrollTextWidth,
+      ]);
+
+      return React.useMemo(() => ({
+        pagedLayouts,
+        scrollLayouts,
+        summaryShells: new Map(),
+        typography,
+        viewportMetrics,
+        cacheSourceByKey: new Map(),
+        isPreheating: false,
+        pendingPreheatCount: 0,
+      }), [
+        pagedLayouts,
+        scrollLayouts,
+        typography,
+        viewportMetrics,
+      ]);
+    },
   };
 });
 
@@ -1214,6 +1333,12 @@ describe('ReaderPage', () => {
   });
 
   it('renders an empty state when the novel has no chapters', async () => {
+    localStorage.setItem('reader-state:1', JSON.stringify({
+      chapterIndex: 4,
+      viewMode: 'original',
+      isTwoColumn: false,
+      scrollPosition: 240,
+    }));
     vi.mocked(readerApi.getChapters).mockResolvedValueOnce([]);
     vi.mocked(readerApi.getChapterContent).mockRejectedValueOnce(new Error('Chapter not found'));
     renderPage();
