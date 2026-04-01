@@ -629,7 +629,9 @@ describe('ReaderPage', () => {
     vi.mocked(readerApi.getChapters).mockResolvedValueOnce([
       { index: 0, title: imageChapter.title, wordCount: imageChapter.wordCount },
     ]);
-    vi.mocked(readerApi.getChapterContent).mockResolvedValueOnce(imageChapter);
+    vi.mocked(readerApi.getChapterContent).mockImplementation(
+      async () => imageChapter,
+    );
 
     const { container } = renderPage();
 
@@ -710,7 +712,9 @@ describe('ReaderPage', () => {
     vi.mocked(readerApi.getChapters).mockResolvedValueOnce([
       { index: 0, title: imageChapter.title, wordCount: imageChapter.wordCount },
     ]);
-    vi.mocked(readerApi.getChapterContent).mockResolvedValueOnce(imageChapter);
+    vi.mocked(readerApi.getChapterContent).mockImplementation(
+      async () => imageChapter,
+    );
     vi.mocked(readerApi.getImageGalleryEntries).mockResolvedValueOnce([
       ...buildChapterImageGalleryEntries(imageChapter),
     ]);

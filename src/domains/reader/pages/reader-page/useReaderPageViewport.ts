@@ -43,7 +43,6 @@ interface UseReaderPageViewportParams {
   chapterIndex: number;
   chapters: Chapter[];
   currentChapter: ChapterContent | null;
-  isLoading: boolean;
   isPagedMode: boolean;
   pageIndex: number;
   pageCount: number;
@@ -282,7 +281,6 @@ export function useReaderPageViewport({
   chapterIndex,
   chapters,
   currentChapter,
-  isLoading,
   isPagedMode,
   pageIndex,
   pageCount,
@@ -432,6 +430,7 @@ export function useReaderPageViewport({
   const currentPagedLayout = currentChapter
     ? renderCache.pagedLayouts.get(currentChapter.index) ?? null
     : null;
+  const isActiveChapterResolved = currentChapter?.index === chapterIndex;
   const previousPagedLayout = previousChapterPreview
     ? renderCache.pagedLayouts.get(previousChapterPreview.index) ?? null
     : null;
@@ -495,7 +494,7 @@ export function useReaderPageViewport({
   ]);
 
   useEffect(() => {
-    if (!isPagedMode || !currentPagedLayout || isLoading) {
+    if (!isPagedMode || !currentPagedLayout || !isActiveChapterResolved) {
       const frameId = requestAnimationFrame(() => {
         setPageCount(1);
       });
@@ -527,7 +526,7 @@ export function useReaderPageViewport({
     chapterIndex,
     clearPendingRestoreTarget,
     currentPagedLayout,
-    isLoading,
+    isActiveChapterResolved,
     isPagedMode,
     pageCount,
     pageIndex,

@@ -1,10 +1,8 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { appPaths } from '@app/router/paths';
 import { useChapterAnalysis } from '@domains/analysis';
-import type { AppError } from '@shared/errors';
 
-import type { Chapter, ChapterContent } from '../../api/readerApi';
 import type { PageTarget } from '../../hooks/useReaderStatePersistence';
 import { isPagedPageTurnMode, type ReaderPageTurnMode } from '../../constants/pageTurnMode';
 import ReaderPageLayout from './ReaderPageLayout';
@@ -18,6 +16,7 @@ import { useReaderNavigation } from '../../hooks/useReaderNavigation';
 import { useReaderInput } from '../../hooks/useReaderInput';
 import { useContentClick } from '../../hooks/useContentClick';
 import { useReaderChapterData } from '../../hooks/useReaderChapterData';
+import { useReaderLifecycleController } from '../../hooks/useReaderLifecycleController';
 import { useReaderMobileBack } from '../../hooks/useReaderMobileBack';
 import {
   getReaderSessionSnapshot,
@@ -25,6 +24,7 @@ import {
   setMode as setSessionMode,
   useReaderSessionSelector,
 } from '../../hooks/sessionStore';
+import type { ChapterChangeSource } from '../../hooks/navigationTypes';
 
 export default function ReaderPageContainer() {
   const { t } = useTranslation();
@@ -37,18 +37,21 @@ export default function ReaderPageContainer() {
     hasUserInteractedRef,
     persistReaderState,
   } = useReaderPageContext();
-  const [chapters, setChapters] = useState<Chapter[]>([]);
-  const [currentChapter, setCurrentChapter] = useState<ChapterContent | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [loadingMessage, setLoadingMessage] = useState<string | null>(null);
-  const [readerError, setReaderError] = useState<AppError | null>(null);
   const [pageIndex, setPageIndex] = useState(0);
   const [pageCount, setPageCount] = useState(1);
   const [pendingPagedPageTarget, setPendingPagedPageTarget] = useState<PageTarget | null>(null);
   const [scrollModeChapters, setScrollModeChapters] = useState<number[]>([]);
   const onChapterContentResolvedRef = useRef<(chapterIndex: number) => void>(() => {});
+  const restoreSettledHandlerRef = useRef<(result: 'completed' | 'skipped' | 'failed') => void>(
+    () => {},
+  );
+  const chapterChangeSourceRef = useRef<ChapterChangeSource>(null);
+  const suppressScrollSyncTemporarilyRef = useRef<() => void>(() => {});
   const handleChapterContentResolved = useCallback((resolvedChapterIndex: number) => {
     onChapterContentResolvedRef.current(resolvedChapterIndex);
+  }, []);
+  const handleChapterDataSuppressScrollSync = useCallback(() => {
+    suppressScrollSyncTemporarilyRef.current();
   }, []);
 
   const preferences = useReaderPreferences();
@@ -57,10 +60,9 @@ export default function ReaderPageContainer() {
     sidebar.setIsSidebarOpen(false);
   }, [sidebar]);
   const chapterIndex = useReaderSessionSelector((state) => state.chapterIndex);
-  const restoreStatus = useReaderSessionSelector((state) => state.restoreStatus);
   const viewMode = useReaderSessionSelector((state) => state.viewMode);
+  const isTwoColumn = useReaderSessionSelector((state) => state.isTwoColumn);
   const analysis = useChapterAnalysis(novelId, viewMode === 'summary' ? chapterIndex : -1);
-  const isTwoColumn = isPagedPageTurnMode(preferences.pageTurnMode);
   const isPagedMode = isTwoColumn && viewMode === 'original';
   const { handleMobileBack } = useReaderMobileBack({
     isSidebarOpen: sidebar.isSidebarOpen,
@@ -100,9 +102,23 @@ export default function ReaderPageContainer() {
     setSessionMode(nextValue ? 'paged' : 'scroll', { persistRemote: false });
   }, []);
 
+  const chapterData = useReaderChapterData({
+    isPagedMode,
+    setCurrentChapterWindow: setScrollModeChapters,
+    setChapterIndex,
+    setViewMode,
+    setIsTwoColumn,
+    setPageIndex,
+    setPageCount,
+    chapterChangeSourceRef,
+    suppressScrollSyncTemporarily: handleChapterDataSuppressScrollSync,
+    onChapterContentResolved: handleChapterContentResolved,
+  });
+
   const restoreFlow = useReaderRestoreFlow({
     chapterIndex,
     setChapterIndex,
+    chapterChangeSourceRef,
     viewMode,
     setViewMode,
     isTwoColumn,
@@ -110,44 +126,23 @@ export default function ReaderPageContainer() {
     isPagedMode,
     pageIndex,
     pageCount,
-    currentChapter,
-    isLoading,
+    currentChapter: chapterData.currentChapter,
     summaryRestoreSignal: analysis.chapterAnalysis,
     isChapterAnalysisLoading: analysis.isChapterAnalysisLoading,
+    onRestoreSettled: (result) => {
+      restoreSettledHandlerRef.current(result);
+    },
   });
 
-  const chapterData = useReaderChapterData({
-    chapterIndex,
-    viewMode,
-    isPagedMode,
-    isTwoColumn,
-    chapters,
-    setChapters,
-    setCurrentChapter,
-    setCurrentChapterWindow: setScrollModeChapters,
-    setIsLoading,
-    setChapterIndex,
-    setViewMode,
-    setIsTwoColumn,
-    setPageIndex,
-    setPageCount,
-    setReaderError,
-    chapterChangeSourceRef: restoreFlow.chapterChangeSourceRef,
-    setPendingRestoreTarget: restoreFlow.setPendingRestoreTarget,
-    clearPendingRestoreTarget: restoreFlow.clearPendingRestoreTarget,
-    suppressScrollSyncTemporarily: restoreFlow.suppressScrollSyncTemporarily,
-    startRestoreMaskForTarget: restoreFlow.startRestoreMaskForTarget,
-    stopRestoreMask: restoreFlow.stopRestoreMask,
-    setLoadingMessage,
-    onChapterContentResolved: handleChapterContentResolved,
-  });
+  useEffect(() => {
+    suppressScrollSyncTemporarilyRef.current = restoreFlow.suppressScrollSyncTemporarily;
+  }, [restoreFlow.suppressScrollSyncTemporarily]);
 
   const viewport = useReaderPageViewport({
     chapterData,
     chapterIndex,
-    chapters,
-    currentChapter,
-    isLoading,
+    chapters: chapterData.chapters,
+    currentChapter: chapterData.currentChapter,
     isPagedMode,
     pageIndex,
     pageCount,
@@ -168,14 +163,28 @@ export default function ReaderPageContainer() {
     viewMode,
   });
 
-  const isChapterNavigationReady = !isLoading
-    && currentChapter?.index === chapterIndex
-    && (!isPagedMode || viewport.currentPagedLayout?.chapterIndex === chapterIndex);
+  const lifecycle = useReaderLifecycleController({
+    novelId,
+    chapterIndex,
+    viewMode,
+    isTwoColumn,
+    isPagedMode,
+    currentPagedLayoutChapterIndex: viewport.currentPagedLayout?.chapterIndex ?? null,
+    chapterData,
+    restoreFlow,
+  });
+
+  useEffect(() => {
+    restoreSettledHandlerRef.current = lifecycle.handleRestoreSettled;
+    return () => {
+      restoreSettledHandlerRef.current = () => {};
+    };
+  }, [lifecycle.handleRestoreSettled]);
 
   const navigation = useReaderNavigation(
     chapterIndex,
     setChapterIndex,
-    currentChapter,
+    chapterData.currentChapter,
     isPagedMode,
     pageIndex,
     setPageIndex,
@@ -183,11 +192,11 @@ export default function ReaderPageContainer() {
     persistReaderState,
     pageTargetRef,
     setPendingPagedPageTarget,
-    chapters,
+    chapterData.chapters,
     scrollModeChapters,
     hasUserInteractedRef,
-    restoreFlow.chapterChangeSourceRef,
-    isChapterNavigationReady,
+    chapterChangeSourceRef,
+    lifecycle.isChapterNavigationReady,
     restoreFlow.handleBeforeChapterChange,
   );
 
@@ -220,8 +229,10 @@ export default function ReaderPageContainer() {
     navigation.goToPrevPage,
     navigation.goToChapter,
     chapterIndex,
-    currentChapter,
-    isLoading,
+    chapterData.currentChapter,
+    lifecycle.lifecycleStatus === 'hydrating'
+      || lifecycle.lifecycleStatus === 'loading-chapters'
+      || lifecycle.lifecycleStatus === 'loading-chapter',
     isContentInteractionLocked,
     dismissBlockedInteraction,
     wheelDeltaRef,
@@ -233,7 +244,6 @@ export default function ReaderPageContainer() {
       return;
     }
 
-    const currentIsPagedMode = isPagedPageTurnMode(preferences.pageTurnMode);
     const nextIsPagedMode = isPagedPageTurnMode(nextMode);
 
     preferences.setPageTurnMode(nextMode);
@@ -242,10 +252,10 @@ export default function ReaderPageContainer() {
       return;
     }
 
-    if (currentIsPagedMode !== nextIsPagedMode) {
+    if (isTwoColumn !== nextIsPagedMode) {
       restoreFlow.handleSetIsTwoColumn(nextIsPagedMode);
     }
-  }, [preferences, restoreFlow, viewMode]);
+  }, [isTwoColumn, preferences, restoreFlow, viewMode]);
 
   const handleViewportClick = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
     if (sidebar.isSidebarOpen) {
@@ -266,10 +276,7 @@ export default function ReaderPageContainer() {
     sidebar.setIsSidebarOpen(false);
   }, [navigation, sidebar]);
 
-  const renderableChapter = !isLoading ? currentChapter : null;
-  const showLoadingOverlay = isLoading
-    || restoreStatus === 'restoring'
-    || (isPagedMode && Boolean(renderableChapter) && viewport.currentPagedLayout === null);
+  const { renderableChapter, showLoadingOverlay } = lifecycle;
 
   const pagedContentProps = renderableChapter && isPagedMode ? {
     chapter: renderableChapter,
@@ -293,7 +300,7 @@ export default function ReaderPageContainer() {
     nextLayout: viewport.nextPagedLayout,
     onRequestPrevPage: navigation.goToPrevPageSilently,
     onRequestNextPage: navigation.goToNextPageSilently,
-    disableAnimation: restoreFlow.isRestoringPosition,
+    disableAnimation: lifecycle.isRestoringPosition,
     interactionLocked: isContentInteractionLocked,
   } : undefined;
 
@@ -323,7 +330,7 @@ export default function ReaderPageContainer() {
     headerBgClassName: preferences.headerBg,
   } : undefined;
 
-  const toolbarProps = currentChapter && !showLoadingOverlay ? {
+  const toolbarProps = chapterData.currentChapter && !showLoadingOverlay ? {
     sliders: {
       fontSize: preferences.fontSize,
       setFontSize: preferences.setFontSize,
@@ -353,9 +360,9 @@ export default function ReaderPageContainer() {
     <ReaderPageLayout
       imageViewerProps={imageOverlay.imageViewerProps}
       pageBgClassName={preferences.currentTheme.bg}
-      readerError={readerError}
+      readerError={lifecycle.readerError}
       sidebarProps={{
-        chapters,
+        chapters: chapterData.chapters,
         currentIndex: chapterIndex,
         contentTextColor: preferences.currentTheme.text,
         isSidebarOpen: sidebar.isSidebarOpen,
@@ -383,8 +390,8 @@ export default function ReaderPageContainer() {
         viewMode,
         renderableChapter,
         showLoadingOverlay,
-        isRestoringPosition: restoreFlow.isRestoringPosition,
-        loadingLabel: restoreStatus === 'restoring' ? t('reader.restoringPosition') : loadingMessage,
+        isRestoringPosition: lifecycle.isRestoringPosition,
+        loadingLabel: lifecycle.loadingLabel,
         onBlockedInteraction: dismissBlockedInteraction,
         onContentClick: handleViewportClick,
         onContentScroll: handleViewportScroll,

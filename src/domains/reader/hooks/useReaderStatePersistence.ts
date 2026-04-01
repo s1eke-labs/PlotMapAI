@@ -1,12 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import {
   flushPersistence,
-  getReaderSessionSnapshot,
   hydrateSession,
   markUserInteracted,
   persistStoredReaderState,
   readInitialStoredReaderState,
-  setHasHydratedReaderState,
   setSessionNovelId,
   useReaderSessionSelector,
   type StoredReaderState,
@@ -57,8 +55,6 @@ function buildNovelScopedInitialState(
 }
 
 export function useReaderStatePersistence(novelId: number): {
-  hasHydratedReaderState: boolean;
-  setHasHydratedReaderState: React.Dispatch<React.SetStateAction<boolean>>;
   latestReaderStateRef: React.MutableRefObject<StoredReaderState>;
   hasUserInteractedRef: React.MutableRefObject<boolean>;
   markUserInteracted: () => void;
@@ -68,7 +64,6 @@ export function useReaderStatePersistence(novelId: number): {
   initialStoredState: StoredReaderState | null;
 } {
   const sessionNovelId = useReaderSessionSelector((state) => state.novelId);
-  const restoreStatus = useReaderSessionSelector((state) => state.restoreStatus);
   const hasUserInteracted = useReaderSessionSelector((state) => state.hasUserInteracted);
   const chapterIndex = useReaderSessionSelector((state) => state.chapterIndex);
   const mode = useReaderSessionSelector((state) => state.mode);
@@ -102,10 +97,9 @@ export function useReaderStatePersistence(novelId: number): {
   ]);
   const snapshot = useMemo(() => ({
     novelId: sessionNovelId,
-    restoreStatus,
     hasUserInteracted,
     storedState,
-  }), [hasUserInteracted, restoreStatus, sessionNovelId, storedState]);
+  }), [hasUserInteracted, sessionNovelId, storedState]);
 
   const initialStoredState = useMemo(
     () => readInitialStoredReaderState(novelId),
@@ -140,20 +134,6 @@ export function useReaderStatePersistence(novelId: number): {
   useEffect(() => {
     hasUserInteractedRef.current = false;
   }, [novelId]);
-
-  const handleSetHasHydratedReaderState = useCallback(
-    (nextState: React.SetStateAction<boolean>) => {
-      const currentSnapshot = getReaderSessionSnapshot();
-      const currentValue =
-        currentSnapshot.novelId === novelId &&
-        currentSnapshot.restoreStatus !== 'hydrating';
-      const resolved = typeof nextState === 'function'
-        ? nextState(currentValue)
-        : nextState;
-      setHasHydratedReaderState(resolved);
-    },
-    [novelId],
-  );
 
   const persistReaderState = useCallback(
     (nextState: StoredReaderState, options?: PersistReaderStateOptions) => {
@@ -224,8 +204,6 @@ export function useReaderStatePersistence(novelId: number): {
   }, [flushReaderState, novelId]);
 
   return {
-    hasHydratedReaderState: isSessionNovelAligned && snapshot.restoreStatus !== 'hydrating',
-    setHasHydratedReaderState: handleSetHasHydratedReaderState,
     latestReaderStateRef,
     hasUserInteractedRef,
     markUserInteracted: handleMarkUserInteracted,

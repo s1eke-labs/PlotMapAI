@@ -32,8 +32,6 @@ function createReaderPageContextValue(
 ): ReaderPageContextValue {
   return {
     novelId,
-    hasHydratedReaderState: true,
-    setHasHydratedReaderState: vi.fn(),
     latestReaderStateRef: { current: {} },
     hasUserInteractedRef: { current: false },
     markUserInteracted: vi.fn(),

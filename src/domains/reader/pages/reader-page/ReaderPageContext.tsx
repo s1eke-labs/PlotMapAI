@@ -10,8 +10,6 @@ import { useReaderStatePersistence } from '../../hooks/useReaderStatePersistence
 
 export interface ReaderPageContextValue {
   novelId: number;
-  hasHydratedReaderState: boolean;
-  setHasHydratedReaderState: React.Dispatch<React.SetStateAction<boolean>>;
   latestReaderStateRef: React.MutableRefObject<StoredReaderState>;
   hasUserInteractedRef: React.MutableRefObject<boolean>;
   markUserInteracted: () => void;
@@ -85,8 +83,6 @@ export function ReaderPageProvider({
 
   const value = useMemo<ReaderPageContextValue>(() => ({
     novelId,
-    hasHydratedReaderState: readerStatePersistence.hasHydratedReaderState,
-    setHasHydratedReaderState: readerStatePersistence.setHasHydratedReaderState,
     latestReaderStateRef: readerStatePersistence.latestReaderStateRef,
     hasUserInteractedRef: readerStatePersistence.hasUserInteractedRef,
     markUserInteracted: readerStatePersistence.markUserInteracted,
@@ -108,13 +104,11 @@ export function ReaderPageProvider({
     resolveScrollLocatorOffsetRef,
   }), [
     novelId,
-    readerStatePersistence.hasHydratedReaderState,
     readerStatePersistence.hasUserInteractedRef,
     readerStatePersistence.latestReaderStateRef,
     readerStatePersistence.loadPersistedReaderState,
     readerStatePersistence.markUserInteracted,
     readerStatePersistence.persistReaderState,
-    readerStatePersistence.setHasHydratedReaderState,
   ]);
 
   return (

@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { reportAppError } from '@app/debug/service';
 import { AppErrorCode, toAppError, type AppError } from '@shared/errors';
+
 import { readerApi } from '../api/readerApi';
 import type { Chapter, ChapterContent } from '../api/readerApi';
 import { extractImageKeysFromText } from '../utils/chapterImages';
@@ -21,36 +22,42 @@ import type {
 } from './useReaderStatePersistence';
 import { useReaderPageContext } from '../pages/reader-page/ReaderPageContext';
 
-interface UseReaderChapterDataParams {
+export interface ReaderHydrateDataResult {
+  hasChapters: boolean;
+  initialRestoreTarget: ReaderRestoreTarget | null;
+  resolvedState: StoredReaderState | null;
+  storedState: StoredReaderState;
+}
+
+export interface ReaderLoadActiveChapterParams {
   chapterIndex: number;
-  viewMode: 'original' | 'summary';
   isPagedMode: boolean;
   isTwoColumn: boolean;
-  chapters: Chapter[];
-  setChapters: React.Dispatch<React.SetStateAction<Chapter[]>>;
-  setCurrentChapter: React.Dispatch<React.SetStateAction<ChapterContent | null>>;
+  viewMode: 'original' | 'summary';
+}
+
+export interface ReaderLoadActiveChapterResult {
+  navigationRestoreTarget: ReaderRestoreTarget | null;
+}
+
+interface UseReaderChapterDataParams {
+  isPagedMode: boolean;
   setCurrentChapterWindow: React.Dispatch<React.SetStateAction<number[]>>;
-  setIsLoading: React.Dispatch<React.SetStateAction<boolean>>;
   setChapterIndex: React.Dispatch<React.SetStateAction<number>>;
   setViewMode: React.Dispatch<React.SetStateAction<'original' | 'summary'>>;
   setIsTwoColumn: React.Dispatch<React.SetStateAction<boolean>>;
   setPageIndex: React.Dispatch<React.SetStateAction<number>>;
   setPageCount: React.Dispatch<React.SetStateAction<number>>;
-  setReaderError: React.Dispatch<React.SetStateAction<AppError | null>>;
   chapterChangeSourceRef: React.MutableRefObject<ChapterChangeSource>;
-  setPendingRestoreTarget: (
-    nextTarget: ReaderRestoreTarget | null,
-    options?: { force?: boolean },
-  ) => void;
-  clearPendingRestoreTarget: () => void;
   suppressScrollSyncTemporarily: () => void;
-  startRestoreMaskForTarget: (target: ReaderRestoreTarget | null | undefined) => void;
-  stopRestoreMask: () => void;
-  setLoadingMessage: React.Dispatch<React.SetStateAction<string | null>>;
   onChapterContentResolved?: (chapterIndex: number) => void;
 }
 
-interface UseReaderChapterDataResult {
+export interface UseReaderChapterDataResult {
+  chapters: Chapter[];
+  currentChapter: ChapterContent | null;
+  loadingMessage: string | null;
+  readerError: AppError | null;
   fetchChapterContent: (
     index: number,
     options?: {
@@ -58,38 +65,29 @@ interface UseReaderChapterDataResult {
       onProgress?: (message: string) => void;
     },
   ) => Promise<ChapterContent>;
+  hydrateReaderData: () => Promise<ReaderHydrateDataResult>;
+  loadActiveChapter: (
+    params: ReaderLoadActiveChapterParams,
+  ) => Promise<ReaderLoadActiveChapterResult>;
   preloadAdjacent: (index: number, prune?: boolean) => void;
+  resetReaderContent: () => void;
 }
 
 export function useReaderChapterData({
-  chapterIndex,
-  viewMode,
   isPagedMode,
-  isTwoColumn,
-  chapters,
-  setChapters,
-  setCurrentChapter,
   setCurrentChapterWindow,
-  setIsLoading,
   setChapterIndex,
   setViewMode,
   setIsTwoColumn,
   setPageIndex,
   setPageCount,
-  setReaderError,
   chapterChangeSourceRef,
-  setPendingRestoreTarget,
-  clearPendingRestoreTarget,
   suppressScrollSyncTemporarily,
-  startRestoreMaskForTarget,
-  stopRestoreMask,
-  setLoadingMessage,
   onChapterContentResolved,
 }: UseReaderChapterDataParams): UseReaderChapterDataResult {
   const { t } = useTranslation();
   const {
     novelId,
-    setHasHydratedReaderState,
     latestReaderStateRef,
     hasUserInteractedRef,
     loadPersistedReaderState,
@@ -100,9 +98,15 @@ export function useReaderChapterData({
     wheelDeltaRef,
     pageTurnLockedRef,
   } = useReaderPageContext();
+  const [chapters, setChapters] = useState<Chapter[]>([]);
+  const [currentChapter, setCurrentChapter] = useState<ChapterContent | null>(null);
+  const [loadingMessage, setLoadingMessage] = useState<string | null>(null);
+  const [readerError, setReaderError] = useState<AppError | null>(null);
   const preloadTimeoutIdsRef = useRef<number[]>([]);
   const preloadControllersRef = useRef<AbortController[]>([]);
   const chapterImageKeysRef = useRef<Map<number, string[]>>(new Map());
+  const hydrateControllerRef = useRef<AbortController | null>(null);
+  const activeChapterControllerRef = useRef<AbortController | null>(null);
   const userInteractedRef = hasUserInteractedRef;
   const latestStoredStateRef = latestReaderStateRef;
   const chapterSourceRef = chapterChangeSourceRef;
@@ -142,6 +146,16 @@ export function useReaderChapterData({
     preloadTimeoutIdsRef.current = [];
     preloadControllersRef.current.forEach((controller) => controller.abort());
     preloadControllersRef.current = [];
+  }, []);
+
+  const abortHydrationRequest = useCallback(() => {
+    hydrateControllerRef.current?.abort();
+    hydrateControllerRef.current = null;
+  }, []);
+
+  const abortActiveChapterRequest = useCallback(() => {
+    activeChapterControllerRef.current?.abort();
+    activeChapterControllerRef.current = null;
   }, []);
 
   const fetchChapterContent = useCallback(async (
@@ -239,31 +253,51 @@ export function useReaderChapterData({
     });
   }, [setCurrentChapterWindow]);
 
-  useEffect(() => {
-    if (!novelId) return;
-    let cancelled = false;
-    const initController = new AbortController();
+  const resetReaderContent = useCallback(() => {
+    abortHydrationRequest();
+    abortActiveChapterRequest();
+    clearScheduledPreloads();
+    userInteractedRef.current = false;
+    chapterSourceRef.current = null;
+    pageTargetRef.current = null;
+    chapterCacheRef.current.clear();
+    chapterImageKeysRef.current.clear();
+    setChapters([]);
+    setCurrentChapter(null);
+    setReaderError(null);
+    setLoadingMessage(null);
+    updateChapterWindow([]);
+    setPageIndex(0);
+    setPageCount(1);
+    wheelAccumulatorRef.current = 0;
+    pageTurnLockRef.current = false;
+  }, [
+    abortActiveChapterRequest,
+    abortHydrationRequest,
+    chapterCacheRef,
+    chapterSourceRef,
+    clearScheduledPreloads,
+    pageTargetRef,
+    pageTurnLockRef,
+    setPageCount,
+    setPageIndex,
+    updateChapterWindow,
+    userInteractedRef,
+    wheelAccumulatorRef,
+  ]);
 
-    const init = async () => {
-      clearScheduledPreloads();
-      setIsLoading(true);
-      setLoadingMessage(t('reader.processingContents', { percent: 0 }));
-      stopRestoreMask();
-      setHasHydratedReaderState(false);
-      userInteractedRef.current = false;
-      chapterSourceRef.current = null;
-      chapterCacheRef.current.clear();
-      chapterImageKeysRef.current.clear();
-      setChapters([]);
-      setCurrentChapter(null);
-      setReaderError(null);
-      updateChapterWindow([]);
-      setPageIndex(0);
-      setPageCount(1);
-      clearPendingRestoreTarget();
+  const hydrateReaderData = useCallback(async (): Promise<ReaderHydrateDataResult> => {
+    abortHydrationRequest();
+    const controller = new AbortController();
+    hydrateControllerRef.current = controller;
+    setLoadingMessage(t('reader.processingContents', { percent: 0 }));
+    setReaderError(null);
 
+    try {
       const storedState = await loadPersistedReaderState();
-      if (cancelled) return;
+      if (controller.signal.aborted) {
+        throw new DOMException('Hydration aborted', 'AbortError');
+      }
 
       const nextStoredState: StoredReaderState = {
         chapterIndex: storedState.chapterIndex ?? 0,
@@ -276,127 +310,122 @@ export function useReaderChapterData({
       };
 
       latestStoredStateRef.current = nextStoredState;
-      setIsTwoColumn(nextStoredState.isTwoColumn ?? false);
       setViewMode(nextStoredState.viewMode ?? 'original');
+      setIsTwoColumn(nextStoredState.isTwoColumn ?? false);
       setChapterIndex(nextStoredState.chapterIndex ?? 0);
 
-      try {
-        const toc = await readerApi.getChapters(novelId, {
-          signal: initController.signal,
-          onProgress: (progress) => {
-            if (!cancelled) {
-              setLoadingMessage(t('reader.processingContents', { percent: progress.progress }));
-            }
-          },
-        });
-        if (cancelled) return;
-        setChapters(toc);
-
-        if (!userInteractedRef.current) {
-          const fallbackIndex = toc.length > 0 ? toc[0].index : 0;
-          const nextChapterIndex = nextStoredState.chapterIndex ?? fallbackIndex;
-          const nextViewMode = nextStoredState.viewMode ?? 'original';
-          const hasChapter = toc.some((chapter) => chapter.index === nextChapterIndex);
-          const resolvedChapterIndex = hasChapter ? nextChapterIndex : fallbackIndex;
-
-          const resolvedState: StoredReaderState = {
-            chapterIndex: resolvedChapterIndex,
-            viewMode: nextViewMode,
-            isTwoColumn: nextStoredState.isTwoColumn,
-            chapterProgress: hasChapter ? nextStoredState.chapterProgress : 0,
-            scrollPosition: hasChapter ? nextStoredState.scrollPosition : undefined,
-            locatorVersion: hasChapter && nextStoredState.locator ? 1 : undefined,
-            locator: hasChapter ? nextStoredState.locator : undefined,
-          };
-
-          latestStoredStateRef.current = resolvedState;
-          setIsTwoColumn(resolvedState.isTwoColumn ?? false);
-          setViewMode(nextViewMode);
-          setChapterIndex(resolvedChapterIndex);
-
-          const nextRestoreTarget = createRestoreTargetFromPersistedState(resolvedState);
-          setPendingRestoreTarget(nextRestoreTarget);
-          startRestoreMaskForTarget(nextRestoreTarget);
-        }
-
-        if (toc.length === 0) {
-          clearPendingRestoreTarget();
-          setIsLoading(false);
-          setLoadingMessage(null);
-          stopRestoreMask();
-        }
-      } catch (error) {
-        if (!cancelled) {
-          const normalized = toAppError(error, {
-            code: AppErrorCode.STORAGE_OPERATION_FAILED,
-            kind: 'storage',
-            source: 'reader',
-            userMessageKey: 'reader.loadError',
-          });
-          reportAppError(normalized);
-          setReaderError(normalized);
-          setIsLoading(false);
-          setLoadingMessage(null);
-          stopRestoreMask();
-        }
-      } finally {
-        if (!cancelled) {
-          setHasHydratedReaderState(true);
-        }
+      const toc = await readerApi.getChapters(novelId, {
+        signal: controller.signal,
+        onProgress: (progress) => {
+          setLoadingMessage(t('reader.processingContents', { percent: progress.progress }));
+        },
+      });
+      if (controller.signal.aborted) {
+        throw new DOMException('Hydration aborted', 'AbortError');
       }
-    };
 
-    init();
-    return () => {
-      cancelled = true;
-      initController.abort();
-      clearScheduledPreloads();
-    };
+      setChapters(toc);
+      if (toc.length === 0) {
+        setLoadingMessage(null);
+        return {
+          hasChapters: false,
+          initialRestoreTarget: null,
+          resolvedState: null,
+          storedState: nextStoredState,
+        };
+      }
+
+      if (userInteractedRef.current) {
+        setLoadingMessage(null);
+        return {
+          hasChapters: true,
+          initialRestoreTarget: null,
+          resolvedState: nextStoredState,
+          storedState: nextStoredState,
+        };
+      }
+
+      const fallbackIndex = toc[0]?.index ?? 0;
+      const nextChapterIndex = nextStoredState.chapterIndex ?? fallbackIndex;
+      const nextViewMode = nextStoredState.viewMode ?? 'original';
+      const hasChapter = toc.some((chapter) => chapter.index === nextChapterIndex);
+      const resolvedChapterIndex = hasChapter ? nextChapterIndex : fallbackIndex;
+
+      const resolvedState: StoredReaderState = {
+        chapterIndex: resolvedChapterIndex,
+        viewMode: nextViewMode,
+        isTwoColumn: nextStoredState.isTwoColumn,
+        chapterProgress: hasChapter ? nextStoredState.chapterProgress : 0,
+        scrollPosition: hasChapter ? nextStoredState.scrollPosition : undefined,
+        locatorVersion: hasChapter && nextStoredState.locator ? 1 : undefined,
+        locator: hasChapter ? nextStoredState.locator : undefined,
+      };
+
+      latestStoredStateRef.current = resolvedState;
+      setViewMode(nextViewMode);
+      setIsTwoColumn(resolvedState.isTwoColumn ?? false);
+      setChapterIndex(resolvedChapterIndex);
+      setLoadingMessage(null);
+
+      return {
+        hasChapters: true,
+        initialRestoreTarget: createRestoreTargetFromPersistedState(resolvedState),
+        resolvedState,
+        storedState: nextStoredState,
+      };
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        throw error;
+      }
+
+      const normalized = toAppError(error, {
+        code: AppErrorCode.STORAGE_OPERATION_FAILED,
+        kind: 'storage',
+        source: 'reader',
+        userMessageKey: 'reader.loadError',
+      });
+      reportAppError(normalized);
+      setReaderError(normalized);
+      setLoadingMessage(null);
+      throw normalized;
+    }
   }, [
-    chapterCacheRef,
-    chapterSourceRef,
-    clearScheduledPreloads,
-    clearPendingRestoreTarget,
+    abortHydrationRequest,
     latestStoredStateRef,
     loadPersistedReaderState,
     novelId,
     setChapterIndex,
-    setChapters,
-    setCurrentChapter,
-    setHasHydratedReaderState,
-    setIsLoading,
     setIsTwoColumn,
-    setPageCount,
-    setPageIndex,
-    setReaderError,
-    setPendingRestoreTarget,
     setViewMode,
-    setLoadingMessage,
-    startRestoreMaskForTarget,
-    stopRestoreMask,
     t,
-    updateChapterWindow,
     userInteractedRef,
   ]);
 
-  useEffect(() => {
-    if (!novelId || chapterIndex === undefined) return;
-    if (chapters.length === 0) {
-      stopRestoreMask();
-      return;
+  const loadActiveChapter = useCallback(async (
+    params: ReaderLoadActiveChapterParams,
+  ): Promise<ReaderLoadActiveChapterResult> => {
+    if (!novelId || chapters.length === 0) {
+      setLoadingMessage(null);
+      return { navigationRestoreTarget: null };
     }
 
-    if (!isPagedMode && viewMode === 'original' && chapterSourceRef.current === 'scroll') {
+    if (
+      !params.isPagedMode &&
+      params.viewMode === 'original' &&
+      chapterSourceRef.current === 'scroll'
+    ) {
       chapterSourceRef.current = null;
-      return;
+      setLoadingMessage(null);
+      return { navigationRestoreTarget: null };
     }
 
-    let cancelled = false;
-    const chapterController = new AbortController();
+    abortActiveChapterRequest();
+    const controller = new AbortController();
+    activeChapterControllerRef.current = controller;
 
-    const initScrollModeWindow = () => {
+    const initScrollModeWindow = (activeChapterIndex: number) => {
       const nextWindow: number[] = [];
-      for (let index = chapterIndex - 2; index <= chapterIndex + 2; index += 1) {
+      for (let index = activeChapterIndex - 2; index <= activeChapterIndex + 2; index += 1) {
         if (index >= 0 && index < chapters.length) {
           nextWindow.push(index);
         }
@@ -406,9 +435,7 @@ export function useReaderChapterData({
         if (!chapterCacheRef.current.has(windowIndex)) {
           fetchChapterContent(windowIndex)
             .then((data) => {
-              if (!cancelled) {
-                chapterCacheRef.current.set(windowIndex, data);
-              }
+              chapterCacheRef.current.set(windowIndex, data);
             })
             .catch(() => {});
         }
@@ -435,112 +462,96 @@ export function useReaderChapterData({
       pageTurnLockRef.current = false;
     };
 
-    const fetchContent = async () => {
-      const shouldRestoreNavigatedChapter = chapterSourceRef.current === 'navigation'
-        && viewMode === 'original'
-        && !isPagedMode;
-      const applyCurrentChapter = async (data: ChapterContent) => {
-        if (isPagedMode) {
-          await warmChapterImages(data).catch(() => undefined);
-        }
-        if (cancelled) return;
+    const shouldRestoreNavigatedChapter = chapterSourceRef.current === 'navigation'
+      && params.viewMode === 'original';
 
-        setCurrentChapter(data);
-        onChapterContentResolved?.(chapterIndex);
-        resetChapterInteractionState();
-        if (viewMode === 'original' && !isPagedMode) {
-          initScrollModeWindow();
-        }
-        if (shouldRestoreNavigatedChapter) {
-          const navigationIntent: ReaderNavigationIntent = {
-            chapterIndex,
-            pageTarget: pageTargetRef.current === 'end' ? 'end' : 'start',
-          };
-          setPendingRestoreTarget(
-            createRestoreTargetFromNavigationIntent(navigationIntent, {
-              viewMode,
-              isTwoColumn,
-            }),
-            { force: true },
-          );
-        }
-        resetViewportPosition();
-        preloadAdjacent(chapterIndex);
-        chapterSourceRef.current = null;
-      };
+    const applyCurrentChapter = async (
+      chapter: ChapterContent,
+    ): Promise<ReaderLoadActiveChapterResult> => {
+      if (params.isPagedMode) {
+        await warmChapterImages(chapter).catch(() => undefined);
+      }
+      if (controller.signal.aborted) {
+        throw new DOMException('Chapter load aborted', 'AbortError');
+      }
 
-      const cached = chapterCacheRef.current.get(chapterIndex);
+      setCurrentChapter(chapter);
+      onChapterContentResolved?.(params.chapterIndex);
+      resetChapterInteractionState();
+      if (params.viewMode === 'original' && !params.isPagedMode) {
+        initScrollModeWindow(params.chapterIndex);
+      }
+
+      const navigationRestoreTarget = shouldRestoreNavigatedChapter
+        ? createRestoreTargetFromNavigationIntent({
+          chapterIndex: params.chapterIndex,
+          pageTarget: pageTargetRef.current === 'end' ? 'end' : 'start',
+        } satisfies ReaderNavigationIntent, {
+          viewMode: params.viewMode,
+          isTwoColumn: params.isTwoColumn,
+        })
+        : null;
+
+      resetViewportPosition();
+      preloadAdjacent(params.chapterIndex);
+      chapterSourceRef.current = null;
+      setLoadingMessage(null);
+
+      return { navigationRestoreTarget };
+    };
+
+    try {
+      const cached = chapterCacheRef.current.get(params.chapterIndex);
       if (cached) {
-        if (cancelled) return;
         const cachedImageKeys = getChapterImageKeys(cached);
         if (
-          isPagedMode
-          && cachedImageKeys.length > 0
-          && !areReaderImageResourcesReady(novelId, cachedImageKeys)
+          params.isPagedMode &&
+          cachedImageKeys.length > 0 &&
+          !areReaderImageResourcesReady(novelId, cachedImageKeys)
         ) {
-          setIsLoading(true);
           setLoadingMessage(t('reader.processingChapter', { percent: 100 }));
         }
 
-        await applyCurrentChapter(cached);
-        setIsLoading(false);
-        setLoadingMessage(null);
-        return;
+        return await applyCurrentChapter(cached);
       }
 
-      setIsLoading(true);
       setReaderError(null);
-
-      try {
-        setLoadingMessage(t('reader.processingChapter', { percent: 0 }));
-        const data = await readerApi.getChapterContent(novelId, chapterIndex, {
-          signal: chapterController.signal,
-          onProgress: (progress) => {
-            if (!cancelled) {
-              setLoadingMessage(t('reader.processingChapter', { percent: progress.progress }));
-            }
-          },
-        });
-        if (cancelled) return;
-        chapterCacheRef.current.set(chapterIndex, data);
-        await applyCurrentChapter(data);
-      } catch (error) {
-        if (!cancelled) {
-          const normalized = toAppError(error, {
-            code: AppErrorCode.STORAGE_OPERATION_FAILED,
-            kind: 'storage',
-            source: 'reader',
-            userMessageKey: 'reader.loadError',
-          });
-          reportAppError(normalized);
-          setReaderError(normalized);
-          setLoadingMessage(null);
-          stopRestoreMask();
-        }
-      } finally {
-        if (!cancelled) {
-          setIsLoading(false);
-          setLoadingMessage(null);
-        }
+      setLoadingMessage(t('reader.processingChapter', { percent: 0 }));
+      const chapter = await readerApi.getChapterContent(novelId, params.chapterIndex, {
+        signal: controller.signal,
+        onProgress: (progress) => {
+          setLoadingMessage(t('reader.processingChapter', { percent: progress.progress }));
+        },
+      });
+      if (controller.signal.aborted) {
+        throw new DOMException('Chapter load aborted', 'AbortError');
       }
-    };
 
-    fetchContent();
-    return () => {
-      cancelled = true;
-      chapterController.abort();
-      clearScheduledPreloads();
-    };
+      chapterCacheRef.current.set(params.chapterIndex, chapter);
+      return await applyCurrentChapter(chapter);
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        throw error;
+      }
+
+      const normalized = toAppError(error, {
+        code: AppErrorCode.STORAGE_OPERATION_FAILED,
+        kind: 'storage',
+        source: 'reader',
+        userMessageKey: 'reader.loadError',
+      });
+      reportAppError(normalized);
+      setReaderError(normalized);
+      setLoadingMessage(null);
+      throw normalized;
+    }
   }, [
+    abortActiveChapterRequest,
     chapterCacheRef,
     chapterSourceRef,
-    chapterIndex,
     chapters.length,
-    clearScheduledPreloads,
     fetchChapterContent,
     getChapterImageKeys,
-    isPagedMode,
-    isTwoColumn,
     novelId,
     onChapterContentResolved,
     pageTargetRef,
@@ -548,24 +559,24 @@ export function useReaderChapterData({
     pageTurnLockRef,
     preloadAdjacent,
     readerContentRef,
-    setCurrentChapter,
-    setIsLoading,
-    setLoadingMessage,
     setPageCount,
     setPageIndex,
-    setReaderError,
-    setPendingRestoreTarget,
-    stopRestoreMask,
     suppressScrollSyncTemporarily,
     t,
     updateChapterWindow,
-    viewMode,
     warmChapterImages,
     wheelAccumulatorRef,
   ]);
 
   return {
+    chapters,
+    currentChapter,
+    loadingMessage,
+    readerError,
     fetchChapterContent,
+    hydrateReaderData,
+    loadActiveChapter,
     preloadAdjacent,
+    resetReaderContent,
   };
 }

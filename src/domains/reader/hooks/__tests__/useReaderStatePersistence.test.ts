@@ -39,7 +39,6 @@ describe('useReaderStatePersistence', () => {
       scrollPosition: undefined,
       lastContentMode: 'scroll',
     });
-    expect(result.current.hasHydratedReaderState).toBe(false);
     expect(result.current.hasUserInteractedRef.current).toBe(false);
   });
 
@@ -270,18 +269,6 @@ describe('useReaderStatePersistence', () => {
     expect(result.current.hasUserInteractedRef.current).toBe(true);
   });
 
-  it('sets hasHydratedReaderState', () => {
-    const { result } = renderHook(() => useReaderStatePersistence(1));
-    expect(result.current.hasHydratedReaderState).toBe(false);
-
-    act(() => {
-      result.current.persistReaderState({ chapterIndex: 0 });
-    });
-
-    act(() => { result.current.setHasHydratedReaderState(true); });
-    expect(result.current.hasHydratedReaderState).toBe(true);
-  });
-
   it('does not write to localStorage when novelId is 0', () => {
     const { result } = renderHook(() => useReaderStatePersistence(0));
 
@@ -315,7 +302,6 @@ describe('useReaderStatePersistence', () => {
       rerender({ novelId: 2 });
     });
 
-    expect(result.current.hasHydratedReaderState).toBe(false);
     expect(result.current.latestReaderStateRef.current).toEqual({
       chapterIndex: 0,
       mode: 'scroll',

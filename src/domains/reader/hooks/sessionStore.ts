@@ -22,7 +22,6 @@ export {
   readInitialStoredReaderState,
   resetReaderSessionStoreForTests,
   setChapterIndex,
-  setHasHydratedReaderState,
   setMode,
   setPendingRestoreTarget,
   setReadingPosition,

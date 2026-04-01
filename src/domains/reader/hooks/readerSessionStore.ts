@@ -641,18 +641,6 @@ export function markUserInteracted(): void {
   setReaderSessionStoreState({ hasUserInteracted: true }, { writeCache: false });
 }
 
-export function setHasHydratedReaderState(hasHydratedReaderState: boolean): void {
-  if (!hasHydratedReaderState) {
-    setReaderSessionStoreState({ restoreStatus: 'hydrating' }, { writeCache: false });
-    return;
-  }
-
-  const currentState = readerSessionStore.getState();
-  setReaderSessionStoreState({
-    restoreStatus: currentState.pendingRestoreTarget ? 'restoring' : 'ready',
-  }, { writeCache: false });
-}
-
 export function getReaderSessionSnapshot(): ReaderSessionSnapshot {
   return readerSessionStore.getState();
 }

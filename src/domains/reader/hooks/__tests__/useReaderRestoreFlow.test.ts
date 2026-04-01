@@ -65,8 +65,6 @@ function createReaderPageContextValue(
 ): ReaderPageContextValue {
   return {
     novelId: 1,
-    hasHydratedReaderState: true,
-    setHasHydratedReaderState: vi.fn(),
     latestReaderStateRef: { current: createStoredState() },
     hasUserInteractedRef: { current: false },
     markUserInteracted: vi.fn(),
@@ -117,7 +115,6 @@ describe('useReaderRestoreFlow', () => {
         hasPrev: true,
         hasNext: true,
       },
-      isLoading: false,
       summaryRestoreSignal: null,
       isChapterAnalysisLoading: false,
     }), {
@@ -176,7 +173,6 @@ describe('useReaderRestoreFlow', () => {
         hasPrev: true,
         hasNext: true,
       },
-      isLoading: false,
       summaryRestoreSignal: null,
       isChapterAnalysisLoading: false,
     }), {
@@ -240,7 +236,6 @@ describe('useReaderRestoreFlow', () => {
         hasPrev: true,
         hasNext: true,
       },
-      isLoading: false,
       summaryRestoreSignal: null,
       isChapterAnalysisLoading: false,
     }), {
@@ -270,5 +265,79 @@ describe('useReaderRestoreFlow', () => {
     expect(markUserInteracted).toHaveBeenCalledTimes(2);
     expect(setChapterIndex).toHaveBeenLastCalledWith(5);
     expect(setViewMode).toHaveBeenLastCalledWith('original');
+  });
+
+  it('reports restore settle results when forced restore targets are skipped or completed', async () => {
+    const onRestoreSettled = vi.fn();
+    const chapterElement = document.createElement('div');
+    Object.defineProperty(chapterElement, 'offsetTop', {
+      configurable: true,
+      value: 120,
+    });
+    Object.defineProperty(chapterElement, 'offsetHeight', {
+      configurable: true,
+      value: 800,
+    });
+    const contextValue = createReaderPageContextValue({
+      contentRef: { current: makeContainer() },
+      scrollChapterElementsBridgeRef: {
+        current: new Map([[5, chapterElement]]),
+      },
+    });
+
+    const { result } = renderHook(() => useReaderRestoreFlow({
+      chapterIndex: 5,
+      setChapterIndex: vi.fn(),
+      viewMode: 'original',
+      setViewMode: vi.fn(),
+      isTwoColumn: false,
+      setIsTwoColumn: vi.fn(),
+      isPagedMode: false,
+      pageIndex: 0,
+      pageCount: 1,
+      currentChapter: {
+        index: 5,
+        title: 'Chapter 6',
+        content: 'content',
+        wordCount: 100,
+        totalChapters: 10,
+        hasPrev: true,
+        hasNext: true,
+      },
+      summaryRestoreSignal: null,
+      isChapterAnalysisLoading: false,
+      onRestoreSettled,
+    }), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        ReaderPageContextProvider({ value: contextValue, children })
+      ),
+    });
+
+    act(() => {
+      result.current.setPendingRestoreTarget({
+        chapterIndex: 5,
+        viewMode: 'original',
+        isTwoColumn: false,
+      }, { force: true });
+    });
+
+    await act(async () => {
+      await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
+    });
+
+    expect(onRestoreSettled).toHaveBeenCalledWith('skipped');
+
+    act(() => {
+      result.current.setPendingRestoreTarget(createRestoreTarget({
+        chapterProgress: 0.5,
+      }), { force: true });
+    });
+
+    await act(async () => {
+      await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
+      await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
+    });
+
+    expect(onRestoreSettled).toHaveBeenCalledWith('completed');
   });
 });
