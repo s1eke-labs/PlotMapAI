@@ -5,13 +5,20 @@ import { AppErrorCode, toAppError, type AppError } from '@shared/errors';
 import { readerApi } from '../api/readerApi';
 import type { Chapter, ChapterContent } from '../api/readerApi';
 import { extractImageKeysFromText } from '../utils/chapterImages';
-import { hasRestorableReaderPosition } from '../utils/readerPosition';
+import {
+  createRestoreTargetFromNavigationIntent,
+  createRestoreTargetFromPersistedState,
+} from '../utils/readerPosition';
 import {
   areReaderImageResourcesReady,
   preloadReaderImageResources,
 } from '../utils/readerImageResourceCache';
 import type { ChapterChangeSource } from './navigationTypes';
-import type { StoredReaderState } from './useReaderStatePersistence';
+import type {
+  ReaderNavigationIntent,
+  ReaderRestoreTarget,
+  StoredReaderState,
+} from './useReaderStatePersistence';
 import { useReaderPageContext } from '../pages/reader-page/ReaderPageContext';
 
 interface UseReaderChapterDataParams {
@@ -31,13 +38,13 @@ interface UseReaderChapterDataParams {
   setPageCount: React.Dispatch<React.SetStateAction<number>>;
   setReaderError: React.Dispatch<React.SetStateAction<AppError | null>>;
   chapterChangeSourceRef: React.MutableRefObject<ChapterChangeSource>;
-  setPendingRestoreState: (
-    nextState: StoredReaderState | null,
+  setPendingRestoreTarget: (
+    nextTarget: ReaderRestoreTarget | null,
     options?: { force?: boolean },
   ) => void;
-  clearPendingRestoreState: () => void;
+  clearPendingRestoreTarget: () => void;
   suppressScrollSyncTemporarily: () => void;
-  startRestoreMaskForState: (state: StoredReaderState | null | undefined) => void;
+  startRestoreMaskForTarget: (target: ReaderRestoreTarget | null | undefined) => void;
   stopRestoreMask: () => void;
   setLoadingMessage: React.Dispatch<React.SetStateAction<string | null>>;
   onChapterContentResolved?: (chapterIndex: number) => void;
@@ -71,10 +78,10 @@ export function useReaderChapterData({
   setPageCount,
   setReaderError,
   chapterChangeSourceRef,
-  setPendingRestoreState,
-  clearPendingRestoreState,
+  setPendingRestoreTarget,
+  clearPendingRestoreTarget,
   suppressScrollSyncTemporarily,
-  startRestoreMaskForState,
+  startRestoreMaskForTarget,
   stopRestoreMask,
   setLoadingMessage,
   onChapterContentResolved,
@@ -253,7 +260,7 @@ export function useReaderChapterData({
       updateChapterWindow([]);
       setPageIndex(0);
       setPageCount(1);
-      clearPendingRestoreState();
+      clearPendingRestoreTarget();
 
       const storedState = await loadPersistedReaderState();
       if (cancelled) return;
@@ -307,15 +314,13 @@ export function useReaderChapterData({
           setViewMode(nextViewMode);
           setChapterIndex(resolvedChapterIndex);
 
-          const nextRestoreState = hasRestorableReaderPosition(resolvedState)
-            ? resolvedState
-            : null;
-          setPendingRestoreState(nextRestoreState);
-          startRestoreMaskForState(nextRestoreState);
+          const nextRestoreTarget = createRestoreTargetFromPersistedState(resolvedState);
+          setPendingRestoreTarget(nextRestoreTarget);
+          startRestoreMaskForTarget(nextRestoreTarget);
         }
 
         if (toc.length === 0) {
-          clearPendingRestoreState();
+          clearPendingRestoreTarget();
           setIsLoading(false);
           setLoadingMessage(null);
           stopRestoreMask();
@@ -351,7 +356,7 @@ export function useReaderChapterData({
     chapterCacheRef,
     chapterSourceRef,
     clearScheduledPreloads,
-    clearPendingRestoreState,
+    clearPendingRestoreTarget,
     latestStoredStateRef,
     loadPersistedReaderState,
     novelId,
@@ -364,10 +369,10 @@ export function useReaderChapterData({
     setPageCount,
     setPageIndex,
     setReaderError,
-    setPendingRestoreState,
+    setPendingRestoreTarget,
     setViewMode,
     setLoadingMessage,
-    startRestoreMaskForState,
+    startRestoreMaskForTarget,
     stopRestoreMask,
     t,
     updateChapterWindow,
@@ -447,14 +452,17 @@ export function useReaderChapterData({
           initScrollModeWindow();
         }
         if (shouldRestoreNavigatedChapter) {
-          setPendingRestoreState({
+          const navigationIntent: ReaderNavigationIntent = {
             chapterIndex,
-            viewMode,
-            isTwoColumn,
-            chapterProgress: pageTargetRef.current === 'end' ? 1 : 0,
-            locatorVersion: undefined,
-            locator: undefined,
-          }, { force: true });
+            pageTarget: pageTargetRef.current === 'end' ? 'end' : 'start',
+          };
+          setPendingRestoreTarget(
+            createRestoreTargetFromNavigationIntent(navigationIntent, {
+              viewMode,
+              isTwoColumn,
+            }),
+            { force: true },
+          );
         }
         resetViewportPosition();
         preloadAdjacent(chapterIndex);
@@ -546,7 +554,7 @@ export function useReaderChapterData({
     setPageCount,
     setPageIndex,
     setReaderError,
-    setPendingRestoreState,
+    setPendingRestoreTarget,
     stopRestoreMask,
     suppressScrollSyncTemporarily,
     t,

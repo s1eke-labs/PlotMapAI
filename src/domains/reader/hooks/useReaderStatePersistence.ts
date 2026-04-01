@@ -17,6 +17,7 @@ interface PersistReaderStateOptions {
 }
 
 export type { PageTarget, StoredReaderState } from './sessionStore';
+export type { ReaderNavigationIntent, ReaderRestoreTarget } from './sessionStore';
 
 function buildNovelScopedInitialState(
   initialStoredState: StoredReaderState | null,

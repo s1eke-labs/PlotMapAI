@@ -1,4 +1,4 @@
-import type { StoredReaderState } from './useReaderStatePersistence';
+import type { ReaderRestoreTarget } from './useReaderStatePersistence';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { getPageIndexFromProgress, resolvePagedTargetPage } from '../utils/readerPosition';
 
@@ -15,8 +15,8 @@ interface UsePagedReaderLayoutParams {
   pagedContentRef: React.RefObject<HTMLDivElement | null>;
   pageIndex: number;
   pageTargetRef: React.MutableRefObject<'start' | 'end' | null>;
-  pendingRestoreStateRef: React.MutableRefObject<StoredReaderState | null>;
-  clearPendingRestoreState: () => void;
+  pendingRestoreTargetRef: React.MutableRefObject<ReaderRestoreTarget | null>;
+  clearPendingRestoreTarget: () => void;
   stopRestoreMask: () => void;
   setPageCount: React.Dispatch<React.SetStateAction<number>>;
   setPageIndex: React.Dispatch<React.SetStateAction<number>>;
@@ -125,8 +125,8 @@ export function usePagedReaderLayout({
   pagedContentRef,
   pageIndex,
   pageTargetRef,
-  pendingRestoreStateRef,
-  clearPendingRestoreState,
+  pendingRestoreTargetRef,
+  clearPendingRestoreTarget,
   stopRestoreMask,
   setPageCount,
   setPageIndex,
@@ -218,11 +218,11 @@ export function usePagedReaderLayout({
         pagedViewportSize.width,
         nextPageTurnStep,
       );
-      const pendingRestoreState = pendingRestoreStateRef.current;
-      const hasRestorablePage = pendingRestoreState?.chapterIndex === chapterIndex
-        && typeof pendingRestoreState.chapterProgress === 'number';
+      const pendingRestoreTarget = pendingRestoreTargetRef.current;
+      const hasRestorablePage = pendingRestoreTarget?.chapterIndex === chapterIndex
+        && typeof pendingRestoreTarget.chapterProgress === 'number';
       const targetPage = hasRestorablePage
-        ? getPageIndexFromProgress(pendingRestoreState?.chapterProgress, nextPageCount)
+        ? getPageIndexFromProgress(pendingRestoreTarget?.chapterProgress, nextPageCount)
         : resolvePagedTargetPage(nextPageTargetRef.current, pageIndex, nextPageCount);
 
       setPageCount(nextPageCount);
@@ -238,8 +238,8 @@ export function usePagedReaderLayout({
       setPageIndex(targetPage);
       nextPageTargetRef.current = null;
       setResolvedLayoutChapterIndex(chapterIndex);
-      if (hasRestorablePage || pendingRestoreState) {
-        clearPendingRestoreState();
+      if (hasRestorablePage || pendingRestoreTarget) {
+        clearPendingRestoreTarget();
       }
       stopRestoreMask();
     });
@@ -247,7 +247,7 @@ export function usePagedReaderLayout({
     return () => cancelAnimationFrame(frameId);
   }, [
     chapterIndex,
-    clearPendingRestoreState,
+    clearPendingRestoreTarget,
     currentChapter,
     fitsTwoColumns,
     fontSize,
@@ -261,7 +261,7 @@ export function usePagedReaderLayout({
     pagedViewportSize.width,
     pagedContentRef,
     pagedViewportSize.height,
-    pendingRestoreStateRef,
+    pendingRestoreTargetRef,
     setPageCount,
     setPageIndex,
     stopRestoreMask,

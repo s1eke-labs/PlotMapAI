@@ -16,6 +16,21 @@ export interface StoredReaderState {
   locator?: ReaderLocator;
 }
 
+export interface ReaderRestoreTarget {
+  chapterIndex: number;
+  viewMode: 'original' | 'summary';
+  isTwoColumn: boolean;
+  chapterProgress?: number;
+  scrollPosition?: number;
+  locatorVersion?: 1;
+  locator?: ReaderLocator;
+}
+
+export interface ReaderNavigationIntent {
+  chapterIndex: number;
+  pageTarget: PageTarget;
+}
+
 export interface ReaderSessionState {
   novelId: number;
   mode: ReaderMode;
@@ -28,7 +43,7 @@ export interface ReaderSessionState {
   locator?: ReaderLocator;
   restoreStatus: RestoreStatus;
   lastContentMode: 'scroll' | 'paged';
-  pendingRestoreState: StoredReaderState | null;
+  pendingRestoreTarget: ReaderRestoreTarget | null;
   hasUserInteracted: boolean;
 }
 

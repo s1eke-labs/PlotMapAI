@@ -128,8 +128,10 @@ describe('useReaderPageViewport helpers', () => {
       chapterIndex: 0,
       currentPagedLayout,
       pageIndex: 0,
-      pendingRestoreState: {
+      pendingRestoreTarget: {
         chapterIndex: 0,
+        viewMode: 'original',
+        isTwoColumn: true,
         chapterProgress: 1,
       },
       pendingPageTarget: 'end',

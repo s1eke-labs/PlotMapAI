@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useReaderRestoreFlow } from '../useReaderRestoreFlow';
 import type { ScrollModeAnchor } from '../useScrollModeChapters';
-import type { StoredReaderState } from '../useReaderStatePersistence';
+import type { ReaderRestoreTarget, StoredReaderState } from '../useReaderStatePersistence';
 import {
   getReaderSessionSnapshot,
   resetReaderSessionStoreForTests,
@@ -41,6 +41,16 @@ function makeContainer({
 }
 
 function createStoredState(overrides: StoredReaderState = {}): StoredReaderState {
+  return {
+    chapterIndex: 5,
+    viewMode: 'original',
+    isTwoColumn: false,
+    chapterProgress: 0.4,
+    ...overrides,
+  };
+}
+
+function createRestoreTarget(overrides: Partial<ReaderRestoreTarget> = {}): ReaderRestoreTarget {
   return {
     chapterIndex: 5,
     viewMode: 'original',
@@ -117,7 +127,7 @@ describe('useReaderRestoreFlow', () => {
     });
 
     act(() => {
-      result.current.setPendingRestoreState(createStoredState({
+      result.current.setPendingRestoreTarget(createRestoreTarget({
         chapterProgress: 0,
         locatorVersion: undefined,
         locator: undefined,
@@ -125,10 +135,10 @@ describe('useReaderRestoreFlow', () => {
       }));
     });
 
-    expect(getReaderSessionSnapshot().pendingRestoreState).toBeNull();
+    expect(getReaderSessionSnapshot().pendingRestoreTarget).toBeNull();
 
     act(() => {
-      result.current.setPendingRestoreState(createStoredState({
+      result.current.setPendingRestoreTarget(createRestoreTarget({
         chapterProgress: 0.4,
         locatorVersion: undefined,
         locator: undefined,
@@ -136,9 +146,57 @@ describe('useReaderRestoreFlow', () => {
       }));
     });
 
-    expect(getReaderSessionSnapshot().pendingRestoreState).toMatchObject({
+    expect(getReaderSessionSnapshot().pendingRestoreTarget).toMatchObject({
       chapterIndex: 5,
       chapterProgress: 0.4,
+      viewMode: 'original',
+      isTwoColumn: false,
+    });
+  });
+
+  it('keeps forced chapter-start restore targets so navigation restore still runs', () => {
+    const contextValue = createReaderPageContextValue();
+
+    const { result } = renderHook(() => useReaderRestoreFlow({
+      chapterIndex: 5,
+      setChapterIndex: vi.fn(),
+      viewMode: 'original',
+      setViewMode: vi.fn(),
+      isTwoColumn: false,
+      setIsTwoColumn: vi.fn(),
+      isPagedMode: false,
+      pageIndex: 0,
+      pageCount: 1,
+      currentChapter: {
+        index: 5,
+        title: 'Chapter 6',
+        content: 'content',
+        wordCount: 100,
+        totalChapters: 10,
+        hasPrev: true,
+        hasNext: true,
+      },
+      isLoading: false,
+      summaryRestoreSignal: null,
+      isChapterAnalysisLoading: false,
+    }), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        ReaderPageContextProvider({ value: contextValue, children })
+      ),
+    });
+
+    act(() => {
+      result.current.setPendingRestoreTarget(createRestoreTarget({
+        chapterProgress: 0,
+        locatorVersion: undefined,
+        locator: undefined,
+        scrollPosition: undefined,
+      }), { force: true });
+    });
+
+    expect(getReaderSessionSnapshot().pendingRestoreTarget).toMatchObject({
+      chapterIndex: 5,
+      chapterProgress: 0,
       viewMode: 'original',
       isTwoColumn: false,
     });
@@ -204,7 +262,7 @@ describe('useReaderRestoreFlow', () => {
       result.current.handleSetViewMode('original');
     });
 
-    expect(result.current.pendingRestoreStateRef.current).toMatchObject({
+    expect(result.current.pendingRestoreTargetRef.current).toMatchObject({
       chapterIndex: 5,
       viewMode: 'original',
       chapterProgress: 0.4,

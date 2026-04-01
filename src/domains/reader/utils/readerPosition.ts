@@ -1,4 +1,8 @@
-import type { StoredReaderState } from '../hooks/useReaderStatePersistence';
+import type {
+  ReaderNavigationIntent,
+  ReaderRestoreTarget,
+  StoredReaderState,
+} from '../hooks/readerSessionTypes';
 
 export interface ChapterRenderData {
   paragraphs: string[];
@@ -49,30 +53,76 @@ export function resolvePagedTargetPage(
   return Math.max(0, Math.min(totalPages - 1, pageIndex));
 }
 
-export function hasRestorableReaderPosition(
+function resolveRestoreTargetViewState(
   state: StoredReaderState | null | undefined,
-): boolean {
-  if (!state) return false;
-
-  return state.locator !== undefined
-    || (typeof state.chapterProgress === 'number' && state.chapterProgress > 0)
-    || (typeof state.scrollPosition === 'number' && state.scrollPosition > 0);
+): Pick<ReaderRestoreTarget, 'chapterIndex' | 'viewMode' | 'isTwoColumn'> {
+  return {
+    chapterIndex: state?.chapterIndex ?? 0,
+    viewMode: state?.viewMode ?? (state?.mode === 'summary' ? 'summary' : 'original'),
+    isTwoColumn: state?.isTwoColumn ?? (state?.mode === 'paged'),
+  };
 }
 
-export function hasReaderPositionTarget(
-  state: StoredReaderState | null | undefined,
+export function hasReaderRestoreTarget(
+  target: ReaderRestoreTarget | null | undefined,
 ): boolean {
-  if (!state) return false;
+  if (!target) return false;
 
-  return state.locator !== undefined
-    || (typeof state.chapterProgress === 'number' && Number.isFinite(state.chapterProgress))
-    || (typeof state.scrollPosition === 'number' && Number.isFinite(state.scrollPosition));
+  return target.locator !== undefined
+    || (typeof target.chapterProgress === 'number' && Number.isFinite(target.chapterProgress))
+    || (typeof target.scrollPosition === 'number' && Number.isFinite(target.scrollPosition));
 }
 
-export function shouldMaskReaderPositionRestore(
-  state: StoredReaderState | null | undefined,
+export function shouldKeepReaderRestoreMask(
+  target: ReaderRestoreTarget | null | undefined,
 ): boolean {
-  return hasRestorableReaderPosition(state);
+  if (!target) return false;
+
+  return target.locator !== undefined
+    || (typeof target.chapterProgress === 'number' && target.chapterProgress > 0)
+    || (typeof target.scrollPosition === 'number' && target.scrollPosition > 0);
+}
+
+export function canSkipReaderRestore(
+  target: ReaderRestoreTarget | null | undefined,
+): boolean {
+  return !hasReaderRestoreTarget(target);
+}
+
+export function createRestoreTargetFromPersistedState(
+  state: StoredReaderState | null | undefined,
+): ReaderRestoreTarget | null {
+  if (!state) {
+    return null;
+  }
+
+  const target: ReaderRestoreTarget = {
+    ...resolveRestoreTargetViewState(state),
+    chapterProgress: typeof state.chapterProgress === 'number'
+      ? clampProgress(state.chapterProgress)
+      : undefined,
+    scrollPosition: typeof state.scrollPosition === 'number' && Number.isFinite(state.scrollPosition)
+      ? state.scrollPosition
+      : undefined,
+    locatorVersion: state.locator ? 1 : undefined,
+    locator: state.locator,
+  };
+
+  return shouldKeepReaderRestoreMask(target) ? target : null;
+}
+
+export function createRestoreTargetFromNavigationIntent(
+  intent: ReaderNavigationIntent,
+  viewState: Pick<ReaderRestoreTarget, 'viewMode' | 'isTwoColumn'>,
+): ReaderRestoreTarget {
+  return {
+    chapterIndex: intent.chapterIndex,
+    viewMode: viewState.viewMode,
+    isTwoColumn: viewState.isTwoColumn,
+    chapterProgress: intent.pageTarget === 'end' ? 1 : 0,
+    locatorVersion: undefined,
+    locator: undefined,
+  };
 }
 
 export function buildChapterRenderData(content: string, title: string): ChapterRenderData {

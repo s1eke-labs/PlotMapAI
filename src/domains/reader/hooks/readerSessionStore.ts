@@ -24,9 +24,13 @@ import {
   resetReaderPreferencesStoreForTests,
   setReaderPreferencesNovelId,
 } from './readerPreferencesStore';
-import { hasRestorableReaderPosition } from '../utils/readerPosition';
+import {
+  createRestoreTargetFromPersistedState,
+  shouldKeepReaderRestoreMask,
+} from '../utils/readerPosition';
 import type {
   ReaderMode,
+  ReaderRestoreTarget,
   ReaderSessionSnapshot,
   ReaderSessionState,
   RestoreStatus,
@@ -40,7 +44,7 @@ export interface ReaderSessionActions {
   setMode: (mode: ReaderMode, options?: SessionUpdateOptions) => void;
   setChapterIndex: (chapterIndex: number, options?: SessionUpdateOptions) => void;
   setReadingPosition: (state: StoredReaderState, options?: SessionUpdateOptions) => void;
-  beginRestore: (state: StoredReaderState | null | undefined) => void;
+  beginRestore: (target: ReaderRestoreTarget | null | undefined) => void;
   completeRestore: () => void;
   failRestore: () => void;
   flushPersistence: () => Promise<void>;
@@ -194,8 +198,8 @@ function resolveModeFromStoredState(state: StoredReaderState | null | undefined)
   return state?.isTwoColumn ? 'paged' : 'scroll';
 }
 
-function shouldMaskRestore(state: StoredReaderState | null | undefined): boolean {
-  return hasRestorableReaderPosition(state);
+function shouldMaskRestore(target: ReaderRestoreTarget | null | undefined): boolean {
+  return shouldKeepReaderRestoreMask(target);
 }
 
 function deriveViewState(mode: ReaderMode): Pick<ReaderSessionInternalState, 'mode' | 'viewMode' | 'isTwoColumn'> {
@@ -336,7 +340,7 @@ function createInitialReaderSessionState(): ReaderSessionInternalState {
     locator: undefined,
     restoreStatus: 'hydrating',
     lastContentMode: 'scroll',
-    pendingRestoreState: null,
+    pendingRestoreTarget: null,
     hasUserInteracted: false,
   };
 }
@@ -471,7 +475,7 @@ export async function hydrateSession(novelId: number): Promise<StoredReaderState
   setReaderSessionStoreState({
     novelId,
     restoreStatus: 'hydrating',
-    pendingRestoreState: null,
+    pendingRestoreTarget: null,
     hasUserInteracted: false,
     chapterIndex: 0,
     chapterProgress: undefined,
@@ -532,6 +536,7 @@ export async function hydrateSession(novelId: number): Promise<StoredReaderState
     mode,
     isPagedPageTurnMode(resolvedPageTurnMode) ? 'paged' : 'scroll',
   );
+  const pendingRestoreTarget = createRestoreTargetFromPersistedState(mergedState);
 
   if (!hadConfiguredPageTurnModePreference) {
     applyHydratedReaderPreferences(
@@ -551,8 +556,8 @@ export async function hydrateSession(novelId: number): Promise<StoredReaderState
     locatorVersion: mergedState.locator ? 1 : undefined,
     locator: mergedState.locator,
     lastContentMode: nextLastContentMode,
-    pendingRestoreState: shouldMaskRestore(mergedState) ? mergedState : null,
-    restoreStatus: shouldMaskRestore(mergedState) ? 'restoring' : 'ready',
+    pendingRestoreTarget,
+    restoreStatus: shouldMaskRestore(pendingRestoreTarget) ? 'restoring' : 'ready',
   });
 
   return buildStoredReaderState({
@@ -596,8 +601,8 @@ export function setReadingPosition(
   });
 }
 
-export function setPendingRestoreState(nextState: StoredReaderState | null): void {
-  setReaderSessionStoreState({ pendingRestoreState: nextState }, { writeCache: false });
+export function setPendingRestoreTarget(nextTarget: ReaderRestoreTarget | null): void {
+  setReaderSessionStoreState({ pendingRestoreTarget: nextTarget }, { writeCache: false });
 }
 
 export function setRestoreStatus(restoreStatus: RestoreStatus): void {
@@ -614,16 +619,16 @@ export function setSessionNovelId(novelId: number): void {
   setReaderSessionStoreState({ novelId }, { writeCache: false });
 }
 
-export function beginRestore(nextState: StoredReaderState | null | undefined): void {
+export function beginRestore(nextTarget: ReaderRestoreTarget | null | undefined): void {
   setReaderSessionStoreState({
-    pendingRestoreState: nextState ?? null,
-    restoreStatus: shouldMaskRestore(nextState) ? 'restoring' : 'ready',
+    pendingRestoreTarget: nextTarget ?? null,
+    restoreStatus: shouldMaskRestore(nextTarget) ? 'restoring' : 'ready',
   }, { writeCache: false });
 }
 
 export function completeRestore(): void {
   setReaderSessionStoreState({
-    pendingRestoreState: null,
+    pendingRestoreTarget: null,
     restoreStatus: 'ready',
   }, { writeCache: false });
 }
@@ -644,7 +649,7 @@ export function setHasHydratedReaderState(hasHydratedReaderState: boolean): void
 
   const currentState = readerSessionStore.getState();
   setReaderSessionStoreState({
-    restoreStatus: currentState.pendingRestoreState ? 'restoring' : 'ready',
+    restoreStatus: currentState.pendingRestoreTarget ? 'restoring' : 'ready',
   }, { writeCache: false });
 }
 

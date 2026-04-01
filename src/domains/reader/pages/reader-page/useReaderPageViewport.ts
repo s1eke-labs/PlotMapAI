@@ -1,5 +1,5 @@
 import type { Chapter, ChapterContent } from '../../api/readerApi';
-import type { PageTarget, StoredReaderState } from '../../hooks/useReaderStatePersistence';
+import type { PageTarget, ReaderRestoreTarget } from '../../hooks/useReaderStatePersistence';
 import type { ReaderLocator } from '../../utils/readerLayout';
 import type { ScrollModeAnchor } from '../../hooks/useScrollModeChapters';
 
@@ -47,7 +47,7 @@ interface UseReaderPageViewportParams {
   isPagedMode: boolean;
   pageIndex: number;
   pageCount: number;
-  pendingRestoreStateRef: React.MutableRefObject<StoredReaderState | null>;
+  pendingRestoreTargetRef: React.MutableRefObject<ReaderRestoreTarget | null>;
   preferences: ReaderPageViewportPreferences;
   scrollModeChapters: number[];
   setScrollModeChapters: React.Dispatch<React.SetStateAction<number[]>>;
@@ -55,7 +55,7 @@ interface UseReaderPageViewportParams {
   setPageIndex: React.Dispatch<React.SetStateAction<number>>;
   setPendingPagedPageTarget: React.Dispatch<React.SetStateAction<PageTarget | null>>;
   stopRestoreMask: () => void;
-  clearPendingRestoreState: () => void;
+  clearPendingRestoreTarget: () => void;
   onChapterContentResolvedRef: React.MutableRefObject<(chapterIndex: number) => void>;
   viewMode: 'original' | 'summary';
 }
@@ -196,18 +196,18 @@ export function resolvePagedViewportState(params: {
   chapterIndex: number;
   currentPagedLayout: ReaderPagePagedLayout;
   pageIndex: number;
-  pendingRestoreState: StoredReaderState | null;
+  pendingRestoreTarget: ReaderRestoreTarget | null;
   pendingPageTarget: PageTarget | null;
 }): {
     pageCount: number;
     targetPage: number;
   } {
   const pageCount = Math.max(1, params.currentPagedLayout.pageSlices.length);
-  const restoredPageIndex = params.pendingRestoreState?.locator
-    ? findPageIndexForLocator(params.currentPagedLayout, params.pendingRestoreState.locator)
+  const restoredPageIndex = params.pendingRestoreTarget?.locator
+    ? findPageIndexForLocator(params.currentPagedLayout, params.pendingRestoreTarget.locator)
     : null;
-  const chapterProgress = params.pendingRestoreState?.chapterProgress;
-  const hasRestorableProgress = params.pendingRestoreState?.chapterIndex === params.chapterIndex
+  const chapterProgress = params.pendingRestoreTarget?.chapterProgress;
+  const hasRestorableProgress = params.pendingRestoreTarget?.chapterIndex === params.chapterIndex
     && typeof chapterProgress === 'number';
   let targetPage = resolvePagedTargetPage(params.pendingPageTarget, params.pageIndex, pageCount);
   if (hasRestorableProgress) {
@@ -286,7 +286,7 @@ export function useReaderPageViewport({
   isPagedMode,
   pageIndex,
   pageCount,
-  pendingRestoreStateRef,
+  pendingRestoreTargetRef,
   preferences,
   scrollModeChapters,
   setScrollModeChapters,
@@ -294,7 +294,7 @@ export function useReaderPageViewport({
   setPageIndex,
   setPendingPagedPageTarget,
   stopRestoreMask,
-  clearPendingRestoreState,
+  clearPendingRestoreTarget,
   onChapterContentResolvedRef,
   viewMode,
 }: UseReaderPageViewportParams): ReaderPageViewportResult {
@@ -503,12 +503,12 @@ export function useReaderPageViewport({
     }
 
     const frameId = requestAnimationFrame(() => {
-      const pendingRestoreState = pendingRestoreStateRef.current;
+      const pendingRestoreTarget = pendingRestoreTargetRef.current;
       const nextViewportState = resolvePagedViewportState({
         chapterIndex,
         currentPagedLayout,
         pageIndex,
-        pendingRestoreState,
+        pendingRestoreTarget,
         pendingPageTarget: pageTargetRef.current,
       });
 
@@ -516,8 +516,8 @@ export function useReaderPageViewport({
       setPageIndex(nextViewportState.targetPage);
       pageTargetRef.current = null;
       setPendingPagedPageTarget(null);
-      if (pendingRestoreState) {
-        clearPendingRestoreState();
+      if (pendingRestoreTarget) {
+        clearPendingRestoreTarget();
       }
       stopRestoreMask();
     });
@@ -525,14 +525,14 @@ export function useReaderPageViewport({
     return () => cancelAnimationFrame(frameId);
   }, [
     chapterIndex,
-    clearPendingRestoreState,
+    clearPendingRestoreTarget,
     currentPagedLayout,
     isLoading,
     isPagedMode,
     pageCount,
     pageIndex,
     pageTargetRef,
-    pendingRestoreStateRef,
+    pendingRestoreTargetRef,
     setPageCount,
     setPageIndex,
     setPendingPagedPageTarget,

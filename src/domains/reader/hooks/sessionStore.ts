@@ -1,6 +1,8 @@
 export type {
   PageTarget,
+  ReaderNavigationIntent,
   ReaderMode,
+  ReaderRestoreTarget,
   ReaderSessionSnapshot,
   ReaderSessionState,
   RestoreStatus,
@@ -22,7 +24,7 @@ export {
   setChapterIndex,
   setHasHydratedReaderState,
   setMode,
-  setPendingRestoreState,
+  setPendingRestoreTarget,
   setReadingPosition,
   setRestoreStatus,
   setSessionNovelId,

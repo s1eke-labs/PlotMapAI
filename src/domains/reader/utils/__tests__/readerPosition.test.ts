@@ -1,12 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildChapterRenderData,
+  canSkipReaderRestore,
   clampProgress,
+  createRestoreTargetFromNavigationIntent,
+  createRestoreTargetFromPersistedState,
   getContainerProgress,
   getPageIndexFromProgress,
-  hasReaderPositionTarget,
+  hasReaderRestoreTarget,
   resolvePagedTargetPage,
-  shouldMaskReaderPositionRestore,
+  shouldKeepReaderRestoreMask,
 } from '../readerPosition';
 
 describe('readerPosition', () => {
@@ -43,52 +46,160 @@ describe('readerPosition', () => {
     expect(resolvePagedTargetPage('start', 4, 1)).toBe(0);
   });
 
-  it('detects when restore should keep the loading mask visible', () => {
-    expect(shouldMaskReaderPositionRestore(null)).toBe(false);
-    expect(shouldMaskReaderPositionRestore({
+  it('detects whether a restore target exists and whether restore can be skipped', () => {
+    expect(hasReaderRestoreTarget(null)).toBe(false);
+    expect(canSkipReaderRestore(null)).toBe(true);
+    expect(hasReaderRestoreTarget({
       chapterIndex: 0,
       viewMode: 'original',
       isTwoColumn: false,
-      chapterProgress: 0,
     })).toBe(false);
-    expect(shouldMaskReaderPositionRestore({
-      chapterIndex: 2,
-      viewMode: 'original',
-      isTwoColumn: false,
-    })).toBe(false);
-    expect(shouldMaskReaderPositionRestore({
+    expect(canSkipReaderRestore({
       chapterIndex: 0,
       viewMode: 'original',
       isTwoColumn: false,
-      chapterProgress: 0.4,
     })).toBe(true);
-    expect(shouldMaskReaderPositionRestore({
-      chapterIndex: 0,
-      viewMode: 'original',
-      isTwoColumn: false,
-      scrollPosition: 120,
-    })).toBe(true);
-  });
-
-  it('detects whether a pending restore state still carries an explicit target', () => {
-    expect(hasReaderPositionTarget(null)).toBe(false);
-    expect(hasReaderPositionTarget({
-      chapterIndex: 2,
-      viewMode: 'original',
-      isTwoColumn: false,
-    })).toBe(false);
-    expect(hasReaderPositionTarget({
+    expect(hasReaderRestoreTarget({
       chapterIndex: 0,
       viewMode: 'original',
       isTwoColumn: false,
       chapterProgress: 0,
     })).toBe(true);
-    expect(hasReaderPositionTarget({
+    expect(canSkipReaderRestore({
+      chapterIndex: 0,
+      viewMode: 'original',
+      isTwoColumn: false,
+      chapterProgress: 0,
+    })).toBe(false);
+    expect(hasReaderRestoreTarget({
       chapterIndex: 0,
       viewMode: 'original',
       isTwoColumn: false,
       scrollPosition: 0,
     })).toBe(true);
+    expect(hasReaderRestoreTarget({
+      chapterIndex: 0,
+      viewMode: 'original',
+      isTwoColumn: false,
+      locator: {
+        chapterIndex: 0,
+        blockIndex: 1,
+        kind: 'text',
+      },
+    })).toBe(true);
+  });
+
+  it('detects when restore should keep the loading mask visible', () => {
+    expect(shouldKeepReaderRestoreMask(null)).toBe(false);
+    expect(shouldKeepReaderRestoreMask({
+      chapterIndex: 0,
+      viewMode: 'original',
+      isTwoColumn: false,
+      chapterProgress: 0,
+    })).toBe(false);
+    expect(shouldKeepReaderRestoreMask({
+      chapterIndex: 0,
+      viewMode: 'original',
+      isTwoColumn: false,
+      scrollPosition: 0,
+    })).toBe(false);
+    expect(shouldKeepReaderRestoreMask({
+      chapterIndex: 0,
+      viewMode: 'original',
+      isTwoColumn: false,
+      chapterProgress: 0.4,
+    })).toBe(true);
+    expect(shouldKeepReaderRestoreMask({
+      chapterIndex: 0,
+      viewMode: 'original',
+      isTwoColumn: false,
+      scrollPosition: 120,
+    })).toBe(true);
+    expect(shouldKeepReaderRestoreMask({
+      chapterIndex: 0,
+      viewMode: 'original',
+      isTwoColumn: false,
+      locator: {
+        chapterIndex: 0,
+        blockIndex: 1,
+        kind: 'text',
+      },
+      locatorVersion: 1,
+    })).toBe(true);
+  });
+
+  it('creates hydrate restore targets only for persisted positions that need restoration', () => {
+    expect(createRestoreTargetFromPersistedState(null)).toBeNull();
+    expect(createRestoreTargetFromPersistedState({
+      chapterIndex: 2,
+      viewMode: 'original',
+      isTwoColumn: false,
+    })).toBeNull();
+    expect(createRestoreTargetFromPersistedState({
+      chapterIndex: 2,
+      viewMode: 'original',
+      isTwoColumn: false,
+      chapterProgress: 0,
+    })).toBeNull();
+    expect(createRestoreTargetFromPersistedState({
+      chapterIndex: 2,
+      viewMode: 'original',
+      isTwoColumn: false,
+      chapterProgress: 0.4,
+    })).toEqual({
+      chapterIndex: 2,
+      viewMode: 'original',
+      isTwoColumn: false,
+      chapterProgress: 0.4,
+      locator: undefined,
+      locatorVersion: undefined,
+      scrollPosition: undefined,
+    });
+    expect(createRestoreTargetFromPersistedState({
+      chapterIndex: 2,
+      mode: 'paged',
+      chapterProgress: 1,
+    })).toEqual({
+      chapterIndex: 2,
+      viewMode: 'original',
+      isTwoColumn: true,
+      chapterProgress: 1,
+      locator: undefined,
+      locatorVersion: undefined,
+      scrollPosition: undefined,
+    });
+  });
+
+  it('creates navigation restore targets for chapter start and end', () => {
+    expect(createRestoreTargetFromNavigationIntent({
+      chapterIndex: 3,
+      pageTarget: 'start',
+    }, {
+      viewMode: 'original',
+      isTwoColumn: false,
+    })).toEqual({
+      chapterIndex: 3,
+      viewMode: 'original',
+      isTwoColumn: false,
+      chapterProgress: 0,
+      locator: undefined,
+      locatorVersion: undefined,
+    });
+
+    expect(createRestoreTargetFromNavigationIntent({
+      chapterIndex: 3,
+      pageTarget: 'end',
+    }, {
+      viewMode: 'original',
+      isTwoColumn: true,
+    })).toEqual({
+      chapterIndex: 3,
+      viewMode: 'original',
+      isTwoColumn: true,
+      chapterProgress: 1,
+      locator: undefined,
+      locatorVersion: undefined,
+    });
   });
 
   it('builds chapter render data and skips a duplicated title line', () => {
