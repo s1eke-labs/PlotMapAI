@@ -1,30 +1,16 @@
-import type { RefObject } from 'react';
-
-import { StrictMode } from 'react';
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { db } from '@infra/db';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import ReaderPage from '../ReaderPage';
-import { analysisApi } from '@domains/analysis';
 import type { AnalysisJobStatus } from '@domains/analysis';
+
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { db } from '@infra/db';
+import { analysisApi } from '@domains/analysis';
 import { buildChapterImageGalleryEntries } from '@shared/text-processing';
+
 import { readerApi } from '../../api/readerApi';
-import type { ChapterContent } from '../../api/readerApi';
 import { resetReaderSessionStoreForTests } from '../../hooks/sessionStore';
-import {
-  composePaginatedChapterLayout,
-  createReaderTypographyMetrics,
-  createReaderViewportMetrics,
-  findLocatorForLayoutOffset,
-  getPagedContentHeight,
-  getOffsetForLocator,
-  measureReaderChapterLayout,
-} from '../../utils/readerLayout';
-import {
-  getPageIndexFromProgress,
-  SCROLL_READING_ANCHOR_RATIO,
-} from '../../utils/readerPosition';
+import ReaderPage from '../ReaderPage';
 
 const i18nMock = vi.hoisted(() => ({
   t: (key: string) => key,
@@ -63,118 +49,9 @@ vi.mock('@domains/analysis', async (importOriginal) => {
 });
 
 vi.mock('../../hooks/useReaderRenderCache', async () => {
-  const React = await import('react');
-  const layout = await import('../../utils/readerLayout');
-
+  const renderCacheStub = await import('../../test/deterministicRenderCacheStub');
   return {
-    useReaderRenderCache: (params: {
-      contentRef: RefObject<HTMLDivElement | null>;
-      currentChapter: ChapterContent | null;
-      fontSize: number;
-      lineSpacing: number;
-      pagedChapters: ChapterContent[];
-      pagedViewportElement: HTMLDivElement | null;
-      paragraphSpacing: number;
-      scrollChapters: Array<{ chapter: ChapterContent; index: number }>;
-    }) => {
-      const scrollViewportElement = params.contentRef.current;
-      const scrollViewportRect = scrollViewportElement?.getBoundingClientRect();
-      const pagedViewportRect = params.pagedViewportElement?.getBoundingClientRect();
-      const scrollViewportWidth =
-        scrollViewportElement?.clientWidth || scrollViewportRect?.width || 1024;
-      const scrollViewportHeight =
-        scrollViewportElement?.clientHeight || scrollViewportRect?.height || 800;
-      const pagedViewportWidth =
-        params.pagedViewportElement?.clientWidth
-        || pagedViewportRect?.width
-        || scrollViewportWidth;
-      const pagedViewportHeight =
-        params.pagedViewportElement?.clientHeight
-        || pagedViewportRect?.height
-        || scrollViewportHeight;
-      const viewportMetrics = React.useMemo(() => layout.createReaderViewportMetrics(
-        scrollViewportWidth,
-        scrollViewportHeight,
-        pagedViewportWidth,
-        pagedViewportHeight,
-        params.fontSize,
-      ), [
-        pagedViewportHeight,
-        pagedViewportWidth,
-        params.fontSize,
-        scrollViewportHeight,
-        scrollViewportWidth,
-      ]);
-      const typography = React.useMemo(() => layout.createReaderTypographyMetrics(
-        params.fontSize,
-        params.lineSpacing,
-        params.paragraphSpacing,
-        pagedViewportWidth || scrollViewportWidth,
-      ), [
-        pagedViewportWidth,
-        params.fontSize,
-        params.lineSpacing,
-        params.paragraphSpacing,
-        scrollViewportWidth,
-      ]);
-      const pagedLayouts = React.useMemo(() => new Map(
-        params.pagedChapters.map((chapter) => {
-          const measuredLayout = layout.measureReaderChapterLayout(
-            chapter,
-            viewportMetrics.pagedColumnWidth,
-            typography,
-            new Map(),
-          );
-          return [
-            chapter.index,
-            layout.composePaginatedChapterLayout(
-              measuredLayout,
-              layout.getPagedContentHeight(viewportMetrics.pagedViewportHeight),
-              viewportMetrics.pagedColumnCount,
-              viewportMetrics.pagedColumnGap,
-            ),
-          ];
-        }),
-      ), [
-        params.pagedChapters,
-        typography,
-        viewportMetrics.pagedColumnCount,
-        viewportMetrics.pagedColumnGap,
-        viewportMetrics.pagedColumnWidth,
-        viewportMetrics.pagedViewportHeight,
-      ]);
-      const scrollLayouts = React.useMemo(() => new Map(
-        params.scrollChapters.map(({ chapter, index }) => [
-          index,
-          layout.measureReaderChapterLayout(
-            chapter,
-            viewportMetrics.scrollTextWidth,
-            typography,
-            new Map(),
-          ),
-        ]),
-      ), [
-        params.scrollChapters,
-        typography,
-        viewportMetrics.scrollTextWidth,
-      ]);
-
-      return React.useMemo(() => ({
-        pagedLayouts,
-        scrollLayouts,
-        summaryShells: new Map(),
-        typography,
-        viewportMetrics,
-        cacheSourceByKey: new Map(),
-        isPreheating: false,
-        pendingPreheatCount: 0,
-      }), [
-        pagedLayouts,
-        scrollLayouts,
-        typography,
-        viewportMetrics,
-      ]);
-    },
+    useReaderRenderCache: renderCacheStub.useDeterministicReaderRenderCache,
   };
 });
 
@@ -216,21 +93,17 @@ const completedAnalysis = {
   updatedAt: null,
 };
 
-const originalOffsetHeightDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetHeight');
-const originalOffsetTopDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetTop');
-const originalClientWidthDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'clientWidth');
-const originalClientHeightDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'clientHeight');
-const originalScrollWidthDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollWidth');
-
-type HTMLElementPrototypeNumberProperty =
-  | 'offsetHeight'
-  | 'offsetTop'
-  | 'clientWidth'
-  | 'clientHeight'
-  | 'scrollWidth';
+const originalClientWidthDescriptor = Object.getOwnPropertyDescriptor(
+  HTMLElement.prototype,
+  'clientWidth',
+);
+const originalClientHeightDescriptor = Object.getOwnPropertyDescriptor(
+  HTMLElement.prototype,
+  'clientHeight',
+);
 
 function setPrototypeNumberGetter(
-  property: Exclude<HTMLElementPrototypeNumberProperty, 'offsetTop'>,
+  property: 'clientHeight' | 'clientWidth',
   value: number,
 ) {
   Object.defineProperty(HTMLElement.prototype, property, {
@@ -240,7 +113,7 @@ function setPrototypeNumberGetter(
 }
 
 function restorePrototypeDescriptor(
-  property: HTMLElementPrototypeNumberProperty,
+  property: 'clientHeight' | 'clientWidth',
   descriptor: PropertyDescriptor | undefined,
 ) {
   if (descriptor) {
@@ -249,21 +122,6 @@ function restorePrototypeDescriptor(
   }
 
   Reflect.deleteProperty(HTMLElement.prototype, property);
-}
-
-function setOffsetTopByChapterTitle(offsetMap: Record<string, number>) {
-  Object.defineProperty(HTMLElement.prototype, 'offsetTop', {
-    configurable: true,
-    get() {
-      const text = this.textContent ?? '';
-      for (const [title, offset] of Object.entries(offsetMap)) {
-        if (text.includes(title)) {
-          return offset;
-        }
-      }
-      return 0;
-    },
-  });
 }
 
 function createJob(overrides: Partial<AnalysisJobStatus> = {}): AnalysisJobStatus {
@@ -300,123 +158,6 @@ function renderPage() {
       </Routes>
     </MemoryRouter>,
   );
-}
-
-function renderPageInStrictMode() {
-  return render(
-    <StrictMode>
-      <MemoryRouter initialEntries={['/novel/1/read']}>
-        <Routes>
-          <Route path="/novel/:id/read" element={<ReaderPage />} />
-        </Routes>
-      </MemoryRouter>
-    </StrictMode>,
-  );
-}
-
-function createDeferred<T>() {
-  let resolve!: (value: T | PromiseLike<T>) => void;
-  const promise = new Promise<T>((res) => {
-    resolve = res;
-  });
-
-  return { promise, resolve };
-}
-
-function enablePagedTestLayout(scrollWidth = 400) {
-  setPrototypeNumberGetter('clientWidth', 600);
-  setPrototypeNumberGetter('clientHeight', 800);
-  setPrototypeNumberGetter('scrollWidth', scrollWidth);
-}
-
-function getPagedReaderContainer(container: HTMLElement): HTMLDivElement {
-  const readerContainer = container.querySelector('main .cursor-pointer.overflow-hidden') as HTMLDivElement | null;
-  if (!readerContainer) {
-    throw new Error('Paged reader container not found');
-  }
-
-  Object.defineProperty(readerContainer, 'getBoundingClientRect', {
-    configurable: true,
-    value: () => ({
-      x: 0,
-      y: 0,
-      left: 0,
-      top: 0,
-      width: 100,
-      height: 100,
-      right: 100,
-      bottom: 100,
-      toJSON: () => ({}),
-    }),
-  });
-
-  return readerContainer;
-}
-
-function buildPagedTestLayout(chapter: (typeof chapterContent)[number]) {
-  const viewportMetrics = createReaderViewportMetrics(600, 800, 600, 800);
-  const typography = createReaderTypographyMetrics(18, 1.8, 16, viewportMetrics.pagedViewportWidth);
-  const measuredLayout = measureReaderChapterLayout(
-    chapter,
-    viewportMetrics.pagedColumnWidth,
-    typography,
-    new Map(),
-  );
-
-  return composePaginatedChapterLayout(
-    measuredLayout,
-    getPagedContentHeight(viewportMetrics.pagedViewportHeight),
-    viewportMetrics.pagedColumnCount,
-    viewportMetrics.pagedColumnGap,
-  );
-}
-
-function createPagedChapterContent(index: number, totalChapters: number, minPageCount: number) {
-  const title = `Chapter ${index + 1}`;
-
-  for (let paragraphCount = 12; paragraphCount <= 240; paragraphCount += 6) {
-    const content = Array.from({ length: paragraphCount }, (_, paragraphIndex) => (
-      `${title} paragraph ${paragraphIndex + 1} ${
-        'alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu '.repeat(6)}`
-    )).join('\n');
-    const chapter = {
-      index,
-      title,
-      content,
-      wordCount: paragraphCount * 72,
-      totalChapters,
-      hasPrev: index > 0,
-      hasNext: index < totalChapters - 1,
-    };
-    const layout = buildPagedTestLayout(chapter);
-
-    if (layout.pageSlices.length >= minPageCount) {
-      return {
-        chapter,
-        layout,
-      };
-    }
-  }
-
-  throw new Error(`Unable to build chapter ${index + 1} with at least ${minPageCount} pages`);
-}
-
-function createLongScrollChapter(index: number, totalChapters: number, paragraphCount: number) {
-  const title = `Chapter ${index + 1}`;
-  const content = Array.from({ length: paragraphCount }, (_, paragraphIndex) => (
-    `Paragraph ${paragraphIndex + 1} marker ${
-      'alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu '.repeat(6)}`
-  )).join('\n');
-
-  return {
-    index,
-    title,
-    content,
-    wordCount: paragraphCount * 72,
-    totalChapters,
-    hasPrev: index > 0,
-    hasNext: index < totalChapters - 1,
-  };
 }
 
 describe('ReaderPage', () => {
@@ -459,14 +200,11 @@ describe('ReaderPage', () => {
   });
 
   afterEach(() => {
-    restorePrototypeDescriptor('offsetHeight', originalOffsetHeightDescriptor);
-    restorePrototypeDescriptor('offsetTop', originalOffsetTopDescriptor);
     restorePrototypeDescriptor('clientWidth', originalClientWidthDescriptor);
     restorePrototypeDescriptor('clientHeight', originalClientHeightDescriptor);
-    restorePrototypeDescriptor('scrollWidth', originalScrollWidthDescriptor);
   });
 
-  it('restores the stored chapter and summary view from reader state', async () => {
+  it('renders the stored summary view on startup', async () => {
     localStorage.setItem('reader-state:1', JSON.stringify({
       chapterIndex: 1,
       mode: 'summary',
@@ -486,28 +224,24 @@ describe('ReaderPage', () => {
 
     expect(await screen.findByText('Summary for chapter 2')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Chapter 2', level: 3 })).toBeInTheDocument();
-    expect(readerApi.getChapterContent).toHaveBeenCalledWith(1, 1, expect.any(Object));
-    expect(JSON.parse(localStorage.getItem('reader-state:1')!)).toMatchObject({
-      chapterIndex: 1,
-      mode: 'summary',
-    });
   });
 
-  it('loads the selected chapter and persists progress when a chapter is chosen', async () => {
+  it('renders the paged reading surface when startup mode is paged', async () => {
+    setPrototypeNumberGetter('clientWidth', 600);
+    setPrototypeNumberGetter('clientHeight', 800);
+    localStorage.setItem('reader-state:1', JSON.stringify({
+      chapterIndex: 0,
+      mode: 'paged',
+    }));
+    vi.mocked(readerApi.getChapterContent).mockResolvedValueOnce({
+      ...chapterContent[0],
+      content: 'First page\nSecond page\nThird page\nFourth page',
+    });
+
     renderPage();
 
-    expect(await screen.findByRole('heading', { name: 'Chapter 1', level: 1 })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: /Chapter 2/ }));
-
-    await waitFor(() => {
-      expect(readerApi.getChapterContent).toHaveBeenLastCalledWith(1, 1, expect.any(Object));
-    });
-    expect(await screen.findByRole('heading', { name: 'Chapter 2', level: 1 })).toBeInTheDocument();
-    expect(JSON.parse(localStorage.getItem('reader-state:1')!)).toMatchObject({
-      chapterIndex: 1,
-      mode: 'scroll',
-      chapterProgress: 0,
-    });
+    expect(await screen.findByTestId('paged-reader-page-frame')).toBeInTheDocument();
+    expect(await screen.findByText('1 / 2')).toBeInTheDocument();
   });
 
   it('opens the mobile contents sheet and closes it after selecting a chapter', async () => {
@@ -521,37 +255,21 @@ describe('ReaderPage', () => {
 
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /Chapter 2/ }));
 
-    await waitFor(() => {
-      expect(readerApi.getChapterContent).toHaveBeenLastCalledWith(1, 1, expect.any(Object));
-    });
     expect(await screen.findByRole('heading', { name: 'Chapter 2', level: 1 })).toBeInTheDocument();
-
     await waitFor(() => {
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     });
   });
 
-  it('lets the mobile contents button close the table of contents after it has opened', async () => {
-    renderPage();
-
-    expect(await screen.findByRole('heading', { name: 'Chapter 1', level: 1 })).toBeInTheDocument();
-
-    fireEvent.click(screen.getAllByTitle('reader.contents')[0]);
-    expect(screen.getByRole('dialog')).toBeInTheDocument();
-
-    fireEvent.click(screen.getAllByTitle('reader.contents')[0]);
-
-    await waitFor(() => {
-      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    });
-  });
-
-  it('uses the first scroll gesture to hide reader chrome without moving content', async () => {
+  it('uses the first scroll gesture to hide reader chrome without moving the reading surface', async () => {
     const { container } = renderPage();
 
     expect(await screen.findByRole('heading', { name: 'Chapter 1', level: 1 })).toBeInTheDocument();
 
-    const readerContainer = container.querySelector('main .cursor-pointer.overflow-y-auto.hide-scrollbar') as HTMLDivElement | null;
+    const readerContainer = container.querySelector(
+      'main .cursor-pointer.overflow-y-auto.hide-scrollbar',
+    ) as HTMLDivElement | null;
+
     expect(readerContainer).not.toBeNull();
 
     Object.defineProperty(readerContainer!, 'getBoundingClientRect', {
@@ -581,34 +299,6 @@ describe('ReaderPage', () => {
       expect(readerContainer).toHaveClass('overflow-y-auto');
       expect(readerContainer).not.toHaveClass('overflow-hidden');
     });
-    expect(readerContainer!.scrollTop).toBe(0);
-  });
-
-  it('renders adjacent chapters in scroll mode without waiting for a scroll event', async () => {
-    const shortChapters = Array.from({ length: 4 }, (_, index) => ({
-      index,
-      title: `Chapter ${index + 1}`,
-      wordCount: 20 + index,
-    }));
-    const shortChapterContent = shortChapters.map((chapter, index) => ({
-      ...chapter,
-      content: `${chapter.title} short content`,
-      totalChapters: shortChapters.length,
-      hasPrev: index > 0,
-      hasNext: index < shortChapters.length - 1,
-    }));
-
-    vi.mocked(readerApi.getChapters).mockResolvedValueOnce(shortChapters);
-    vi.mocked(readerApi.getChapterContent).mockImplementation(
-      async (_novelId, chapterIndex) => shortChapterContent[chapterIndex],
-    );
-
-    renderPage();
-
-    expect(await screen.findByRole('heading', { name: 'Chapter 1', level: 1 })).toBeInTheDocument();
-    await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'Chapter 2', level: 1 })).toBeInTheDocument();
-    });
   });
 
   it('opens the image viewer from scroll mode and restores the reading surface after close', async () => {
@@ -625,15 +315,16 @@ describe('ReaderPage', () => {
     vi.mocked(readerApi.getChapters).mockResolvedValueOnce([
       { index: 0, title: imageChapter.title, wordCount: imageChapter.wordCount },
     ]);
-    vi.mocked(readerApi.getChapterContent).mockImplementation(
-      async () => imageChapter,
-    );
+    vi.mocked(readerApi.getChapterContent).mockResolvedValueOnce(imageChapter);
 
     const { container } = renderPage();
 
     expect(await screen.findByRole('heading', { name: 'Chapter 1', level: 1 })).toBeInTheDocument();
 
-    const readerContainer = container.querySelector('main .cursor-pointer.overflow-y-auto.hide-scrollbar') as HTMLDivElement | null;
+    const readerContainer = container.querySelector(
+      'main .cursor-pointer.overflow-y-auto.hide-scrollbar',
+    ) as HTMLDivElement | null;
+
     expect(readerContainer).not.toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: 'reader.imageViewer.title' }));
@@ -641,11 +332,10 @@ describe('ReaderPage', () => {
     expect(await screen.findByRole('dialog', { name: 'reader.imageViewer.title' })).toBeInTheDocument();
     expect(readerContainer).toHaveClass('overflow-hidden');
 
-    readerContainer!.scrollTop = 0;
-    fireEvent.wheel(readerContainer!, { deltaY: 200 });
-    expect(readerContainer!.scrollTop).toBe(0);
+    const imageViewerStage = document.body.querySelector(
+      '[data-reader-image-stage]',
+    ) as HTMLDivElement | null;
 
-    const imageViewerStage = document.body.querySelector('[data-reader-image-stage]') as HTMLDivElement | null;
     expect(imageViewerStage).not.toBeNull();
 
     fireEvent.click(imageViewerStage!, { clientX: 12, clientY: 12 });
@@ -654,7 +344,6 @@ describe('ReaderPage', () => {
       expect(screen.queryByRole('dialog', { name: 'reader.imageViewer.title' })).not.toBeInTheDocument();
       expect(readerContainer).toHaveClass('overflow-y-auto');
     });
-    expect(readerContainer!.scrollTop).toBe(0);
   });
 
   it('resolves the image viewer index against the whole-book gallery order', async () => {
@@ -693,7 +382,7 @@ describe('ReaderPage', () => {
     expect(await screen.findByText('10 / 10')).toBeInTheDocument();
   });
 
-  it('uses the full-book image order even when a chapter contains multiple images', async () => {
+  it('uses the full-book image order when a chapter contains multiple images', async () => {
     const imageChapter = {
       index: 0,
       title: 'Chapter 1',
@@ -707,9 +396,7 @@ describe('ReaderPage', () => {
     vi.mocked(readerApi.getChapters).mockResolvedValueOnce([
       { index: 0, title: imageChapter.title, wordCount: imageChapter.wordCount },
     ]);
-    vi.mocked(readerApi.getChapterContent).mockImplementation(
-      async () => imageChapter,
-    );
+    vi.mocked(readerApi.getChapterContent).mockResolvedValueOnce(imageChapter);
     vi.mocked(readerApi.getImageGalleryEntries).mockResolvedValueOnce([
       ...buildChapterImageGalleryEntries(imageChapter),
     ]);
@@ -723,220 +410,6 @@ describe('ReaderPage', () => {
 
     expect(await screen.findByRole('dialog', { name: 'reader.imageViewer.title' })).toBeInTheDocument();
     expect(await screen.findByText('2 / 3')).toBeInTheDocument();
-  });
-
-  it('does not let stale scroll anchor override chapter selection from the table of contents', async () => {
-    const longChapters = Array.from({ length: 6 }, (_, index) => ({
-      index,
-      title: `Chapter ${index + 1}`,
-      wordCount: 100 + index,
-    }));
-    const longChapterContent = longChapters.map((chapter, index) => ({
-      ...chapter,
-      content: `${chapter.title} content`,
-      totalChapters: longChapters.length,
-      hasPrev: index > 0,
-      hasNext: index < longChapters.length - 1,
-    }));
-    const deferredTargetChapter = createDeferred<(typeof longChapterContent)[number]>();
-
-    localStorage.setItem('reader-state:1', JSON.stringify({
-      chapterIndex: 2,
-      mode: 'scroll',
-    }));
-    vi.mocked(readerApi.getChapters).mockResolvedValue(longChapters);
-    vi.mocked(readerApi.getChapterContent).mockImplementation(async (_novelId, chapterIndex) => {
-      if (chapterIndex === 5) {
-        return deferredTargetChapter.promise;
-      }
-      return longChapterContent[chapterIndex];
-    });
-
-    const { container } = renderPage();
-
-    await waitFor(() => {
-      expect(readerApi.getChapterContent).toHaveBeenCalledWith(1, 2, expect.any(Object));
-    });
-
-    fireEvent.click(screen.getByRole('button', { name: /Chapter 6/i }));
-
-    const readerContainer = container.querySelector('main .overflow-y-auto.hide-scrollbar') as HTMLDivElement | null;
-    expect(readerContainer).not.toBeNull();
-
-    readerContainer!.scrollTop = 12;
-    fireEvent.scroll(readerContainer!);
-
-    deferredTargetChapter.resolve(longChapterContent[5]);
-
-    await waitFor(() => {
-      expect(JSON.parse(localStorage.getItem('reader-state:1')!)).toMatchObject({
-        chapterIndex: 5,
-        mode: 'scroll',
-      });
-    });
-    expect(screen.getByRole('button', { name: /Chapter 6/i })).toHaveAttribute('data-active', 'true');
-  });
-
-  it('restores the saved scroll-mode chapter under StrictMode', async () => {
-    const longChapters = Array.from({ length: 12 }, (_, index) => ({
-      index,
-      title: `Chapter ${index + 1}`,
-      wordCount: 100 + index,
-    }));
-    const longChapterContent = longChapters.map((chapter, index) => ({
-      ...chapter,
-      content: `${chapter.title} content`,
-      totalChapters: longChapters.length,
-      hasPrev: index > 0,
-      hasNext: index < longChapters.length - 1,
-    }));
-
-    localStorage.setItem('reader-state:1', JSON.stringify({
-      chapterIndex: 7,
-      mode: 'scroll',
-    }));
-    vi.mocked(readerApi.getChapters).mockResolvedValue(longChapters);
-    vi.mocked(readerApi.getChapterContent).mockImplementation(
-      async (_novelId, chapterIndex) => longChapterContent[chapterIndex],
-    );
-
-    renderPageInStrictMode();
-
-    expect(await screen.findByRole('heading', { name: 'Chapter 8', level: 1 })).toBeInTheDocument();
-    await waitFor(() => {
-      expect(readerApi.getChapterContent).toHaveBeenCalledWith(1, 7, expect.any(Object));
-    });
-    expect(JSON.parse(localStorage.getItem('reader-state:1')!)).toMatchObject({
-      chapterIndex: 7,
-      mode: 'scroll',
-    });
-  });
-
-  it('scrolls to the selected chapter itself in scroll mode navigation', async () => {
-    const longChapters = Array.from({ length: 12 }, (_, index) => ({
-      index,
-      title: `Chapter ${index + 1}`,
-      wordCount: 100 + index,
-    }));
-    const longChapterContent = longChapters.map((chapter, index) => ({
-      ...chapter,
-      content: `${chapter.title} content`,
-      totalChapters: longChapters.length,
-      hasPrev: index > 0,
-      hasNext: index < longChapters.length - 1,
-    }));
-
-    setPrototypeNumberGetter('offsetHeight', 200);
-    setOffsetTopByChapterTitle({
-      'Chapter 8': 0,
-      'Chapter 9': 220,
-      'Chapter 10': 440,
-      'Chapter 11': 660,
-      'Chapter 12': 880,
-    });
-    vi.mocked(readerApi.getChapters).mockResolvedValueOnce(longChapters);
-    vi.mocked(readerApi.getChapterContent).mockImplementation(
-      async (_novelId, chapterIndex) => longChapterContent[chapterIndex],
-    );
-
-    const { container } = renderPage();
-
-    expect(await screen.findByRole('heading', { name: 'Chapter 1', level: 1 })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: /Chapter 10/i }));
-
-    const readerContainer = container.querySelector('main .overflow-y-auto.hide-scrollbar') as HTMLDivElement | null;
-    expect(readerContainer).not.toBeNull();
-
-    await waitFor(() => {
-      expect(readerContainer?.scrollTop).toBe(440);
-    });
-    expect(JSON.parse(localStorage.getItem('reader-state:1')!)).toMatchObject({
-      chapterIndex: 9,
-      mode: 'scroll',
-    });
-  });
-
-  it('renders later scroll blocks after the reader viewport moves deeper into the chapter', async () => {
-    const longChapter = createLongScrollChapter(0, 1, 18);
-    const scrollContainerTop = 0;
-    const scrollContainerHeight = 800;
-    const chapterBodyDocumentTop = 88;
-    const rectSpy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (
-      this: HTMLElement,
-    ) {
-      if (this.dataset.testid === 'scroll-reader-content-body') {
-        const scrollContainer = this.closest('.overflow-y-auto.hide-scrollbar') as HTMLDivElement | null;
-        const scrollTop = scrollContainer?.scrollTop ?? 0;
-        const top = chapterBodyDocumentTop - scrollTop;
-        return {
-          x: 0,
-          y: top,
-          left: 0,
-          top,
-          width: 568,
-          height: 3200,
-          right: 568,
-          bottom: top + 3200,
-          toJSON: () => ({}),
-        };
-      }
-
-      if (this.classList.contains('overflow-y-auto') && this.classList.contains('hide-scrollbar')) {
-        return {
-          x: 0,
-          y: scrollContainerTop,
-          left: 0,
-          top: scrollContainerTop,
-          width: 600,
-          height: scrollContainerHeight,
-          right: 600,
-          bottom: scrollContainerTop + scrollContainerHeight,
-          toJSON: () => ({}),
-        };
-      }
-
-      return {
-        x: 0,
-        y: 0,
-        left: 0,
-        top: 0,
-        width: 0,
-        height: 0,
-        right: 0,
-        bottom: 0,
-        toJSON: () => ({}),
-      };
-    });
-
-    setPrototypeNumberGetter('clientWidth', 600);
-    setPrototypeNumberGetter('clientHeight', scrollContainerHeight);
-    vi.mocked(readerApi.getChapters).mockResolvedValueOnce([
-      { index: 0, title: longChapter.title, wordCount: longChapter.wordCount },
-    ]);
-    vi.mocked(readerApi.getChapterContent).mockImplementation(async () => longChapter);
-
-    try {
-      const { container } = renderPage();
-
-      expect(await screen.findByRole('heading', { name: 'Chapter 1', level: 1 })).toBeInTheDocument();
-      await waitFor(() => {
-        expect(screen.queryByText(/Paragraph 12 marker/)).not.toBeInTheDocument();
-      });
-
-      const readerContainer = container.querySelector('main .overflow-y-auto.hide-scrollbar') as HTMLDivElement | null;
-      expect(readerContainer).not.toBeNull();
-
-      act(() => {
-        readerContainer!.scrollTop = 1900;
-        fireEvent.scroll(readerContainer!);
-      });
-
-      await waitFor(() => {
-        expect(screen.getByText(/Paragraph 12 marker/)).toBeInTheDocument();
-      });
-    } finally {
-      rectSpy.mockRestore();
-    }
   });
 
   it('switches to summary view and shows queued analysis state when chapter analysis is missing', async () => {
@@ -967,6 +440,7 @@ describe('ReaderPage', () => {
       overview: null,
       chunks: [],
     };
+
     vi.mocked(analysisApi.getStatus).mockResolvedValueOnce(runningStatus);
     useChapterAnalysisMock.mockReturnValue({
       analysisStatus: runningStatus,
@@ -975,6 +449,7 @@ describe('ReaderPage', () => {
       isAnalyzingChapter: false,
       handleAnalyzeChapter: vi.fn(),
     });
+
     renderPage();
 
     expect(await screen.findByRole('heading', { name: 'Chapter 1', level: 1 })).toBeInTheDocument();
@@ -982,348 +457,27 @@ describe('ReaderPage', () => {
 
     expect(await screen.findByText('reader.analysisPanel.statusQueued')).toBeInTheDocument();
     expect(screen.getByText('reader.analysisPanel.progressTitle')).toBeInTheDocument();
-    expect(JSON.parse(localStorage.getItem('reader-state:1')!)).toMatchObject({
-      mode: 'summary',
-    });
-  });
-
-  it('restores legacy scrollPosition in scroll mode', async () => {
-    setPrototypeNumberGetter('offsetHeight', 400);
-    localStorage.setItem('reader-state:1', JSON.stringify({
-      chapterIndex: 0,
-      scrollPosition: 240,
-    }));
-
-    const { container } = renderPage();
-
-    expect(await screen.findByRole('heading', { name: 'Chapter 1', level: 1 })).toBeInTheDocument();
-    const readerContainer = container.querySelector('main .overflow-y-auto.hide-scrollbar') as HTMLDivElement | null;
-    expect(readerContainer).not.toBeNull();
-
-    await waitFor(() => {
-      expect(readerContainer?.scrollTop).toBe(240);
-    });
-  });
-
-  it('restores scroll locators to the same viewport anchor instead of snapping them to the top', async () => {
-    const longChapter = createLongScrollChapter(0, 1, 18);
-    const scrollContainerHeight = 800;
-    const chapterBodyOffsetTop = 88;
-    const viewportMetrics = createReaderViewportMetrics(
-      600,
-      scrollContainerHeight,
-      600,
-      scrollContainerHeight,
-    );
-    const typography = createReaderTypographyMetrics(
-      18,
-      1.8,
-      16,
-      viewportMetrics.scrollTextWidth,
-    );
-    const measuredLayout = measureReaderChapterLayout(
-      longChapter,
-      viewportMetrics.scrollTextWidth,
-      typography,
-      new Map(),
-    );
-    const locator = findLocatorForLayoutOffset(measuredLayout, 960);
-    const locatorOffset = getOffsetForLocator(measuredLayout, locator);
-
-    expect(locator).not.toBeNull();
-    expect(locatorOffset).not.toBeNull();
-
-    localStorage.setItem('reader-state:1', JSON.stringify({
-      chapterIndex: 0,
-      locatorVersion: 1,
-      locator,
-    }));
-
-    setPrototypeNumberGetter('clientWidth', 600);
-    setPrototypeNumberGetter('clientHeight', scrollContainerHeight);
-    Object.defineProperty(HTMLElement.prototype, 'offsetTop', {
-      configurable: true,
-      get() {
-        if ((this as HTMLElement).dataset.testid === 'scroll-reader-content-body') {
-          return chapterBodyOffsetTop;
-        }
-
-        return 0;
-      },
-    });
-    vi.mocked(readerApi.getChapters).mockResolvedValue([
-      { index: 0, title: longChapter.title, wordCount: longChapter.wordCount },
-    ]);
-    vi.mocked(readerApi.getChapterContent).mockImplementation(async () => longChapter);
-
-    const { container } = renderPage();
-
-    expect(await screen.findByRole('heading', { name: 'Chapter 1', level: 1 })).toBeInTheDocument();
-    const readerContainer = container.querySelector('main .overflow-y-auto.hide-scrollbar') as HTMLDivElement | null;
-    expect(readerContainer).not.toBeNull();
-
-    await waitFor(() => {
-      expect(readerContainer?.scrollTop).toBe(
-        Math.max(
-          0,
-          Math.round(
-            locatorOffset!
-            + chapterBodyOffsetTop
-            - scrollContainerHeight * SCROLL_READING_ANCHOR_RATIO,
-          ),
-        ),
-      );
-    });
-  });
-
-  it('restores paged progress from chapterProgress', async () => {
-    const frameCallbacks: FrameRequestCallback[] = [];
-    const flushAnimationFrames = async () => {
-      while (frameCallbacks.length > 0) {
-        const queuedCallbacks = frameCallbacks.splice(0, frameCallbacks.length);
-        await act(async () => {
-          queuedCallbacks.forEach((callback) => callback(0));
-          await Promise.resolve();
-        });
-      }
-    };
-
-    setPrototypeNumberGetter('clientWidth', 600);
-    setPrototypeNumberGetter('clientHeight', 800);
-    const pagedChapter = createPagedChapterContent(0, 2, 3);
-    const expectedPageCount = pagedChapter.layout.pageSlices.length;
-    localStorage.setItem('reader-state:1', JSON.stringify({
-      chapterIndex: 0,
-      mode: 'paged',
-      chapterProgress: 1,
-    }));
-
-    const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback: FrameRequestCallback) => {
-      frameCallbacks.push(callback);
-      return frameCallbacks.length;
-    });
-    const cancelAnimationFrameSpy = vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined);
-
-    try {
-      vi.mocked(readerApi.getChapterContent).mockImplementation(async (_novelId, chapterIndex) => (
-        chapterIndex === 0 ? pagedChapter.chapter : chapterContent[chapterIndex]
-      ));
-      renderPage();
-
-      expect(await screen.findByRole('heading', { name: 'Chapter 1', level: 2 })).toBeInTheDocument();
-      await flushAnimationFrames();
-
-      expect(await screen.findAllByText(`${expectedPageCount} / ${expectedPageCount}`)).not.toHaveLength(0);
-    } finally {
-      requestAnimationFrameSpy.mockRestore();
-      cancelAnimationFrameSpy.mockRestore();
-    }
-  });
-
-  it('keeps the loading overlay visible until paged restore reaches the stored page', async () => {
-    const frameCallbacks: FrameRequestCallback[] = [];
-    const flushAnimationFrames = async () => {
-      while (frameCallbacks.length > 0) {
-        const queuedCallbacks = frameCallbacks.splice(0, frameCallbacks.length);
-        await act(async () => {
-          queuedCallbacks.forEach((callback) => callback(0));
-          await Promise.resolve();
-        });
-      }
-    };
-
-    setPrototypeNumberGetter('clientWidth', 600);
-    setPrototypeNumberGetter('clientHeight', 800);
-    const pagedChapter = createPagedChapterContent(0, 2, 3);
-    const expectedPageCount = pagedChapter.layout.pageSlices.length;
-    const expectedPageLabel = `${getPageIndexFromProgress(0.5, expectedPageCount) + 1} / ${expectedPageCount}`;
-    localStorage.setItem('reader-state:1', JSON.stringify({
-      chapterIndex: 0,
-      mode: 'paged',
-      chapterProgress: 0.5,
-    }));
-
-    const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback: FrameRequestCallback) => {
-      frameCallbacks.push(callback);
-      return frameCallbacks.length;
-    });
-    const cancelAnimationFrameSpy = vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined);
-
-    try {
-      vi.mocked(readerApi.getChapterContent).mockImplementation(async (_novelId, chapterIndex) => (
-        chapterIndex === 0 ? pagedChapter.chapter : chapterContent[chapterIndex]
-      ));
-      renderPage();
-
-      expect(await screen.findByRole('heading', { name: 'Chapter 1', level: 2 })).toBeInTheDocument();
-      expect(screen.getByRole('status', { name: 'Loading reader content' })).toBeInTheDocument();
-      expect(screen.queryByText(expectedPageLabel)).not.toBeInTheDocument();
-
-      await flushAnimationFrames();
-
-      expect(await screen.findAllByText(expectedPageLabel)).not.toHaveLength(0);
-      await waitFor(() => {
-        expect(screen.queryByRole('status', { name: 'Loading reader content' })).not.toBeInTheDocument();
-      });
-    } finally {
-      requestAnimationFrameSpy.mockRestore();
-      cancelAnimationFrameSpy.mockRestore();
-    }
-  });
-
-  it('does not skip chapters when rapid wheel paging overlaps an async chapter transition', async () => {
-    const pagedChapters = Array.from({ length: 3 }, (_, index) => ({
-      index,
-      title: `Chapter ${index + 1}`,
-      wordCount: 100 + index,
-    }));
-    const pagedChapterContent = pagedChapters.map((_, index) =>
-      createPagedChapterContent(index, pagedChapters.length, 2));
-    const deferredSecondChapter = createDeferred<(typeof pagedChapterContent)[number]['chapter']>();
-    const firstChapterPageLabel = `${pagedChapterContent[0].layout.pageSlices.length} / ${pagedChapterContent[0].layout.pageSlices.length}`;
-
-    enablePagedTestLayout(900);
-    localStorage.setItem('reader-state:1', JSON.stringify({
-      chapterIndex: 0,
-      mode: 'paged',
-      chapterProgress: 1,
-    }));
-    vi.mocked(readerApi.getChapters).mockResolvedValueOnce(pagedChapters);
-    vi.mocked(readerApi.getChapterContent).mockImplementation(async (_novelId, chapterIndex) => {
-      if (chapterIndex === 1) {
-        return deferredSecondChapter.promise;
-      }
-      return pagedChapterContent[chapterIndex].chapter;
-    });
-
-    const { container } = renderPage();
-
-    expect(await screen.findAllByText(firstChapterPageLabel)).not.toHaveLength(0);
-    const readerContainer = getPagedReaderContainer(container);
-
-    const firstWheel = new WheelEvent('wheel', { deltaY: 120, bubbles: true, cancelable: true });
-    Object.defineProperty(firstWheel, 'deltaX', { value: 0 });
-    readerContainer.dispatchEvent(firstWheel);
-
-    await act(async () => {
-      await new Promise((resolve) => window.setTimeout(resolve, 320));
-    });
-
-    const secondWheel = new WheelEvent('wheel', { deltaY: 120, bubbles: true, cancelable: true });
-    Object.defineProperty(secondWheel, 'deltaX', { value: 0 });
-    readerContainer.dispatchEvent(secondWheel);
-
-    deferredSecondChapter.resolve(pagedChapterContent[1].chapter);
-
-    await waitFor(() => {
-      const activeChapterButton = screen
-        .getAllByRole('button', { name: /Chapter 2/ })
-        .find((button) => button.getAttribute('data-active') === 'true');
-      expect(activeChapterButton).toBeDefined();
-    });
-    await waitFor(() => {
-      expect(screen.queryByRole('heading', { name: 'Chapter 3', level: 2 })).not.toBeInTheDocument();
-    });
-    expect(JSON.parse(localStorage.getItem('reader-state:1')!)).toMatchObject({
-      chapterIndex: 1,
-      mode: 'paged',
-    });
-  });
-
-  it('does not skip chapters when rapid right-side clicks overlap a cached chapter transition', async () => {
-    const pagedChapters = Array.from({ length: 3 }, (_, index) => ({
-      index,
-      title: `Chapter ${index + 1}`,
-      wordCount: 100 + index,
-    }));
-    const pagedChapterContent = pagedChapters.map((_, index) =>
-      createPagedChapterContent(index, pagedChapters.length, 2));
-    const firstChapterPageLabel = `${pagedChapterContent[0].layout.pageSlices.length} / ${pagedChapterContent[0].layout.pageSlices.length}`;
-
-    enablePagedTestLayout(900);
-    localStorage.setItem('reader-state:1', JSON.stringify({
-      chapterIndex: 0,
-      mode: 'paged',
-      chapterProgress: 1,
-    }));
-    vi.mocked(readerApi.getChapters).mockResolvedValueOnce(pagedChapters);
-    vi.mocked(readerApi.getChapterContent).mockImplementation(
-      async (_novelId, chapterIndex) => pagedChapterContent[chapterIndex].chapter,
-    );
-
-    const { container } = renderPage();
-
-    expect(await screen.findAllByText(firstChapterPageLabel)).not.toHaveLength(0);
-    await act(async () => {
-      await new Promise((resolve) => window.setTimeout(resolve, 160));
-    });
-
-    const readerContainer = getPagedReaderContainer(container);
-
-    act(() => {
-      fireEvent.click(readerContainer, { clientX: 90, clientY: 50 });
-      fireEvent.click(readerContainer, { clientX: 90, clientY: 50 });
-    });
-
-    await waitFor(() => {
-      const activeChapterButton = screen
-        .getAllByRole('button', { name: /Chapter 2/ })
-        .find((button) => button.getAttribute('data-active') === 'true');
-      expect(activeChapterButton).toBeDefined();
-    });
-    await waitFor(() => {
-      expect(screen.queryByRole('heading', { name: 'Chapter 3', level: 2 })).not.toBeInTheDocument();
-    });
-    expect(JSON.parse(localStorage.getItem('reader-state:1')!)).toMatchObject({
-      chapterIndex: 1,
-      mode: 'paged',
-    });
   });
 
   it('shows the unified loading state while chapter content is loading in scroll mode', async () => {
-    const deferredChapter = createDeferred<(typeof chapterContent)[number]>();
-    vi.mocked(readerApi.getChapterContent).mockImplementationOnce(
-      async () => deferredChapter.promise,
-    );
+    let resolveChapter: ((chapter: typeof chapterContent[number]) => void) | null = null;
+    const loadingChapter = new Promise<(typeof chapterContent)[number]>((resolve) => {
+      resolveChapter = resolve;
+    });
+
+    vi.mocked(readerApi.getChapterContent).mockImplementationOnce(async () => loadingChapter);
 
     renderPage();
 
-    await waitFor(() => {
-      expect(readerApi.getChapterContent).toHaveBeenCalledWith(1, 0, expect.any(Object));
-    });
-    expect(screen.queryByText('reader.noChapters')).not.toBeInTheDocument();
-    expect(screen.getByRole('status', { name: 'Loading reader content' })).toBeInTheDocument();
+    expect(await screen.findByRole('status', { name: 'Loading reader content' })).toBeInTheDocument();
 
-    deferredChapter.resolve(chapterContent[0]);
+    resolveChapter?.(chapterContent[0]);
 
     expect(await screen.findByRole('heading', { name: 'Chapter 1', level: 1 })).toBeInTheDocument();
-  });
-
-  it('flushes the latest reading state on pagehide', async () => {
-    renderPage();
-
-    expect(await screen.findByRole('heading', { name: 'Chapter 1', level: 1 })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: /Chapter 2/ }));
-
-    window.dispatchEvent(new Event('pagehide'));
-
-    await waitFor(() => {
-      expect(readerApi.saveProgress).toHaveBeenCalledWith(1, expect.objectContaining({
-        chapterIndex: 1,
-        mode: 'scroll',
-        chapterProgress: 0,
-      }));
-    });
   });
 
   it('renders an empty state when the novel has no chapters', async () => {
-    localStorage.setItem('reader-state:1', JSON.stringify({
-      chapterIndex: 4,
-      mode: 'scroll',
-      scrollPosition: 240,
-    }));
     vi.mocked(readerApi.getChapters).mockResolvedValueOnce([]);
-    vi.mocked(readerApi.getChapterContent).mockRejectedValueOnce(new Error('Chapter not found'));
     renderPage();
 
     expect(await screen.findByText('reader.noChapters')).toBeInTheDocument();

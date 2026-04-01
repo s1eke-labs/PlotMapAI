@@ -10,6 +10,7 @@ import {
   getReaderSessionSnapshot,
   resetReaderSessionStoreForTests,
 } from '../sessionStore';
+import type { ChapterChangeSource } from '../navigationTypes';
 import type { ScrollModeAnchor } from '../useScrollModeChapters';
 import { useReaderRestoreFlow } from '../useReaderRestoreFlow';
 import type {
@@ -107,6 +108,16 @@ function createCurrentChapter(index = 5) {
     totalChapters: 10,
     hasPrev: true,
     hasNext: true,
+  };
+}
+
+function createLocator(overrides: Partial<NonNullable<StoredReaderState['locator']>> = {}) {
+  return {
+    chapterIndex: 5,
+    blockIndex: 2,
+    kind: 'text' as const,
+    lineIndex: 0,
+    ...overrides,
   };
 }
 
@@ -249,6 +260,143 @@ describe('useReaderRestoreFlow', () => {
     expect(markUserInteracted).toHaveBeenCalledTimes(2);
     expect(setChapterIndex).toHaveBeenLastCalledWith(5);
     expect(setMode).toHaveBeenLastCalledWith('scroll');
+  });
+
+  it('prefers the latest persisted reader snapshot when capture runs during navigation', () => {
+    const persistReaderState = vi.fn();
+    const chapterChangeSourceRef = {
+      current: 'navigation' as ChapterChangeSource,
+    };
+    const latestReaderStateRef = {
+      current: createStoredState({
+        chapterIndex: 8,
+        chapterProgress: 0.75,
+        scrollPosition: 320,
+        locatorVersion: 1,
+        locator: createLocator({
+          chapterIndex: 8,
+        }),
+      }),
+    };
+    const contextValue = createReaderPageContextValue({
+      latestReaderStateRef,
+      persistReaderState,
+      getCurrentAnchorRef: {
+        current: () => ({ chapterIndex: 5, chapterProgress: 0.2 } satisfies ScrollModeAnchor),
+      },
+      getCurrentOriginalLocatorRef: {
+        current: () => createLocator(),
+      },
+    });
+
+    const { result } = renderHook(() => useReaderRestoreFlow({
+      chapterIndex: 5,
+      setChapterIndex: vi.fn(),
+      chapterChangeSourceRef,
+      mode: 'scroll',
+      setMode: vi.fn(),
+      pagedStateRef: { current: { pageIndex: 0, pageCount: 1 } },
+      currentChapter: createCurrentChapter(),
+      summaryRestoreSignal: null,
+      isChapterAnalysisLoading: false,
+    }), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        ReaderPageContextProvider({ value: contextValue, children })
+      ),
+    });
+
+    let capturedState: StoredReaderState | null = null;
+    act(() => {
+      capturedState = result.current.captureCurrentReaderPosition();
+    });
+
+    expect(persistReaderState).toHaveBeenCalledWith(expect.objectContaining({
+      chapterIndex: 8,
+      chapterProgress: 0.75,
+      locator: latestReaderStateRef.current.locator,
+      locatorVersion: 1,
+      mode: 'scroll',
+      scrollPosition: 320,
+    }), {
+      flush: undefined,
+    });
+    expect(capturedState).toMatchObject({
+      chapterIndex: 8,
+      chapterProgress: 0.75,
+      locator: latestReaderStateRef.current.locator,
+      locatorVersion: 1,
+      mode: 'scroll',
+      scrollPosition: 320,
+    });
+  });
+
+  it('flushes the current reading position on pagehide and hidden visibility changes', () => {
+    const persistReaderState = vi.fn();
+    const locator = createLocator();
+    const visibilityStateDescriptor = Object.getOwnPropertyDescriptor(
+      Document.prototype,
+      'visibilityState',
+    );
+    const contextValue = createReaderPageContextValue({
+      persistReaderState,
+      getCurrentAnchorRef: {
+        current: () => ({ chapterIndex: 5, chapterProgress: 0.6 } satisfies ScrollModeAnchor),
+      },
+      getCurrentOriginalLocatorRef: {
+        current: () => locator,
+      },
+    });
+
+    renderHook(() => useReaderRestoreFlow({
+      chapterIndex: 5,
+      setChapterIndex: vi.fn(),
+      mode: 'scroll',
+      setMode: vi.fn(),
+      pagedStateRef: { current: { pageIndex: 0, pageCount: 1 } },
+      currentChapter: createCurrentChapter(),
+      summaryRestoreSignal: null,
+      isChapterAnalysisLoading: false,
+    }), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        ReaderPageContextProvider({ value: contextValue, children })
+      ),
+    });
+
+    window.dispatchEvent(new Event('pagehide'));
+
+    Object.defineProperty(Document.prototype, 'visibilityState', {
+      configurable: true,
+      get: () => 'hidden',
+    });
+
+    try {
+      document.dispatchEvent(new Event('visibilitychange'));
+    } finally {
+      if (visibilityStateDescriptor) {
+        Object.defineProperty(Document.prototype, 'visibilityState', visibilityStateDescriptor);
+      } else {
+        Reflect.deleteProperty(Document.prototype, 'visibilityState');
+      }
+    }
+
+    expect(persistReaderState).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      chapterIndex: 5,
+      chapterProgress: 0.6,
+      locator,
+      locatorVersion: 1,
+      mode: 'scroll',
+    }), {
+      flush: true,
+    });
+    expect(persistReaderState).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      chapterIndex: 5,
+      chapterProgress: 0.6,
+      locator,
+      locatorVersion: 1,
+      mode: 'scroll',
+    }), {
+      flush: true,
+    });
   });
 
   it('reports restore settle results when forced summary restore targets are skipped or completed', async () => {

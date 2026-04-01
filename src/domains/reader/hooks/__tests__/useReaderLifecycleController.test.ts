@@ -325,6 +325,145 @@ describe('useReaderLifecycleController', () => {
     });
   });
 
+  it('keeps the loading overlay visible for paged restores until the layout consumes the restore target', async () => {
+    const hydrateDeferred = createDeferred<ReaderHydrateDataResult>();
+    const loadDeferred = createDeferred<ReaderLoadActiveChapterResult>();
+    const restoreTarget = createRestoreTarget({
+      chapterIndex: 2,
+      mode: 'paged',
+      chapterProgress: 0.5,
+    });
+    const hydrateReaderData = vi.fn(() => hydrateDeferred.promise);
+    const loadActiveChapter = vi.fn(() => loadDeferred.promise);
+
+    const { result, rerender } = renderHook(useReaderLifecycleController, {
+      initialProps: createProps({
+        chapterIndex: 0,
+        mode: 'scroll',
+        currentPagedLayoutChapterIndex: null,
+        chapterData: {
+          chapters: [],
+          currentChapter: null,
+          loadingMessage: 'loading',
+          readerError: null,
+          hydrateReaderData,
+          loadActiveChapter,
+          resetReaderContent: vi.fn(),
+        },
+        restoreFlow: {
+          pendingRestoreTarget: null,
+          clearPendingRestoreTarget: vi.fn(),
+          setPendingRestoreTarget: vi.fn(),
+          startRestoreMaskForTarget: vi.fn(),
+          stopRestoreMask: vi.fn(),
+        },
+      }),
+    });
+
+    await act(async () => {
+      hydrateDeferred.resolve({
+        hasChapters: true,
+        initialRestoreTarget: restoreTarget,
+        resolvedState: createStoredState({
+          chapterIndex: 2,
+          mode: 'paged',
+          lastContentMode: 'paged',
+        }),
+        storedState: createStoredState({
+          chapterIndex: 2,
+          mode: 'paged',
+          lastContentMode: 'paged',
+        }),
+      });
+      await Promise.resolve();
+    });
+
+    rerender(createProps({
+      chapterIndex: 2,
+      mode: 'paged',
+      currentPagedLayoutChapterIndex: null,
+      chapterData: {
+        chapters: [createChapter(2)],
+        currentChapter: createChapterContent(2),
+        loadingMessage: null,
+        readerError: null,
+        hydrateReaderData,
+        loadActiveChapter,
+        resetReaderContent: vi.fn(),
+      },
+      restoreFlow: {
+        pendingRestoreTarget: null,
+        clearPendingRestoreTarget: vi.fn(),
+        setPendingRestoreTarget: vi.fn(),
+        startRestoreMaskForTarget: vi.fn(),
+        stopRestoreMask: vi.fn(),
+      },
+    }));
+
+    await act(async () => {
+      loadDeferred.resolve({
+        navigationRestoreTarget: restoreTarget,
+      });
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(result.current.lifecycleStatus).toBe('restoring-position');
+    });
+    expect(result.current.showLoadingOverlay).toBe(true);
+
+    rerender(createProps({
+      chapterIndex: 2,
+      mode: 'paged',
+      currentPagedLayoutChapterIndex: null,
+      chapterData: {
+        chapters: [createChapter(2)],
+        currentChapter: createChapterContent(2),
+        loadingMessage: null,
+        readerError: null,
+        hydrateReaderData,
+        loadActiveChapter,
+        resetReaderContent: vi.fn(),
+      },
+      restoreFlow: {
+        pendingRestoreTarget: restoreTarget,
+        clearPendingRestoreTarget: vi.fn(),
+        setPendingRestoreTarget: vi.fn(),
+        startRestoreMaskForTarget: vi.fn(),
+        stopRestoreMask: vi.fn(),
+      },
+    }));
+
+    expect(result.current.showLoadingOverlay).toBe(true);
+
+    rerender(createProps({
+      chapterIndex: 2,
+      mode: 'paged',
+      currentPagedLayoutChapterIndex: 2,
+      chapterData: {
+        chapters: [createChapter(2)],
+        currentChapter: createChapterContent(2),
+        loadingMessage: null,
+        readerError: null,
+        hydrateReaderData,
+        loadActiveChapter,
+        resetReaderContent: vi.fn(),
+      },
+      restoreFlow: {
+        pendingRestoreTarget: null,
+        clearPendingRestoreTarget: vi.fn(),
+        setPendingRestoreTarget: vi.fn(),
+        startRestoreMaskForTarget: vi.fn(),
+        stopRestoreMask: vi.fn(),
+      },
+    }));
+
+    await waitFor(() => {
+      expect(result.current.lifecycleStatus).toBe('ready');
+    });
+    expect(result.current.showLoadingOverlay).toBe(false);
+  });
+
   it('returns ready immediately when hydration finds no chapters', async () => {
     const hydrateReaderData = vi.fn(async () => ({
       hasChapters: false,
