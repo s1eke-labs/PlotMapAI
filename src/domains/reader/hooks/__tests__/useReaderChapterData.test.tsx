@@ -146,8 +146,8 @@ describe('useReaderChapterData', () => {
     expect(loadResult).toMatchObject({
       navigationRestoreTarget: {
         chapterIndex: 2,
+        locatorBoundary: 'start',
         mode: 'scroll',
-        chapterProgress: 0,
       },
     });
     expect(chapterChangeSourceRef.current).toBe('navigation');

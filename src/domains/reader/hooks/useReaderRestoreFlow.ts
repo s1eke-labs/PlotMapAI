@@ -94,18 +94,24 @@ export function useReaderRestoreFlow({
   }, [pagedStateRef]);
 
   const toRestoreTarget = useCallback((state: StoredReaderState): ReaderRestoreTarget => {
-    return {
+    const target: ReaderRestoreTarget = {
       chapterIndex: state.chapterIndex ?? chapterIndex,
       mode: state.mode ?? mode,
-      chapterProgress: typeof state.chapterProgress === 'number'
-        ? clampProgress(state.chapterProgress)
-        : undefined,
-      scrollPosition: typeof state.scrollPosition === 'number' && Number.isFinite(state.scrollPosition)
-        ? state.scrollPosition
-        : undefined,
       locatorVersion: state.locator ? 1 : undefined,
       locator: state.locator,
     };
+
+    if (!state.locator || target.mode === 'summary') {
+      target.chapterProgress = typeof state.chapterProgress === 'number'
+        ? clampProgress(state.chapterProgress)
+        : undefined;
+      target.scrollPosition =
+        typeof state.scrollPosition === 'number' && Number.isFinite(state.scrollPosition)
+          ? state.scrollPosition
+          : undefined;
+    }
+
+    return target;
   }, [chapterIndex, mode]);
 
   const setPendingRestoreTarget = useCallback(
@@ -189,12 +195,15 @@ export function useReaderRestoreFlow({
       };
 
       if (mode === 'paged') {
-        nextState.chapterProgress = getPagedProgress();
         const locator = getPagedLocator.current();
         if (locator) {
           nextState.chapterIndex = locator.chapterIndex;
           nextState.locatorVersion = 1;
           nextState.locator = locator;
+          nextState.chapterProgress = undefined;
+          nextState.scrollPosition = undefined;
+        } else {
+          nextState.chapterProgress = getPagedProgress();
         }
       } else if (mode === 'summary') {
         nextState.chapterProgress = getContainerProgress(contentRef.current);
@@ -206,31 +215,45 @@ export function useReaderRestoreFlow({
         if (anchor) {
           nextState = {
             ...nextState,
-            chapterIndex: anchor.chapterIndex,
-            chapterProgress: clampProgress(anchor.chapterProgress),
+            chapterIndex: locator?.chapterIndex ?? anchor.chapterIndex,
+            chapterProgress: locator ? undefined : clampProgress(anchor.chapterProgress),
             locatorVersion: locator ? 1 : undefined,
             locator: locator ?? undefined,
+            scrollPosition: undefined,
           };
         } else if (shouldPreferLatestReaderState) {
+          let preferredChapterProgress: number | undefined;
+          let preferredScrollPosition: number | undefined;
+          if (!preferredReaderState.locator) {
+            if (typeof preferredReaderState.chapterProgress === 'number') {
+              preferredChapterProgress = clampProgress(preferredReaderState.chapterProgress);
+            }
+            if (
+              typeof preferredReaderState.scrollPosition === 'number'
+              && Number.isFinite(preferredReaderState.scrollPosition)
+            ) {
+              preferredScrollPosition = preferredReaderState.scrollPosition;
+            }
+          }
           nextState = {
             ...nextState,
-            chapterIndex: preferredReaderState.chapterIndex ?? nextState.chapterIndex,
-            chapterProgress:
-              typeof preferredReaderState.chapterProgress === 'number'
-                ? clampProgress(preferredReaderState.chapterProgress)
-                : undefined,
-            scrollPosition:
-              typeof preferredReaderState.scrollPosition === 'number' &&
-              Number.isFinite(preferredReaderState.scrollPosition)
-                ? preferredReaderState.scrollPosition
-                : undefined,
+            chapterIndex:
+              preferredReaderState.locator?.chapterIndex
+              ?? preferredReaderState.chapterIndex
+              ?? nextState.chapterIndex,
+            chapterProgress: preferredChapterProgress,
+            scrollPosition: preferredScrollPosition,
             locatorVersion: preferredReaderState.locator ? 1 : undefined,
             locator: preferredReaderState.locator,
           };
+        } else if (latestReaderStateRef.current.locator) {
+          nextState.chapterIndex = latestReaderStateRef.current.locator.chapterIndex;
+          nextState.chapterProgress = undefined;
+          nextState.scrollPosition = undefined;
+          nextState.locatorVersion = 1;
+          nextState.locator = latestReaderStateRef.current.locator;
         } else if (typeof latestReaderStateRef.current.chapterProgress === 'number') {
           nextState.chapterProgress = latestReaderStateRef.current.chapterProgress;
-          nextState.locatorVersion = latestReaderStateRef.current.locator ? 1 : undefined;
-          nextState.locator = latestReaderStateRef.current.locator;
         }
       }
 
@@ -309,20 +332,30 @@ export function useReaderRestoreFlow({
     } else {
       nextLastContentMode = nextMode;
     }
-    const targetRestoreTarget: ReaderRestoreTarget = canReuseSnapshot
-      ? {
+    let targetRestoreTarget: ReaderRestoreTarget;
+    if (canReuseSnapshot) {
+      targetRestoreTarget = {
         ...toRestoreTarget(currentReaderState),
         ...matchingSnapshot,
         mode: nextMode,
-      }
-      : {
+      };
+    } else if (nextMode === 'summary') {
+      targetRestoreTarget = {
         ...toRestoreTarget(currentReaderState),
         mode: nextMode,
         chapterProgress: 0,
         scrollPosition: undefined,
+        locatorBoundary: undefined,
         locatorVersion: undefined,
         locator: undefined,
       };
+    } else {
+      targetRestoreTarget = {
+        chapterIndex: currentReaderState.chapterIndex ?? chapterIndex,
+        mode: nextMode,
+        locatorBoundary: 'start',
+      };
+    }
 
     markUserInteracted();
     setChapterIndex(targetRestoreTarget.chapterIndex);
@@ -330,7 +363,12 @@ export function useReaderRestoreFlow({
     setPendingRestoreTarget(targetRestoreTarget, { force: true });
     setMode(nextMode);
     persistReaderState({
-      ...targetRestoreTarget,
+      chapterIndex: targetRestoreTarget.chapterIndex,
+      mode: targetRestoreTarget.mode,
+      chapterProgress: targetRestoreTarget.chapterProgress,
+      scrollPosition: targetRestoreTarget.scrollPosition,
+      locatorVersion: targetRestoreTarget.locatorVersion,
+      locator: targetRestoreTarget.locator,
       lastContentMode: nextLastContentMode,
     });
   }, [
@@ -344,6 +382,7 @@ export function useReaderRestoreFlow({
     setPendingRestoreTarget,
     setMode,
     toRestoreTarget,
+    chapterIndex,
     viewMode,
   ]);
 

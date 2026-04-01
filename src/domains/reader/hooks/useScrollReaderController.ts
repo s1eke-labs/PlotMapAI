@@ -10,6 +10,7 @@ import {
   resolveCurrentScrollLocator,
   resolveCurrentScrollLocatorOffset,
 } from '../pages/reader-page/useReaderPageViewport';
+import { getChapterBoundaryLocator } from '../utils/readerLayout';
 import {
   canSkipReaderRestore,
   clampProgress,
@@ -111,6 +112,17 @@ function buildScrollWindow(
   return nextWindow;
 }
 
+function buildFocusedScrollWindow(
+  chapterIndex: number,
+  totalChapters: number,
+): number[] {
+  if (chapterIndex < 0 || chapterIndex >= totalChapters) {
+    return [];
+  }
+
+  return [chapterIndex];
+}
+
 export function useScrollReaderController({
   enabled,
   chapters,
@@ -181,7 +193,13 @@ export function useScrollReaderController({
       return;
     }
 
-    const nextWindow = buildScrollWindow(chapterIndex, chapters.length);
+    const activePendingTarget = pendingRestoreTargetRef.current;
+    const shouldFocusRestoreWindow =
+      activePendingTarget?.mode === 'scroll'
+      && activePendingTarget.chapterIndex === chapterIndex;
+    const nextWindow = shouldFocusRestoreWindow
+      ? buildFocusedScrollWindow(chapterIndex, chapters.length)
+      : buildScrollWindow(chapterIndex, chapters.length);
     setScrollModeChapters((previousWindow) => (
       previousWindow.length === nextWindow.length
       && previousWindow.every((index, position) => index === nextWindow[position])
@@ -205,6 +223,7 @@ export function useScrollReaderController({
     currentChapter,
     enabled,
     fetchChapterContent,
+    pendingRestoreTargetRef,
   ]);
 
   const handleReadingAnchorChange = useCallback((anchor: ScrollModeAnchor) => {
@@ -220,19 +239,20 @@ export function useScrollReaderController({
 
     const locator = getCurrentOriginalLocatorRef.current();
     persistReaderState({
-      chapterIndex: anchor.chapterIndex,
+      chapterIndex: locator?.chapterIndex ?? anchor.chapterIndex,
       mode: 'scroll',
-      chapterProgress: clampProgress(anchor.chapterProgress),
+      chapterProgress: locator ? undefined : clampProgress(anchor.chapterProgress),
       locatorVersion: locator ? 1 : undefined,
       locator: locator ?? undefined,
     });
 
-    if (anchor.chapterIndex === chapterIndex) {
+    const nextChapterIndex = locator?.chapterIndex ?? anchor.chapterIndex;
+    if (nextChapterIndex === chapterIndex) {
       return;
     }
 
     navigationSourceRef.current = 'scroll';
-    setChapterIndex(anchor.chapterIndex);
+    setChapterIndex(nextChapterIndex);
   }, [
     chapterIndex,
     enabled,
@@ -316,6 +336,117 @@ export function useScrollReaderController({
     }),
     [renderCache.scrollLayouts, scrollReaderChapters],
   );
+
+  const ensureScrollRestoreWindow = useCallback((target: ReaderRestoreTarget) => {
+    const targetChapterIndex = target.locator?.chapterIndex ?? target.chapterIndex;
+    if (targetChapterIndex < 0 || targetChapterIndex >= chapters.length) {
+      return;
+    }
+
+    setScrollModeChapters((previousWindow) => {
+      const nextWindow = buildFocusedScrollWindow(targetChapterIndex, chapters.length);
+      return previousWindow.length === nextWindow.length
+        && previousWindow.every((index, position) => index === nextWindow[position])
+        ? previousWindow
+        : nextWindow;
+    });
+  }, [chapters.length]);
+
+  const resolvePendingRestoreLocator = useCallback((target: ReaderRestoreTarget) => {
+    if (target.locator) {
+      return target.locator;
+    }
+
+    if (target.locatorBoundary === undefined) {
+      return null;
+    }
+
+    const chapterLayout = renderCache.scrollLayouts.get(target.chapterIndex) ?? null;
+    return getChapterBoundaryLocator(chapterLayout, target.locatorBoundary);
+  }, [renderCache.scrollLayouts]);
+
+  const resolvePendingScrollTarget = useCallback((target: ReaderRestoreTarget) => {
+    const container = contentRef.current;
+    if (!container) {
+      return { status: 'pending' as const };
+    }
+
+    const targetChapterIndex = target.locator?.chapterIndex ?? target.chapterIndex;
+    const targetElement = scrollChapterElementsBridgeRef.current.get(targetChapterIndex) ?? null;
+    const resolvedLocator = resolvePendingRestoreLocator(target);
+
+    if (target.locatorBoundary !== undefined && resolvedLocator === null) {
+      const hasResolvedBoundaryLayout = renderCache.scrollLayouts.has(target.chapterIndex)
+        && scrollChapterBodyElementsBridgeRef.current.has(target.chapterIndex);
+      if (!hasResolvedBoundaryLayout) {
+        return { status: 'pending' as const };
+      }
+    }
+
+    if (resolvedLocator) {
+      if (target.locatorBoundary === 'start' && targetElement) {
+        return {
+          status: 'resolved' as const,
+          locator: resolvedLocator,
+          scrollTop: Math.max(0, Math.round(targetElement.offsetTop)),
+        };
+      }
+
+      const nextScrollTop = resolveScrollLocatorOffsetRef.current(resolvedLocator);
+      if (nextScrollTop !== null) {
+        return {
+          status: 'resolved' as const,
+          locator: resolvedLocator,
+          scrollTop: Math.max(
+            0,
+            Math.round(nextScrollTop - container.clientHeight * SCROLL_READING_ANCHOR_RATIO),
+          ),
+        };
+      }
+
+      const hasResolvedChapterLayout = renderCache.scrollLayouts.has(resolvedLocator.chapterIndex)
+        && scrollChapterBodyElementsBridgeRef.current.has(resolvedLocator.chapterIndex);
+      if (!hasResolvedChapterLayout) {
+        return { status: 'pending' as const };
+      }
+    }
+
+    if (typeof target.chapterProgress === 'number' && targetElement) {
+      return {
+        status: 'resolved' as const,
+        locator: null,
+        scrollTop: Math.round(
+          targetElement.offsetTop
+            + targetElement.offsetHeight * clampProgress(target.chapterProgress),
+        ),
+      };
+    }
+
+    if (typeof target.scrollPosition === 'number') {
+      return {
+        status: 'resolved' as const,
+        locator: null,
+        scrollTop: target.scrollPosition,
+      };
+    }
+
+    if (resolvedLocator || target.locatorBoundary !== undefined) {
+      return { status: 'invalid' as const };
+    }
+
+    if (!targetElement) {
+      return { status: 'pending' as const };
+    }
+
+    return { status: 'invalid' as const };
+  }, [
+    contentRef,
+    renderCache.scrollLayouts,
+    resolvePendingRestoreLocator,
+    resolveScrollLocatorOffsetRef,
+    scrollChapterBodyElementsBridgeRef,
+    scrollChapterElementsBridgeRef,
+  ]);
 
   useLayoutEffect(() => {
     if (!enabled) {
@@ -476,36 +607,37 @@ export function useScrollReaderController({
       }
 
       const container = contentRef.current;
-      const targetElement = scrollChapterElementsBridgeRef.current.get(pendingTarget.chapterIndex);
-
-      if (!container || !targetElement) {
+      if (!container) {
         frameId = requestAnimationFrame(restoreScrollPosition);
+        return;
+      }
+
+      const resolvedTarget = resolvePendingScrollTarget(pendingTarget);
+      if (resolvedTarget.status === 'pending') {
+        ensureScrollRestoreWindow(pendingTarget);
+        frameId = requestAnimationFrame(restoreScrollPosition);
+        return;
+      }
+
+      if (resolvedTarget.status === 'invalid') {
+        navigationSourceRef.current = null;
+        clearPendingRestoreTarget();
+        stopRestoreMask();
+        restoreSettledHandlerRef.current('skipped');
         return;
       }
 
       navigationSourceRef.current = 'restore';
       suppressScrollSyncTemporarilyRef.current();
-      if (pendingTarget.locator) {
-        const nextScrollTop = resolveScrollLocatorOffsetRef.current(pendingTarget.locator);
-        if (nextScrollTop === null) {
-          navigationSourceRef.current = null;
-          frameId = requestAnimationFrame(restoreScrollPosition);
-          return;
-        }
-
-        container.scrollTop = Math.max(
-          0,
-          Math.round(nextScrollTop - container.clientHeight * SCROLL_READING_ANCHOR_RATIO),
-        );
-      } else if (typeof pendingTarget.chapterProgress === 'number') {
-        container.scrollTop = Math.round(
-          targetElement.offsetTop
-            + targetElement.offsetHeight * clampProgress(pendingTarget.chapterProgress),
-        );
-      } else if (typeof pendingTarget.scrollPosition === 'number') {
-        container.scrollTop = pendingTarget.scrollPosition;
+      container.scrollTop = resolvedTarget.scrollTop;
+      if (resolvedTarget.locator) {
+        persistReaderState({
+          chapterIndex: resolvedTarget.locator.chapterIndex,
+          mode: 'scroll',
+          locatorVersion: 1,
+          locator: resolvedTarget.locator,
+        });
       }
-
       navigationSourceRef.current = null;
       clearPendingRestoreTarget();
       stopRestoreMask();
@@ -524,12 +656,13 @@ export function useScrollReaderController({
     contentRef,
     currentChapter,
     enabled,
+    ensureScrollRestoreWindow,
     navigationSourceRef,
     pendingRestoreTarget,
     pendingRestoreTargetRef,
-    resolveScrollLocatorOffsetRef,
+    persistReaderState,
+    resolvePendingScrollTarget,
     restoreSettledHandlerRef,
-    scrollChapterElementsBridgeRef,
     stopRestoreMask,
     suppressScrollSyncTemporarilyRef,
   ]);

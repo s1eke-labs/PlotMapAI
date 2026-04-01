@@ -10,6 +10,7 @@ import { useScrollModeChapters } from '../../hooks/useScrollModeChapters';
 import {
   findVisibleBlockRange,
   findLocatorForLayoutOffset,
+  getChapterBoundaryLocator,
   findPageIndexForLocator,
   getOffsetForLocator,
   getPageStartLocator,
@@ -202,8 +203,17 @@ export function resolvePagedViewportState(params: {
     targetPage: number;
   } {
   const pageCount = Math.max(1, params.currentPagedLayout.pageSlices.length);
-  const restoredPageIndex = params.pendingRestoreTarget?.locator
-    ? findPageIndexForLocator(params.currentPagedLayout, params.pendingRestoreTarget.locator)
+  const restoredLocator = params.pendingRestoreTarget?.locator
+    ?? (
+      params.pendingRestoreTarget?.locatorBoundary !== undefined
+        ? getChapterBoundaryLocator(
+          params.currentPagedLayout,
+          params.pendingRestoreTarget.locatorBoundary,
+        )
+        : null
+    );
+  const restoredPageIndex = restoredLocator
+    ? findPageIndexForLocator(params.currentPagedLayout, restoredLocator)
     : null;
   const chapterProgress = params.pendingRestoreTarget?.chapterProgress;
   const hasRestorableProgress = params.pendingRestoreTarget?.chapterIndex === params.chapterIndex

@@ -18,6 +18,7 @@ export {
   getStoredReaderStateSnapshot,
   hydrateSession,
   markUserInteracted,
+  mergeStoredReaderState,
   persistStoredReaderState,
   readInitialStoredReaderState,
   resetReaderSessionStoreForTests,

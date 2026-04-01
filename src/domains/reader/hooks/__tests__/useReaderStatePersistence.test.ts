@@ -81,11 +81,11 @@ describe('useReaderStatePersistence', () => {
     const { result } = renderHook(() => useReaderStatePersistence(1));
 
     expect(result.current.initialStoredState).toEqual({
-      chapterIndex: undefined,
-      mode: undefined,
+      chapterIndex: 0,
+      mode: 'scroll',
       chapterProgress: undefined,
       scrollPosition: undefined,
-      lastContentMode: undefined,
+      lastContentMode: 'scroll',
       locatorVersion: undefined,
       locator: undefined,
     });
@@ -111,7 +111,7 @@ describe('useReaderStatePersistence', () => {
     expect(result.current.latestReaderStateRef.current).toEqual({
       chapterIndex: 7,
       mode: 'summary',
-      chapterProgress: 0.4,
+      chapterProgress: undefined,
       scrollPosition: undefined,
       lastContentMode: 'scroll',
       locatorVersion: undefined,
@@ -121,9 +121,9 @@ describe('useReaderStatePersistence', () => {
     expect(JSON.parse(localStorage.getItem('reader-state:1') ?? 'null')).toMatchObject({
       chapterIndex: 7,
       mode: 'summary',
-      chapterProgress: 0.4,
       lastContentMode: 'scroll',
     });
+    expect(JSON.parse(localStorage.getItem('reader-state:1') ?? 'null')).not.toHaveProperty('chapterProgress');
   });
 
   it('loads persisted state with localStorage priority over Dexie progress', async () => {
@@ -168,10 +168,10 @@ describe('useReaderStatePersistence', () => {
 
     expect(result.current.initialStoredState).toEqual({
       chapterIndex: 2,
-      mode: undefined,
+      mode: 'scroll',
       chapterProgress: undefined,
       scrollPosition: 380,
-      lastContentMode: undefined,
+      lastContentMode: 'scroll',
       locatorVersion: undefined,
       locator: undefined,
     });
@@ -187,6 +187,78 @@ describe('useReaderStatePersistence', () => {
       scrollPosition: 380,
       lastContentMode: 'scroll',
     });
+  });
+
+  it('treats the locator chapter as authoritative for initial stored state', () => {
+    localStorage.setItem('reader-state:1', JSON.stringify({
+      chapterIndex: 10,
+      mode: 'scroll',
+      chapterProgress: 0.8,
+      locatorVersion: 1,
+      locator: {
+        chapterIndex: 8,
+        blockIndex: 3,
+        kind: 'text',
+        lineIndex: 1,
+      },
+    }));
+
+    const { result } = renderHook(() => useReaderStatePersistence(1));
+
+    expect(result.current.initialStoredState).toEqual({
+      chapterIndex: 8,
+      mode: 'scroll',
+      chapterProgress: undefined,
+      scrollPosition: undefined,
+      lastContentMode: 'scroll',
+      locatorVersion: 1,
+      locator: {
+        chapterIndex: 8,
+        blockIndex: 3,
+        kind: 'text',
+        lineIndex: 1,
+      },
+    });
+  });
+
+  it('clears a stale locator when a chapter jump persists a new chapter index', () => {
+    localStorage.setItem('reader-state:1', JSON.stringify({
+      chapterIndex: 0,
+      mode: 'scroll',
+      locatorVersion: 1,
+      locator: {
+        chapterIndex: 0,
+        blockIndex: 3,
+        kind: 'text',
+        lineIndex: 1,
+      },
+    }));
+
+    const { result } = renderHook(() => useReaderStatePersistence(1));
+
+    act(() => {
+      result.current.persistReaderState({
+        chapterIndex: 1,
+        mode: 'scroll',
+      });
+    });
+
+    expect(result.current.latestReaderStateRef.current).toEqual({
+      chapterIndex: 1,
+      mode: 'scroll',
+      chapterProgress: undefined,
+      scrollPosition: undefined,
+      lastContentMode: 'scroll',
+      locatorVersion: undefined,
+      locator: undefined,
+    });
+
+    expect(JSON.parse(localStorage.getItem('reader-state:1') ?? 'null')).toMatchObject({
+      chapterIndex: 1,
+      mode: 'scroll',
+      lastContentMode: 'scroll',
+    });
+    expect(JSON.parse(localStorage.getItem('reader-state:1') ?? 'null')).not.toHaveProperty('locator');
   });
 
   it('marks user interaction', () => {

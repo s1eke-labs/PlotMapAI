@@ -69,11 +69,18 @@ export function useReaderNavigation({
     navigationSourceRef.current = 'navigation';
     pendingPageTargetRef.current = pageTarget;
     setChapterIndex(targetIndex);
-    persistReaderState({
-      chapterIndex: targetIndex,
-      mode,
-      chapterProgress: pageTarget === 'end' ? 1 : 0,
-    });
+    persistReaderState(
+      mode === 'summary'
+        ? {
+          chapterIndex: targetIndex,
+          mode,
+          chapterProgress: pageTarget === 'end' ? 1 : 0,
+        }
+        : {
+          chapterIndex: targetIndex,
+          mode,
+        },
+    );
   }, [
     beforeChapterChange,
     chapters.length,

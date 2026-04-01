@@ -1,7 +1,7 @@
 import type { ReaderRestoreTarget } from './useReaderStatePersistence';
 import type { PaginatedChapterLayout } from '../utils/readerLayout';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { findPageIndexForLocator } from '../utils/readerLayout';
+import { findPageIndexForLocator, getChapterBoundaryLocator } from '../utils/readerLayout';
 import { getPageIndexFromProgress, resolvePagedTargetPage } from '../utils/readerPosition';
 
 const TWO_COLUMN_GAP = 48;
@@ -230,9 +230,16 @@ export function usePagedReaderLayout({
         );
       const hasRestorableTarget = pendingRestoreTarget?.mode === 'paged'
         && pendingRestoreTarget.chapterIndex === chapterIndex;
+      const resolvedPendingLocator = hasRestorableTarget
+        ? pendingRestoreTarget?.locator
+          ?? getChapterBoundaryLocator(
+            currentPagedLayout,
+            pendingRestoreTarget?.locatorBoundary ?? 'start',
+          )
+        : null;
       const restoredPageIndex =
-        hasRestorableTarget && pendingRestoreTarget?.locator && currentPagedLayout
-          ? findPageIndexForLocator(currentPagedLayout, pendingRestoreTarget.locator)
+        hasRestorableTarget && resolvedPendingLocator && currentPagedLayout
+          ? findPageIndexForLocator(currentPagedLayout, resolvedPendingLocator)
           : null;
       const hasRestorableProgress = hasRestorableTarget
         && typeof pendingRestoreTarget?.chapterProgress === 'number';

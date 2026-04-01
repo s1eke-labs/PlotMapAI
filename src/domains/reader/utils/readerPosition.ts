@@ -1,5 +1,6 @@
 import type {
   ReaderNavigationIntent,
+  ReaderLocatorBoundary,
   ReaderMode,
   ReaderRestoreTarget,
   StoredReaderState,
@@ -57,9 +58,14 @@ export function resolvePagedTargetPage(
 function resolveRestoreTargetViewState(
   state: StoredReaderState | null | undefined,
 ): Pick<ReaderRestoreTarget, 'chapterIndex' | 'mode'> {
+  const mode = state?.mode ?? 'scroll';
+
   return {
-    chapterIndex: state?.chapterIndex ?? 0,
-    mode: state?.mode ?? 'scroll',
+    chapterIndex:
+      mode !== 'summary' && state?.locator
+        ? state.locator.chapterIndex
+        : state?.chapterIndex ?? 0,
+    mode,
   };
 }
 
@@ -69,6 +75,7 @@ export function hasReaderRestoreTarget(
   if (!target) return false;
 
   return target.locator !== undefined
+    || target.locatorBoundary !== undefined
     || (typeof target.chapterProgress === 'number' && Number.isFinite(target.chapterProgress))
     || (typeof target.scrollPosition === 'number' && Number.isFinite(target.scrollPosition));
 }
@@ -79,6 +86,7 @@ export function shouldKeepReaderRestoreMask(
   if (!target) return false;
 
   return target.locator !== undefined
+    || target.locatorBoundary !== undefined
     || (typeof target.chapterProgress === 'number' && target.chapterProgress > 0)
     || (typeof target.scrollPosition === 'number' && target.scrollPosition > 0);
 }
@@ -98,15 +106,19 @@ export function createRestoreTargetFromPersistedState(
 
   const target: ReaderRestoreTarget = {
     ...resolveRestoreTargetViewState(state),
-    chapterProgress: typeof state.chapterProgress === 'number'
-      ? clampProgress(state.chapterProgress)
-      : undefined,
-    scrollPosition: typeof state.scrollPosition === 'number' && Number.isFinite(state.scrollPosition)
-      ? state.scrollPosition
-      : undefined,
     locatorVersion: state.locator ? 1 : undefined,
     locator: state.locator,
   };
+
+  if (!state?.locator || target.mode === 'summary') {
+    target.chapterProgress = typeof state?.chapterProgress === 'number'
+      ? clampProgress(state.chapterProgress)
+      : undefined;
+    target.scrollPosition =
+      typeof state?.scrollPosition === 'number' && Number.isFinite(state.scrollPosition)
+        ? state.scrollPosition
+        : undefined;
+  }
 
   return shouldKeepReaderRestoreMask(target) ? target : null;
 }
@@ -115,12 +127,14 @@ export function createRestoreTargetFromNavigationIntent(
   intent: ReaderNavigationIntent,
   mode: ReaderMode,
 ): ReaderRestoreTarget {
+  const locatorBoundary: ReaderLocatorBoundary = intent.locatorBoundary ?? intent.pageTarget;
+
   return {
-    chapterIndex: intent.chapterIndex,
+    chapterIndex: intent.locator?.chapterIndex ?? intent.chapterIndex,
     mode,
-    chapterProgress: intent.pageTarget === 'end' ? 1 : 0,
-    locatorVersion: undefined,
-    locator: undefined,
+    locatorBoundary: intent.locator ? undefined : locatorBoundary,
+    locatorVersion: intent.locator ? 1 : undefined,
+    locator: intent.locator,
   };
 }
 

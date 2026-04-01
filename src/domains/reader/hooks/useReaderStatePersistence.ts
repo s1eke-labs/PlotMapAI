@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import {
   flushPersistence,
+  getStoredReaderStateSnapshot,
   hydrateSession,
   markUserInteracted,
+  mergeStoredReaderState,
   persistStoredReaderState,
   readInitialStoredReaderState,
   setSessionNovelId,
@@ -133,15 +135,15 @@ export function useReaderStatePersistence(novelId: number): {
       if (novelId) {
         setSessionNovelId(novelId);
       }
-      const mergedState: StoredReaderState = {
-        ...latestReaderStateRef.current,
-        ...nextState,
-      };
-      latestReaderStateRef.current = mergedState;
+      const mergedState = mergeStoredReaderState(
+        latestReaderStateRef.current,
+        nextState,
+      );
       persistStoredReaderState(
         mergedState,
         { flush: options?.flush },
       );
+      latestReaderStateRef.current = getStoredReaderStateSnapshot();
     },
     [canPersistForCurrentNovel, novelId],
   );

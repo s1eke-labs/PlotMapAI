@@ -3,6 +3,7 @@ import type { ReaderLocator } from '../utils/readerLayout';
 export type PageTarget = 'start' | 'end';
 export type ReaderMode = 'scroll' | 'paged' | 'summary';
 export type RestoreStatus = 'hydrating' | 'restoring' | 'ready' | 'error';
+export type ReaderLocatorBoundary = PageTarget;
 
 export interface StoredReaderState {
   chapterIndex?: number;
@@ -17,6 +18,7 @@ export interface StoredReaderState {
 export interface ReaderRestoreTarget {
   chapterIndex: number;
   mode: ReaderMode;
+  locatorBoundary?: ReaderLocatorBoundary;
   chapterProgress?: number;
   scrollPosition?: number;
   locatorVersion?: 1;
@@ -26,6 +28,8 @@ export interface ReaderRestoreTarget {
 export interface ReaderNavigationIntent {
   chapterIndex: number;
   pageTarget: PageTarget;
+  locator?: ReaderLocator;
+  locatorBoundary?: ReaderLocatorBoundary;
 }
 
 export interface ReaderSessionState {

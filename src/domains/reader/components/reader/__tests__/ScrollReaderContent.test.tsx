@@ -81,6 +81,34 @@ describe('ScrollReaderContent', () => {
     expect(screen.getByTestId('scroll-reader-content-body')).not.toHaveClass('font-serif');
   });
 
+  it('allows sticky chapter titles to wrap instead of truncating long titles', () => {
+    const { chapter, layout } = createScrollChapterLayout('Text');
+    const longTitle = 'Chapter 1 with a very long title that should wrap instead of truncating';
+
+    render(
+      <ScrollReaderContent
+        chapters={[{
+          index: 0,
+          chapter: {
+            ...chapter,
+            title: longTitle,
+          },
+          layout,
+        }]}
+        novelId={1}
+        readerTheme="auto"
+        textClassName=""
+        headerBgClassName=""
+        onChapterElement={() => {}}
+      />,
+    );
+
+    const stickyTitle = screen.getByRole('heading', { name: longTitle, level: 1 });
+    expect(stickyTitle).toHaveClass('break-words');
+    expect(stickyTitle).toHaveClass('whitespace-normal');
+    expect(stickyTitle).not.toHaveClass('truncate');
+  });
+
   it('renders only the windowed block range when one is provided', () => {
     const { chapter, layout } = createScrollChapterLayout('First paragraph\nSecond paragraph');
 

@@ -70,7 +70,7 @@ export default function ScrollReaderContent({
                   headerBgClassName,
                 )}
               >
-                <h1 className={cn('truncate text-sm font-medium transition-colors', readerTheme === 'auto' ? 'text-text-secondary' : 'opacity-60')}>
+                <h1 className={cn('break-words whitespace-normal text-sm font-medium leading-snug transition-colors', readerTheme === 'auto' ? 'text-text-secondary' : 'opacity-60')}>
                   {chapter.title}
                 </h1>
               </div>

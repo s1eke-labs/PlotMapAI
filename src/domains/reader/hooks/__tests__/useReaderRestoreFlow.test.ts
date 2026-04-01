@@ -323,21 +323,17 @@ describe('useReaderRestoreFlow', () => {
 
     expect(persistReaderState).toHaveBeenCalledWith(expect.objectContaining({
       chapterIndex: 8,
-      chapterProgress: 0.75,
       locator: latestReaderStateRef.current.locator,
       locatorVersion: 1,
       mode: 'scroll',
-      scrollPosition: 320,
     }), {
       flush: undefined,
     });
     expect(capturedState).toMatchObject({
       chapterIndex: 8,
-      chapterProgress: 0.75,
       locator: latestReaderStateRef.current.locator,
       locatorVersion: 1,
       mode: 'scroll',
-      scrollPosition: 320,
     });
   });
 
@@ -388,7 +384,6 @@ describe('useReaderRestoreFlow', () => {
 
     expect(persistReaderState).toHaveBeenNthCalledWith(1, expect.objectContaining({
       chapterIndex: 5,
-      chapterProgress: 0.6,
       locator,
       locatorVersion: 1,
       mode: 'scroll',
@@ -397,7 +392,6 @@ describe('useReaderRestoreFlow', () => {
     });
     expect(persistReaderState).toHaveBeenNthCalledWith(2, expect.objectContaining({
       chapterIndex: 5,
-      chapterProgress: 0.6,
       locator,
       locatorVersion: 1,
       mode: 'scroll',
@@ -434,7 +428,6 @@ describe('useReaderRestoreFlow', () => {
 
     expect(persistReaderState).toHaveBeenCalledWith(expect.objectContaining({
       chapterIndex: 5,
-      chapterProgress: 0.55,
       locator,
       locatorVersion: 1,
       mode: 'scroll',

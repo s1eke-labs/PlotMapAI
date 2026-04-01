@@ -81,6 +81,11 @@ describe('readerPosition', () => {
         kind: 'text',
       },
     })).toBe(true);
+    expect(hasReaderRestoreTarget({
+      chapterIndex: 0,
+      mode: 'scroll',
+      locatorBoundary: 'start',
+    })).toBe(true);
   });
 
   it('detects when restore should keep the loading mask visible', () => {
@@ -114,6 +119,11 @@ describe('readerPosition', () => {
         kind: 'text',
       },
       locatorVersion: 1,
+    })).toBe(true);
+    expect(shouldKeepReaderRestoreMask({
+      chapterIndex: 0,
+      mode: 'scroll',
+      locatorBoundary: 'end',
     })).toBe(true);
   });
 
@@ -161,7 +171,7 @@ describe('readerPosition', () => {
     }, 'scroll')).toEqual({
       chapterIndex: 3,
       mode: 'scroll',
-      chapterProgress: 0,
+      locatorBoundary: 'start',
       locator: undefined,
       locatorVersion: undefined,
     });
@@ -172,7 +182,7 @@ describe('readerPosition', () => {
     }, 'paged')).toEqual({
       chapterIndex: 3,
       mode: 'paged',
-      chapterProgress: 1,
+      locatorBoundary: 'end',
       locator: undefined,
       locatorVersion: undefined,
     });

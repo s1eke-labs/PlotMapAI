@@ -245,6 +245,44 @@ describe('ReaderPage', () => {
     expect(await screen.findByText('1 / 2')).toBeInTheDocument();
   });
 
+  it('navigates to the selected chapter from the table of contents in scroll mode', async () => {
+    renderPage();
+
+    expect(await screen.findByText('Chapter 1 content')).toBeInTheDocument();
+
+    fireEvent.click(screen.getAllByTitle('reader.contents')[0]);
+    const contentsDialog = await screen.findByRole('dialog');
+    fireEvent.click(within(contentsDialog).getByRole('button', { name: 'Chapter 2' }));
+
+    await waitFor(() => {
+      expect(readerApi.getChapterContent).toHaveBeenCalledWith(1, 1, expect.anything());
+    });
+    expect(await screen.findByText('Chapter 2 content')).toBeInTheDocument();
+  });
+
+  it('navigates to the selected chapter from the table of contents in paged mode', async () => {
+    setPrototypeNumberGetter('clientWidth', 600);
+    setPrototypeNumberGetter('clientHeight', 800);
+    await storage.primary.settings.set(APP_SETTING_KEYS.readerPageTurnMode, 'cover');
+    localStorage.setItem('reader-state:1', JSON.stringify({
+      chapterIndex: 0,
+      mode: 'paged',
+      lastContentMode: 'paged',
+    }));
+
+    renderPage();
+
+    expect(await screen.findByTestId('paged-reader-page-frame')).toBeInTheDocument();
+    fireEvent.click(screen.getAllByTitle('reader.contents')[0]);
+    const contentsDialog = await screen.findByRole('dialog');
+    fireEvent.click(within(contentsDialog).getByRole('button', { name: 'Chapter 2' }));
+
+    await waitFor(() => {
+      expect(readerApi.getChapterContent).toHaveBeenCalledWith(1, 1, expect.anything());
+    });
+    expect(await screen.findByRole('heading', { name: 'Chapter 2' })).toBeInTheDocument();
+  });
+
   it('prefers the stored paged page-turn mode over a stale scroll reading mode on startup', async () => {
     setPrototypeNumberGetter('clientWidth', 600);
     setPrototypeNumberGetter('clientHeight', 800);

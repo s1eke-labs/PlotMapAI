@@ -275,7 +275,6 @@ export function usePagedReaderController({
     persistReaderState({
       chapterIndex: targetIndex,
       mode: 'paged',
-      chapterProgress: pageTarget === 'end' ? 1 : 0,
     });
     return true;
   }, [
@@ -421,19 +420,26 @@ export function usePagedReaderController({
       return;
     }
 
-    const pagedProgress = effectivePageCount <= 1
-      ? 0
-      : clampProgress(pageIndex / (effectivePageCount - 1));
+    const locator = getCurrentPagedLocatorRef.current();
+    let chapterProgress: number | undefined;
+    if (!locator) {
+      chapterProgress = effectivePageCount <= 1
+        ? 0
+        : clampProgress(pageIndex / (effectivePageCount - 1));
+    }
     persistReaderState({
-      chapterIndex,
+      chapterIndex: locator?.chapterIndex ?? chapterIndex,
       mode: 'paged',
-      chapterProgress: pagedProgress,
+      chapterProgress,
+      locatorVersion: locator ? 1 : undefined,
+      locator: locator ?? undefined,
     });
   }, [
     chapterIndex,
     currentChapter,
     enabled,
     effectivePageCount,
+    getCurrentPagedLocatorRef,
     pageIndex,
     pendingRestoreTargetRef,
     persistReaderState,

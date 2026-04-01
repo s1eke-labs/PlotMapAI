@@ -243,6 +243,29 @@ function findNearestMeaningfulMetric(
   return null;
 }
 
+function findBoundaryMetric(
+  metrics: VirtualBlockMetrics[],
+  edge: 'start' | 'end',
+): VirtualBlockMetrics | null {
+  if (edge === 'start') {
+    for (const metric of metrics) {
+      if (metric.block.kind !== 'blank') {
+        return metric;
+      }
+    }
+    return null;
+  }
+
+  for (let index = metrics.length - 1; index >= 0; index -= 1) {
+    const metric = metrics[index];
+    if (metric.block.kind !== 'blank') {
+      return metric;
+    }
+  }
+
+  return null;
+}
+
 export function findVisibleBlockRange(
   layout: MeasuredChapterLayout,
   offsetTop: number,
@@ -388,6 +411,50 @@ export function getOffsetForLocator(
 
 export function getPageStartLocator(page: PageSlice | null | undefined): ReaderLocator | null {
   return page?.startLocator ?? null;
+}
+
+export function getChapterBoundaryLocator(
+  layout: MeasuredChapterLayout | PaginatedChapterLayout | null | undefined,
+  edge: 'start' | 'end',
+): ReaderLocator | null {
+  if (!layout) {
+    return null;
+  }
+
+  if ('metrics' in layout) {
+    const boundaryMetric = findBoundaryMetric(layout.metrics, edge);
+    if (!boundaryMetric) {
+      return null;
+    }
+
+    return edge === 'start'
+      ? createMetricStartLocator(boundaryMetric)
+      : createMetricEndLocator(boundaryMetric);
+  }
+
+  if (layout.pageSlices.length === 0) {
+    return null;
+  }
+
+  const page = edge === 'start'
+    ? layout.pageSlices[0]
+    : layout.pageSlices[layout.pageSlices.length - 1];
+
+  return edge === 'start'
+    ? page.startLocator ?? page.endLocator ?? null
+    : page.endLocator ?? page.startLocator ?? null;
+}
+
+export function getChapterStartLocator(
+  layout: MeasuredChapterLayout | PaginatedChapterLayout | null | undefined,
+): ReaderLocator | null {
+  return getChapterBoundaryLocator(layout, 'start');
+}
+
+export function getChapterEndLocator(
+  layout: MeasuredChapterLayout | PaginatedChapterLayout | null | undefined,
+): ReaderLocator | null {
+  return getChapterBoundaryLocator(layout, 'end');
 }
 
 export function getPageStartLocatorFromStaticTree(

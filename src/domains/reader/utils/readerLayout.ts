@@ -22,6 +22,9 @@ export {
   getPagedContentHeight,
 } from './readerPagination';
 export {
+  getChapterBoundaryLocator,
+  getChapterEndLocator,
+  getChapterStartLocator,
   findLocatorForLayoutOffset,
   findPageIndexForLocator,
   findPageIndexForLocatorInStaticTree,

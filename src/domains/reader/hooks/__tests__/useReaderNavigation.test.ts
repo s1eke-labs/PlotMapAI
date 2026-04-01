@@ -171,7 +171,6 @@ describe('useReaderNavigation', () => {
     expect(persistReaderState).toHaveBeenCalledWith({
       chapterIndex: 2,
       mode: 'scroll',
-      chapterProgress: 1,
     });
   });
 

@@ -753,6 +753,78 @@ describe('useScrollReaderController', () => {
     }
   });
 
+  it('aligns chapter-start boundary restores to the top of the scroll container', async () => {
+    const animationFrames = createAnimationFrameController();
+    const contentRef = {
+      current: makeContainer({
+        clientHeight: 600,
+      }),
+    };
+    const currentChapter = createChapter(
+      1,
+      3,
+      'Paragraph 1\nParagraph 2\nParagraph 3\nParagraph 4',
+    );
+    const chapterContainerOffsetTop = 320;
+    const chapterBodyOffsetTop = 360;
+    const clearPendingRestoreTarget = vi.fn();
+    const stopRestoreMask = vi.fn();
+    const contextValue = createReaderContextValue({
+      chapterIndex: 1,
+      contentRef,
+      chapterCacheRef: {
+        current: new Map([[currentChapter.index, currentChapter]]),
+      },
+    });
+    const props = createHookProps({
+      currentChapter,
+      pendingRestoreTarget: {
+        chapterIndex: 1,
+        locatorBoundary: 'start',
+        mode: 'scroll',
+      },
+      pendingRestoreTargetRef: {
+        current: {
+          chapterIndex: 1,
+          locatorBoundary: 'start',
+          mode: 'scroll',
+        },
+      },
+      clearPendingRestoreTarget,
+      stopRestoreMask,
+    });
+
+    try {
+      const { result } = renderHook(
+        () => useScrollReaderController(props),
+        {
+          wrapper: ({ children }: { children: ReactNode }) => ReaderContextProvider({
+            value: contextValue,
+            children,
+          }),
+        },
+      );
+
+      act(() => {
+        result.current.handleScrollChapterElement(1, makeChapterElement({
+          offsetHeight: 1200,
+          offsetTop: chapterContainerOffsetTop,
+        }));
+        result.current.handleScrollChapterBodyElement(1, makeChapterBodyElement({
+          offsetTop: chapterBodyOffsetTop,
+        }));
+      });
+
+      await animationFrames.flushAnimationFrames();
+
+      expect(contentRef.current.scrollTop).toBe(chapterContainerOffsetTop);
+      expect(clearPendingRestoreTarget).toHaveBeenCalled();
+      expect(stopRestoreMask).toHaveBeenCalled();
+    } finally {
+      animationFrames.restore();
+    }
+  });
+
   it('restores when the pending scroll target arrives after the chapter content has already loaded', async () => {
     const animationFrames = createAnimationFrameController();
     const contentRef = { current: makeContainer() };
