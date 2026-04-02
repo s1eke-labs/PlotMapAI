@@ -113,6 +113,7 @@ export const bookImportService = {
           originalFilename: filename,
           originalEncoding: parsed.encoding || 'utf-8',
           totalWords,
+          chapterCount: normalizedChapters.length,
           createdAt: now,
         } satisfies Omit<NovelRecord, 'id'>;
 

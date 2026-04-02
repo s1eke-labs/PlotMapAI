@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AnalysisStatusResponse } from '@shared/contracts';
 
 import { loadBookDetailAnalysisStatus, loadBookDetailPageData } from '@application/use-cases/library';
+import { useNovelCoverResource } from '@domains/library';
 
 import { useBookDetailPageViewModel } from '../useBookDetailPageViewModel';
 
@@ -18,6 +19,10 @@ vi.mock('@app/debug/service', () => ({
 vi.mock('@application/use-cases/library', () => ({
   loadBookDetailAnalysisStatus: vi.fn(),
   loadBookDetailPageData: vi.fn(),
+}));
+
+vi.mock('@domains/library', () => ({
+  useNovelCoverResource: vi.fn(),
 }));
 
 const baseNovel = {
@@ -74,13 +79,13 @@ describe('useBookDetailPageViewModel', () => {
     vi.mocked(loadBookDetailPageData).mockResolvedValue({
       analysisStatus: createStatusResponse(),
       analysisStatusError: null,
-      coverUrl: null,
       novel: baseNovel,
     });
     vi.mocked(loadBookDetailAnalysisStatus).mockResolvedValue({
       analysisStatus: createStatusResponse(),
       analysisStatusError: null,
     });
+    vi.mocked(useNovelCoverResource).mockReturnValue(null);
   });
 
   it('treats invalid ids as not-found without loading data', async () => {
@@ -126,12 +131,12 @@ describe('useBookDetailPageViewModel', () => {
         },
       },
       analysisStatusError: null,
-      coverUrl: 'blob:cover',
       novel: {
         ...baseNovel,
         hasCover: true,
       },
     });
+    vi.mocked(useNovelCoverResource).mockReturnValue('blob:cover');
 
     const { result } = renderHook(() => useBookDetailPageViewModel(1));
 
@@ -139,6 +144,7 @@ describe('useBookDetailPageViewModel', () => {
       expect(result.current.novel?.title).toBe('Mock Novel');
     });
 
+    expect(useNovelCoverResource).toHaveBeenCalledWith(1, true);
     expect(result.current.coverUrl).toBe('blob:cover');
     expect(result.current.introText).toBe('Line one\nLine two');
     expect(result.current.introParagraphs.map((item) => item.paragraph)).toEqual(['Line one', 'Line two']);
@@ -159,7 +165,6 @@ describe('useBookDetailPageViewModel', () => {
         status: 'running',
       }),
       analysisStatusError: null,
-      coverUrl: null,
       novel: baseNovel,
     });
     vi.mocked(loadBookDetailAnalysisStatus).mockResolvedValue({

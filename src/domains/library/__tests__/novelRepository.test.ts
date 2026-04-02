@@ -1,103 +1,209 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { db } from '@infra/db';
 
 import { novelRepository } from '../novelRepository';
+import {
+  acquireNovelCoverResource,
+  peekNovelCoverResource,
+  resetNovelCoverResourceCacheForTests,
+} from '../utils/novelCoverResourceCache';
+
+interface LegacyNovelRecordFixture {
+  author: string;
+  coverPath: string;
+  createdAt: string;
+  description: string;
+  fileHash: string;
+  fileType: string;
+  originalEncoding: string;
+  originalFilename: string;
+  tags: string[];
+  title: string;
+  totalWords: number;
+}
+
+function createNovelRecordFixture(overrides: Partial<LegacyNovelRecordFixture & {
+  chapterCount: number;
+}> = {}) {
+  return {
+    author: '',
+    coverPath: '',
+    createdAt: '2026-04-01T00:00:00.000Z',
+    description: '',
+    fileHash: 'fixture-hash',
+    fileType: 'txt',
+    originalEncoding: 'utf-8',
+    originalFilename: 'fixture.txt',
+    tags: [],
+    title: 'Fixture Novel',
+    totalWords: 100,
+    chapterCount: 0,
+    ...overrides,
+  };
+}
+
+function createLegacyNovelRecordFixture(
+  overrides: Partial<LegacyNovelRecordFixture> = {},
+): LegacyNovelRecordFixture {
+  return {
+    author: '',
+    coverPath: '',
+    createdAt: '2026-04-01T00:00:00.000Z',
+    description: '',
+    fileHash: 'legacy-hash',
+    fileType: 'txt',
+    originalEncoding: 'utf-8',
+    originalFilename: 'legacy.txt',
+    tags: [],
+    title: 'Legacy Novel',
+    totalWords: 100,
+    ...overrides,
+  };
+}
 
 describe('novelRepository', () => {
+  const originalCreateObjectURL = URL.createObjectURL;
+  const originalRevokeObjectURL = URL.revokeObjectURL;
+
   beforeEach(async () => {
     vi.clearAllMocks();
     await db.delete();
     await db.open();
+    resetNovelCoverResourceCacheForTests();
+    URL.createObjectURL = vi.fn(() => 'blob:cover-url') as typeof URL.createObjectURL;
+    URL.revokeObjectURL = vi.fn() as typeof URL.revokeObjectURL;
   });
 
-  it('lists novels sorted by createdAt descending', async () => {
-    await db.novels.add({
-      author: '',
-      coverPath: '',
-      createdAt: '2024-01-01T00:00:00Z',
-      description: '',
-      fileHash: 'h1',
-      fileType: 'txt',
-      originalEncoding: 'utf-8',
-      originalFilename: 'f.txt',
-      tags: [],
+  afterEach(() => {
+    resetNovelCoverResourceCacheForTests();
+    URL.createObjectURL = originalCreateObjectURL;
+    URL.revokeObjectURL = originalRevokeObjectURL;
+  });
+
+  it('lists novels sorted by createdAt descending and reads stored chapterCount', async () => {
+    await db.novels.add(createNovelRecordFixture({
+      chapterCount: 4,
+      createdAt: '2026-04-01T00:00:00.000Z',
+      fileHash: 'first-hash',
+      originalFilename: 'first.txt',
       title: 'First',
-      totalWords: 100,
-    });
-    await db.novels.add({
-      author: '',
-      coverPath: '',
-      createdAt: '2024-02-01T00:00:00Z',
-      description: '',
-      fileHash: 'h2',
-      fileType: 'txt',
-      originalEncoding: 'utf-8',
-      originalFilename: 's.txt',
-      tags: [],
+    }));
+    await db.novels.add(createNovelRecordFixture({
+      chapterCount: 12,
+      createdAt: '2026-04-02T00:00:00.000Z',
+      fileHash: 'second-hash',
+      originalFilename: 'second.txt',
       title: 'Second',
-      totalWords: 200,
-    });
+    }));
 
     const result = await novelRepository.list();
 
     expect(result.map((novel) => novel.title)).toEqual(['Second', 'First']);
+    expect(result.map((novel) => novel.chapterCount)).toEqual([12, 4]);
   });
 
-  it('gets a novel by id and calculates chapter count', async () => {
-    const id = await db.novels.add({
+  it('gets a novel by id and returns the stored chapterCount', async () => {
+    const id = await db.novels.add(createNovelRecordFixture({
       author: 'Auth',
-      coverPath: '',
-      createdAt: new Date().toISOString(),
+      chapterCount: 5,
       description: 'Desc',
-      fileHash: 'hash',
-      fileType: 'txt',
-      originalEncoding: 'utf-8',
-      originalFilename: 'g.txt',
+      fileHash: 'get-hash',
+      originalFilename: 'get.txt',
       tags: ['tag1'],
       title: 'Get Test',
       totalWords: 500,
+    }));
+
+    const novel = await novelRepository.get(id);
+
+    expect(novel).toMatchObject({
+      chapterCount: 5,
+      tags: ['tag1'],
+      title: 'Get Test',
     });
+  });
+
+  it('backfills missing chapterCount values in list() and persists them', async () => {
+    const legacyNovelId = await db.table('novels').add(createLegacyNovelRecordFixture({
+      createdAt: '2026-04-03T00:00:00.000Z',
+      fileHash: 'legacy-list-hash',
+      originalFilename: 'legacy-list.txt',
+      title: 'Legacy List Novel',
+    })) as number;
     await db.chapters.bulkAdd([
       {
         chapterIndex: 0,
         content: 'c1',
-        novelId: id,
+        novelId: legacyNovelId,
         title: 'Chapter 1',
         wordCount: 2,
       },
       {
         chapterIndex: 1,
         content: 'c2',
-        novelId: id,
+        novelId: legacyNovelId,
         title: 'Chapter 2',
         wordCount: 2,
       },
     ]);
 
-    const novel = await novelRepository.get(id);
+    const novels = await novelRepository.list();
+    const storedNovel = await db.novels.get(legacyNovelId);
 
-    expect(novel).toMatchObject({
+    expect(novels[0]).toMatchObject({
+      id: legacyNovelId,
       chapterCount: 2,
-      tags: ['tag1'],
-      title: 'Get Test',
+      title: 'Legacy List Novel',
     });
+    expect(storedNovel?.chapterCount).toBe(2);
+  });
+
+  it('backfills missing chapterCount in get() and persists it', async () => {
+    const legacyNovelId = await db.table('novels').add(createLegacyNovelRecordFixture({
+      fileHash: 'legacy-get-hash',
+      originalFilename: 'legacy-get.txt',
+      title: 'Legacy Get Novel',
+    })) as number;
+    await db.chapters.bulkAdd([
+      {
+        chapterIndex: 0,
+        content: 'c1',
+        novelId: legacyNovelId,
+        title: 'Chapter 1',
+        wordCount: 2,
+      },
+      {
+        chapterIndex: 1,
+        content: 'c2',
+        novelId: legacyNovelId,
+        title: 'Chapter 2',
+        wordCount: 2,
+      },
+      {
+        chapterIndex: 2,
+        content: 'c3',
+        novelId: legacyNovelId,
+        title: 'Chapter 3',
+        wordCount: 2,
+      },
+    ]);
+
+    const novel = await novelRepository.get(legacyNovelId);
+    const storedNovel = await db.novels.get(legacyNovelId);
+
+    expect(novel.chapterCount).toBe(3);
+    expect(storedNovel?.chapterCount).toBe(3);
   });
 
   it('deletes only the library aggregate and leaves reader and analysis state alone', async () => {
-    const id = await db.novels.add({
-      author: '',
+    const id = await db.novels.add(createNovelRecordFixture({
+      chapterCount: 1,
       coverPath: 'has_cover',
-      createdAt: new Date().toISOString(),
-      description: '',
-      fileHash: 'dh',
-      fileType: 'txt',
-      originalEncoding: 'utf-8',
-      originalFilename: 'd.txt',
-      tags: [],
+      fileHash: 'delete-hash',
+      originalFilename: 'delete.txt',
       title: 'Delete Me',
-      totalWords: 100,
-    });
+    }));
     await db.chapters.add({
       chapterIndex: 0,
       content: 'chapter',
@@ -164,31 +270,25 @@ describe('novelRepository', () => {
     await expect(db.readerRenderCache.count()).resolves.toBe(1);
   });
 
-  it('returns a blob url when a cover exists', async () => {
-    const createObjectUrlSpy = vi
-      .spyOn(URL, 'createObjectURL')
-      .mockReturnValue('blob:cover-url');
-    const id = await db.novels.add({
-      author: '',
+  it('releases an acquired cover resource when deleting a novel', async () => {
+    const id = await db.novels.add(createNovelRecordFixture({
+      chapterCount: 1,
       coverPath: 'has_cover',
-      createdAt: new Date().toISOString(),
-      description: '',
-      fileHash: 'cover-hash',
-      fileType: 'txt',
-      originalEncoding: 'utf-8',
-      originalFilename: 'cover.txt',
-      tags: [],
+      fileHash: 'cover-delete-hash',
+      originalFilename: 'cover-delete.txt',
       title: 'Cover Novel',
-      totalWords: 100,
-    });
+    }));
     await db.coverImages.add({
       blob: new Blob(['cover']),
       novelId: id,
     });
 
-    const coverUrl = await novelRepository.getCoverUrl(id);
+    await acquireNovelCoverResource(id);
+    expect(peekNovelCoverResource(id)).toBe('blob:cover-url');
 
-    expect(coverUrl).toBe('blob:cover-url');
-    createObjectUrlSpy.mockRestore();
+    await novelRepository.delete(id);
+
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:cover-url');
+    expect(peekNovelCoverResource(id)).toBeUndefined();
   });
 });

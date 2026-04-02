@@ -6,4 +6,12 @@ export {
 } from './components/BookDetailActionButton';
 export { default as CharacterShareChart } from './components/CharacterShareChart';
 export { default as TxtCover } from './components/TxtCover';
+export { useNovelCoverResource } from './hooks/useNovelCoverResource';
+export {
+  acquireNovelCoverResource,
+  clearNovelCoverResourcesForNovel,
+  peekNovelCoverResource,
+  releaseNovelCoverResource,
+  resetNovelCoverResourceCacheForTests,
+} from './utils/novelCoverResourceCache';
 export type { NovelView } from './novelRepository';

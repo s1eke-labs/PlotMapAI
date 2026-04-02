@@ -29,6 +29,7 @@ describe('readerContentService worker unavailable handling', () => {
       originalFilename: 'reader.txt',
       originalEncoding: 'utf-8',
       totalWords: 120,
+      chapterCount: 1,
       createdAt: new Date().toISOString(),
     });
     const novel = await db.novels.orderBy('id').last();

@@ -2,10 +2,7 @@ import type { NovelRecord } from '@infra/db/library';
 
 import type { NovelView } from './novelRepository';
 
-export function mapNovelRecordToView(
-  novel: NovelRecord,
-  chapterCount: number,
-): NovelView {
+export function mapNovelRecordToView(novel: NovelRecord): NovelView {
   return {
     id: novel.id,
     title: novel.title,
@@ -17,7 +14,7 @@ export function mapNovelRecordToView(
     originalFilename: novel.originalFilename,
     originalEncoding: novel.originalEncoding,
     totalWords: novel.totalWords,
+    chapterCount: novel.chapterCount,
     createdAt: novel.createdAt,
-    chapterCount,
   };
 }

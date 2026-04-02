@@ -9,6 +9,7 @@ import { useTranslation } from 'react-i18next';
 import { loadBookDetailAnalysisStatus, loadBookDetailPageData } from '@application/use-cases/library';
 import { reportAppError } from '@app/debug/service';
 import { appPaths } from '@app/router/paths';
+import { useNovelCoverResource } from '@domains/library';
 import { AppErrorCode, toAppError } from '@shared/errors';
 
 import type { BookDetailPageViewModel, BookDetailParagraph } from './types';
@@ -75,17 +76,16 @@ function createInvalidNovelError(): AppError {
 export function useBookDetailPageViewModel(novelId: number): BookDetailPageViewModel {
   const { t } = useTranslation();
   const [novel, setNovel] = useState<NovelView | null>(null);
-  const [coverUrl, setCoverUrl] = useState<string | null>(null);
   const [analysisStatus, setAnalysisStatus] = useState<AnalysisStatusResponse | null>(null);
   const [analysisStatusError, setAnalysisStatusError] = useState<AppError | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isAnalysisLoading, setIsAnalysisLoading] = useState(true);
   const [error, setError] = useState<AppError | null>(null);
+  const coverUrl = useNovelCoverResource(novel?.id ?? 0, Boolean(novel?.hasCover));
 
   const loadData = useCallback(async (): Promise<void> => {
     if (!isValidNovelId(novelId)) {
       setNovel(null);
-      setCoverUrl(null);
       setAnalysisStatus(null);
       setAnalysisStatusError(null);
       setError(createInvalidNovelError());
@@ -101,7 +101,6 @@ export function useBookDetailPageViewModel(novelId: number): BookDetailPageViewM
     try {
       const data = await loadBookDetailPageData(novelId);
       setNovel(data.novel);
-      setCoverUrl(data.coverUrl);
       setAnalysisStatus(data.analysisStatus);
       setAnalysisStatusError(data.analysisStatusError);
       if (data.analysisStatusError) {
@@ -117,7 +116,6 @@ export function useBookDetailPageViewModel(novelId: number): BookDetailPageViewM
       reportAppError(normalized);
       setError(normalized);
       setNovel(null);
-      setCoverUrl(null);
       setAnalysisStatus(null);
       setAnalysisStatusError(null);
     } finally {

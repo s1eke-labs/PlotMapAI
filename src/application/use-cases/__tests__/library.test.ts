@@ -33,7 +33,6 @@ vi.mock('@domains/library', () => ({
   novelRepository: {
     delete: vi.fn(),
     get: vi.fn(),
-    getCoverUrl: vi.fn(),
   },
 }));
 
@@ -141,26 +140,22 @@ describe('application library use-cases', () => {
     const data = await loadBookDetailPageData(7);
 
     expect(data.novel).toEqual(baseNovel);
-    expect(data.coverUrl).toBeNull();
     expect(data.analysisStatus).toBeNull();
     expect(data.analysisStatusError).toMatchObject({
       code: 'ANALYSIS_EXECUTION_FAILED',
       userMessageKey: 'bookDetail.analysisLoadError',
     });
-    expect(novelRepository.getCoverUrl).not.toHaveBeenCalled();
   });
 
-  it('loadBookDetailPageData loads the cover only when the novel has one', async () => {
+  it('loadBookDetailPageData returns novel and analysis data without touching cover resources', async () => {
     vi.mocked(novelRepository.get).mockResolvedValue({
       ...baseNovel,
       hasCover: true,
     });
-    vi.mocked(novelRepository.getCoverUrl).mockResolvedValue('blob:cover');
 
     const data = await loadBookDetailPageData(7);
 
-    expect(novelRepository.getCoverUrl).toHaveBeenCalledWith(7);
-    expect(data.coverUrl).toBe('blob:cover');
+    expect(novelRepository.get).toHaveBeenCalledWith(7);
     expect(data.analysisStatus).toEqual(createStatusResponse());
     expect(data.analysisStatusError).toBeNull();
   });

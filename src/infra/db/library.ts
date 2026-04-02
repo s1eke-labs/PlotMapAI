@@ -12,6 +12,7 @@ export interface NovelRecord {
   originalFilename: string;
   originalEncoding: string;
   totalWords: number;
+  chapterCount: number;
   createdAt: string;
 }
 

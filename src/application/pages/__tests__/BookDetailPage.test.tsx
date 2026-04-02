@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 
 import { analysisService } from '@domains/analysis';
-import { novelRepository } from '@domains/library';
+import { novelRepository, useNovelCoverResource } from '@domains/library';
 import type { AnalysisStatusResponse } from '@shared/contracts';
 
 import {
@@ -67,9 +67,9 @@ vi.mock('@domains/library', () => ({
   CharacterShareChart: () => <div data-testid="character-share-chart" />,
   PRIMARY_DETAIL_ACTION_CLASS: 'primary-detail-action',
   TxtCover: ({ title }: { title: string }) => <div data-testid="txt-cover">{title}</div>,
+  useNovelCoverResource: vi.fn(),
   novelRepository: {
     get: vi.fn(),
-    getCoverUrl: vi.fn(),
   },
 }));
 
@@ -135,7 +135,7 @@ describe('application BookDetailPage', () => {
     vi.clearAllMocks();
     navigateMock.mockReset();
     vi.mocked(novelRepository.get).mockResolvedValue(baseNovel);
-    vi.mocked(novelRepository.getCoverUrl).mockResolvedValue('blob:cover');
+    vi.mocked(useNovelCoverResource).mockReturnValue('blob:cover');
     vi.mocked(analysisService.getStatus).mockResolvedValue(createStatusResponse());
     vi.mocked(startNovelAnalysis).mockResolvedValue(
       createStatusResponse({ canPause: true, canStart: false, currentStage: 'chapters', status: 'running' }),

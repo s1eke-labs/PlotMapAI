@@ -16,7 +16,6 @@ export interface BookDetailAnalysisData {
 }
 
 export interface BookDetailPageData extends BookDetailAnalysisData {
-  coverUrl: string | null;
   novel: NovelView;
 }
 
@@ -71,14 +70,12 @@ export async function loadBookDetailAnalysisStatus(
 }
 
 export async function loadBookDetailPageData(novelId: number): Promise<BookDetailPageData> {
-  const novel = await novelRepository.get(novelId);
-  const [analysisData, coverUrl] = await Promise.all([
+  const [novel, analysisData] = await Promise.all([
+    novelRepository.get(novelId),
     loadBookDetailAnalysisStatus(novelId),
-    novel.hasCover ? novelRepository.getCoverUrl(novelId) : Promise.resolve(null),
   ]);
 
   return {
-    coverUrl,
     novel,
     ...analysisData,
   };

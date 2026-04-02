@@ -1,9 +1,8 @@
-import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
-import { novelRepository } from '../novelRepository';
 import type { NovelView } from '../novelRepository';
+import { useNovelCoverResource } from '../hooks/useNovelCoverResource';
 import TxtCover from './TxtCover';
 
 interface BookCardProps {
@@ -13,16 +12,7 @@ interface BookCardProps {
 
 export default function BookCard({ detailHref, novel }: BookCardProps) {
   const { t } = useTranslation();
-  const [coverUrl, setCoverUrl] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!novel.hasCover) return;
-    let revoked = false;
-    novelRepository.getCoverUrl(novel.id).then((url) => {
-      if (!revoked) setCoverUrl(url);
-    });
-    return () => { revoked = true; };
-  }, [novel.id, novel.hasCover]);
+  const coverUrl = useNovelCoverResource(novel.id, novel.hasCover);
 
   return (
     <Link

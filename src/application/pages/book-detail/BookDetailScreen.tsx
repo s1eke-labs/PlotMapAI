@@ -66,7 +66,7 @@ export default function BookDetailScreen({
               title={viewModel.novel.title}
             />
             <BookDetailStats
-              chapterCount={viewModel.novel.chapterCount || 0}
+              chapterCount={viewModel.novel.chapterCount}
               fileType={viewModel.novel.fileType}
               totalWords={viewModel.novel.totalWords}
             />

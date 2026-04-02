@@ -41,6 +41,7 @@ describe('bookImportService', () => {
 
     expect(result).toEqual({ novelId: 1 });
     await expect(db.novels.get(result.novelId)).resolves.toMatchObject({
+      chapterCount: 2,
       title: 'Parsed Novel',
     });
     await expect(db.chapters.where('novelId').equals(result.novelId).count()).resolves.toBe(2);

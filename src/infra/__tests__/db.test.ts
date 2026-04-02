@@ -42,6 +42,7 @@ describe('db', () => {
       originalFilename: 'test.txt',
       originalEncoding: 'utf-8',
       totalWords: 1000,
+      chapterCount: 0,
       createdAt: new Date().toISOString(),
     });
     const novel = await db.novels.get(id);
@@ -61,6 +62,7 @@ describe('db', () => {
       originalFilename: 'n.txt',
       originalEncoding: 'utf-8',
       totalWords: 100,
+      chapterCount: 0,
       createdAt: new Date().toISOString(),
     });
     await db.chapters.add({

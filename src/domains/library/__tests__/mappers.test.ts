@@ -18,10 +18,11 @@ describe('library mappers', () => {
       originalFilename: 'novel.txt',
       originalEncoding: 'utf-8',
       totalWords: 1234,
+      chapterCount: 8,
       createdAt: '2026-04-01T00:00:00.000Z',
     };
 
-    expect(mapNovelRecordToView(record, 8)).toEqual({
+    expect(mapNovelRecordToView(record)).toEqual({
       id: 7,
       title: 'Novel',
       author: 'Author',

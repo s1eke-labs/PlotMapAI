@@ -18,6 +18,7 @@ describe('readerContentService', () => {
       originalFilename: 'r.txt',
       originalEncoding: 'utf-8',
       totalWords: 300,
+      chapterCount: 3,
       createdAt: new Date().toISOString(),
     });
     const novel = await db.novels.orderBy('id').last();
@@ -142,6 +143,7 @@ describe('loadAndPurifyChapters', () => {
       originalFilename: 'p.txt',
       originalEncoding: 'utf-8',
       totalWords: 100,
+      chapterCount: 1,
       createdAt: new Date().toISOString(),
     });
     const novel = await db.novels.orderBy('id').last();

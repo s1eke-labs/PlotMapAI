@@ -1,7 +1,10 @@
+import type { NovelRecord } from '@infra/db/library';
+
 import { db } from '@infra/db';
 import { AppErrorCode, createAppError } from '@shared/errors';
 
 import { mapNovelRecordToView } from './mappers';
+import { clearNovelCoverResourcesForNovel } from './utils/novelCoverResourceCache';
 
 export interface NovelView {
   id: number;
@@ -14,21 +17,85 @@ export interface NovelView {
   originalFilename: string;
   originalEncoding: string;
   totalWords: number;
-  chapterCount?: number;
+  chapterCount: number;
   createdAt: string;
+}
+
+interface LegacyNovelRecord extends Omit<NovelRecord, 'chapterCount'> {
+  chapterCount?: number;
+}
+
+function hasStoredChapterCount(novel: LegacyNovelRecord): novel is NovelRecord {
+  return Number.isFinite(novel.chapterCount);
+}
+
+async function buildChapterCountMap(novelIds: number[]): Promise<Map<number, number>> {
+  const counts = new Map<number, number>();
+  for (const novelId of novelIds) {
+    counts.set(novelId, 0);
+  }
+
+  if (novelIds.length === 0) {
+    return counts;
+  }
+
+  const chapters = await db.chapters.where('novelId').anyOf(novelIds).toArray();
+  for (const chapter of chapters) {
+    counts.set(chapter.novelId, (counts.get(chapter.novelId) ?? 0) + 1);
+  }
+
+  return counts;
+}
+
+async function persistChapterCounts(counts: Map<number, number>): Promise<void> {
+  if (counts.size === 0) {
+    return;
+  }
+
+  await Promise.all(Array.from(counts.entries()).map(async ([novelId, chapterCount]) => {
+    await db.novels.update(novelId, { chapterCount });
+  }));
+}
+
+async function ensureStoredChapterCounts(
+  novels: LegacyNovelRecord[],
+): Promise<NovelRecord[]> {
+  const missingIds = novels
+    .filter((novel) => !hasStoredChapterCount(novel))
+    .map((novel) => novel.id);
+
+  if (missingIds.length === 0) {
+    return novels.map((novel) => ({
+      ...novel,
+      chapterCount: novel.chapterCount ?? 0,
+    }));
+  }
+
+  const counts = await buildChapterCountMap(missingIds);
+  await persistChapterCounts(counts);
+
+  return novels.map((novel) => {
+    if (hasStoredChapterCount(novel)) {
+      return novel;
+    }
+
+    return {
+      ...novel,
+      chapterCount: counts.get(novel.id) ?? 0,
+    };
+  });
 }
 
 export const novelRepository = {
   async list(): Promise<NovelView[]> {
     const novels = await db.novels.orderBy('createdAt').reverse().toArray();
-    const counts = await Promise.all(
-      novels.map((novel) => db.chapters.where('novelId').equals(novel.id).count()),
-    );
-    return novels.map((novel, index) => mapNovelRecordToView(novel, counts[index]));
+    const normalizedNovels = await ensureStoredChapterCounts(novels);
+
+    return normalizedNovels.map((novel) => mapNovelRecordToView(novel));
   },
 
   async get(id: number): Promise<NovelView> {
-    const novel = await db.novels.get(id);
+    const novel = await db.novels.get(id) as LegacyNovelRecord | undefined;
     if (!novel) {
       throw createAppError({
         code: AppErrorCode.NOVEL_NOT_FOUND,
@@ -40,8 +107,17 @@ export const novelRepository = {
       });
     }
 
-    const count = await db.chapters.where('novelId').equals(id).count();
-    return mapNovelRecordToView(novel, count);
+    if (hasStoredChapterCount(novel)) {
+      return mapNovelRecordToView(novel);
+    }
+
+    const chapterCount = await db.chapters.where('novelId').equals(id).count();
+    await db.novels.update(id, { chapterCount });
+
+    return mapNovelRecordToView({
+      ...novel,
+      chapterCount,
+    });
   },
 
   async delete(id: number): Promise<{ message: string }> {
@@ -63,15 +139,8 @@ export const novelRepository = {
       },
     );
 
+    clearNovelCoverResourcesForNovel(id);
+
     return { message: 'Novel deleted' };
-  },
-
-  async getCoverUrl(id: number): Promise<string | null> {
-    const cover = await db.coverImages.where('novelId').equals(id).first();
-    if (!cover) {
-      return null;
-    }
-
-    return URL.createObjectURL(cover.blob);
   },
 };
