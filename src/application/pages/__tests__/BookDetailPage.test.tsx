@@ -9,6 +9,7 @@ import type { AnalysisStatusResponse } from '@shared/contracts';
 
 import {
   pauseNovelAnalysis,
+  restartNovelAnalysis,
   resumeNovelAnalysis,
   startNovelAnalysis,
 } from '@application/use-cases/analysis';
@@ -32,13 +33,18 @@ vi.mock('react-router-dom', async () => {
 
 vi.mock('@application/use-cases/analysis', () => ({
   pauseNovelAnalysis: vi.fn(),
+  restartNovelAnalysis: vi.fn(),
   resumeNovelAnalysis: vi.fn(),
   startNovelAnalysis: vi.fn(),
 }));
 
-vi.mock('@application/use-cases/library', () => ({
-  deleteNovelAndCleanupArtifacts: vi.fn(),
-}));
+vi.mock('@application/use-cases/library', async () => {
+  const actual = await vi.importActual<typeof import('@application/use-cases/library')>('@application/use-cases/library');
+  return {
+    ...actual,
+    deleteNovelAndCleanupArtifacts: vi.fn(),
+  };
+});
 
 vi.mock('@domains/analysis', () => ({
   analysisService: {
@@ -138,6 +144,9 @@ describe('application BookDetailPage', () => {
       createStatusResponse({ canPause: true, canStart: false, currentStage: 'chapters', status: 'pausing' }),
     );
     vi.mocked(resumeNovelAnalysis).mockResolvedValue(
+      createStatusResponse({ canPause: true, canStart: false, currentStage: 'chapters', status: 'running' }),
+    );
+    vi.mocked(restartNovelAnalysis).mockResolvedValue(
       createStatusResponse({ canPause: true, canStart: false, currentStage: 'chapters', status: 'running' }),
     );
     vi.mocked(deleteNovelAndCleanupArtifacts).mockResolvedValue({ message: 'Novel deleted' });

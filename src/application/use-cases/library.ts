@@ -1,5 +1,6 @@
-import type { NovelView } from '@domains/library';
 import type { CharacterGraphResponse } from '@shared/contracts';
+import type { NovelView } from '@domains/library';
+import type { AppError } from '@shared/errors';
 
 import { analysisService } from '@domains/analysis';
 import { bookImportService } from '@domains/book-import';
@@ -8,9 +9,14 @@ import { clearReaderRenderCacheMemoryForNovel, loadAndPurifyChapters } from '@do
 import { ensureDefaultTocRules, tocRuleRepository } from '@domains/settings';
 import { db } from '@infra/db';
 import { CACHE_KEYS, storage } from '@infra/storage';
+import { AppErrorCode, toAppError } from '@shared/errors';
 
-export interface BookDetailPageData {
-  analysisStatus: Awaited<ReturnType<typeof analysisService.getStatus>>;
+export interface BookDetailAnalysisData {
+  analysisStatus: Awaited<ReturnType<typeof analysisService.getStatus>> | null;
+  analysisStatusError: AppError | null;
+}
+
+export interface BookDetailPageData extends BookDetailAnalysisData {
   coverUrl: string | null;
   novel: NovelView;
 }
@@ -59,16 +65,39 @@ export async function importBookAndRefreshLibrary(
   return novelRepository.get(novelId);
 }
 
+export async function loadBookDetailAnalysisStatus(
+  novelId: number,
+): Promise<BookDetailAnalysisData> {
+  try {
+    return {
+      analysisStatus: await analysisService.getStatus(novelId),
+      analysisStatusError: null,
+    };
+  } catch (error) {
+    return {
+      analysisStatus: null,
+      analysisStatusError: toAppError(error, {
+        code: AppErrorCode.ANALYSIS_EXECUTION_FAILED,
+        kind: 'execution',
+        source: 'analysis',
+        userMessageKey: 'bookDetail.analysisLoadError',
+        retryable: true,
+      }),
+    };
+  }
+}
+
 export async function loadBookDetailPageData(novelId: number): Promise<BookDetailPageData> {
-  const [novel, analysisStatus] = await Promise.all([
-    novelRepository.get(novelId),
-    analysisService.getStatus(novelId),
+  const novel = await novelRepository.get(novelId);
+  const [analysisData, coverUrl] = await Promise.all([
+    loadBookDetailAnalysisStatus(novelId),
+    novel.hasCover ? novelRepository.getCoverUrl(novelId) : Promise.resolve(null),
   ]);
-  const coverUrl = novel.hasCover ? await novelRepository.getCoverUrl(novelId) : null;
+
   return {
-    analysisStatus,
     coverUrl,
     novel,
+    ...analysisData,
   };
 }
 
