@@ -1,9 +1,9 @@
 import { debugLog } from '@shared/debug';
+import { loadRulesFromJson } from '@shared/text-processing';
 import { db } from '@infra/db';
 import { AppErrorCode, createAppError } from '@shared/errors';
 import { mapPurificationRuleRecordToDomain } from './persistenceMappers';
 import { dumpYaml, loadYaml } from './services/yaml';
-import { normalizeImportedPurificationRules } from './services/importedPurificationRules';
 import type { PurificationRule } from './types';
 
 function unescapeReplacement(raw: string): string {
@@ -139,7 +139,7 @@ export const purificationRuleRepository = {
         cause: error,
       });
     }
-    const importedRules = normalizeImportedPurificationRules(parsed);
+    const importedRules = loadRulesFromJson(JSON.stringify(parsed));
     debugLog('Settings', `parsed ${importedRules.length} rules`);
     const existing = await db.purificationRules.toArray();
     const existingKeys = new Set(existing.map((rule) => `${rule.pattern}\u0000${rule.isRegex}`));

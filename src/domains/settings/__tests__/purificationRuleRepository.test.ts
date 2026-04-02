@@ -103,7 +103,7 @@ describe('purificationRuleRepository', () => {
     expect(rules.find((rule) => rule.pattern === 'bar')?.exclusiveGroup).toBe('formatting');
   });
 
-  it('uploadPurificationRulesYaml normalizes legacy camelCase keys', async () => {
+  it('uploadPurificationRulesYaml does not map legacy camelCase keys', async () => {
     const file = new File([`
 - name: Legacy Rule
   pattern: legacy
@@ -121,12 +121,12 @@ describe('purificationRuleRepository', () => {
     expect(rules[0]).toMatchObject({
       pattern: 'legacy',
       replacement: 'updated',
-      isRegex: false,
-      isEnabled: false,
-      scopeTitle: false,
+      isRegex: true,
+      isEnabled: true,
+      scopeTitle: true,
       scopeContent: true,
-      exclusiveGroup: 'cleanup',
     });
+    expect(rules[0].exclusiveGroup).toBeUndefined();
   });
 
   it('unescapes replacement sequences when importing and saving', async () => {

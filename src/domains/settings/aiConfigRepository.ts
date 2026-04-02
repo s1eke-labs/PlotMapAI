@@ -24,10 +24,6 @@ function maskApiKey(apiKey: string): string {
   return `${apiKey.slice(0, 4)}${'*'.repeat(Math.max(4, apiKey.length - 8))}${apiKey.slice(-4)}`;
 }
 
-function sanitizeProviderId(value: unknown): AnalysisProviderId {
-  return isAnalysisProviderId(value) ? value : DEFAULT_ANALYSIS_PROVIDER_ID;
-}
-
 function sanitizeAiConfigRecord(raw: unknown): StoredAiConfigRecord | null {
   if (!raw || typeof raw !== 'object') return null;
   const parsed = raw as Record<string, unknown>;
@@ -55,8 +51,18 @@ function assertImportedAiConfig(raw: unknown): RuntimeAiConfig {
   }
 
   const parsed = raw as Record<string, unknown>;
+  if (!isAnalysisProviderId(parsed.providerId)) {
+    throw createAppError({
+      code: AppErrorCode.AI_CONFIG_MISSING_FIELDS,
+      kind: 'validation',
+      source: 'settings',
+      userMessageKey: 'errors.AI_CONFIG_MISSING_FIELDS',
+      debugMessage: 'Imported AI config is missing required fields',
+    });
+  }
+
   const config: RuntimeAiConfig = {
-    providerId: sanitizeProviderId(parsed.providerId),
+    providerId: parsed.providerId,
     apiBaseUrl: typeof parsed.apiBaseUrl === 'string' ? parsed.apiBaseUrl.trim() : '',
     apiKey: typeof parsed.apiKey === 'string' ? parsed.apiKey.trim() : '',
     modelName: typeof parsed.modelName === 'string' ? parsed.modelName.trim() : '',

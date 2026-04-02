@@ -18,6 +18,7 @@ import {
   AnalysisConfigError,
   ChunkingError,
   type RuntimeAnalysisConfig,
+  type RuntimeAnalysisConfigInput,
 } from '..';
 import type {
   StoredAnalysisOverview,
@@ -137,30 +138,15 @@ describe('validateAnalysisConfig', () => {
 });
 
 describe('buildRuntimeAnalysisConfig', () => {
-  it('defaults providerId for legacy flat config input', () => {
-    expect(buildRuntimeAnalysisConfig({
-      apiBaseUrl: 'http://localhost:5000',
-      apiKey: 'token',
-      modelName: 'gpt-test',
-      contextSize: 32000,
-    })).toEqual({
-      providerId: DEFAULT_ANALYSIS_PROVIDER_ID,
+  it('throws for invalid providerId', () => {
+    expect(() => buildRuntimeAnalysisConfig({
+      providerId: 'invalid-provider',
       contextSize: 32000,
       providerConfig: {
         apiBaseUrl: 'http://localhost:5000',
         apiKey: 'token',
         modelName: 'gpt-test',
       },
-    });
-  });
-
-  it('throws for invalid providerId', () => {
-    expect(() => buildRuntimeAnalysisConfig({
-      providerId: 'invalid-provider',
-      apiBaseUrl: 'http://localhost:5000',
-      apiKey: 'token',
-      modelName: 'gpt-test',
-      contextSize: 32000,
     })).toThrow(AnalysisConfigError);
   });
 
@@ -174,6 +160,22 @@ describe('buildRuntimeAnalysisConfig', () => {
         modelName: 'gpt-test',
       },
     }).providerConfig.modelName).toBe('gpt-test');
+  });
+
+  it('throws for legacy flat config input', () => {
+    const legacyInput: RuntimeAnalysisConfigInput & {
+      apiBaseUrl: string;
+      apiKey: string;
+      modelName: string;
+    } = {
+      providerId: DEFAULT_ANALYSIS_PROVIDER_ID,
+      apiBaseUrl: 'http://localhost:5000',
+      apiKey: 'token',
+      modelName: 'gpt-test',
+      contextSize: 32000,
+    };
+
+    expect(() => buildRuntimeAnalysisConfig(legacyInput)).toThrow(AnalysisConfigError);
   });
 });
 

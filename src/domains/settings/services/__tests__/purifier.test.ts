@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import {
-  loadImportedPurificationRulesFromJson,
   loadRulesFromJson,
   purify,
   type PurifyRule,
@@ -189,33 +188,5 @@ describe('loadRulesFromJson', () => {
     const rules = loadRulesFromJson(json);
     expect(rules.length).toBe(1);
     expect(rules[0].pattern).toBe('ok');
-  });
-});
-
-describe('loadImportedPurificationRulesFromJson', () => {
-  it('normalizes legacy camelCase keys at the import boundary', () => {
-    const json = JSON.stringify([{
-      name: 'R',
-      pattern: 'p',
-      replacement: 'r',
-      isRegex: true,
-      isEnabled: false,
-      scopeTitle: false,
-      scopeContent: true,
-      exclusiveGroup: 'formatting',
-    }]);
-
-    const rules = loadImportedPurificationRulesFromJson(json);
-
-    expect(rules[0]).toMatchObject({
-      name: 'R',
-      pattern: 'p',
-      replacement: 'r',
-      is_regex: true,
-      is_enabled: false,
-      scope_title: false,
-      scope_content: true,
-      exclusive_group: 'formatting',
-    });
   });
 });

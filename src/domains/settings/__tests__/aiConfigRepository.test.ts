@@ -6,6 +6,7 @@ import {
   storage,
 } from '@infra/storage';
 import { DEFAULT_ANALYSIS_PROVIDER_ID } from '@shared/contracts';
+import { AppErrorCode } from '@shared/errors';
 
 import {
   exportAiConfig,
@@ -15,6 +16,39 @@ import {
   resetDeviceKeyForTesting,
   saveAiConfig,
 } from '../aiConfigRepository';
+
+async function createEncryptedConfigFile(payload: unknown, password: string): Promise<File> {
+  const encoder = new TextEncoder();
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const keyMaterial = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(password),
+    'PBKDF2',
+    false,
+    ['deriveKey'],
+  );
+  const key = await crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt, iterations: 600000, hash: 'SHA-256' },
+    keyMaterial,
+    { name: 'AES-GCM', length: 256 },
+    false,
+    ['encrypt'],
+  );
+
+  const plaintext = encoder.encode(JSON.stringify(payload));
+  const ciphertext = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, plaintext);
+  const envelope = JSON.stringify({
+    v: 1,
+    salt: btoa(String.fromCharCode(...salt)),
+    iv: btoa(String.fromCharCode(...iv)),
+    data: btoa(String.fromCharCode(...new Uint8Array(ciphertext))),
+  });
+
+  return new File([envelope], 'plotmapai-ai-config.enc', {
+    type: 'application/octet-stream',
+  });
+}
 
 describe('aiConfigRepository', () => {
   beforeEach(async () => {
@@ -94,6 +128,19 @@ describe('aiConfigRepository', () => {
       contextSize: 32000,
       modelName: 'gpt-4',
       providerId: DEFAULT_ANALYSIS_PROVIDER_ID,
+    });
+  });
+
+  it('rejects imported configs without a valid providerId', async () => {
+    const file = await createEncryptedConfigFile({
+      apiBaseUrl: 'http://localhost:5000',
+      apiKey: 'sk-test-secret-key-12345',
+      contextSize: 32000,
+      modelName: 'gpt-4',
+    }, 'password');
+
+    await expect(importAiConfig(file, 'password')).rejects.toMatchObject({
+      code: AppErrorCode.AI_CONFIG_MISSING_FIELDS,
     });
   });
 });

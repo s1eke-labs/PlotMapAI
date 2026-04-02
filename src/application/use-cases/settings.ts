@@ -28,10 +28,12 @@ export async function saveAiProviderSettings(
   const existing = await getAiConfig();
   const config = buildRuntimeAnalysisConfig({
     providerId: payload.providerId || existing?.providerId || DEFAULT_ANALYSIS_PROVIDER_ID,
-    apiBaseUrl: payload.apiBaseUrl ?? existing?.apiBaseUrl ?? '',
-    apiKey: resolveApiKey(payload, existing),
-    modelName: payload.modelName ?? existing?.modelName ?? '',
     contextSize: payload.contextSize ?? existing?.contextSize ?? 32000,
+    providerConfig: {
+      apiBaseUrl: payload.apiBaseUrl ?? existing?.apiBaseUrl ?? '',
+      apiKey: resolveApiKey(payload, existing),
+      modelName: payload.modelName ?? existing?.modelName ?? '',
+    },
   });
 
   await saveAiConfig({
@@ -51,10 +53,12 @@ export async function testAiProviderSettings(
   const existing = await getAiConfig();
   const config = buildRuntimeAnalysisConfig({
     providerId: payload.providerId ?? existing?.providerId ?? DEFAULT_ANALYSIS_PROVIDER_ID,
-    apiBaseUrl: payload.apiBaseUrl ?? existing?.apiBaseUrl ?? '',
-    apiKey: resolveApiKey(payload, existing),
-    modelName: payload.modelName ?? existing?.modelName ?? '',
     contextSize: payload.contextSize ?? existing?.contextSize ?? 32000,
+    providerConfig: {
+      apiBaseUrl: payload.apiBaseUrl ?? existing?.apiBaseUrl ?? '',
+      apiKey: resolveApiKey(payload, existing),
+      modelName: payload.modelName ?? existing?.modelName ?? '',
+    },
   });
 
   return testAiProviderConnection(config);

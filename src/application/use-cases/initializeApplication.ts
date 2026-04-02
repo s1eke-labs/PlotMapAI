@@ -1,6 +1,5 @@
 import { analysisService } from '@domains/analysis';
 import { ensureDefaultPurificationRules, ensureDefaultTocRules } from '@domains/settings';
-import { runStorageMigrations } from '@infra/migrations';
 import { prepareDatabase } from '@infra/db';
 
 let initialized = false;
@@ -16,7 +15,6 @@ export async function initializeApplication(): Promise<void> {
   }
 
   initializationPromise = prepareDatabase()
-    .then(runStorageMigrations)
     .then(() => Promise.all([
       ensureDefaultPurificationRules(),
       ensureDefaultTocRules(),

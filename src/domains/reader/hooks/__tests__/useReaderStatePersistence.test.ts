@@ -146,37 +146,10 @@ describe('useReaderStatePersistence', () => {
     });
   });
 
-  it('drops legacy scrollPosition from the local cache on first read', () => {
-    seedReaderStateCache(1, {
-      chapterIndex: 2,
-      scrollPosition: 380,
-    });
-
-    const { result } = renderHook(() => useReaderStatePersistence(1));
-
-    expect(result.current.initialStoredState).toEqual({
-      chapterIndex: 2,
-      mode: 'scroll',
-      chapterProgress: undefined,
-      lastContentMode: 'scroll',
-      locator: undefined,
-    });
-
-    expect(readReaderStateCacheSnapshot(1)).toMatchObject({
-      chapterIndex: 2,
-      mode: 'scroll',
-      lastContentMode: 'scroll',
-    });
-    expect(readReaderStateCacheSnapshot(1)).not.toHaveProperty('scrollPosition');
-    expect(readReaderStateCacheSnapshot(1)).not.toHaveProperty('chapterProgress');
-  });
-
   it('treats the locator chapter as authoritative for initial stored state', () => {
     seedReaderStateCache(1, {
       chapterIndex: 10,
       mode: 'scroll',
-      chapterProgress: 0.8,
-      locatorVersion: 1,
       locator: {
         chapterIndex: 8,
         blockIndex: 3,
@@ -199,14 +172,12 @@ describe('useReaderStatePersistence', () => {
         lineIndex: 1,
       },
     });
-    expect(readReaderStateCacheSnapshot(1)).not.toHaveProperty('locatorVersion');
   });
 
   it('clears a stale locator when a chapter jump persists a new chapter index', () => {
     seedReaderStateCache(1, {
       chapterIndex: 0,
       mode: 'scroll',
-      locatorVersion: 1,
       locator: {
         chapterIndex: 0,
         blockIndex: 3,

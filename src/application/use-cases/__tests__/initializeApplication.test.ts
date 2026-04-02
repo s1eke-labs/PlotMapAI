@@ -6,7 +6,6 @@ import {
   ensureDefaultTocRules,
 } from '@domains/settings';
 import { prepareDatabase } from '@infra/db';
-import { runStorageMigrations } from '@infra/migrations';
 
 vi.mock('@domains/settings', () => ({
   ensureDefaultPurificationRules: vi.fn(),
@@ -23,16 +22,11 @@ vi.mock('@infra/db', () => ({
   prepareDatabase: vi.fn(),
 }));
 
-vi.mock('@infra/migrations', () => ({
-  runStorageMigrations: vi.fn(),
-}));
-
 describe('initializeApplication', () => {
   beforeEach(async () => {
     vi.resetModules();
     vi.clearAllMocks();
     vi.mocked(prepareDatabase).mockResolvedValue(undefined);
-    vi.mocked(runStorageMigrations).mockResolvedValue(undefined);
     vi.mocked(ensureDefaultPurificationRules).mockResolvedValue(undefined);
     vi.mocked(ensureDefaultTocRules).mockResolvedValue(undefined);
     vi.mocked(analysisService.initialize).mockResolvedValue(undefined);
@@ -45,14 +39,13 @@ describe('initializeApplication', () => {
     await initializeApplication();
 
     expect(prepareDatabase).toHaveBeenCalledTimes(1);
-    expect(runStorageMigrations).toHaveBeenCalledTimes(1);
     expect(ensureDefaultPurificationRules).toHaveBeenCalledTimes(1);
     expect(ensureDefaultTocRules).toHaveBeenCalledTimes(1);
     expect(analysisService.initialize).toHaveBeenCalledTimes(1);
   });
 
   it('retries initialization after a failed bootstrap', async () => {
-    vi.mocked(runStorageMigrations)
+    vi.mocked(prepareDatabase)
       .mockRejectedValueOnce(new Error('bootstrap failed'))
       .mockResolvedValue(undefined);
 
@@ -62,7 +55,6 @@ describe('initializeApplication', () => {
     await expect(initializeApplication()).resolves.toBeUndefined();
 
     expect(prepareDatabase).toHaveBeenCalledTimes(2);
-    expect(runStorageMigrations).toHaveBeenCalledTimes(2);
     expect(ensureDefaultPurificationRules).toHaveBeenCalledTimes(1);
     expect(ensureDefaultTocRules).toHaveBeenCalledTimes(1);
     expect(analysisService.initialize).toHaveBeenCalledTimes(1);

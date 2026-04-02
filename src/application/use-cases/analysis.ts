@@ -20,7 +20,17 @@ async function loadAnalysisExecutionContext(novelId: number): Promise<AnalysisEx
     chapters,
     novelId,
     novelTitle: novel.title,
-    runtimeConfig: buildRuntimeAnalysisConfig(storedConfig),
+    runtimeConfig: buildRuntimeAnalysisConfig(storedConfig
+      ? {
+        providerId: storedConfig.providerId,
+        contextSize: storedConfig.contextSize,
+        providerConfig: {
+          apiBaseUrl: storedConfig.apiBaseUrl,
+          apiKey: storedConfig.apiKey,
+          modelName: storedConfig.modelName,
+        },
+      }
+      : null),
   };
 }
 

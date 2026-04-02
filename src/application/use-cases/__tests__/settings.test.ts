@@ -43,15 +43,27 @@ describe('application settings use-cases', () => {
       modelName: 'gpt-saved',
       providerId: 'openai-compatible',
     });
-    vi.mocked(buildRuntimeAnalysisConfig).mockImplementation((input) => ({
-      contextSize: input.contextSize,
-      providerConfig: {
-        apiBaseUrl: input.apiBaseUrl,
-        apiKey: input.apiKey,
-        modelName: input.modelName,
-      },
-      providerId: input.providerId,
-    }));
+    vi.mocked(buildRuntimeAnalysisConfig).mockImplementation((input) => {
+      const resolvedInput = input as {
+        contextSize: number;
+        providerId: 'openai-compatible';
+        providerConfig: {
+          apiBaseUrl: string;
+          apiKey: string;
+          modelName: string;
+        };
+      };
+
+      return {
+        contextSize: resolvedInput.contextSize,
+        providerConfig: {
+          apiBaseUrl: resolvedInput.providerConfig.apiBaseUrl,
+          apiKey: resolvedInput.providerConfig.apiKey,
+          modelName: resolvedInput.providerConfig.modelName,
+        },
+        providerId: resolvedInput.providerId,
+      };
+    });
     vi.mocked(getAiProviderSettings).mockResolvedValue({
       apiBaseUrl: 'http://localhost:9000',
       contextSize: 48000,
@@ -78,11 +90,13 @@ describe('application settings use-cases', () => {
     });
 
     expect(buildRuntimeAnalysisConfig).toHaveBeenCalledWith({
-      apiBaseUrl: 'http://localhost:9000',
-      apiKey: 'saved-token',
       contextSize: 48000,
-      modelName: 'gpt-next',
       providerId: 'openai-compatible',
+      providerConfig: {
+        apiBaseUrl: 'http://localhost:9000',
+        apiKey: 'saved-token',
+        modelName: 'gpt-next',
+      },
     });
     expect(saveAiConfig).toHaveBeenCalledWith({
       apiBaseUrl: 'http://localhost:9000',
@@ -108,11 +122,13 @@ describe('application settings use-cases', () => {
     });
 
     expect(buildRuntimeAnalysisConfig).toHaveBeenCalledWith({
-      apiBaseUrl: 'http://localhost:9000',
-      apiKey: 'saved-token',
       contextSize: 48000,
-      modelName: 'gpt-next',
       providerId: 'openai-compatible',
+      providerConfig: {
+        apiBaseUrl: 'http://localhost:9000',
+        apiKey: 'saved-token',
+        modelName: 'gpt-next',
+      },
     });
     expect(testAiProviderConnection).toHaveBeenCalledWith({
       contextSize: 48000,

@@ -4,7 +4,6 @@ import {
 import {
   createPersistedRuntime,
 } from '@shared/stores/persistence/createPersistedRuntime';
-import { migrateLegacyReaderStateCacheSnapshot } from '@infra/migrations';
 import { mergeReaderStateCacheSnapshot, readReaderStateCacheSnapshot } from '@infra/storage/readerStateCache';
 import { useStore } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
@@ -90,7 +89,6 @@ function readLocalSessionState(novelId: number): StoredReaderState | null {
     return null;
   }
 
-  migrateLegacyReaderStateCacheSnapshot(novelId);
   const parsed = readReaderStateCacheSnapshot(novelId);
   if (!parsed) {
     return null;

@@ -3,12 +3,8 @@ import { CACHE_KEYS, storage } from './index';
 export interface ReaderStateCacheSnapshot {
   chapterIndex?: unknown;
   mode?: unknown;
-  viewMode?: unknown;
-  isTwoColumn?: unknown;
   chapterProgress?: unknown;
-  scrollPosition?: unknown;
   lastContentMode?: unknown;
-  locatorVersion?: unknown;
   locator?: unknown;
   readerTheme?: unknown;
   pageTurnMode?: unknown;

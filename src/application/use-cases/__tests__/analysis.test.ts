@@ -102,11 +102,13 @@ describe('application analysis use-cases', () => {
     await startNovelAnalysis(1);
 
     expect(buildRuntimeAnalysisConfig).toHaveBeenCalledWith({
-      apiBaseUrl: 'http://localhost:5000',
-      apiKey: 'token',
       contextSize: 32000,
-      modelName: 'gpt-test',
       providerId: 'openai-compatible',
+      providerConfig: {
+        apiBaseUrl: 'http://localhost:5000',
+        apiKey: 'token',
+        modelName: 'gpt-test',
+      },
     });
     expect(analysisService.start).toHaveBeenCalledWith({
       chapters: [
