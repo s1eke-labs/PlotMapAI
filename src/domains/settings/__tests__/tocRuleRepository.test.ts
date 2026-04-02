@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { db } from '@infra/db';
-import { tocRuleRepository } from '../../tocRuleRepository';
+import { tocRuleRepository } from '../tocRuleRepository';
 
 describe('tocRuleRepository', () => {
   beforeEach(async () => {

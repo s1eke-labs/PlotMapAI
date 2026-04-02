@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { db } from '@infra/db';
-import { purificationRuleRepository } from '../../purificationRuleRepository';
+import { purificationRuleRepository } from '../purificationRuleRepository';
 
 describe('purificationRuleRepository', () => {
   beforeEach(async () => {

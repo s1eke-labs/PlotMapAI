@@ -110,30 +110,33 @@ docker compose up -d
 
 ## 项目结构
 
-采用领域驱动设计（Domain-Driven Design）：
+采用分层领域驱动设计（Layered Domain-Driven Design）：
 
 ```
 src/
 ├── app/                # 应用壳：路由、布局、Provider、调试面板、错误边界
+├── application/        # 编排层：跨领域页面、用例、hooks、组合组件
 ├── domains/            # 业务领域（每个领域自包含）
 │   ├── analysis/       #   AI 章节分析（Provider 适配、运行时、Prompt）
 │   ├── book-import/    #   EPUB/TXT 导入与解析
-│   ├── character-graph/#   人物关系图谱可视化
+│   ├── character-graph/ #   人物关系图谱可视化
 │   ├── library/        #   书架与书籍管理
 │   ├── reader/         #   阅读器（分页/滚动、导航、偏好设置）
 │   └── settings/       #   设置（净化规则、目录规则、AI 配置）
-├── shared/             # 跨领域共享：UI 组件、错误体系、文本处理、工具函数
+├── shared/             # 跨领域共享：UI 组件、契约、错误体系、状态、文本处理、工具函数
 ├── infra/              # 基础设施：Dexie 数据库、localStorage 封装、Web Worker
 ├── i18n/               # 国际化配置与语言文件（zh/en）
-├── test/               # 测试基础设施（MSW handlers、setup、mocks）
-└── assets/             # 静态资源
+└── test/               # 测试基础设施（MSW handlers、setup、mocks）
 ```
+
+静态资源位于 `public/`，PWA 图标与截图也从该目录提供。
 
 ### 路径别名
 
 | 别名 | 映射 |
 |------|------|
 | `@app/*` | `src/app/*` |
+| `@application/*` | `src/application/*` |
 | `@domains/*` | `src/domains/*` |
 | `@shared/*` | `src/shared/*` |
 | `@infra/*` | `src/infra/*` |
@@ -141,7 +144,8 @@ src/
 
 ### 关键架构模式
 
-- **领域隔离** — `@shared/` 和 `@infra/` 不得导入 `@domains/`，领域间通过 barrel export（`index.ts`）交互
+- **应用编排层** — `src/application/` 负责跨领域页面、用例与组合逻辑；领域代码不得反向依赖该层
+- **领域隔离** — `@shared/` 和 `@infra/` 不得导入 `@domains/`，`@app/` 与 `@application/` 访问领域时通过 barrel export（`@domains/<domain>`）交互
 - **本地存储** — 使用 `@infra/storage`（三级封装：primary/cache/secure），禁止直接访问 `localStorage`
 - **错误处理** — 统一 `AppError` 基类 + `as const` 错误码，UI 通过 i18n 翻译错误消息
 - **Web Worker** — EPUB 解析、文本净化、图谱布局在 Worker 中执行，不阻塞主线程
@@ -149,8 +153,8 @@ src/
 
 ## 配置文件
 
-- `defaultTocRules.yaml` — 默认章节检测规则（首次启动时自动填充）
-- `defaultPurificationRules.yaml` — 默认文本净化规则
+- `src/domains/settings/services/defaultTocRules.yaml` — 默认章节检测规则（首次启动时自动填充）
+- `src/domains/settings/services/defaultPurificationRules.yaml` — 默认文本净化规则
 - 净化规则/目录规则 — 在设置页面通过 YAML 导入/导出
 
 ## 许可证

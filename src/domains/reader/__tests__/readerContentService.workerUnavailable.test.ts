@@ -68,7 +68,7 @@ describe('readerContentService worker unavailable handling', () => {
     });
     runPurifyTitlesTask.mockRejectedValueOnce(unavailableError);
     vi.resetModules();
-    const { readerContentService } = await import('../../readerContentService');
+    const { readerContentService } = await import('../readerContentService');
     const novel = await db.novels.orderBy('id').last();
 
     await expect(readerContentService.getChapters(novel!.id)).rejects.toMatchObject({

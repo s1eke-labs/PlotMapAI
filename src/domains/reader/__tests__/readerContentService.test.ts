@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { db } from '@infra/db';
-import { readerContentService, loadAndPurifyChapters } from '../../readerContentService';
+import { readerContentService, loadAndPurifyChapters } from '../readerContentService';
 
 describe('readerContentService', () => {
   beforeEach(async () => {
