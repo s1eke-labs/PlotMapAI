@@ -47,14 +47,24 @@ vi.mock('@domains/analysis', () => ({
 }));
 
 vi.mock('@domains/library', () => ({
+  BookDetailActionButton: ({
+    label,
+    onClick,
+  }: {
+    label: string;
+    onClick: () => void;
+  }) => (
+    <button type="button" onClick={onClick}>
+      {label}
+    </button>
+  ),
+  CharacterShareChart: () => <div data-testid="character-share-chart" />,
+  PRIMARY_DETAIL_ACTION_CLASS: 'primary-detail-action',
+  TxtCover: ({ title }: { title: string }) => <div data-testid="txt-cover">{title}</div>,
   novelRepository: {
     get: vi.fn(),
     getCoverUrl: vi.fn(),
   },
-}));
-
-vi.mock('@domains/library/components/TxtCover', () => ({
-  default: ({ title }: { title: string }) => <div data-testid="txt-cover">{title}</div>,
 }));
 
 const baseNovel = {

@@ -3,8 +3,6 @@ import type { ReaderPageTurnMode } from '../../constants/pageTurnMode';
 import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { appPaths } from '@app/router/paths';
-
 import { useContentClick } from '../../hooks/useContentClick';
 import { useReaderChapterData } from '../../hooks/useReaderChapterData';
 import { useReaderInput } from '../../hooks/useReaderInput';
@@ -28,11 +26,13 @@ import { useReaderPageImageOverlay } from './useReaderPageImageOverlay';
 interface ReaderPageContainerProps {
   analysisController: import('../../reader-analysis-bridge').ReaderAnalysisBridgeController;
   novelId: number;
+  novelDetailHref: string;
 }
 
 export default function ReaderPageContainer({
   analysisController,
   novelId,
+  novelDetailHref,
 }: ReaderPageContainerProps) {
   const { t } = useTranslation();
   const uiBridge = useReaderContext();
@@ -67,9 +67,9 @@ export default function ReaderPageContainer({
     viewMode,
   });
   const { handleMobileBack } = useReaderMobileBack({
+    fallbackHref: novelDetailHref,
     isSidebarOpen: sidebar.isSidebarOpen,
     closeSidebar,
-    novelId,
   });
 
   const chapterData = useReaderChapterData({
@@ -324,6 +324,7 @@ export default function ReaderPageContainer({
 
   return (
     <ReaderPageLayout
+      backHref={novelDetailHref}
       imageViewerProps={imageOverlay.imageViewerProps}
       pageBgClassName={preferences.currentTheme.bg}
       readerError={lifecycle.readerError}
@@ -343,7 +344,7 @@ export default function ReaderPageContainer({
         textClassName: preferences.currentTheme.text,
         isChromeVisible,
         isSidebarOpen: sidebar.isSidebarOpen,
-        novelId,
+        exitHref: novelDetailHref,
         viewMode,
         onMobileBack: handleMobileBack,
         onToggleSidebar: sidebar.toggleSidebar,
@@ -361,14 +362,13 @@ export default function ReaderPageContainer({
         onBlockedInteraction: dismissBlockedInteraction,
         onContentClick: handleViewportClick,
         onContentScroll: handleViewportScroll,
-        emptyHref: appPaths.novel(novelId),
+        emptyHref: novelDetailHref,
         emptyLabel: t('reader.noChapters'),
         goBackLabel: t('reader.goBack'),
         pagedContentProps,
         scrollContentProps,
         summaryContentProps,
       }}
-      novelId={novelId}
     />
   );
 }

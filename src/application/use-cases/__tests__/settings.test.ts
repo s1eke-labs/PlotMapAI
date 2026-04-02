@@ -5,7 +5,7 @@ import {
   getAiConfig,
   getAiProviderSettings,
   saveAiConfig,
-} from '@domains/settings/aiConfigRepository';
+} from '@domains/settings';
 import {
   buildRuntimeAnalysisConfig,
   testAiProviderConnection,
@@ -23,7 +23,7 @@ vi.mock('@domains/analysis', () => ({
   testAiProviderConnection: vi.fn(),
 }));
 
-vi.mock('@domains/settings/aiConfigRepository', () => ({
+vi.mock('@domains/settings', () => ({
   aiConfigRepository: {
     exportAiConfig: vi.fn(),
     importAiConfig: vi.fn(),

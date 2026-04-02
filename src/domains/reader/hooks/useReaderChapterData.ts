@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { reportAppError } from '@app/debug/service';
+import { reportAppError } from '@shared/debug';
 import { AppErrorCode, toAppError, type AppError } from '@shared/errors';
 
 import { readerContentService } from '../readerContentService';

@@ -1,4 +1,4 @@
-import { reportAppError } from '@app/debug/service';
+import { reportAppError } from '@shared/debug';
 import { AppErrorCode, toAppError } from '@shared/errors';
 import { buildChunkFromChapters } from '../services/chunking';
 import {

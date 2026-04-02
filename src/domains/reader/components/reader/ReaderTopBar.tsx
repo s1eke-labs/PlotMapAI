@@ -5,7 +5,6 @@ import { Link } from 'react-router-dom';
 
 import { cn } from '@shared/utils/cn';
 
-import { appPaths } from '@app/router/paths';
 import { getReaderChromeThemeClasses } from '../../utils/readerChromeTheme';
 
 const READER_TOP_BAR_VARIANTS = {
@@ -30,12 +29,12 @@ const READER_TOP_BAR_VARIANTS = {
 } as const;
 
 interface ReaderTopBarProps {
+  exitHref: string;
   readerTheme: string;
   headerBgClassName: string;
   textClassName: string;
   isChromeVisible: boolean;
   isSidebarOpen: boolean;
-  novelId: number;
   viewMode: 'original' | 'summary';
   onMobileBack: () => void;
   onToggleSidebar: () => void;
@@ -43,12 +42,12 @@ interface ReaderTopBarProps {
 }
 
 export default function ReaderTopBar({
+  exitHref,
   readerTheme,
   headerBgClassName,
   textClassName,
   isChromeVisible,
   isSidebarOpen,
-  novelId,
   viewMode,
   onMobileBack,
   onToggleSidebar,
@@ -92,7 +91,7 @@ export default function ReaderTopBar({
           {isSidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
         </button>
         <Link
-          to={appPaths.novel(novelId)}
+          to={exitHref}
           className={cn('hidden text-sm font-medium transition-colors hover:text-accent md:block', textClassName)}
         >
           {t('reader.exit')}

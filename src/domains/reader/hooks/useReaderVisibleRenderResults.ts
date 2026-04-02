@@ -11,7 +11,7 @@ import type { ReaderVisibleRenderTarget } from '../utils/readerRenderCachePlanni
 import type { ReaderVisibleRenderResultsResult } from './readerRenderCacheTypes';
 
 import { useEffect, useMemo } from 'react';
-import { debugLog } from '@app/debug/service';
+import { debugLog } from '@shared/debug';
 
 import {
   buildStaticRenderTree,

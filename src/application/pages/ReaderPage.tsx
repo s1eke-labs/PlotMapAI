@@ -1,10 +1,13 @@
 import { useParams } from 'react-router-dom';
 
 import { analyzeChapter } from '@application/use-cases/analysis';
+import { appPaths } from '@app/router/paths';
 import { ChapterAnalysisPanel, analysisService } from '@domains/analysis';
-import ReaderPageContainer from '@domains/reader/pages/reader-page/ReaderPageContainer';
-import { ReaderProvider } from '@domains/reader/pages/reader-page/ReaderContext';
-import type { ReaderAnalysisBridgeController } from '@domains/reader/reader-analysis-bridge';
+import {
+  ReaderPageContainer,
+  ReaderProvider,
+  type ReaderAnalysisBridgeController,
+} from '@domains/reader';
 
 const readerAnalysisController: ReaderAnalysisBridgeController = {
   analyzeChapter,
@@ -19,12 +22,13 @@ const readerAnalysisController: ReaderAnalysisBridgeController = {
     onAnalyzeChapter,
   }) => (
     <ChapterAnalysisPanel
-      novelId={novelId}
       analysis={analysis}
       job={job}
       isLoading={isLoading}
       onAnalyzeChapter={onAnalyzeChapter}
       isAnalyzingChapter={isAnalyzingChapter}
+      progressHref={appPaths.novel(novelId)}
+      settingsHref={appPaths.settings()}
     />
   ),
 };
@@ -35,7 +39,11 @@ export default function ReaderPage() {
 
   return (
     <ReaderProvider novelId={novelId}>
-      <ReaderPageContainer novelId={novelId} analysisController={readerAnalysisController} />
+      <ReaderPageContainer
+        novelId={novelId}
+        novelDetailHref={appPaths.novel(novelId)}
+        analysisController={readerAnalysisController}
+      />
     </ReaderProvider>
   );
 }

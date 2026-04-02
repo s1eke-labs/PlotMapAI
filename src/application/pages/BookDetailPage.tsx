@@ -18,10 +18,13 @@ import { deleteNovelAndCleanupArtifacts } from '@application/use-cases/library';
 import { reportAppError } from '@app/debug/service';
 import { appPaths } from '@app/router/paths';
 import { analysisService } from '@domains/analysis';
-import { novelRepository } from '@domains/library';
-import BookDetailActionButton, { PRIMARY_DETAIL_ACTION_CLASS } from '@domains/library/components/BookDetailActionButton';
-import CharacterShareChart from '@domains/library/components/CharacterShareChart';
-import TxtCover from '@domains/library/components/TxtCover';
+import {
+  BookDetailActionButton,
+  CharacterShareChart,
+  novelRepository,
+  PRIMARY_DETAIL_ACTION_CLASS,
+  TxtCover,
+} from '@domains/library';
 import {
   AppErrorCode,
   toAppError,

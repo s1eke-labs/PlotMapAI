@@ -1,4 +1,4 @@
-import { debugLog } from '@app/debug/service';
+import { debugLog } from '@shared/debug';
 import { AppErrorCode } from '@shared/errors';
 import { LLM_TIMEOUT_MS } from '../services/constants';
 import { AnalysisExecutionError } from '../services/errors';

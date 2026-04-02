@@ -22,9 +22,9 @@ describe('useReaderMobileBack', () => {
   it('closes the sidebar before navigating', () => {
     const closeSidebar = vi.fn();
     const { result } = renderHook(() => useReaderMobileBack({
+      fallbackHref: '/novel/1',
       isSidebarOpen: true,
       closeSidebar,
-      novelId: 1,
     }));
 
     act(() => {
@@ -38,9 +38,9 @@ describe('useReaderMobileBack', () => {
   it('navigates back when browser history is available', () => {
     window.history.replaceState({ idx: 1 }, '', '#/novel/1/read');
     const { result } = renderHook(() => useReaderMobileBack({
+      fallbackHref: '/novel/1',
       isSidebarOpen: false,
       closeSidebar: vi.fn(),
-      novelId: 1,
     }));
 
     act(() => {
@@ -53,9 +53,9 @@ describe('useReaderMobileBack', () => {
 
   it('falls back to the novel detail page when there is no history entry', () => {
     const { result } = renderHook(() => useReaderMobileBack({
+      fallbackHref: '/novel/1',
       isSidebarOpen: false,
       closeSidebar: vi.fn(),
-      novelId: 1,
     }));
 
     act(() => {

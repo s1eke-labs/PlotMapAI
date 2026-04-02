@@ -15,7 +15,13 @@ describe('ChapterAnalysisPanel', () => {
   it('shows loading state when isLoading is true', () => {
     const { container } = render(
       <MemoryRouter>
-        <ChapterAnalysisPanel novelId={1} analysis={null} job={null} isLoading />
+        <ChapterAnalysisPanel
+          analysis={null}
+          job={null}
+          isLoading
+          progressHref="/novel/1"
+          settingsHref="/settings"
+        />
       </MemoryRouter>,
     );
     expect(container.querySelector('.animate-spin')).toBeInTheDocument();
@@ -36,7 +42,13 @@ describe('ChapterAnalysisPanel', () => {
 
     render(
       <MemoryRouter>
-        <ChapterAnalysisPanel novelId={1} analysis={analysis} job={null} isLoading={false} />
+        <ChapterAnalysisPanel
+          analysis={analysis}
+          job={null}
+          isLoading={false}
+          progressHref="/novel/1"
+          settingsHref="/settings"
+        />
       </MemoryRouter>,
     );
 
@@ -82,7 +94,13 @@ describe('ChapterAnalysisPanel', () => {
 
     render(
       <MemoryRouter>
-        <ChapterAnalysisPanel novelId={1} analysis={null} job={job} isLoading={false} />
+        <ChapterAnalysisPanel
+          analysis={null}
+          job={job}
+          isLoading={false}
+          progressHref="/novel/1"
+          settingsHref="/settings"
+        />
       </MemoryRouter>,
     );
 

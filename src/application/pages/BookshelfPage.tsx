@@ -3,8 +3,8 @@ import { Loader2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { reportAppError } from '@app/debug/service';
 import { useFileHandling } from '@app/providers/FileHandlingContext';
-import { novelRepository, type NovelView } from '@domains/library';
-import BookCard from '@domains/library/components/BookCard';
+import { appPaths } from '@app/router/paths';
+import { BookCard, novelRepository, type NovelView } from '@domains/library';
 import {
   AppErrorCode,
   toAppError,
@@ -138,7 +138,7 @@ export default function BookshelfPage() {
               className="grid grid-cols-[repeat(auto-fill,minmax(6.5rem,1fr))] gap-x-2.5 gap-y-4 sm:grid-cols-[repeat(auto-fill,minmax(9.5rem,1fr))] sm:gap-x-4 sm:gap-y-6"
             >
               {novels.map((novel) => (
-                <BookCard key={novel.id} novel={novel} />
+                <BookCard key={novel.id} detailHref={appPaths.novel(novel.id)} novel={novel} />
               ))}
             </div>
           );

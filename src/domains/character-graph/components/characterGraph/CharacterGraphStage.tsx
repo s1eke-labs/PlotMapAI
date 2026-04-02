@@ -12,7 +12,6 @@ import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import type { PointerEvent as ReactPointerEvent, PointerEventHandler, ReactNode, RefObject } from 'react';
-import { appPaths } from '@app/router/paths';
 import type { CharacterGraphEdge } from '@shared/contracts';
 import { cn } from '@shared/utils/cn';
 import type { LayoutEdge, LayoutNode, ZoomState } from '../../utils/characterGraphLayout';
@@ -25,6 +24,7 @@ import StatusPill from './StatusPill';
 interface CharacterGraphStageProps {
   fullscreenRef: RefObject<HTMLDivElement | null>;
   actionMessage: string | null;
+  backHref: string;
   canPanCanvas: boolean;
   canRefreshOverview: boolean;
   focusNodeId: string | null;
@@ -41,7 +41,6 @@ interface CharacterGraphStageProps {
   layoutMessage: string | null;
   layoutNodes: LayoutNode[];
   layoutProgress: number;
-  novelId: number;
   novelTitle: string;
   relatedEdges: CharacterGraphEdge[];
   selectedNode: LayoutNode | null;
@@ -80,6 +79,7 @@ function resolveMobileSheetMode(
 export default function CharacterGraphStage({
   fullscreenRef,
   actionMessage,
+  backHref,
   canPanCanvas,
   canRefreshOverview,
   focusNodeId,
@@ -96,7 +96,6 @@ export default function CharacterGraphStage({
   layoutMessage,
   layoutNodes,
   layoutProgress,
-  novelId,
   novelTitle,
   relatedEdges,
   selectedNode,
@@ -145,7 +144,7 @@ export default function CharacterGraphStage({
               <div className="shrink-0 space-y-2">
                 <div className="flex items-center justify-between gap-2">
                   <Link
-                    to={appPaths.novel(novelId)}
+                    to={backHref}
                     aria-label={t('characterGraph.backToBook')}
                     className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[#ddd7cc] bg-[#fffdfa]/96 text-[#5f6b79] shadow-[0_10px_24px_rgba(28,35,45,0.05)] backdrop-blur transition hover:border-[#cfc7b9] hover:text-[#18202a]"
                   >
@@ -348,7 +347,7 @@ export default function CharacterGraphStage({
           <>
             <div className="absolute left-4 top-4 z-20 flex max-w-[min(62rem,calc(100%-2rem))] flex-wrap items-center gap-3 md:left-6 md:top-6">
               <Link
-                to={appPaths.novel(novelId)}
+                to={backHref}
                 className="inline-flex items-center gap-2 rounded-full border border-[#ddd7cc] bg-[#fffdfa]/94 px-4 py-2 text-xs text-[#5f6b79] backdrop-blur transition hover:border-[#cfc7b9] hover:text-[#18202a]"
               >
                 <ArrowLeft className="h-4 w-4" />

@@ -8,7 +8,7 @@ import {
 } from '@application/use-cases/library';
 import { refreshAnalysisOverview } from '@application/use-cases/analysis';
 import { createAppError, AppErrorCode } from '@shared/errors';
-import { useCharacterGraphCanvas } from '@domains/character-graph/hooks/useCharacterGraphCanvas';
+import { useCharacterGraphCanvas } from '@domains/character-graph';
 
 import CharacterGraphPage from '../CharacterGraphPage';
 
@@ -24,12 +24,9 @@ vi.mock('@application/use-cases/analysis', () => ({
   refreshAnalysisOverview: vi.fn(),
 }));
 
-vi.mock('@domains/character-graph/hooks/useCharacterGraphCanvas', () => ({
+vi.mock('@domains/character-graph', () => ({
   useCharacterGraphCanvas: vi.fn(),
-}));
-
-vi.mock('@domains/character-graph/components/characterGraph/CharacterGraphStage', () => ({
-  default: ({
+  CharacterGraphStage: ({
     actionMessage,
     canRefreshOverview,
     novelTitle,

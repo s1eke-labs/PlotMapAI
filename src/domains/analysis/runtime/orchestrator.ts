@@ -6,7 +6,7 @@ import type {
   CharacterGraphResponse,
 } from '@shared/contracts';
 
-import { debugLog } from '@app/debug/service';
+import { debugLog } from '@shared/debug';
 
 import { buildAnalysisChunks, runSingleChapterAnalysis } from '../services';
 import { AnalysisErrorCode, AnalysisJobStateError } from '../services/errors';

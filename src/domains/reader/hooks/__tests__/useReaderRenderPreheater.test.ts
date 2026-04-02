@@ -88,7 +88,7 @@ const renderCacheMock = vi.hoisted(() => {
   };
 });
 
-vi.mock('@app/debug/service', () => ({
+vi.mock('@shared/debug', () => ({
   debugLog: debugLogMock,
 }));
 

@@ -3,25 +3,26 @@ import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 
-import { appPaths } from '@app/router/paths';
 import type { AnalysisJobStatus, ChapterAnalysisResult } from '@shared/contracts';
 
 interface ChapterAnalysisPanelProps {
-  novelId: number;
   analysis: ChapterAnalysisResult | null;
   job: AnalysisJobStatus | null;
   isLoading: boolean;
   onAnalyzeChapter?: () => void;
   isAnalyzingChapter?: boolean;
+  progressHref: string;
+  settingsHref: string;
 }
 
 export default function ChapterAnalysisPanel({
-  novelId,
   analysis,
   job,
   isLoading,
   onAnalyzeChapter,
   isAnalyzingChapter,
+  progressHref,
+  settingsHref,
 }: ChapterAnalysisPanelProps) {
   const { t } = useTranslation();
   const keyedKeyPoints = useMemo(() => {
@@ -289,13 +290,13 @@ export default function ChapterAnalysisPanel({
           </button>
         )}
         <Link
-          to={appPaths.novel(novelId)}
+          to={progressHref}
           className="px-4 py-2 rounded-lg bg-accent hover:bg-accent-hover text-white transition-colors"
         >
           {t('reader.analysisPanel.viewProgress')}
         </Link>
         <Link
-          to={appPaths.settings()}
+          to={settingsHref}
           className="px-4 py-2 rounded-lg border border-border-color/30 hover:bg-white/5 text-text-primary transition-colors"
         >
           {t('reader.analysisPanel.openAiSettings')}

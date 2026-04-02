@@ -1,17 +1,17 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { appPaths } from '@app/router/paths';
 
 import { novelRepository } from '../novelRepository';
 import type { NovelView } from '../novelRepository';
 import TxtCover from './TxtCover';
 
 interface BookCardProps {
+  detailHref: string;
   novel: NovelView;
 }
 
-export default function BookCard({ novel }: BookCardProps) {
+export default function BookCard({ detailHref, novel }: BookCardProps) {
   const { t } = useTranslation();
   const [coverUrl, setCoverUrl] = useState<string | null>(null);
 
@@ -26,7 +26,7 @@ export default function BookCard({ novel }: BookCardProps) {
 
   return (
     <Link
-      to={appPaths.novel(novel.id)}
+      to={detailHref}
       className="group flex h-full touch-manipulation flex-col gap-2 rounded-2xl p-1.5 transition-all duration-200 active:scale-[0.98] active:bg-black/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary sm:gap-3 sm:rounded-xl sm:p-2.5 sm:hover:bg-white/5"
     >
       <div className="relative aspect-[2/3] w-full overflow-hidden rounded-[1rem] bg-brand-800 shadow-md transition-shadow duration-200 group-active:shadow-sm sm:rounded-lg sm:group-hover:shadow-lg">

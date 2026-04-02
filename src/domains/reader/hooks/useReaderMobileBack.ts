@@ -1,12 +1,10 @@
 import { useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { appPaths } from '@app/router/paths';
-
 interface UseReaderMobileBackParams {
+  fallbackHref: string;
   isSidebarOpen: boolean;
   closeSidebar: () => void;
-  novelId: number;
 }
 
 interface UseReaderMobileBackResult {
@@ -23,9 +21,9 @@ function getHistoryIndex(): number {
 }
 
 export function useReaderMobileBack({
+  fallbackHref,
   isSidebarOpen,
   closeSidebar,
-  novelId,
 }: UseReaderMobileBackParams): UseReaderMobileBackResult {
   const navigate = useNavigate();
 
@@ -40,8 +38,8 @@ export function useReaderMobileBack({
       return;
     }
 
-    navigate(appPaths.novel(novelId), { replace: true });
-  }, [closeSidebar, isSidebarOpen, navigate, novelId]);
+    navigate(fallbackHref, { replace: true });
+  }, [closeSidebar, fallbackHref, isSidebarOpen, navigate]);
 
   return {
     handleMobileBack,

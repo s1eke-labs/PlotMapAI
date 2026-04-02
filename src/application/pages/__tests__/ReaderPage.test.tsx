@@ -28,14 +28,12 @@ vi.mock('@domains/analysis', async () => {
   };
 });
 
-vi.mock('@domains/reader/pages/reader-page/ReaderContext', () => ({
+vi.mock('@domains/reader', () => ({
   ReaderProvider: ({ children }: { children: ReactNode }) => children,
-}));
-
-vi.mock('@domains/reader/pages/reader-page/ReaderPageContainer', () => ({
-  default: ({
+  ReaderPageContainer: ({
     analysisController,
     novelId,
+    novelDetailHref,
   }: {
     analysisController: {
       analyzeChapter: (nextNovelId: number, chapterIndex: number) => Promise<unknown>;
@@ -49,9 +47,10 @@ vi.mock('@domains/reader/pages/reader-page/ReaderPageContainer', () => ({
       }) => ReactNode;
     };
     novelId: number;
+    novelDetailHref: string;
   }) => {
     return (
-      <div>
+      <div data-href={novelDetailHref}>
         {analysisController.renderSummaryPanel({
           analysis: null,
           isAnalyzingChapter: false,

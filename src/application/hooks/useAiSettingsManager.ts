@@ -7,16 +7,16 @@ import {
   saveAiProviderSettings,
   testAiProviderSettings,
 } from '@application/use-cases/settings';
-import { getAiProviderSettings } from '@domains/settings/aiConfigRepository';
-import type { AiSettingsManager } from '@domains/settings/settingsManagers';
-import type { AiProviderSettings, AiProviderSettingsPayload } from '@domains/settings/types';
-import { DEFAULT_ANALYSIS_PROVIDER_ID } from '@shared/contracts';
-import { translateAppError } from '@shared/errors';
-
 import {
   downloadFile,
+  getAiProviderSettings,
+  type AiProviderSettings,
+  type AiProviderSettingsPayload,
+  type AiSettingsManager,
   type SettingsFeedbackState,
-} from '@domains/settings/utils/settingsPage';
+} from '@domains/settings';
+import { DEFAULT_ANALYSIS_PROVIDER_ID } from '@shared/contracts';
+import { translateAppError } from '@shared/errors';
 
 const DEFAULT_AI_FORM: AiProviderSettingsPayload = {
   providerId: DEFAULT_ANALYSIS_PROVIDER_ID,

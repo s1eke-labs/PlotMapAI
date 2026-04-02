@@ -12,7 +12,7 @@ import {
 import { useReaderStatePersistence } from '../hooks/useReaderStatePersistence';
 import { getReaderViewMode, isPagedReaderMode } from '../utils/readerMode';
 import { setReaderPreferencesNovelId } from '../hooks/readerPreferencesStore';
-import { setAppThemeNovelId } from '@app/stores/appThemeStore';
+import { setAppThemeNovelId } from '@shared/stores/appThemeStore';
 
 export interface ReaderSessionSnapshot {
   novelId: number;

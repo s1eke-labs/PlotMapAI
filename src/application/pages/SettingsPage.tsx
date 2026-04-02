@@ -1,13 +1,15 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import AiSettingsPanel from '@domains/settings/components/settings/AiSettingsPanel';
-import PurificationSettingsPanel from '@domains/settings/components/settings/PurificationSettingsPanel';
-import SettingsTabBar from '@domains/settings/components/settings/SettingsTabBar';
-import TocSettingsPanel from '@domains/settings/components/settings/TocSettingsPanel';
-import { usePurificationSettingsManager } from '@domains/settings/hooks/usePurificationSettingsManager';
-import { useTocSettingsManager } from '@domains/settings/hooks/useTocSettingsManager';
-import type { SettingsTabId } from '@domains/settings/utils/settingsPage';
+import {
+  AiSettingsPanel,
+  PurificationSettingsPanel,
+  SettingsTabBar,
+  TocSettingsPanel,
+  usePurificationSettingsManager,
+  useTocSettingsManager,
+  type SettingsTabId,
+} from '@domains/settings';
 
 import { useAiSettingsManager } from '../hooks/useAiSettingsManager';
 

@@ -17,6 +17,9 @@ vi.mock('react-i18next', () => ({
 }));
 
 vi.mock('@domains/library', () => ({
+  BookCard: ({ novel }: { novel: { title: string } }) => (
+    <div data-testid="book-card">{novel.title}</div>
+  ),
   novelRepository: {
     list: vi.fn(),
   },
@@ -24,12 +27,6 @@ vi.mock('@domains/library', () => ({
 
 vi.mock('@app/providers/FileHandlingContext', () => ({
   useFileHandling: () => fileHandlingMock,
-}));
-
-vi.mock('@domains/library/components/BookCard', () => ({
-  default: ({ novel }: { novel: { title: string } }) => (
-    <div data-testid="book-card">{novel.title}</div>
-  ),
 }));
 
 vi.mock('../../components/UploadModal', () => ({

@@ -7,9 +7,11 @@ import { refreshAnalysisOverview } from '@application/use-cases/analysis';
 import { loadCharacterGraphPageData } from '@application/use-cases/library';
 import { appPaths } from '@app/router/paths';
 import { reportAppError } from '@app/debug/service';
+import {
+  CharacterGraphStage,
+  useCharacterGraphCanvas,
+} from '@domains/character-graph';
 import type { CharacterGraphResponse } from '@shared/contracts';
-import CharacterGraphStage from '@domains/character-graph/components/characterGraph/CharacterGraphStage';
-import { useCharacterGraphCanvas } from '@domains/character-graph/hooks/useCharacterGraphCanvas';
 import type { NovelView } from '@domains/library';
 import {
   AppErrorCode,
@@ -203,6 +205,7 @@ export default function CharacterGraphPage() {
     <CharacterGraphStage
       fullscreenRef={fullscreenRef}
       actionMessage={actionBannerMessage}
+      backHref={appPaths.novel(novel.id)}
       canPanCanvas={canvas.canPanCanvas}
       canRefreshOverview={canRefreshOverview}
       focusNodeId={canvas.focusNodeId}
@@ -219,7 +222,6 @@ export default function CharacterGraphPage() {
       layoutMessage={canvas.layoutMessage}
       layoutNodes={canvas.layoutNodes}
       layoutProgress={canvas.layoutProgress}
-      novelId={novel.id}
       novelTitle={novel.title}
       relatedEdges={canvas.relatedEdges}
       selectedNode={canvas.selectedNode}

@@ -1,6 +1,6 @@
 import type { ChapterDetectionRule } from '@shared/text-processing';
 
-import { debugLog } from '@app/debug/service';
+import { debugLog } from '@shared/debug';
 import { db } from '@infra/db';
 import { AppErrorCode, createAppError, toAppError } from '@shared/errors';
 import {

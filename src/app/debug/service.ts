@@ -1,37 +1,29 @@
-import {
-  serializeAppError,
-  toAppError,
-  type SerializedAppError,
-  type ToAppErrorContext,
-} from '@shared/errors';
+export type {
+  DebugEntry,
+  DebugErrorEntry,
+  DebugFeatureFlags,
+  DebugLogEntry,
+} from '@shared/debug';
+export {
+  clearLogs,
+  debugFeatureSubscribe,
+  debugLog,
+  debugSubscribe,
+  getDebugFeatureFlags,
+  getRecentLogs,
+  isDebugFeatureEnabled,
+  isDebugMode,
+  MAX_LOGS,
+  reportAppError,
+  setDebugFeatureEnabled,
+} from '@shared/debug';
 
-const isDebug = import.meta.env.VITE_DEBUG === 'true';
-export const MAX_LOGS = 500;
+import { debugLog, isDebugMode } from '@shared/debug';
+
 export const DEBUG_SHOW_INSTALL_PROMPT_EVENT = 'plotmapai:debug:show-install-prompt';
 export const DEBUG_SHOW_IOS_INSTALL_HINT_EVENT = 'plotmapai:debug:show-ios-install-hint';
 export const DEBUG_SHOW_UPDATE_TOAST_EVENT = 'plotmapai:debug:show-update-toast';
 export const DEBUG_RESET_PWA_PROMPTS_EVENT = 'plotmapai:debug:reset-pwa-prompts';
-
-export interface DebugFeatureFlags {
-  readerTelemetry: boolean;
-}
-
-export interface DebugLogEntry {
-  kind: 'log';
-  time: number;
-  category: string;
-  message: string;
-}
-
-export interface DebugErrorEntry {
-  kind: 'error';
-  time: number;
-  category: string;
-  message: string;
-  error: SerializedAppError;
-}
-
-export type DebugEntry = DebugLogEntry | DebugErrorEntry;
 
 export interface DebugPwaTools {
   showInstallPrompt: () => void;
@@ -40,104 +32,8 @@ export interface DebugPwaTools {
   resetPwaPrompts: () => void;
 }
 
-type LogListener = (entry: DebugEntry) => void;
-type FeatureListener = (flags: DebugFeatureFlags) => void;
-
-const logs: DebugEntry[] = [];
-const listeners = new Set<LogListener>();
-const featureListeners = new Set<FeatureListener>();
-const debugFeatureFlags: DebugFeatureFlags = {
-  readerTelemetry: false,
-};
-
-export function isDebugMode(): boolean {
-  return isDebug;
-}
-
-function pushEntry(entry: DebugEntry): void {
-  logs.push(entry);
-  if (logs.length > MAX_LOGS) logs.splice(0, logs.length - MAX_LOGS);
-  for (const fn of listeners) fn(entry);
-}
-
-export function debugLog(category: string, message: string, ...args: unknown[]): void {
-  if (!isDebug) return;
-  const entry: DebugLogEntry = {
-    kind: 'log',
-    time: Date.now(),
-    category,
-    message: args.length > 0 ? `${message} ${args.map((a) => (typeof a === 'string' ? a : JSON.stringify(a))).join(' ')}` : message,
-  };
-  pushEntry(entry);
-}
-
-export function reportAppError(error: unknown, context: ToAppErrorContext = {}) {
-  const normalized = toAppError(error, context);
-  if (!normalized.debugVisible) {
-    return normalized;
-  }
-
-  const entry: DebugErrorEntry = {
-    kind: 'error',
-    time: Date.now(),
-    category: normalized.source,
-    message: normalized.debugMessage,
-    error: serializeAppError(normalized),
-  };
-
-  pushEntry(entry);
-  return normalized;
-}
-
-export function debugSubscribe(listener: LogListener): () => void {
-  listeners.add(listener);
-  return () => { listeners.delete(listener); };
-}
-
-export function getRecentLogs(): DebugEntry[] {
-  return [...logs];
-}
-
-export function clearLogs(): void {
-  logs.length = 0;
-}
-
-function notifyFeatureListeners(): void {
-  const snapshot = getDebugFeatureFlags();
-  for (const listener of featureListeners) {
-    listener(snapshot);
-  }
-}
-
-export function getDebugFeatureFlags(): DebugFeatureFlags {
-  return {
-    ...debugFeatureFlags,
-  };
-}
-
-export function isDebugFeatureEnabled(flag: keyof DebugFeatureFlags): boolean {
-  return isDebug && debugFeatureFlags[flag];
-}
-
-export function setDebugFeatureEnabled(flag: keyof DebugFeatureFlags, enabled: boolean): void {
-  if (debugFeatureFlags[flag] === enabled) {
-    return;
-  }
-
-  debugFeatureFlags[flag] = enabled;
-  notifyFeatureListeners();
-  debugLog('Debug', `feature ${flag} ${enabled ? 'enabled' : 'disabled'}`);
-}
-
-export function debugFeatureSubscribe(listener: FeatureListener): () => void {
-  featureListeners.add(listener);
-  return () => {
-    featureListeners.delete(listener);
-  };
-}
-
 function dispatchDebugEvent(eventName: string, message: string): void {
-  if (!isDebug || typeof window === 'undefined') {
+  if (!isDebugMode() || typeof window === 'undefined') {
     return;
   }
 
@@ -162,7 +58,7 @@ export function triggerDebugResetPwaPrompts(): void {
 }
 
 export function registerDebugHelpers(): () => void {
-  if (!isDebug || typeof window === 'undefined') {
+  if (!isDebugMode() || typeof window === 'undefined') {
     return () => undefined;
   }
 

@@ -5,8 +5,7 @@ import { novelRepository } from '@domains/library';
 import {
   clearReaderRenderCacheMemoryForNovel,
 } from '@domains/reader';
-import { ensureDefaultTocRules } from '@domains/settings';
-import { tocRuleRepository } from '@domains/settings/tocRuleRepository';
+import { ensureDefaultTocRules, tocRuleRepository } from '@domains/settings';
 import { db } from '@infra/db';
 import { CACHE_KEYS, storage } from '@infra/storage';
 
@@ -37,7 +36,8 @@ vi.mock('@domains/settings', () => ({
   ensureDefaultTocRules: vi.fn(),
 }));
 
-vi.mock('@domains/settings/tocRuleRepository', () => ({
+vi.mock('@domains/settings', () => ({
+  ensureDefaultTocRules: vi.fn(),
   tocRuleRepository: {
     getEnabledChapterDetectionRules: vi.fn(),
   },

@@ -13,20 +13,10 @@ vi.mock('react-i18next', () => ({
   }),
 }));
 
-vi.mock('@domains/settings/hooks/useTocSettingsManager', () => ({
-  useTocSettingsManager: () => ({ kind: 'toc' }),
-}));
-
-vi.mock('@domains/settings/hooks/usePurificationSettingsManager', () => ({
-  usePurificationSettingsManager: () => ({ kind: 'purification' }),
-}));
-
-vi.mock('../../hooks/useAiSettingsManager', () => ({
-  useAiSettingsManager: () => ({ kind: 'ai' }),
-}));
-
-vi.mock('@domains/settings/components/settings/SettingsTabBar', () => ({
-  default: ({
+vi.mock('@domains/settings', () => ({
+  AiSettingsPanel: () => <div>ai-panel</div>,
+  PurificationSettingsPanel: () => <div>purification-panel</div>,
+  SettingsTabBar: ({
     activeTab,
     items,
     onChange,
@@ -48,18 +38,13 @@ vi.mock('@domains/settings/components/settings/SettingsTabBar', () => ({
       ))}
     </div>
   ),
+  TocSettingsPanel: () => <div>toc-panel</div>,
+  usePurificationSettingsManager: () => ({ kind: 'purification' }),
+  useTocSettingsManager: () => ({ kind: 'toc' }),
 }));
 
-vi.mock('@domains/settings/components/settings/TocSettingsPanel', () => ({
-  default: () => <div>toc-panel</div>,
-}));
-
-vi.mock('@domains/settings/components/settings/PurificationSettingsPanel', () => ({
-  default: () => <div>purification-panel</div>,
-}));
-
-vi.mock('@domains/settings/components/settings/AiSettingsPanel', () => ({
-  default: () => <div>ai-panel</div>,
+vi.mock('../../hooks/useAiSettingsManager', () => ({
+  useAiSettingsManager: () => ({ kind: 'ai' }),
 }));
 
 function renderPage() {

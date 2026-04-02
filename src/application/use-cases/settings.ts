@@ -1,4 +1,4 @@
-import type { AiProviderSettings, AiProviderSettingsPayload } from '@domains/settings/types';
+import type { AiProviderSettings, AiProviderSettingsPayload } from '@domains/settings';
 
 import { buildRuntimeAnalysisConfig, testAiProviderConnection } from '@domains/analysis';
 import {
@@ -6,7 +6,7 @@ import {
   getAiConfig,
   getAiProviderSettings,
   saveAiConfig,
-} from '@domains/settings/aiConfigRepository';
+} from '@domains/settings';
 import { DEFAULT_ANALYSIS_PROVIDER_ID } from '@shared/contracts';
 
 function resolveApiKey(

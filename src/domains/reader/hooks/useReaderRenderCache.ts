@@ -10,7 +10,7 @@ import {
   debugFeatureSubscribe,
   debugLog,
   isDebugFeatureEnabled,
-} from '@app/debug/service';
+} from '@shared/debug';
 
 import { clearReaderRenderCacheMemoryForNovel } from '../utils/readerRenderCache';
 import {

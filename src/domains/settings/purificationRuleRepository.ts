@@ -1,4 +1,4 @@
-import { debugLog } from '@app/debug/service';
+import { debugLog } from '@shared/debug';
 import { db } from '@infra/db';
 import { AppErrorCode, createAppError } from '@shared/errors';
 import { dumpYaml, loadYaml } from './services/yaml';

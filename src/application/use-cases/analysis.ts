@@ -1,10 +1,13 @@
-import type { AnalysisExecutionContext } from '@domains/analysis/analysisService';
 import type { AnalysisStatusResponse } from '@shared/contracts';
 
-import { analysisService, buildRuntimeAnalysisConfig } from '@domains/analysis';
+import {
+  analysisService,
+  buildRuntimeAnalysisConfig,
+  type AnalysisExecutionContext,
+} from '@domains/analysis';
 import { novelRepository } from '@domains/library';
 import { loadAndPurifyChapters } from '@domains/reader';
-import { getAiConfig } from '@domains/settings/aiConfigRepository';
+import { getAiConfig } from '@domains/settings';
 
 async function loadAnalysisExecutionContext(novelId: number): Promise<AnalysisExecutionContext> {
   const [storedConfig, novel, chapters] = await Promise.all([

@@ -1,6 +1,6 @@
 import {
   resetAppThemeStoreForTests,
-} from '@app/stores/appThemeStore';
+} from '@shared/stores/appThemeStore';
 import { migrateLegacyReaderStateCacheSnapshot } from '@infra/migrations';
 import { mergeReaderStateCacheSnapshot, readReaderStateCacheSnapshot } from '@infra/storage/readerStateCache';
 import { useStore } from 'zustand';

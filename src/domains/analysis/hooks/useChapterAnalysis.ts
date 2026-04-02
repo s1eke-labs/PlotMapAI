@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { reportAppError } from '@app/debug/service';
+import { reportAppError } from '@shared/debug';
 import type { AnalysisStatusResponse, ChapterAnalysisResult } from '@shared/contracts';
 
 import { AppErrorCode, toAppError } from '@shared/errors';

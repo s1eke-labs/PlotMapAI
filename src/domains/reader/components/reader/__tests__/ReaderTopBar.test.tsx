@@ -17,12 +17,12 @@ function renderTopBar(overrides: Partial<React.ComponentProps<typeof ReaderTopBa
   const renderResult = render(
     <MemoryRouter>
       <ReaderTopBar
+        exitHref="/novel/1"
         readerTheme="parchment"
         headerBgClassName="bg-[#f4ecd8]"
         textClassName="text-[#5b4636]"
         isChromeVisible
         isSidebarOpen={false}
-        novelId={1}
         viewMode="original"
         onMobileBack={onMobileBack}
         onToggleSidebar={vi.fn()}

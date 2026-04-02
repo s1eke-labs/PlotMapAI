@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { analysisService, buildRuntimeAnalysisConfig } from '@domains/analysis';
 import { novelRepository } from '@domains/library';
 import { loadAndPurifyChapters } from '@domains/reader';
-import { getAiConfig } from '@domains/settings/aiConfigRepository';
+import { getAiConfig } from '@domains/settings';
 
 import { startNovelAnalysis } from '../analysis';
 
@@ -24,7 +24,7 @@ vi.mock('@domains/reader', () => ({
   loadAndPurifyChapters: vi.fn(),
 }));
 
-vi.mock('@domains/settings/aiConfigRepository', () => ({
+vi.mock('@domains/settings', () => ({
   getAiConfig: vi.fn(),
 }));
 

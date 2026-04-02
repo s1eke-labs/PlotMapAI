@@ -5,7 +5,6 @@ import type { ReaderImageViewerProps } from '../../components/reader/ReaderImage
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 
-import { appPaths } from '@app/router/paths';
 import {
   ReaderImageViewer,
   ReaderSidebar,
@@ -17,6 +16,7 @@ import { translateAppError } from '@shared/errors';
 import { cn } from '@shared/utils/cn';
 
 interface ReaderPageLayoutProps {
+  backHref: string;
   imageViewerProps: ReaderImageViewerProps;
   pageBgClassName: string;
   readerError: AppError | null;
@@ -24,10 +24,10 @@ interface ReaderPageLayoutProps {
   toolbarProps?: ComponentProps<typeof ReaderToolbar>;
   topBarProps: ComponentProps<typeof ReaderTopBar>;
   viewportProps: ComponentProps<typeof ReaderViewport>;
-  novelId: number;
 }
 
 export default function ReaderPageLayout({
+  backHref,
   imageViewerProps,
   pageBgClassName,
   readerError,
@@ -35,7 +35,6 @@ export default function ReaderPageLayout({
   toolbarProps,
   topBarProps,
   viewportProps,
-  novelId,
 }: ReaderPageLayoutProps) {
   const { t } = useTranslation();
 
@@ -55,7 +54,7 @@ export default function ReaderPageLayout({
               {t('common.actions.retry')}
             </button>
             <Link
-              to={appPaths.novel(novelId)}
+              to={backHref}
               className="rounded-xl border border-border-color/30 px-4 py-2.5 text-sm font-medium text-text-primary transition-colors hover:bg-white/5"
             >
               {t('reader.goBack')}

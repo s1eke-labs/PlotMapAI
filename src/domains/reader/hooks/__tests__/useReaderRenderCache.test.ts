@@ -172,7 +172,7 @@ const renderCacheMock = vi.hoisted(() => {
   };
 });
 
-vi.mock('@app/debug/service', () => ({
+vi.mock('@shared/debug', () => ({
   debugFeatureSubscribe: debugFeatureState.subscribe,
   debugLog: debugLogMock,
   isDebugFeatureEnabled: debugFeatureState.isEnabled,

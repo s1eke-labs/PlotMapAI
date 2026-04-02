@@ -4,7 +4,7 @@ import { UploadCloud, FileText, Loader2 } from 'lucide-react';
 
 import { importBookAndRefreshLibrary } from '@application/use-cases/library';
 import { reportAppError } from '@app/debug/service';
-import type { BookImportProgress } from '@domains/book-import/services/progress';
+import type { BookImportProgress } from '@domains/book-import';
 import {
   AppErrorCode,
   createAppError,

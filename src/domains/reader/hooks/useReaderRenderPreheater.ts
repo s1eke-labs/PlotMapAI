@@ -12,7 +12,7 @@ import type {
 } from './readerRenderCacheTypes';
 
 import { useEffect, useRef, useState } from 'react';
-import { debugLog } from '@app/debug/service';
+import { debugLog } from '@shared/debug';
 
 import {
   createChapterContentHash,

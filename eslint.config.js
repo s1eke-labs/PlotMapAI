@@ -54,7 +54,7 @@ export default defineConfig([
     },
   },
   {
-    files: ['src/app/**/*.{ts,tsx}', 'src/domains/**/*.{ts,tsx}'],
+    files: ['src/app/**/*.{ts,tsx}', 'src/application/**/*.{ts,tsx}'],
     rules: {
       'no-restricted-imports': [
         'error',
@@ -62,7 +62,7 @@ export default defineConfig([
           patterns: [
             {
               group: ['@domains/*/*'],
-              message: 'Import other domains only via @domains/<domain>.',
+              message: 'Import domains only via @domains/<domain>.',
             },
           ],
         },
@@ -76,6 +76,10 @@ export default defineConfig([
         'error',
         {
           patterns: [
+            {
+              group: ['@app/*', '@app/*/*'],
+              message: 'domain code must not depend on app code.',
+            },
             {
               group: ['@application/*', '@application/*/*'],
               message: 'domain code must not depend on application code.',

@@ -1,5 +1,5 @@
 import type { ParsedBook } from './bookParser';
-import { debugLog } from '@app/debug/service';
+import { debugLog } from '@shared/debug';
 import type { WorkerTaskOptions } from '@infra/workers';
 import { runParseTxtTask } from '@shared/text-processing';
 import type { ChapterDetectionRule, ParsedTextDocument } from '@shared/text-processing';

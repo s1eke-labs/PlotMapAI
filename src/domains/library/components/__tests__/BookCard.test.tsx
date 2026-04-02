@@ -44,7 +44,7 @@ describe('BookCard', () => {
     const novel = { ...mockNovel, hasCover: true };
     render(
       <MemoryRouter>
-        <BookCard novel={novel} />
+        <BookCard detailHref="/novel/1" novel={novel} />
       </MemoryRouter>,
     );
 
@@ -57,7 +57,7 @@ describe('BookCard', () => {
     const novel = { ...mockNovel, author: '' };
     render(
       <MemoryRouter>
-        <BookCard novel={novel} />
+        <BookCard detailHref="/novel/1" novel={novel} />
       </MemoryRouter>,
     );
 
@@ -69,7 +69,7 @@ describe('BookCard', () => {
   it('links to the novel detail page', () => {
     render(
       <MemoryRouter>
-        <BookCard novel={mockNovel} />
+        <BookCard detailHref="/novel/1" novel={mockNovel} />
       </MemoryRouter>,
     );
 
@@ -79,7 +79,7 @@ describe('BookCard', () => {
   it('uses touch-friendly mobile classes while keeping the desktop hover overlay available', () => {
     render(
       <MemoryRouter>
-        <BookCard novel={mockNovel} />
+        <BookCard detailHref="/novel/1" novel={mockNovel} />
       </MemoryRouter>,
     );
 
