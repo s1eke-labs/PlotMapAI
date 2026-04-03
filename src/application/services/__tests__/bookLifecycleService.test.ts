@@ -175,7 +175,10 @@ describe('bookLifecycleService', () => {
       updatedAt: new Date().toISOString(),
       expiresAt: new Date(Date.now() + 60_000).toISOString(),
     });
-    storage.cache.set(CACHE_KEYS.readerState(novelId), { chapterIndex: 0, mode: 'summary' });
+    storage.cache.set(CACHE_KEYS.readerBootstrap(novelId), {
+      version: 1,
+      state: { chapterIndex: 0, mode: 'summary' },
+    });
 
     await bookLifecycleService.deleteNovel(novelId);
 
@@ -188,6 +191,6 @@ describe('bookLifecycleService', () => {
     await expect(db.chapterAnalyses.count()).resolves.toBe(0);
     await expect(db.readingProgress.count()).resolves.toBe(0);
     await expect(db.readerRenderCache.count()).resolves.toBe(0);
-    expect(storage.cache.getJson(CACHE_KEYS.readerState(novelId))).toBeNull();
+    expect(storage.cache.getJson(CACHE_KEYS.readerBootstrap(novelId))).toBeNull();
   });
 });

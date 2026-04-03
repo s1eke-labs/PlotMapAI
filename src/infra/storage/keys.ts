@@ -1,23 +1,13 @@
 export const APP_SETTING_KEYS = {
   aiConfig: 'app.aiConfig',
-  appTheme: 'app.theme',
-  readerTheme: 'reader.theme',
-  readerPageTurnMode: 'reader.pageTurnMode',
-  readerFontSize: 'reader.fontSize',
-  readerLineSpacing: 'reader.lineSpacing',
-  readerParagraphSpacing: 'reader.paragraphSpacing',
+  readerPreferences: 'reader.preferences',
 } as const;
 
 export const CACHE_KEYS = {
-  theme: 'theme',
-  readerTheme: 'readerTheme',
-  readerPageTurnMode: 'readerPageTurnMode',
-  readerFontSize: 'readerFontSize',
-  readerLineSpacing: 'readerLineSpacing',
-  readerParagraphSpacing: 'readerParagraphSpacing',
+  readerPreferences: 'reader-preferences',
   installPromptDismissedAt: 'plotmapai_install_prompt_dismissed_at',
   updatePromptDismissed: 'plotmapai_update_prompt_dismissed',
-  readerState: (novelId: number) => `reader-state:${novelId}`,
+  readerBootstrap: (novelId: number) => `reader-bootstrap:${novelId}`,
 } as const;
 
 export const SECURE_KEYS = {

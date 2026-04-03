@@ -81,7 +81,15 @@ describe('Layout component', () => {
   });
 
   it('syncs theme-color to the active reader background in reader mode', async () => {
-    storage.cache.set(CACHE_KEYS.readerTheme, 'night');
+    storage.cache.set(CACHE_KEYS.readerPreferences, {
+      version: 1,
+      appTheme: 'light',
+      readerTheme: 'night',
+      pageTurnMode: 'scroll',
+      fontSize: 18,
+      lineSpacing: 1.8,
+      paragraphSpacing: 16,
+    });
 
     render(
       <MemoryRouter initialEntries={['/novel/1/read']}>

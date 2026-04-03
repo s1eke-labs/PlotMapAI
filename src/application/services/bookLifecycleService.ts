@@ -15,8 +15,8 @@ import {
 import { clearReaderImageResourcesForNovel } from '@domains/reader-media';
 import { deleteReadingProgress } from '@domains/reader-session';
 import type { ChapterDetectionRule } from '@shared/text-processing';
-import { CACHE_KEYS, storage } from '@infra/storage';
 import { db } from '@infra/db';
+import { clearReaderBootstrapSnapshot } from '@infra/storage/readerStateCache';
 
 function getRequiredTransaction(): Transaction {
   const transaction = Dexie.currentTransaction;
@@ -69,7 +69,7 @@ export const bookLifecycleService = {
       },
     );
 
-    storage.cache.remove(CACHE_KEYS.readerState(novelId));
+    clearReaderBootstrapSnapshot(novelId);
     return novelRepository.get(novelId);
   },
 
@@ -105,7 +105,7 @@ export const bookLifecycleService = {
     clearNovelCoverResourcesForNovel(novelId);
     clearReaderRenderCacheMemoryForNovel(novelId);
     clearReaderImageResourcesForNovel(novelId);
-    storage.cache.remove(CACHE_KEYS.readerState(novelId));
+    clearReaderBootstrapSnapshot(novelId);
 
     return { message: 'Novel deleted' };
   },

@@ -21,10 +21,8 @@ import {
   useReaderPersistenceRuntime,
   useReaderViewportContext,
 } from '@shared/reader-runtime';
-import { flushAppThemePersistence, setAppThemeNovelId } from '@shared/stores/appThemeStore';
 import {
   flushReaderPreferencesPersistence,
-  setReaderPreferencesNovelId,
 } from '../../hooks/readerPreferencesStore';
 import { flushPersistence } from '@domains/reader-session';
 
@@ -44,13 +42,8 @@ interface ReaderContextProviderProps {
   value: ReaderContextValue;
 }
 
-function ReaderPersistenceBoundary({ novelId, children }: ReaderProviderProps) {
+function ReaderPersistenceBoundary({ children }: ReaderProviderProps) {
   const persistence = useReaderPersistenceRuntime();
-
-  useEffect(() => {
-    setReaderPreferencesNovelId(novelId);
-    setAppThemeNovelId(novelId);
-  }, [novelId]);
 
   useEffect(() => {
     const flushReaderPersistence = async (): Promise<void> => {
@@ -58,7 +51,6 @@ function ReaderPersistenceBoundary({ novelId, children }: ReaderProviderProps) {
       await Promise.all([
         flushPersistence(),
         flushReaderPreferencesPersistence(),
-        flushAppThemePersistence(),
       ]).catch(() => undefined);
     };
 

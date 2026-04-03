@@ -1,19 +1,15 @@
-import {
-  resetAppThemeStoreForTests,
-} from '@shared/stores/appThemeStore';
-import {
-  createPersistedRuntime,
-} from '@shared/stores/persistence/createPersistedRuntime';
-import { mergeReaderStateCacheSnapshot, readReaderStateCacheSnapshot } from '@infra/storage/readerStateCache';
-import {
-  resetReaderPreferencesStoreForTests,
-} from '@domains/reader-shell/hooks/readerPreferencesStore';
 import { useStore } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
 import { createStore, type StoreApi } from 'zustand/vanilla';
 
 import type { ReaderPageTurnMode } from '@shared/contracts/reader/preferences';
 import { isPagedPageTurnMode } from '@shared/contracts/reader/preferences';
+import {
+  createPersistedRuntime,
+} from '@shared/stores/persistence/createPersistedRuntime';
+import {
+  resetReaderPreferenceStoreForTests,
+} from '@shared/stores/readerPreferenceStore';
 import {
   createRestoreTargetFromPersistedState,
   shouldKeepReaderRestoreMask,
@@ -31,11 +27,14 @@ import type {
   StoredReaderState,
 } from '@shared/contracts/reader';
 import {
+  readReaderBootstrapSnapshot,
+  writeReaderBootstrapSnapshot,
+} from '@infra/storage/readerStateCache';
+import {
   buildStoredReaderState,
   clampChapterProgress,
   mergeStoredReaderState,
   resolveModeFromStoredState,
-  sanitizeStoredReaderState,
 } from './state';
 import {
   readReadingProgress,
@@ -91,12 +90,12 @@ function readLocalSessionState(novelId: number): StoredReaderState | null {
     return null;
   }
 
-  const parsed = readReaderStateCacheSnapshot(novelId);
-  if (!parsed) {
+  const snapshot = readReaderBootstrapSnapshot(novelId);
+  if (!snapshot) {
     return null;
   }
 
-  return sanitizeStoredReaderState(parsed);
+  return buildStoredReaderState(snapshot.state);
 }
 
 function shouldMaskRestore(target: ReaderRestoreTarget | null | undefined): boolean {
@@ -162,7 +161,7 @@ function writeReaderSessionCache(state: ReaderSessionInternalState): void {
     return;
   }
 
-  mergeReaderStateCacheSnapshot(state.novelId, toStoredReaderState(state));
+  writeReaderBootstrapSnapshot(state.novelId, toStoredReaderState(state));
 }
 
 async function persistRemoteReaderSession(state: ReaderSessionInternalState): Promise<void> {
@@ -192,8 +191,7 @@ const readerSessionRuntime = createPersistedRuntime<ReaderSessionInternalState>(
   onReset: () => {
     sessionHydrationEpoch += 1;
     lastSyncedRemoteSnapshot = '';
-    resetReaderPreferencesStoreForTests();
-    resetAppThemeStoreForTests();
+    resetReaderPreferenceStoreForTests();
   },
   persist: persistRemoteReaderSession,
   persistDelayMs: READER_STATE_SYNC_DELAY_MS,

@@ -2,7 +2,6 @@ import type { ReaderPageTurnMode } from '../constants/pageTurnMode';
 
 import { useCallback, useEffect, useMemo } from 'react';
 import {
-  ensureReaderAppearanceHydrated,
   useReaderAppearanceSelector,
 } from '@shared/stores/readerAppearanceStore';
 
@@ -40,14 +39,7 @@ export interface UseReaderPreferencesResult {
 
 export function useReaderPreferences(): UseReaderPreferencesResult {
   useEffect(() => {
-    const hydratePreferences = async () => {
-      await Promise.all([
-        ensureReaderAppearanceHydrated(),
-        ensureReaderPreferencesHydrated(),
-      ]);
-    };
-
-    hydratePreferences().catch(() => undefined);
+    ensureReaderPreferencesHydrated().catch(() => undefined);
   }, []);
 
   const fontSize = useReaderPreferencesSelector((state) => state.fontSize);

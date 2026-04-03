@@ -3,7 +3,10 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ThemeProvider } from '@app/providers/ThemeContext';
 import { resetAppThemeStoreForTests } from '@app/stores/appThemeStore';
+import { CACHE_KEYS, storage } from '@infra/storage';
 import ThemeToggle from '../ThemeToggle';
+
+const LEGACY_THEME_CACHE_KEY = 'theme';
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -30,12 +33,29 @@ describe('ThemeToggle', () => {
     await user.click(button);
 
     expect(button).toHaveAttribute('title', 'common.theme.light');
-    expect(localStorage.getItem('theme')).toBe('dark');
+    expect(storage.cache.getJson(CACHE_KEYS.readerPreferences)).toEqual({
+      version: 1,
+      appTheme: 'dark',
+      readerTheme: 'auto',
+      pageTurnMode: 'scroll',
+      fontSize: 18,
+      lineSpacing: 1.8,
+      paragraphSpacing: 16,
+    });
+    expect(localStorage.getItem(LEGACY_THEME_CACHE_KEY)).toBeNull();
     expect(document.documentElement.classList.contains('dark')).toBe(true);
   });
 
   it('honors a persisted dark theme and toggles back to light', async () => {
-    localStorage.setItem('theme', 'dark');
+    storage.cache.set(CACHE_KEYS.readerPreferences, {
+      version: 1,
+      appTheme: 'dark',
+      readerTheme: 'auto',
+      pageTurnMode: 'scroll',
+      fontSize: 18,
+      lineSpacing: 1.8,
+      paragraphSpacing: 16,
+    });
     resetAppThemeStoreForTests();
     const user = userEvent.setup();
 
@@ -51,7 +71,15 @@ describe('ThemeToggle', () => {
     await user.click(button);
 
     expect(button).toHaveAttribute('title', 'common.theme.dark');
-    expect(localStorage.getItem('theme')).toBe('light');
+    expect(storage.cache.getJson(CACHE_KEYS.readerPreferences)).toEqual({
+      version: 1,
+      appTheme: 'light',
+      readerTheme: 'auto',
+      pageTurnMode: 'scroll',
+      fontSize: 18,
+      lineSpacing: 1.8,
+      paragraphSpacing: 16,
+    });
     expect(document.documentElement.classList.contains('dark')).toBe(false);
   });
 });

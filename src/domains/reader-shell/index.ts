@@ -12,5 +12,4 @@ export {
   getReaderPreferencesSnapshot,
   hasConfiguredReaderPageTurnMode,
   resetReaderPreferencesStoreForTests,
-  setReaderPreferencesNovelId,
 } from './hooks/readerPreferencesStore';

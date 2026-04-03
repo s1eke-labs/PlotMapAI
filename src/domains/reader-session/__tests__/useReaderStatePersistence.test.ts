@@ -3,18 +3,22 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import { db } from '@infra/db';
 import {
-  mergeReaderStateCacheSnapshot,
-  readReaderStateCacheSnapshot,
+  CACHE_KEYS,
+  storage,
+} from '@infra/storage';
+import {
+  readReaderBootstrapSnapshot,
+  writeReaderBootstrapSnapshot,
 } from '@infra/storage/readerStateCache';
 
 import { resetReaderSessionStoreForTests } from '../sessionStore';
 import { useReaderStatePersistence } from '../useReaderStatePersistence';
 
-function seedReaderStateCache(
+function seedReaderBootstrapSnapshot(
   novelId: number,
-  state: Record<string, unknown>,
+  state: Parameters<typeof writeReaderBootstrapSnapshot>[1],
 ): void {
-  mergeReaderStateCacheSnapshot(novelId, state);
+  writeReaderBootstrapSnapshot(novelId, state);
 }
 
 describe('useReaderStatePersistence', () => {
@@ -40,7 +44,7 @@ describe('useReaderStatePersistence', () => {
   });
 
   it('reads stored state from localStorage', () => {
-    seedReaderStateCache(42, {
+    seedReaderBootstrapSnapshot(42, {
       chapterIndex: 5,
       mode: 'summary',
       lastContentMode: 'paged',
@@ -64,16 +68,20 @@ describe('useReaderStatePersistence', () => {
     });
   });
 
-  it('filters invalid fields in stored state', () => {
-    seedReaderStateCache(1, {
-      chapterIndex: 'not-a-number',
-      mode: 'invalid',
-      lastContentMode: 'summary',
+  it('ignores an invalid bootstrap snapshot', () => {
+    storage.cache.set(CACHE_KEYS.readerBootstrap(1), {
+      version: 1,
+      state: {
+        chapterIndex: 'not-a-number',
+        mode: 'invalid',
+        lastContentMode: 'summary',
+      },
     });
 
     const { result } = renderHook(() => useReaderStatePersistence(1));
 
-    expect(result.current.initialStoredState).toEqual({
+    expect(result.current.initialStoredState).toBeNull();
+    expect(result.current.latestReaderStateRef.current).toEqual({
       chapterIndex: 0,
       mode: 'scroll',
       chapterProgress: undefined,
@@ -107,16 +115,17 @@ describe('useReaderStatePersistence', () => {
       locator: undefined,
     });
 
-    expect(readReaderStateCacheSnapshot(1)).toMatchObject({
+    expect(readReaderBootstrapSnapshot(1)?.state).toEqual({
       chapterIndex: 7,
       mode: 'summary',
       lastContentMode: 'scroll',
+      locator: undefined,
+      chapterProgress: undefined,
     });
-    expect(readReaderStateCacheSnapshot(1)).not.toHaveProperty('chapterProgress');
   });
 
   it('prefers Dexie progress over the cache snapshot during hydration', async () => {
-    seedReaderStateCache(1, {
+    seedReaderBootstrapSnapshot(1, {
       chapterIndex: 4,
       mode: 'summary',
       lastContentMode: 'paged',
@@ -147,7 +156,7 @@ describe('useReaderStatePersistence', () => {
   });
 
   it('treats the locator chapter as authoritative for initial stored state', () => {
-    seedReaderStateCache(1, {
+    seedReaderBootstrapSnapshot(1, {
       chapterIndex: 10,
       mode: 'scroll',
       locator: {
@@ -175,7 +184,7 @@ describe('useReaderStatePersistence', () => {
   });
 
   it('clears a stale locator when a chapter jump persists a new chapter index', () => {
-    seedReaderStateCache(1, {
+    seedReaderBootstrapSnapshot(1, {
       chapterIndex: 0,
       mode: 'scroll',
       locator: {
@@ -203,12 +212,13 @@ describe('useReaderStatePersistence', () => {
       locator: undefined,
     });
 
-    expect(readReaderStateCacheSnapshot(1)).toMatchObject({
+    expect(readReaderBootstrapSnapshot(1)?.state).toEqual({
       chapterIndex: 1,
       mode: 'scroll',
+      chapterProgress: undefined,
       lastContentMode: 'scroll',
+      locator: undefined,
     });
-    expect(readReaderStateCacheSnapshot(1)).not.toHaveProperty('locator');
   });
 
   it('marks user interaction', () => {
@@ -230,7 +240,7 @@ describe('useReaderStatePersistence', () => {
       result.current.persistReaderState({ chapterIndex: 1 });
     });
 
-    expect(readReaderStateCacheSnapshot(0)).toBeNull();
+    expect(readReaderBootstrapSnapshot(0)).toBeNull();
   });
 
   it('does not carry the previous novel state into a new novel before hydration', () => {
@@ -247,10 +257,12 @@ describe('useReaderStatePersistence', () => {
       });
     });
 
-    expect(readReaderStateCacheSnapshot(1)).toMatchObject({
+    expect(readReaderBootstrapSnapshot(1)?.state).toEqual({
       chapterIndex: 3,
       mode: 'summary',
       chapterProgress: 0.65,
+      lastContentMode: 'scroll',
+      locator: undefined,
     });
 
     act(() => {
@@ -273,6 +285,6 @@ describe('useReaderStatePersistence', () => {
       });
     });
 
-    expect(readReaderStateCacheSnapshot(2)).toBeNull();
+    expect(readReaderBootstrapSnapshot(2)).toBeNull();
   });
 });
