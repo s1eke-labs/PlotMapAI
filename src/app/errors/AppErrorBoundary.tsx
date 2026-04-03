@@ -2,8 +2,8 @@ import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { AlertTriangle, ArrowLeft, Home, RefreshCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { appPaths } from '@app/router/paths';
+import { reportAppError } from '@shared/debug';
 import { AppErrorCode, getErrorPresentation, toAppError, type AppError } from '@shared/errors';
-import { reportAppError } from '@app/debug/service';
 
 interface AppErrorBoundaryProps {
   children: ReactNode;

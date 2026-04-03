@@ -3,23 +3,24 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 describe('debug', () => {
   beforeEach(() => {
     vi.resetModules();
+    delete window.PlotMapAIDebug;
   });
 
   it('isDebugMode returns false when VITE_DEBUG is not set', async () => {
     vi.stubEnv('VITE_DEBUG', '');
-    const mod = await import('../service');
+    const mod = await import('@shared/debug');
     expect(mod.isDebugMode()).toBe(false);
   });
 
   it('isDebugMode returns true when VITE_DEBUG is "true"', async () => {
     vi.stubEnv('VITE_DEBUG', 'true');
-    const mod = await import('../service');
+    const mod = await import('@shared/debug');
     expect(mod.isDebugMode()).toBe(true);
   });
 
   it('debugLog is a no-op when not in debug mode', async () => {
     vi.stubEnv('VITE_DEBUG', '');
-    const mod = await import('../service');
+    const mod = await import('@shared/debug');
     mod.clearLogs();
     mod.debugLog('Test', 'should not log');
     expect(mod.getRecentLogs()).toHaveLength(0);
@@ -27,7 +28,7 @@ describe('debug', () => {
 
   it('debugLog adds entries and notifies listeners when in debug mode', async () => {
     vi.stubEnv('VITE_DEBUG', 'true');
-    const mod = await import('../service');
+    const mod = await import('@shared/debug');
     mod.clearLogs();
 
     const listener = vi.fn();
@@ -51,7 +52,7 @@ describe('debug', () => {
 
   it('clearLogs removes all entries', async () => {
     vi.stubEnv('VITE_DEBUG', 'true');
-    const mod = await import('../service');
+    const mod = await import('@shared/debug');
     mod.clearLogs();
     mod.debugLog('A', '1');
     mod.debugLog('B', '2');
@@ -62,13 +63,13 @@ describe('debug', () => {
 
   it('MAX_LOGS is exported and is a positive number', async () => {
     vi.stubEnv('VITE_DEBUG', '');
-    const mod = await import('../service');
+    const mod = await import('@shared/debug');
     expect(mod.MAX_LOGS).toBeGreaterThan(0);
   });
 
   it('debug feature flags default to disabled', async () => {
     vi.stubEnv('VITE_DEBUG', 'true');
-    const mod = await import('../service');
+    const mod = await import('@shared/debug');
     expect(mod.getDebugFeatureFlags()).toEqual({
       readerTelemetry: false,
     });
@@ -77,7 +78,7 @@ describe('debug', () => {
 
   it('setDebugFeatureEnabled updates feature flags and notifies subscribers', async () => {
     vi.stubEnv('VITE_DEBUG', 'true');
-    const mod = await import('../service');
+    const mod = await import('@shared/debug');
     const listener = vi.fn();
     const unsubscribe = mod.debugFeatureSubscribe(listener);
 
@@ -93,10 +94,10 @@ describe('debug', () => {
     expect(listener).toHaveBeenCalledTimes(1);
   });
 
-  it('registerDebugHelpers exposes window debug methods in debug mode', async () => {
+  it('registerPwaDebugTools exposes window debug methods in debug mode', async () => {
     vi.stubEnv('VITE_DEBUG', 'true');
-    const mod = await import('../service');
-    const cleanup = mod.registerDebugHelpers();
+    const mod = await import('../pwaDebugTools');
+    const cleanup = mod.registerPwaDebugTools();
 
     expect(window.PlotMapAIDebug).toBeDefined();
     expect(typeof window.PlotMapAIDebug?.showInstallPrompt).toBe('function');

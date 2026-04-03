@@ -3,8 +3,8 @@ import { useTranslation } from 'react-i18next';
 import { UploadCloud, FileText, Loader2 } from 'lucide-react';
 
 import { importBookAndRefreshLibrary } from '@application/use-cases/library';
-import { reportAppError } from '@app/debug/service';
 import type { BookImportProgress } from '@domains/book-import';
+import { reportAppError } from '@shared/debug';
 import {
   AppErrorCode,
   createAppError,

@@ -3,7 +3,7 @@ import type { AppError } from '@shared/errors';
 import { useCallback, useState } from 'react';
 
 import { deleteNovelAndCleanupArtifacts } from '@application/use-cases/library';
-import { reportAppError } from '@app/debug/service';
+import { reportAppError } from '@shared/debug';
 import { AppErrorCode, toAppError } from '@shared/errors';
 
 import type { BookDetailDeleteFlow } from './types';

@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ThemeProvider } from '@app/providers/ThemeContext';
-import { resetAppThemeStoreForTests } from '@app/stores/appThemeStore';
+import { resetAppThemeStoreForTests } from '@shared/stores/appThemeStore';
 import { CACHE_KEYS, storage } from '@infra/storage';
 import ThemeToggle from '../ThemeToggle';
 

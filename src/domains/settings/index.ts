@@ -14,6 +14,13 @@ export { default as PurificationSettingsPanel } from './components/settings/Puri
 export { default as SettingsTabBar } from './components/settings/SettingsTabBar';
 export { default as TocSettingsPanel } from './components/settings/TocSettingsPanel';
 export {
+  type AiSettingsManagerActions,
+  type AiSettingsManager,
+} from './settingsManagers';
+export {
+  useAiSettingsManager,
+} from './hooks/useAiSettingsManager';
+export {
   type PurificationSettingsManager,
   usePurificationSettingsManager,
 } from './hooks/usePurificationSettingsManager';
@@ -21,7 +28,6 @@ export {
   type TocSettingsManager,
   useTocSettingsManager,
 } from './hooks/useTocSettingsManager';
-export type { AiSettingsManager } from './settingsManagers';
 export type {
   AiProviderSettings,
   AiProviderSettingsPayload,

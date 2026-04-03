@@ -4,11 +4,11 @@ import { AnimatePresence, motion } from 'motion/react';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import { useTranslation } from 'react-i18next';
 import { CACHE_KEYS, storage } from '@infra/storage';
+import { debugLog } from '@shared/debug';
 import {
   DEBUG_RESET_PWA_PROMPTS_EVENT,
   DEBUG_SHOW_UPDATE_TOAST_EVENT,
-  debugLog,
-} from '../debug/service';
+} from '../debug/pwaDebugTools';
 
 const UPDATE_PROMPT_COOLDOWN_MS = 12 * 60 * 60 * 1000;
 const TOAST_BACKDROP_TRANSITION = {

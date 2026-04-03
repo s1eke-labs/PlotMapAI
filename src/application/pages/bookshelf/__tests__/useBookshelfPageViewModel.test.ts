@@ -5,7 +5,7 @@ import { novelRepository } from '@domains/library';
 
 import { useBookshelfPageViewModel } from '../useBookshelfPageViewModel';
 
-vi.mock('@app/debug/service', () => ({
+vi.mock('@shared/debug', () => ({
   reportAppError: vi.fn(),
 }));
 

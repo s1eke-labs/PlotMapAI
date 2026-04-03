@@ -1,7 +1,7 @@
 import type { AppError } from '@shared/errors';
 
-import { reportAppError } from '@app/debug/service';
 import { resetDatabaseForRecovery } from '@infra/db';
+import { reportAppError } from '@shared/debug';
 import { AppErrorCode, isAppError } from '@shared/errors';
 
 import { initializeApp } from './initializeApp';

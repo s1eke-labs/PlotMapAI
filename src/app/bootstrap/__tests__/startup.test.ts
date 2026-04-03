@@ -12,7 +12,7 @@ vi.mock('../initializeApp', () => ({
   initializeApp: mockInitializeApp,
 }));
 
-vi.mock('@app/debug/service', () => ({
+vi.mock('@shared/debug', () => ({
   reportAppError: mockReportAppError,
 }));
 

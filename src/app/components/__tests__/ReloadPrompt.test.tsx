@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 
 import ReloadPrompt from '../ReloadPrompt';
 import { __resetRegisterSwState, __setRegisterSwState } from '@test/mocks/pwaRegisterReact';
-import { DEBUG_SHOW_UPDATE_TOAST_EVENT } from '@app/debug/service';
+import { DEBUG_SHOW_UPDATE_TOAST_EVENT } from '@app/debug/pwaDebugTools';
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({

@@ -5,7 +5,7 @@ import { deleteNovelAndCleanupArtifacts } from '@application/use-cases/library';
 
 import { useBookDetailDeleteFlow } from '../useBookDetailDeleteFlow';
 
-vi.mock('@app/debug/service', () => ({
+vi.mock('@shared/debug', () => ({
   reportAppError: vi.fn(),
 }));
 

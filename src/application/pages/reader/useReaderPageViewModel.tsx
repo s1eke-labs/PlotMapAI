@@ -1,32 +1,60 @@
-import type { ReaderPageTurnMode } from '../../constants/pageTurnMode';
+import type { MouseEvent } from 'react';
+import type { ReaderPageViewModel } from './types';
+import type { ReaderAnalysisBridgeController, ReaderPageTurnMode } from '@domains/reader-shell';
 
 import { useCallback, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+
+import { analyzeChapter } from '@application/use-cases/analysis';
+import { appPaths } from '@app/router/paths';
+import { ChapterAnalysisPanel, analysisService } from '@domains/analysis';
+import { useReaderChapterData } from '@domains/reader-content';
+import {
+  useContentClick,
+  useReaderInput,
+  useReaderMobileBack,
+  useSidebarDrag,
+} from '@domains/reader-interaction';
+import { useReaderLayoutController } from '@domains/reader-layout-engine';
+import { useReaderPageImageOverlay } from '@domains/reader-media';
+import {
+  useReaderAnalysisBridge,
+  useReaderPreferences,
+} from '@domains/reader-shell';
+import {
+  useReaderRestoreController,
+  useReaderSession,
+} from '@domains/reader-session';
 import { useReaderViewportContext } from '@shared/reader-runtime';
 import { resolveContentModeFromPageTurnMode } from '@shared/utils/readerMode';
 
-import { useReaderChapterData } from '@domains/reader-content';
-import { useContentClick, useReaderInput, useReaderMobileBack, useSidebarDrag } from '@domains/reader-interaction';
-import { useReaderLayoutController } from '@domains/reader-layout-engine';
-import { useReaderPageImageOverlay } from '@domains/reader-media';
-import { useReaderRestoreController, useReaderSession } from '@domains/reader-session';
+const readerAnalysisController: ReaderAnalysisBridgeController = {
+  analyzeChapter,
+  getChapterAnalysis: analysisService.getChapterAnalysis,
+  getStatus: analysisService.getStatus,
+  renderSummaryPanel: ({
+    analysis,
+    isAnalyzingChapter,
+    isLoading,
+    job,
+    novelId,
+    onAnalyzeChapter,
+  }) => (
+    <ChapterAnalysisPanel
+      analysis={analysis}
+      job={job}
+      isLoading={isLoading}
+      onAnalyzeChapter={onAnalyzeChapter}
+      isAnalyzingChapter={isAnalyzingChapter}
+      progressHref={appPaths.novel(novelId)}
+      settingsHref={appPaths.settings()}
+    />
+  ),
+};
 
-import { useReaderPreferences } from '../../hooks/useReaderPreferences';
-import { useReaderAnalysisBridge } from '../../reader-analysis-bridge';
-import ReaderPageLayout from './ReaderPageLayout';
-
-interface ReaderPageContainerProps {
-  analysisController: import('../../reader-analysis-bridge').ReaderAnalysisBridgeController;
-  novelId: number;
-  novelDetailHref: string;
-}
-
-export default function ReaderPageContainer({
-  analysisController,
-  novelId,
-  novelDetailHref,
-}: ReaderPageContainerProps) {
+export function useReaderPageViewModel(novelId: number): ReaderPageViewModel {
   const { t } = useTranslation();
+  const novelDetailHref = appPaths.novel(novelId);
   const { contentRef } = useReaderViewportContext();
   const pageTurnLockedRef = useRef(false);
   const wheelDeltaRef = useRef(0);
@@ -39,21 +67,21 @@ export default function ReaderPageContainer({
     viewMode,
   } = sessionSnapshot;
   const [chapterContentVersion, setChapterContentVersion] = useState(0);
-  const handleChapterContentResolved = useCallback(() => {
+  const handleChapterContentResolved = useCallback((): void => {
     setChapterContentVersion((previousVersion) => previousVersion + 1);
   }, []);
-  const resetInteractionState = useCallback(() => {
+  const resetInteractionState = useCallback((): void => {
     wheelDeltaRef.current = 0;
     pageTurnLockedRef.current = false;
   }, []);
 
   const preferences = useReaderPreferences();
   const sidebar = useSidebarDrag();
-  const closeSidebar = useCallback(() => {
+  const closeSidebar = useCallback((): void => {
     sidebar.setIsSidebarOpen(false);
   }, [sidebar]);
   const analysis = useReaderAnalysisBridge({
-    controller: analysisController,
+    controller: readerAnalysisController,
     novelId,
     chapterIndex,
     viewMode,
@@ -95,7 +123,7 @@ export default function ReaderPageContainer({
     setIsChromeVisible,
     handleContentClick,
   } = useContentClick(isPagedMode, navigation.handlePrev, navigation.handleNext);
-  const dismissBlockedInteraction = useCallback(() => {
+  const dismissBlockedInteraction = useCallback((): void => {
     if (sidebar.isSidebarOpen) {
       closeSidebar();
     }
@@ -143,7 +171,7 @@ export default function ReaderPageContainer({
     pageTurnLockedRef,
   );
 
-  const handleSetPageTurnMode = useCallback((nextMode: ReaderPageTurnMode) => {
+  const handleSetPageTurnMode = useCallback((nextMode: ReaderPageTurnMode): void => {
     if (nextMode === preferences.pageTurnMode) {
       return;
     }
@@ -160,7 +188,7 @@ export default function ReaderPageContainer({
     }
   }, [mode, preferences, restore]);
 
-  const handleViewportClick = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+  const handleViewportClick = useCallback((event: MouseEvent<HTMLDivElement>): void => {
     if (sidebar.isSidebarOpen) {
       dismissBlockedInteraction();
       return;
@@ -169,7 +197,7 @@ export default function ReaderPageContainer({
     handleContentClick(event);
   }, [dismissBlockedInteraction, handleContentClick, sidebar.isSidebarOpen]);
 
-  const handleSelectChapter = useCallback((index: number) => {
+  const handleSelectChapter = useCallback((index: number): void => {
     navigation.goToChapter(index, 'start');
     sidebar.setIsSidebarOpen(false);
   }, [navigation, sidebar]);
@@ -200,53 +228,51 @@ export default function ReaderPageContainer({
     onCloseSidebar: closeSidebar,
   } : undefined;
 
-  return (
-    <ReaderPageLayout
-      backHref={novelDetailHref}
-      imageViewerProps={imageOverlay.imageViewerProps}
-      pageBgClassName={preferences.currentTheme.bg}
-      readerError={lifecycle.readerError}
-      sidebarProps={{
-        chapters: chapterData.chapters,
-        currentIndex: chapterIndex,
-        contentTextColor: preferences.currentTheme.text,
-        isSidebarOpen: sidebar.isSidebarOpen,
-        sidebarBgClassName: preferences.currentTheme.sidebarBg,
-        onClose: closeSidebar,
-        onSelectChapter: handleSelectChapter,
-      }}
-      toolbarProps={toolbarProps}
-      topBarProps={{
-        readerTheme: preferences.readerTheme,
-        headerBgClassName: preferences.headerBg,
-        textClassName: preferences.currentTheme.text,
-        isChromeVisible,
-        isSidebarOpen: sidebar.isSidebarOpen,
-        exitHref: novelDetailHref,
-        viewMode,
-        onMobileBack: handleMobileBack,
-        onToggleSidebar: sidebar.toggleSidebar,
-        onSetViewMode: restore.handleSetViewMode,
-      }}
-      viewportProps={{
-        contentRef,
-        isPagedMode,
-        interactionLocked: isContentInteractionLocked,
-        viewMode,
-        renderableChapter: viewport.renderableChapter,
-        showLoadingOverlay: lifecycle.showLoadingOverlay,
-        isRestoringPosition: lifecycle.isRestoringPosition,
-        loadingLabel: lifecycle.loadingLabel,
-        onBlockedInteraction: dismissBlockedInteraction,
-        onContentClick: handleViewportClick,
-        onContentScroll: viewport.handleViewportScroll,
-        emptyHref: novelDetailHref,
-        emptyLabel: t('reader.noChapters'),
-        goBackLabel: t('reader.goBack'),
-        pagedContentProps: viewportContent.pagedContentProps,
-        scrollContentProps: viewportContent.scrollContentProps,
-        summaryContentProps: viewportContent.summaryContentProps,
-      }}
-    />
-  );
+  return {
+    backHref: novelDetailHref,
+    imageViewerProps: imageOverlay.imageViewerProps,
+    pageBgClassName: preferences.currentTheme.bg,
+    readerError: lifecycle.readerError,
+    sidebarProps: {
+      chapters: chapterData.chapters,
+      currentIndex: chapterIndex,
+      contentTextColor: preferences.currentTheme.text,
+      isSidebarOpen: sidebar.isSidebarOpen,
+      sidebarBgClassName: preferences.currentTheme.sidebarBg,
+      onClose: closeSidebar,
+      onSelectChapter: handleSelectChapter,
+    },
+    toolbarProps,
+    topBarProps: {
+      readerTheme: preferences.readerTheme,
+      headerBgClassName: preferences.headerBg,
+      textClassName: preferences.currentTheme.text,
+      isChromeVisible,
+      isSidebarOpen: sidebar.isSidebarOpen,
+      exitHref: novelDetailHref,
+      viewMode,
+      onMobileBack: handleMobileBack,
+      onToggleSidebar: sidebar.toggleSidebar,
+      onSetViewMode: restore.handleSetViewMode,
+    },
+    viewportProps: {
+      contentRef,
+      isPagedMode,
+      interactionLocked: isContentInteractionLocked,
+      viewMode,
+      renderableChapter: viewport.renderableChapter,
+      showLoadingOverlay: lifecycle.showLoadingOverlay,
+      isRestoringPosition: lifecycle.isRestoringPosition,
+      loadingLabel: lifecycle.loadingLabel,
+      onBlockedInteraction: dismissBlockedInteraction,
+      onContentClick: handleViewportClick,
+      onContentScroll: viewport.handleViewportScroll,
+      emptyHref: novelDetailHref,
+      emptyLabel: t('reader.noChapters'),
+      goBackLabel: t('reader.goBack'),
+      pagedContentProps: viewportContent.pagedContentProps,
+      scrollContentProps: viewportContent.scrollContentProps,
+      summaryContentProps: viewportContent.summaryContentProps,
+    },
+  };
 }

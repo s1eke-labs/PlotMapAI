@@ -1,22 +1,24 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { ArrowLeft, Bug, ChevronDown, Download, RefreshCw, RotateCcw, Smartphone, Trash2 } from 'lucide-react';
+import {
+  clearLogs,
+  debugFeatureSubscribe,
+  debugSubscribe,
+  getDebugFeatureFlags,
+  getRecentLogs,
+  MAX_LOGS,
+  setDebugFeatureEnabled,
+  type DebugEntry,
+} from '@shared/debug';
 import Toggle from '@shared/components/Toggle';
 import { cn } from '@shared/utils/cn';
 
 import {
-  debugSubscribe,
-  debugFeatureSubscribe,
-  getRecentLogs,
-  getDebugFeatureFlags,
-  clearLogs,
-  MAX_LOGS,
-  setDebugFeatureEnabled,
   triggerDebugInstallPrompt,
   triggerDebugIosInstallHint,
   triggerDebugUpdateToast,
   triggerDebugResetPwaPrompts,
-  type DebugEntry,
-} from './service';
+} from './pwaDebugTools';
 
 const CATEGORY_COLORS: Record<string, string> = {
   Debug: 'text-slate-300',

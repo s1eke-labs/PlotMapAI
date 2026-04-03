@@ -145,8 +145,10 @@ src/
 ### 关键架构模式
 
 - **应用编排层** — `src/application/` 负责跨领域页面、用例与组合逻辑；领域代码不得反向依赖该层
+- **页面模板统一** — application 页面统一采用 `Route Page -> usePageViewModel -> Screen`：route page 只处理 params/provider/lazy boundary，Screen 只接收单一 `viewModel`
 - **领域隔离** — `@shared/` 和 `@infra/` 不得导入 `@domains/`，`@app/` 与 `@application/` 访问领域时通过 barrel export（`@domains/<domain>`）交互
 - **本地存储** — 使用 `@infra/storage`（三级封装：primary/cache/secure），禁止直接访问 `localStorage`
+- **Shim 治理** — 过渡性 re-export / shim 必须在同次重构中删除，或附带明确移除条件；不要长期保留“真实归属 + 兼容入口”双入口
 - **错误处理** — 统一 `AppError` 基类 + `as const` 错误码，UI 通过 i18n 翻译错误消息
 - **Web Worker** — EPUB 解析、文本净化、图谱布局在 Worker 中执行，不阻塞主线程
 - **PWA** — `registerType: 'prompt'`，用户确认后更新

@@ -38,13 +38,10 @@ vi.mock('@domains/settings', () => ({
       ))}
     </div>
   ),
+  useAiSettingsManager: () => ({ kind: 'ai' }),
   TocSettingsPanel: () => <div>toc-panel</div>,
   usePurificationSettingsManager: () => ({ kind: 'purification' }),
   useTocSettingsManager: () => ({ kind: 'toc' }),
-}));
-
-vi.mock('../settings/useAiSettingsManager', () => ({
-  useAiSettingsManager: () => ({ kind: 'ai' }),
 }));
 
 function renderPage() {

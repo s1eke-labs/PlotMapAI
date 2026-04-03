@@ -2,12 +2,12 @@ import { Download, Share2 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CACHE_KEYS, storage } from '@infra/storage';
+import { debugLog } from '@shared/debug';
 import {
   DEBUG_RESET_PWA_PROMPTS_EVENT,
   DEBUG_SHOW_INSTALL_PROMPT_EVENT,
   DEBUG_SHOW_IOS_INSTALL_HINT_EVENT,
-  debugLog,
-} from '../debug/service';
+} from '../debug/pwaDebugTools';
 
 const INSTALL_PROMPT_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
 

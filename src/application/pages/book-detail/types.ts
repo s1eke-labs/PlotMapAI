@@ -19,10 +19,12 @@ export interface BookDetailPageHrefs {
 }
 
 export interface BookDetailPageViewModel {
+  analysisController: BookDetailAnalysisController;
   analysisStatus: AnalysisStatusResponse | null;
   analysisStatusError: AppError | null;
   characterChartData: AnalysisOverview['characterStats'];
   coverUrl: string | null;
+  deleteFlow: BookDetailDeleteFlow;
   error: AppError | null;
   introParagraphs: BookDetailParagraph[];
   introText: string;
@@ -34,7 +36,6 @@ export interface BookDetailPageViewModel {
   novel: NovelView | null;
   overview: AnalysisOverview | null;
   pageHrefs: BookDetailPageHrefs;
-  updateAnalysisStatus: (nextStatus: AnalysisStatusResponse | null) => void;
 }
 
 export type BookDetailAnalysisAction = 'start' | 'pause' | 'resume' | 'restart';

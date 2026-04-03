@@ -2,11 +2,11 @@ import { useEffect, type CSSProperties, type ReactNode } from 'react';
 import { BookOpen, Settings } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { type AppTheme, useAppThemeSelector } from '@app/stores/appThemeStore';
 import {
   ensureReaderAppearanceHydrated,
   useReaderAppearanceSelector,
 } from '@shared/stores/readerAppearanceStore';
+import { type AppTheme, useAppThemeSelector } from '@shared/stores/appThemeStore';
 import { cn } from '@shared/utils/cn';
 
 import { appPaths } from '../router/paths';

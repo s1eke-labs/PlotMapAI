@@ -5,14 +5,17 @@ import type { AppError } from '@shared/errors';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 
 import { loadBookDetailAnalysisStatus, loadBookDetailPageData } from '@application/use-cases/library';
-import { reportAppError } from '@app/debug/service';
 import { appPaths } from '@app/router/paths';
 import { useNovelCoverResource } from '@domains/library';
+import { reportAppError } from '@shared/debug';
 import { AppErrorCode, toAppError } from '@shared/errors';
 
 import type { BookDetailPageViewModel, BookDetailParagraph } from './types';
+import { useBookDetailAnalysisController } from './useBookDetailAnalysisController';
+import { useBookDetailDeleteFlow } from './useBookDetailDeleteFlow';
 
 function isValidNovelId(novelId: number): boolean {
   return Number.isFinite(novelId) && novelId > 0;
@@ -75,6 +78,7 @@ function createInvalidNovelError(): AppError {
 
 export function useBookDetailPageViewModel(novelId: number): BookDetailPageViewModel {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [novel, setNovel] = useState<NovelView | null>(null);
   const [analysisStatus, setAnalysisStatus] = useState<AnalysisStatusResponse | null>(null);
   const [analysisStatusError, setAnalysisStatusError] = useState<AppError | null>(null);
@@ -127,6 +131,16 @@ export function useBookDetailPageViewModel(novelId: number): BookDetailPageViewM
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    const scrollContainer = document.querySelector<HTMLElement>('[data-scroll-container="true"]');
+    if (scrollContainer) {
+      scrollContainer.scrollTop = 0;
+      return;
+    }
+
+    window.scrollTo({ top: 0, behavior: 'auto' });
+  }, [novelId]);
 
   const refreshAnalysisStatus = useCallback(async (silent = false): Promise<void> => {
     if (!isValidNovelId(novelId)) {
@@ -193,12 +207,26 @@ export function useBookDetailPageViewModel(novelId: number): BookDetailPageViewM
     characterGraph: appPaths.characterGraph(novelId),
     reader: appPaths.reader(novelId),
   }), [novelId]);
+  const analysisController = useBookDetailAnalysisController({
+    job,
+    novelId,
+    onStatusUpdated: updateAnalysisStatus,
+  });
+  const deleteFlow = useBookDetailDeleteFlow({
+    novelId,
+    novelTitle: novel?.title ?? '',
+    onDeleted: () => {
+      navigate(appPaths.bookshelf(), { replace: true });
+    },
+  });
 
   return {
+    analysisController,
     analysisStatus,
     analysisStatusError,
     characterChartData,
     coverUrl,
+    deleteFlow,
     error,
     introParagraphs,
     introText,
@@ -210,6 +238,5 @@ export function useBookDetailPageViewModel(novelId: number): BookDetailPageViewM
     novel,
     overview,
     pageHrefs,
-    updateAnalysisStatus,
   };
 }

@@ -1,25 +1,21 @@
-import type { AiSettingsManager } from '@domains/settings';
+import type {
+  AiSettingsManager,
+  AiSettingsManagerActions,
+} from '../settingsManagers';
 import type {
   AiProviderSettings,
   AiProviderSettingsPayload,
-  SettingsFeedbackState,
-} from '@domains/settings';
+} from '../types';
+import type { SettingsFeedbackState } from '../utils/settingsPage';
 
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import {
-  exportAiProviderSettings,
-  importAiProviderSettings,
-  saveAiProviderSettings,
-  testAiProviderSettings,
-} from '@application/use-cases/settings';
-import {
-  downloadFile,
-  getAiProviderSettings,
-} from '@domains/settings';
 import { DEFAULT_ANALYSIS_PROVIDER_ID } from '@shared/contracts';
 import { translateAppError } from '@shared/errors';
+
+import { getAiProviderSettings } from '../aiConfigRepository';
+import { downloadFile } from '../utils/settingsPage';
 
 const DEFAULT_AI_FORM: AiProviderSettingsPayload = {
   providerId: DEFAULT_ANALYSIS_PROVIDER_ID,
@@ -30,7 +26,9 @@ const DEFAULT_AI_FORM: AiProviderSettingsPayload = {
   keepExistingApiKey: true,
 };
 
-export function useAiSettingsManager(): AiSettingsManager {
+export function useAiSettingsManager(
+  actions: AiSettingsManagerActions,
+): AiSettingsManager {
   const { t } = useTranslation();
   const [settings, setSettings] = useState<AiProviderSettings | null>(null);
   const [form, setForm] = useState<AiProviderSettingsPayload>(DEFAULT_AI_FORM);
@@ -115,7 +113,7 @@ export function useAiSettingsManager(): AiSettingsManager {
     setFeedback(null);
 
     try {
-      const data = await saveAiProviderSettings(buildPayload());
+      const data = await actions.saveAiProviderSettings(buildPayload());
       setSettings(data);
       syncForm(data);
       setFeedback({
@@ -133,14 +131,14 @@ export function useAiSettingsManager(): AiSettingsManager {
     } finally {
       setIsSaving(false);
     }
-  }, [buildPayload, syncForm, t]);
+  }, [actions, buildPayload, syncForm, t]);
 
   const testSettings = useCallback(async (): Promise<void> => {
     setIsTesting(true);
     setFeedback(null);
 
     try {
-      const result = await testAiProviderSettings(buildPayload());
+      const result = await actions.testAiProviderSettings(buildPayload());
       const preview = result.preview
         ? ` ${t('settings.ai.testPreviewPrefix', { preview: result.preview })}`
         : '';
@@ -160,7 +158,7 @@ export function useAiSettingsManager(): AiSettingsManager {
     } finally {
       setIsTesting(false);
     }
-  }, [buildPayload, t]);
+  }, [actions, buildPayload, t]);
 
   const openExportModal = useCallback((): void => {
     setExportPassword('');
@@ -191,7 +189,7 @@ export function useAiSettingsManager(): AiSettingsManager {
     setIsExporting(true);
 
     try {
-      const content = await exportAiProviderSettings(exportPassword);
+      const content = await actions.exportAiProviderSettings(exportPassword);
       downloadFile(content, 'plotmapai-ai-config.enc', 'application/octet-stream');
       closeExportModal();
       setFeedback({
@@ -209,7 +207,7 @@ export function useAiSettingsManager(): AiSettingsManager {
     } finally {
       setIsExporting(false);
     }
-  }, [closeExportModal, exportPassword, t]);
+  }, [actions, closeExportModal, exportPassword, t]);
 
   const queueImportFile = useCallback((file: File): void => {
     setPendingImportFile(file);
@@ -246,7 +244,7 @@ export function useAiSettingsManager(): AiSettingsManager {
     setIsImporting(true);
 
     try {
-      await importAiProviderSettings(pendingImportFile, importPassword);
+      await actions.importAiProviderSettings(pendingImportFile, importPassword);
       const data = await getAiProviderSettings();
       setSettings(data);
       syncForm(data);
@@ -266,7 +264,7 @@ export function useAiSettingsManager(): AiSettingsManager {
     } finally {
       setIsImporting(false);
     }
-  }, [closeImportModal, importPassword, pendingImportFile, syncForm, t]);
+  }, [actions, closeImportModal, importPassword, pendingImportFile, syncForm, t]);
 
   return {
     settings,

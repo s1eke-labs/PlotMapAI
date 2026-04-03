@@ -13,7 +13,7 @@ import ReaderToolbar from '../../components/ReaderToolbar';
 import ReaderTopBar from '../../components/reader/ReaderTopBar';
 import ReaderViewport from '../../components/reader/ReaderViewport';
 
-interface ReaderPageLayoutProps {
+export interface ReaderPageLayoutProps {
   backHref: string;
   imageViewerProps: ReaderImageViewerProps;
   pageBgClassName: string;

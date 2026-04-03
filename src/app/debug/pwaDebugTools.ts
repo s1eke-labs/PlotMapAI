@@ -1,23 +1,3 @@
-export type {
-  DebugEntry,
-  DebugErrorEntry,
-  DebugFeatureFlags,
-  DebugLogEntry,
-} from '@shared/debug';
-export {
-  clearLogs,
-  debugFeatureSubscribe,
-  debugLog,
-  debugSubscribe,
-  getDebugFeatureFlags,
-  getRecentLogs,
-  isDebugFeatureEnabled,
-  isDebugMode,
-  MAX_LOGS,
-  reportAppError,
-  setDebugFeatureEnabled,
-} from '@shared/debug';
-
 import { debugLog, isDebugMode } from '@shared/debug';
 
 export const DEBUG_SHOW_INSTALL_PROMPT_EVENT = 'plotmapai:debug:show-install-prompt';
@@ -57,7 +37,7 @@ export function triggerDebugResetPwaPrompts(): void {
   dispatchDebugEvent(DEBUG_RESET_PWA_PROMPTS_EVENT, 'manual PWA prompt reset triggered');
 }
 
-export function registerDebugHelpers(): () => void {
+export function registerPwaDebugTools(): () => void {
   if (!isDebugMode() || typeof window === 'undefined') {
     return () => undefined;
   }

@@ -8,7 +8,7 @@ import {
   resumeNovelAnalysis,
   startNovelAnalysis,
 } from '@application/use-cases/analysis';
-import { reportAppError } from '@app/debug/service';
+import { reportAppError } from '@shared/debug';
 import { AppErrorCode, toAppError } from '@shared/errors';
 
 import type { AnalysisStatusResponse } from '@shared/contracts';

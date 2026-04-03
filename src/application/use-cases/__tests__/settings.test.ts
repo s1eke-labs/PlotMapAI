@@ -16,7 +16,7 @@ import {
   importAiProviderSettings,
   saveAiProviderSettings,
   testAiProviderSettings,
-} from '../settings';
+} from '../aiSettings';
 
 vi.mock('@domains/analysis', () => ({
   buildRuntimeAnalysisConfig: vi.fn(),
@@ -33,7 +33,7 @@ vi.mock('@domains/settings', () => ({
   saveAiConfig: vi.fn(),
 }));
 
-describe('application settings use-cases', () => {
+describe('application AI settings use-cases', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(getAiConfig).mockResolvedValue({

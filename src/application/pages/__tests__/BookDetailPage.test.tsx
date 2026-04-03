@@ -15,7 +15,7 @@ import {
 } from '@application/use-cases/analysis';
 import { deleteNovelAndCleanupArtifacts } from '@application/use-cases/library';
 
-import BookDetailPage from '../BookDetailPage';
+import BookDetailPage from '../book-detail';
 
 const navigateMock = vi.hoisted(() => vi.fn());
 
@@ -134,6 +134,11 @@ describe('application BookDetailPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     navigateMock.mockReset();
+    Object.defineProperty(window, 'scrollTo', {
+      configurable: true,
+      value: vi.fn(),
+      writable: true,
+    });
     vi.mocked(novelRepository.get).mockResolvedValue(baseNovel);
     vi.mocked(useNovelCoverResource).mockReturnValue('blob:cover');
     vi.mocked(analysisService.getStatus).mockResolvedValue(createStatusResponse());

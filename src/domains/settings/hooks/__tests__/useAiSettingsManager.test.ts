@@ -1,17 +1,10 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import {
-  exportAiProviderSettings,
-  importAiProviderSettings,
-  saveAiProviderSettings,
-  testAiProviderSettings,
-} from '@application/use-cases/settings';
-import {
-  downloadFile,
-  getAiProviderSettings,
-} from '@domains/settings';
+import type { AiSettingsManagerActions } from '../../settingsManagers';
 
+import { getAiProviderSettings } from '../../aiConfigRepository';
+import { downloadFile } from '../../utils/settingsPage';
 import { useAiSettingsManager } from '../useAiSettingsManager';
 
 const tMock = vi.hoisted(() => (
@@ -34,17 +27,17 @@ vi.mock('react-i18next', () => ({
   }),
 }));
 
-vi.mock('@application/use-cases/settings', () => ({
-  exportAiProviderSettings: vi.fn(),
-  importAiProviderSettings: vi.fn(),
-  saveAiProviderSettings: vi.fn(),
-  testAiProviderSettings: vi.fn(),
-}));
-
-vi.mock('@domains/settings', () => ({
-  downloadFile: vi.fn(),
+vi.mock('../../aiConfigRepository', () => ({
   getAiProviderSettings: vi.fn(),
 }));
+
+vi.mock('../../utils/settingsPage', async () => {
+  const actual = await vi.importActual<typeof import('../../utils/settingsPage')>('../../utils/settingsPage');
+  return {
+    ...actual,
+    downloadFile: vi.fn(),
+  };
+});
 
 vi.mock('@shared/errors', async () => {
   const actual = await vi.importActual<typeof import('@shared/errors')>('@shared/errors');
@@ -60,8 +53,17 @@ const baseSettings = {
   hasApiKey: true,
   maskedApiKey: 'sk-***',
   modelName: 'gpt-4.1-mini',
-  providerId: 'openai',
+  providerId: 'openai-compatible',
 };
+
+function createActions(): AiSettingsManagerActions {
+  return {
+    exportAiProviderSettings: vi.fn(),
+    importAiProviderSettings: vi.fn(),
+    saveAiProviderSettings: vi.fn(),
+    testAiProviderSettings: vi.fn(),
+  };
+}
 
 describe('useAiSettingsManager', () => {
   beforeEach(() => {
@@ -70,7 +72,8 @@ describe('useAiSettingsManager', () => {
   });
 
   it('loads settings and syncs the editable form', async () => {
-    const { result } = renderHook(() => useAiSettingsManager());
+    const actions = createActions();
+    const { result } = renderHook(() => useAiSettingsManager(actions));
 
     await waitFor(() => {
       expect(result.current.settings).toEqual(baseSettings);
@@ -82,14 +85,14 @@ describe('useAiSettingsManager', () => {
       contextSize: 32000,
       keepExistingApiKey: true,
       modelName: 'gpt-4.1-mini',
-      providerId: 'openai',
+      providerId: 'openai-compatible',
     });
   });
 
   it('surfaces load failures', async () => {
     vi.mocked(getAiProviderSettings).mockRejectedValueOnce(new Error('load failed'));
-
-    const { result } = renderHook(() => useAiSettingsManager());
+    const actions = createActions();
+    const { result } = renderHook(() => useAiSettingsManager(actions));
 
     await waitFor(() => {
       expect(result.current.isLoading).toBe(false);
@@ -107,9 +110,10 @@ describe('useAiSettingsManager', () => {
       apiBaseUrl: 'https://example.com/v1',
       modelName: 'gpt-5-mini',
     };
-    vi.mocked(saveAiProviderSettings).mockResolvedValue(savedSettings);
+    const actions = createActions();
+    vi.mocked(actions.saveAiProviderSettings).mockResolvedValue(savedSettings);
 
-    const { result } = renderHook(() => useAiSettingsManager());
+    const { result } = renderHook(() => useAiSettingsManager(actions));
 
     await waitFor(() => {
       expect(result.current.settings).toEqual(baseSettings);
@@ -125,13 +129,13 @@ describe('useAiSettingsManager', () => {
       await result.current.saveSettings();
     });
 
-    expect(saveAiProviderSettings).toHaveBeenCalledWith({
+    expect(actions.saveAiProviderSettings).toHaveBeenCalledWith({
       apiBaseUrl: 'https://example.com/v1',
       apiKey: 'secret-key',
       contextSize: 32000,
       keepExistingApiKey: false,
       modelName: 'gpt-5-mini',
-      providerId: 'openai',
+      providerId: 'openai-compatible',
     });
     expect(result.current.feedback).toEqual({
       type: 'success',
@@ -142,9 +146,10 @@ describe('useAiSettingsManager', () => {
   });
 
   it('surfaces save failures', async () => {
-    vi.mocked(saveAiProviderSettings).mockRejectedValueOnce(new Error('save failed'));
+    const actions = createActions();
+    vi.mocked(actions.saveAiProviderSettings).mockRejectedValueOnce(new Error('save failed'));
 
-    const { result } = renderHook(() => useAiSettingsManager());
+    const { result } = renderHook(() => useAiSettingsManager(actions));
 
     await waitFor(() => {
       expect(result.current.settings).toEqual(baseSettings);
@@ -161,11 +166,12 @@ describe('useAiSettingsManager', () => {
   });
 
   it('handles test connection success and failure', async () => {
-    vi.mocked(testAiProviderSettings)
+    const actions = createActions();
+    vi.mocked(actions.testAiProviderSettings)
       .mockResolvedValueOnce({ message: 'Connection OK', preview: 'pong' })
       .mockRejectedValueOnce(new Error('test failed'));
 
-    const { result } = renderHook(() => useAiSettingsManager());
+    const { result } = renderHook(() => useAiSettingsManager(actions));
 
     await waitFor(() => {
       expect(result.current.settings).toEqual(baseSettings);
@@ -191,11 +197,12 @@ describe('useAiSettingsManager', () => {
   });
 
   it('validates passwords and handles export failure and success', async () => {
-    vi.mocked(exportAiProviderSettings)
+    const actions = createActions();
+    vi.mocked(actions.exportAiProviderSettings)
       .mockRejectedValueOnce(new Error('export failed'))
       .mockResolvedValueOnce('encrypted-config');
 
-    const { result } = renderHook(() => useAiSettingsManager());
+    const { result } = renderHook(() => useAiSettingsManager(actions));
 
     await waitFor(() => {
       expect(result.current.settings).toEqual(baseSettings);
@@ -231,7 +238,7 @@ describe('useAiSettingsManager', () => {
       await result.current.exportConfig();
     });
 
-    expect(exportAiProviderSettings).toHaveBeenLastCalledWith('good-password');
+    expect(actions.exportAiProviderSettings).toHaveBeenLastCalledWith('good-password');
     expect(downloadFile).toHaveBeenCalledWith(
       'encrypted-config',
       'plotmapai-ai-config.enc',
@@ -250,15 +257,16 @@ describe('useAiSettingsManager', () => {
       apiBaseUrl: 'https://imported.example/v1',
       modelName: 'gpt-5',
     };
+    const actions = createActions();
 
     vi.mocked(getAiProviderSettings)
       .mockResolvedValueOnce(baseSettings)
       .mockResolvedValueOnce(importedSettings);
-    vi.mocked(importAiProviderSettings)
+    vi.mocked(actions.importAiProviderSettings)
       .mockRejectedValueOnce(new Error('import failed'))
       .mockResolvedValueOnce(undefined);
 
-    const { result } = renderHook(() => useAiSettingsManager());
+    const { result } = renderHook(() => useAiSettingsManager(actions));
 
     await waitFor(() => {
       expect(result.current.settings).toEqual(baseSettings);
@@ -294,7 +302,7 @@ describe('useAiSettingsManager', () => {
       await result.current.confirmImport();
     });
 
-    expect(importAiProviderSettings).toHaveBeenLastCalledWith(
+    expect(actions.importAiProviderSettings).toHaveBeenLastCalledWith(
       expect.objectContaining({ name: 'config.enc' }),
       'good-password',
     );

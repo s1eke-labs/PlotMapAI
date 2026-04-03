@@ -1,13 +1,15 @@
 import type { ReactNode } from 'react';
 
-import { render, screen } from '@testing-library/react';
+import { render, renderHook, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
 
 import { analyzeChapter } from '@application/use-cases/analysis';
+import { analysisService } from '@domains/analysis';
+import { useReaderInput } from '@domains/reader-interaction';
+import { useReaderAnalysisBridge } from '@domains/reader-shell';
 
-import ReaderPage from '../reader';
+import { useReaderPageViewModel } from '../useReaderPageViewModel';
 
 const readerShellMocks = vi.hoisted(() => ({
   setIsSidebarOpen: vi.fn(),
@@ -49,26 +51,7 @@ vi.mock('@domains/analysis', async () => {
 });
 
 vi.mock('@domains/reader-shell', () => ({
-  ReaderProvider: ({ children }: { children: ReactNode }) => children,
-  ReaderPageLayout: ({
-    backHref,
-    viewportProps,
-  }: {
-    backHref: string;
-    viewportProps: {
-      summaryContentProps?: {
-        analysisPanel: ReactNode;
-      };
-    };
-  }) => (
-    <div data-href={backHref}>
-      {viewportProps.summaryContentProps?.analysisPanel ?? null}
-    </div>
-  ),
-  useReaderAnalysisBridge: ({
-    controller,
-    novelId,
-  }: {
+  useReaderAnalysisBridge: vi.fn(({ controller, novelId }: {
     controller: {
       analyzeChapter: (nextNovelId: number, chapterIndex: number) => Promise<unknown>;
       renderSummaryPanel: (input: {
@@ -94,7 +77,7 @@ vi.mock('@domains/reader-shell', () => ({
       },
     }),
     summaryRestoreSignal: null,
-  }),
+  })),
   useReaderPreferences: () => ({
     currentTheme: {
       bg: 'bg-page',
@@ -219,39 +202,32 @@ vi.mock('@shared/reader-runtime', () => ({
   }),
 }));
 
-function renderPage() {
-  return render(
-    <MemoryRouter initialEntries={['/novel/1/read']}>
-      <Routes>
-        <Route path="/novel/:id/read" element={<ReaderPage />} />
-      </Routes>
-    </MemoryRouter>,
-  );
-}
-
-describe('application ReaderPage', () => {
+describe('useReaderPageViewModel', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(analyzeChapter).mockResolvedValue({
-      analysis: {
-        chapterIndex: 0,
-        chapterTitle: 'Chapter 1',
-        characters: [],
-        chunkIndex: 0,
-        keyPoints: ['point'],
-        relationships: [],
-        summary: 'summary',
-        tags: ['tag'],
-        updatedAt: null,
-      },
-    });
+    vi.mocked(analyzeChapter).mockResolvedValue({ analysis: null });
   });
 
-  it('wires the summary panel analyze action through the application use-case', async () => {
+  it('builds the reader page view model from domain hooks and wires the analysis controller', async () => {
+    const { result } = renderHook(() => useReaderPageViewModel(1));
+
+    expect(result.current.backHref).toBe('/novel/1');
+    expect(result.current.pageBgClassName).toBe('bg-page');
+    expect(result.current.viewportProps.emptyHref).toBe('/novel/1');
+    expect(result.current.viewportProps.summaryContentProps).toBeDefined();
+    expect(useReaderInput).toHaveBeenCalledTimes(1);
+
+    const analysisBridgeArgs = vi.mocked(useReaderAnalysisBridge).mock.calls[0]?.[0];
+    expect(analysisBridgeArgs).toMatchObject({
+      chapterIndex: 0,
+      novelId: 1,
+      viewMode: 'summary',
+    });
+    expect(analysisBridgeArgs?.controller.analyzeChapter).toBe(analyzeChapter);
+    expect(analysisBridgeArgs?.controller.getStatus).toBe(analysisService.getStatus);
+
+    render(<>{result.current.viewportProps.summaryContentProps?.analysisPanel}</>);
     const user = userEvent.setup();
-
-    renderPage();
-
     await user.click(screen.getByRole('button', { name: 'reader.analysisPanel.analyzeChapter' }));
 
     expect(analyzeChapter).toHaveBeenCalledWith(1, 0);

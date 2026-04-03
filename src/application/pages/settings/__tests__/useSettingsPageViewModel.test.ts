@@ -4,20 +4,16 @@ import { act, renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  useAiSettingsManager,
   usePurificationSettingsManager,
   useTocSettingsManager,
 } from '@domains/settings';
-
-import { useAiSettingsManager } from '../useAiSettingsManager';
 import { useSettingsPageViewModel } from '../useSettingsPageViewModel';
 
 vi.mock('@domains/settings', () => ({
+  useAiSettingsManager: vi.fn(),
   usePurificationSettingsManager: vi.fn(),
   useTocSettingsManager: vi.fn(),
-}));
-
-vi.mock('../useAiSettingsManager', () => ({
-  useAiSettingsManager: vi.fn(),
 }));
 
 describe('useSettingsPageViewModel', () => {

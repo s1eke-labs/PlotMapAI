@@ -33,3 +33,14 @@ export interface AiSettingsManager {
   setImportPasswordValue: (password: string) => void;
   confirmImport: () => Promise<void>;
 }
+
+export interface AiSettingsManagerActions {
+  exportAiProviderSettings: (password: string) => Promise<string>;
+  importAiProviderSettings: (file: File, password: string) => Promise<void>;
+  saveAiProviderSettings: (
+    payload: AiProviderSettingsPayload,
+  ) => Promise<AiProviderSettings>;
+  testAiProviderSettings: (
+    payload: Partial<AiProviderSettingsPayload>,
+  ) => Promise<{ message: string; preview: string }>;
+}

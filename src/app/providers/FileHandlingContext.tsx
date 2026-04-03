@@ -3,8 +3,8 @@ import type { ReactNode } from 'react';
 
 import { createContext, useContext, useEffect, useEffectEvent, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { debugLog, reportAppError } from '@app/debug/service';
 import { appPaths } from '@app/router/paths';
+import { debugLog, reportAppError } from '@shared/debug';
 import { AppErrorCode } from '@shared/errors';
 
 interface FileHandleLike {

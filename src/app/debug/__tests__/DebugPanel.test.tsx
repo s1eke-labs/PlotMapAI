@@ -60,7 +60,7 @@ const debugTest = vi.hoisted(() => {
   };
 });
 
-vi.mock('../service', () => {
+vi.mock('@shared/debug', () => {
   return {
     debugSubscribe: debugTest.subscribe,
     debugFeatureSubscribe: debugTest.subscribeFeatures,
@@ -69,6 +69,11 @@ vi.mock('../service', () => {
     clearLogs: debugTest.clearMock,
     MAX_LOGS: 500,
     setDebugFeatureEnabled: debugTest.setDebugFeatureEnabled,
+  };
+});
+
+vi.mock('../pwaDebugTools', () => {
+  return {
     triggerDebugInstallPrompt: debugTest.triggerDebugInstallPrompt,
     triggerDebugIosInstallHint: debugTest.triggerDebugIosInstallHint,
     triggerDebugUpdateToast: debugTest.triggerDebugUpdateToast,

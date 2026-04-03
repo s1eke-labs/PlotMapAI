@@ -4,8 +4,8 @@ import type { AppError } from '@shared/errors';
 
 import { useCallback, useEffect, useState } from 'react';
 
-import { reportAppError } from '@app/debug/service';
 import { novelRepository } from '@domains/library';
+import { reportAppError } from '@shared/debug';
 import { AppErrorCode, toAppError } from '@shared/errors';
 
 export function useBookshelfPageViewModel({

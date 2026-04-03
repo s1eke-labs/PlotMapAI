@@ -1,5 +1,5 @@
 export function loadBookDetailPage() {
-  return import('./BookDetailPage');
+  return import('./book-detail');
 }
 
 export function loadBookshelfPage() {
@@ -11,7 +11,7 @@ export function loadCharacterGraphPage() {
 }
 
 export function loadReaderPage() {
-  return import('./ReaderPage');
+  return import('./reader');
 }
 
 export function loadSettingsPage() {

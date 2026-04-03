@@ -1,6 +1,6 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { resetAppThemeStoreForTests } from '@app/stores/appThemeStore';
+import { resetAppThemeStoreForTests } from '@shared/stores/appThemeStore';
 import { APP_SETTING_KEYS, CACHE_KEYS, storage } from '@infra/storage';
 import { ThemeProvider, useTheme } from '../ThemeContext';
 import { db } from '@infra/db';

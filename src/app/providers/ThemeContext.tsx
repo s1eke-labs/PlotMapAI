@@ -6,7 +6,7 @@ import {
   toggleAppTheme,
   type AppTheme,
   useAppThemeSelector,
-} from '@app/stores/appThemeStore';
+} from '@shared/stores/appThemeStore';
 
 interface ThemeContextType {
   theme: AppTheme;

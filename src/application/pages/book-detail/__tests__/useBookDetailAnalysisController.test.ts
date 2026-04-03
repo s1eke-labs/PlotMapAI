@@ -16,7 +16,7 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
 
-vi.mock('@app/debug/service', () => ({
+vi.mock('@shared/debug', () => ({
   reportAppError: vi.fn(),
 }));
 

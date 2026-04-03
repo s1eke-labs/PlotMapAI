@@ -3,6 +3,7 @@ import type { StartupState } from '@app/bootstrap/startup';
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { HashRouter as Router, Routes, Route } from 'react-router-dom';
+import { isDebugMode } from '@shared/debug';
 import {
   initializeAppSafely,
   resetDatabaseAndReinitialize,
@@ -17,7 +18,7 @@ import {
 import InstallPrompt from './components/InstallPrompt';
 import ReloadPrompt from './components/ReloadPrompt';
 import StartupRecoveryScreen from './bootstrap/StartupRecoveryScreen';
-import { isDebugMode, registerDebugHelpers } from './debug/service';
+import { registerPwaDebugTools } from './debug/pwaDebugTools';
 import DebugPanel from './debug/DebugPanel';
 import { AppErrorBoundary, registerGlobalErrorHandlers } from './errors';
 import Layout from './layout/Layout';
@@ -52,7 +53,7 @@ function App({ startupState: initialStartupState = { kind: 'ready' } }: AppProps
       return undefined;
     }
 
-    return registerDebugHelpers();
+    return registerPwaDebugTools();
   }, []);
 
   useEffect(() => {

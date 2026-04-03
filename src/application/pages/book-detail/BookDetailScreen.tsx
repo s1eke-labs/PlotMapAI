@@ -1,14 +1,11 @@
 import type { ReactElement } from 'react';
 
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { translateAppError } from '@shared/errors';
 
-import type {
-  BookDetailAnalysisController,
-  BookDetailDeleteFlow,
-  BookDetailPageViewModel,
-} from './types';
+import type { BookDetailPageViewModel } from './types';
 import BookDetailActionPanel from './BookDetailActionPanel';
 import BookDetailDeleteDialog from './BookDetailDeleteDialog';
 import BookDetailHero from './BookDetailHero';
@@ -16,21 +13,41 @@ import BookDetailInsightsPanel from './BookDetailInsightsPanel';
 import BookDetailStats from './BookDetailStats';
 
 interface BookDetailScreenProps {
-  analysisController: BookDetailAnalysisController;
-  deleteFlow: BookDetailDeleteFlow;
   viewModel: BookDetailPageViewModel;
 }
 
 export default function BookDetailScreen({
-  analysisController,
-  deleteFlow,
   viewModel,
-}: BookDetailScreenProps): ReactElement | null {
+}: BookDetailScreenProps): ReactElement {
   const { t } = useTranslation();
 
-  if (!viewModel.novel) {
-    return null;
+  if (viewModel.isLoading) {
+    return (
+      <div className="flex min-h-[calc(100dvh-var(--app-header-height,0px)-2rem)] items-center justify-center px-6 py-8">
+        <Loader2 className="h-8 w-8 animate-spin text-accent" />
+      </div>
+    );
   }
+
+  if (viewModel.error || !viewModel.novel) {
+    return (
+      <div className="flex min-h-[calc(100dvh-var(--app-header-height,0px)-2rem)] flex-col items-center justify-center p-8 text-center">
+        <p className="mb-4 text-red-400">
+          {viewModel.error
+            ? translateAppError(viewModel.error, t, 'bookDetail.loadError')
+            : t('bookDetail.notFound')}
+        </p>
+        <Link
+          to={viewModel.pageHrefs.bookshelf}
+          className="flex items-center gap-2 text-accent underline hover:text-accent-hover"
+        >
+          <ArrowLeft className="h-4 w-4" /> {t('common.actions.backToBookshelf')}
+        </Link>
+      </div>
+    );
+  }
+
+  const { analysisController, deleteFlow } = viewModel;
 
   const analysisError = analysisController.actionError ?? viewModel.analysisStatusError;
   const analysisErrorFallbackKey = analysisController.actionError

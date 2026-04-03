@@ -3,18 +3,31 @@ import type { SettingsPageViewModel } from './types';
 import { useState } from 'react';
 
 import {
+  type AiSettingsManagerActions,
+  useAiSettingsManager,
   usePurificationSettingsManager,
   useTocSettingsManager,
   type SettingsTabId,
 } from '@domains/settings';
+import {
+  exportAiProviderSettings,
+  importAiProviderSettings,
+  saveAiProviderSettings,
+  testAiProviderSettings,
+} from '@application/use-cases/aiSettings';
 
-import { useAiSettingsManager } from './useAiSettingsManager';
+const AI_SETTINGS_MANAGER_ACTIONS: AiSettingsManagerActions = {
+  exportAiProviderSettings,
+  importAiProviderSettings,
+  saveAiProviderSettings,
+  testAiProviderSettings,
+};
 
 export function useSettingsPageViewModel(): SettingsPageViewModel {
   const [activeTab, setActiveTab] = useState<SettingsTabId>('toc');
   const tocManager = useTocSettingsManager();
   const purificationManager = usePurificationSettingsManager();
-  const aiManager = useAiSettingsManager();
+  const aiManager = useAiSettingsManager(AI_SETTINGS_MANAGER_ACTIONS);
 
   return {
     activeTab,

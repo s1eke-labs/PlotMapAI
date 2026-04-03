@@ -3,22 +3,45 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { AnalysisStatusResponse } from '@shared/contracts';
 
-import { loadBookDetailAnalysisStatus, loadBookDetailPageData } from '@application/use-cases/library';
+import {
+  deleteNovelAndCleanupArtifacts,
+  loadBookDetailAnalysisStatus,
+  loadBookDetailPageData,
+} from '@application/use-cases/library';
 import { useNovelCoverResource } from '@domains/library';
 
 import { useBookDetailPageViewModel } from '../useBookDetailPageViewModel';
+
+const navigateMock = vi.hoisted(() => vi.fn());
+const scrollToMock = vi.hoisted(() => vi.fn());
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
 
-vi.mock('@app/debug/service', () => ({
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom');
+  return {
+    ...actual,
+    useNavigate: () => navigateMock,
+  };
+});
+
+vi.mock('@shared/debug', () => ({
   reportAppError: vi.fn(),
 }));
 
 vi.mock('@application/use-cases/library', () => ({
+  deleteNovelAndCleanupArtifacts: vi.fn(),
   loadBookDetailAnalysisStatus: vi.fn(),
   loadBookDetailPageData: vi.fn(),
+}));
+
+vi.mock('@application/use-cases/analysis', () => ({
+  pauseNovelAnalysis: vi.fn(),
+  restartNovelAnalysis: vi.fn(),
+  resumeNovelAnalysis: vi.fn(),
+  startNovelAnalysis: vi.fn(),
 }));
 
 vi.mock('@domains/library', () => ({
@@ -76,6 +99,12 @@ describe('useBookDetailPageViewModel', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.useRealTimers();
+    scrollToMock.mockReset();
+    Object.defineProperty(window, 'scrollTo', {
+      configurable: true,
+      value: scrollToMock,
+      writable: true,
+    });
     vi.mocked(loadBookDetailPageData).mockResolvedValue({
       analysisStatus: createStatusResponse(),
       analysisStatusError: null,
@@ -85,6 +114,7 @@ describe('useBookDetailPageViewModel', () => {
       analysisStatus: createStatusResponse(),
       analysisStatusError: null,
     });
+    vi.mocked(deleteNovelAndCleanupArtifacts).mockResolvedValue({ message: 'deleted' });
     vi.mocked(useNovelCoverResource).mockReturnValue(null);
   });
 
@@ -153,6 +183,41 @@ describe('useBookDetailPageViewModel', () => {
     expect(result.current.jobStatusLabel).toBe('bookDetail.analysisStatusGeneratingOverview');
     expect(result.current.pageHrefs.reader).toBe('/novel/1/read');
     expect(result.current.pageHrefs.characterGraph).toBe('/novel/1/graph');
+  });
+
+  it('resets the page scroll position when the novel changes', async () => {
+    const scrollContainer = document.createElement('div');
+    scrollContainer.scrollTop = 18;
+    const querySelectorMock = vi.spyOn(document, 'querySelector')
+      .mockReturnValue(scrollContainer);
+
+    renderHook(({ novelId }) => useBookDetailPageViewModel(novelId), {
+      initialProps: { novelId: 1 },
+    });
+
+    expect(querySelectorMock).toHaveBeenCalledWith('[data-scroll-container="true"]');
+    expect(scrollContainer.scrollTop).toBe(0);
+
+    querySelectorMock.mockRestore();
+  });
+
+  it('navigates back to the bookshelf after a successful delete', async () => {
+    const { result } = renderHook(() => useBookDetailPageViewModel(1));
+
+    await waitFor(() => {
+      expect(result.current.novel?.title).toBe('Mock Novel');
+    });
+
+    act(() => {
+      result.current.deleteFlow.openDeleteModal();
+    });
+
+    await act(async () => {
+      await result.current.deleteFlow.confirmDelete();
+    });
+
+    expect(deleteNovelAndCleanupArtifacts).toHaveBeenCalledWith(1);
+    expect(navigateMock).toHaveBeenCalledWith('/', { replace: true });
   });
 
   it('polls while the job is running and stops after it completes', async () => {
