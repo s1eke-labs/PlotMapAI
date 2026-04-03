@@ -62,10 +62,10 @@ if (window.matchMedia('(display-mode: standalone)').matches) {
 }
 
 
-const startupError = await initializeAppSafely();
+const startupState = await initializeAppSafely();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App startupError={startupError} />
+    <App startupState={startupState} />
   </StrictMode>,
 );

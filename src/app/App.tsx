@@ -1,6 +1,12 @@
-import { lazy, Suspense, useEffect } from 'react';
+import type { StartupState } from '@app/bootstrap/startup';
+
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { HashRouter as Router, Routes, Route } from 'react-router-dom';
+import {
+  initializeAppSafely,
+  resetDatabaseAndReinitialize,
+} from '@app/bootstrap/startup';
 import {
   loadBookDetailPage,
   loadBookshelfPage,
@@ -8,10 +14,9 @@ import {
   loadReaderPage,
   loadSettingsPage,
 } from '@application/pages';
-import type { AppError } from '@shared/errors';
-
 import InstallPrompt from './components/InstallPrompt';
 import ReloadPrompt from './components/ReloadPrompt';
+import StartupRecoveryScreen from './bootstrap/StartupRecoveryScreen';
 import { isDebugMode, registerDebugHelpers } from './debug/service';
 import DebugPanel from './debug/DebugPanel';
 import { AppErrorBoundary, registerGlobalErrorHandlers } from './errors';
@@ -35,10 +40,13 @@ function RouteFallback() {
 }
 
 interface AppProps {
-  startupError?: AppError | null;
+  startupState?: StartupState;
 }
 
-function App({ startupError = null }: AppProps) {
+function App({ startupState: initialStartupState = { kind: 'ready' } }: AppProps) {
+  const [startupState, setStartupState] = useState<StartupState>(initialStartupState);
+  const [isResolvingStartup, setIsResolvingStartup] = useState(false);
+
   useEffect(() => {
     if (!isDebugMode()) {
       return undefined;
@@ -51,28 +59,57 @@ function App({ startupError = null }: AppProps) {
     return registerGlobalErrorHandlers();
   }, []);
 
+  const handleRetryStartup = useCallback(async (): Promise<void> => {
+    setIsResolvingStartup(true);
+    try {
+      setStartupState(await initializeAppSafely());
+    } finally {
+      setIsResolvingStartup(false);
+    }
+  }, []);
+
+  const handleResetDatabase = useCallback(async (): Promise<void> => {
+    setIsResolvingStartup(true);
+    try {
+      setStartupState(await resetDatabaseAndReinitialize());
+    } finally {
+      setIsResolvingStartup(false);
+    }
+  }, []);
+
+  const initialError = startupState.kind === 'error' ? startupState.error : null;
+
   return (
     <ThemeProvider>
-      <Router>
-        <AppErrorBoundary initialError={startupError}>
-          <FileHandlingProvider>
-            <Layout>
-              <Suspense fallback={<RouteFallback />}>
-                <Routes>
-                  <Route path={appPaths.bookshelf()} element={<LazyBookshelfPage />} />
-                  <Route path="/novel/:id" element={<LazyBookDetailPage />} />
-                  <Route path="/novel/:id/read" element={<LazyReaderPage />} />
-                  <Route path="/novel/:id/graph" element={<LazyCharacterGraphPage />} />
-                  <Route path={appPaths.settings()} element={<LazySettingsPage />} />
-                </Routes>
-              </Suspense>
-            </Layout>
-          </FileHandlingProvider>
-        </AppErrorBoundary>
-      </Router>
+      <AppErrorBoundary initialError={initialError}>
+        {startupState.kind === 'recovery-required' ? (
+          <StartupRecoveryScreen
+            error={startupState.error}
+            isWorking={isResolvingStartup}
+            onRetry={handleRetryStartup}
+            onReset={handleResetDatabase}
+          />
+        ) : (
+          <Router>
+            <FileHandlingProvider>
+              <Layout>
+                <Suspense fallback={<RouteFallback />}>
+                  <Routes>
+                    <Route path={appPaths.bookshelf()} element={<LazyBookshelfPage />} />
+                    <Route path="/novel/:id" element={<LazyBookDetailPage />} />
+                    <Route path="/novel/:id/read" element={<LazyReaderPage />} />
+                    <Route path="/novel/:id/graph" element={<LazyCharacterGraphPage />} />
+                    <Route path={appPaths.settings()} element={<LazySettingsPage />} />
+                  </Routes>
+                </Suspense>
+              </Layout>
+            </FileHandlingProvider>
+          </Router>
+        )}
+      </AppErrorBoundary>
       {isDebugMode() && <DebugPanel />}
-      <InstallPrompt />
-      <ReloadPrompt />
+      {startupState.kind === 'ready' && <InstallPrompt />}
+      {startupState.kind === 'ready' && <ReloadPrompt />}
     </ThemeProvider>
   );
 }

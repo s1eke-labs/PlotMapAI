@@ -414,6 +414,19 @@
     "updating": "Refreshing...",
     "later": "Later"
   },
+  "startup": {
+    "recovery": {
+      "title": "Local data needs attention",
+      "description": "PlotMapAI found an older local database that this version cannot migrate safely. You can keep the current data untouched, or explicitly delete and rebuild the local database to continue starting the app.",
+      "debugHint": "Detected database {{dbName}} targeting schema v{{version}}. A diagnostic entry was recorded in the debug log when debug mode is enabled.",
+      "retry": "Check Again",
+      "reset": "Delete And Rebuild",
+      "confirmTitle": "Delete incompatible local database?",
+      "confirmDescription": "This will permanently remove the incompatible IndexedDB data on this device and rebuild the current schema. This action cannot be undone.",
+      "cancel": "Not Now",
+      "confirmReset": "Delete And Rebuild"
+    }
+  },
   "errors": {
     "boundaryTitle": "Something went wrong",
     "INTERNAL_ERROR_GENERIC": "An unexpected error occurred. Please retry or return to the bookshelf.",
@@ -462,6 +475,7 @@
     "STORAGE_SECURE_UNAVAILABLE": "Secure storage is currently unavailable.",
     "STORAGE_ENCRYPTED_PAYLOAD_INVALID": "The encrypted settings payload is invalid.",
     "STORAGE_OPERATION_FAILED": "A local storage operation failed. Please try again later.",
+    "DATABASE_RECOVERY_REQUIRED": "An incompatible local database version was detected. Review the recovery options before continuing.",
     "RULE_NOT_FOUND": "The requested rule was not found.",
     "CANNOT_DELETE_DEFAULT_RULE": "Default rules cannot be deleted.",
     "INVALID_YAML_FILE": "The YAML file is invalid.",

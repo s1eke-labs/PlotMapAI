@@ -6,6 +6,7 @@ import {
   ensureDefaultTocRules,
 } from '@domains/settings';
 import { prepareDatabase } from '@infra/db';
+import { runPostDatabaseMigrations } from '@infra/migrations';
 
 vi.mock('@domains/settings', () => ({
   ensureDefaultPurificationRules: vi.fn(),
@@ -22,11 +23,16 @@ vi.mock('@infra/db', () => ({
   prepareDatabase: vi.fn(),
 }));
 
+vi.mock('@infra/migrations', () => ({
+  runPostDatabaseMigrations: vi.fn(),
+}));
+
 describe('initializeApplication', () => {
   beforeEach(async () => {
     vi.resetModules();
     vi.clearAllMocks();
     vi.mocked(prepareDatabase).mockResolvedValue(undefined);
+    vi.mocked(runPostDatabaseMigrations).mockResolvedValue(undefined);
     vi.mocked(ensureDefaultPurificationRules).mockResolvedValue(undefined);
     vi.mocked(ensureDefaultTocRules).mockResolvedValue(undefined);
     vi.mocked(analysisService.initialize).mockResolvedValue(undefined);
@@ -39,6 +45,7 @@ describe('initializeApplication', () => {
     await initializeApplication();
 
     expect(prepareDatabase).toHaveBeenCalledTimes(1);
+    expect(runPostDatabaseMigrations).toHaveBeenCalledTimes(1);
     expect(ensureDefaultPurificationRules).toHaveBeenCalledTimes(1);
     expect(ensureDefaultTocRules).toHaveBeenCalledTimes(1);
     expect(analysisService.initialize).toHaveBeenCalledTimes(1);
@@ -55,6 +62,7 @@ describe('initializeApplication', () => {
     await expect(initializeApplication()).resolves.toBeUndefined();
 
     expect(prepareDatabase).toHaveBeenCalledTimes(2);
+    expect(runPostDatabaseMigrations).toHaveBeenCalledTimes(1);
     expect(ensureDefaultPurificationRules).toHaveBeenCalledTimes(1);
     expect(ensureDefaultTocRules).toHaveBeenCalledTimes(1);
     expect(analysisService.initialize).toHaveBeenCalledTimes(1);

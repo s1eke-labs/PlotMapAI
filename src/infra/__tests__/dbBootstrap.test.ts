@@ -1,7 +1,24 @@
 import Dexie from 'dexie';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { db, PLOTMAPAI_DB_NAME, prepareDatabase } from '@infra/db';
+import { AppErrorCode } from '@shared/errors';
+
+const { mockDebugLog, mockReportAppError } = vi.hoisted(() => ({
+  mockDebugLog: vi.fn(),
+  mockReportAppError: vi.fn(),
+}));
+
+vi.mock('@shared/debug', () => ({
+  debugLog: mockDebugLog,
+  reportAppError: mockReportAppError,
+}));
+
+import {
+  db,
+  PLOTMAPAI_DB_NAME,
+  prepareDatabase,
+  resetDatabaseForRecovery,
+} from '@infra/db';
 import { ANALYSIS_DB_SCHEMA } from '@infra/db/analysis';
 import { LIBRARY_DB_SCHEMA } from '@infra/db/library';
 import { READER_DB_SCHEMA } from '@infra/db/reader';
@@ -69,11 +86,26 @@ async function createVersionOneDatabaseWithLegacyNovel(): Promise<void> {
   legacyDb.close();
 }
 
+function readObjectStoreNames(): Promise<string[]> {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(PLOTMAPAI_DB_NAME);
+
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const names = Array.from(request.result.objectStoreNames);
+      request.result.close();
+      resolve(names);
+    };
+  });
+}
+
 describe('prepareDatabase', () => {
   beforeEach(async () => {
     db.close();
-    await db.delete();
+    await Dexie.delete(PLOTMAPAI_DB_NAME);
     localStorage.clear();
+    mockDebugLog.mockReset();
+    mockReportAppError.mockReset();
   });
 
   it('opens the formal v2 baseline schema in a fresh environment', async () => {
@@ -98,9 +130,28 @@ describe('prepareDatabase', () => {
     ]);
   });
 
-  it('deletes a legacy same-name database and recreates the v2 baseline', async () => {
+  it('requires explicit recovery for an incompatible same-name database', async () => {
     await createLegacyDatabase(9);
 
+    await expect(prepareDatabase()).rejects.toMatchObject({
+      code: AppErrorCode.DATABASE_RECOVERY_REQUIRED,
+    });
+
+    await expect(readObjectStoreNames()).resolves.toContain('legacyStore');
+    expect(mockDebugLog).toHaveBeenCalledWith('Storage', 'Database recovery required', expect.objectContaining({
+      databaseName: PLOTMAPAI_DB_NAME,
+      targetVersion: 2,
+    }));
+    expect(mockReportAppError).toHaveBeenCalledTimes(1);
+  });
+
+  it('deletes an incompatible database only after explicit recovery and recreates the baseline', async () => {
+    await createLegacyDatabase(9);
+    await expect(prepareDatabase()).rejects.toMatchObject({
+      code: AppErrorCode.DATABASE_RECOVERY_REQUIRED,
+    });
+
+    await resetDatabaseForRecovery();
     await prepareDatabase();
 
     expect(db.verno).toBe(2);

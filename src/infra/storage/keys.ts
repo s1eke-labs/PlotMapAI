@@ -1,5 +1,6 @@
 export const APP_SETTING_KEYS = {
   aiConfig: 'app.aiConfig',
+  migrationLedger: 'infra.migrationLedger',
   readerPreferences: 'reader.preferences',
 } as const;
 
