@@ -5,7 +5,7 @@ import type { AppError } from '@shared/errors';
 import { analysisService } from '@domains/analysis';
 import { bookImportService } from '@domains/book-import';
 import { novelRepository } from '@domains/library';
-import { deleteReaderArtifacts, loadAndPurifyChapters } from '@domains/reader';
+import { deleteReaderArtifacts, loadAndPurifyChapters } from '@domains/reader-content';
 import { ensureDefaultTocRules, tocRuleRepository } from '@domains/settings';
 import { CACHE_KEYS, storage } from '@infra/storage';
 import { AppErrorCode, toAppError } from '@shared/errors';

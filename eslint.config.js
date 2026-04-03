@@ -70,7 +70,36 @@ export default defineConfig([
     },
   },
   {
+    files: ['src/domains/reader-*/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@app/*', '@app/*/*'],
+              message: 'domain code must not depend on app code.',
+            },
+            {
+              group: ['@application/*', '@application/*/*'],
+              message: 'domain code must not depend on application code.',
+            },
+            {
+              group: ['@domains/*', '!@domains/reader-*', '!@domains/reader-*/*'],
+              message: 'reader-family domain code must not depend on unrelated domains.',
+            },
+            {
+              group: ['@domains/*/*', '!@domains/reader-*/*'],
+              message: 'reader-family domain code must not depend on unrelated domain internals.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     files: ['src/domains/**/*.{ts,tsx}'],
+    ignores: ['src/domains/reader-*/**/*.{ts,tsx}'],
     rules: {
       'no-restricted-imports': [
         'error',

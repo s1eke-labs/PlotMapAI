@@ -3,11 +3,11 @@ import { useParams } from 'react-router-dom';
 import { analyzeChapter } from '@application/use-cases/analysis';
 import { appPaths } from '@app/router/paths';
 import { ChapterAnalysisPanel, analysisService } from '@domains/analysis';
+import type { ReaderAnalysisBridgeController } from '@domains/reader-shell';
 import {
   ReaderPageContainer,
   ReaderProvider,
-  type ReaderAnalysisBridgeController,
-} from '@domains/reader';
+} from '@domains/reader-shell';
 
 const readerAnalysisController: ReaderAnalysisBridgeController = {
   analyzeChapter,

@@ -5,7 +5,7 @@ import { bookImportService } from '@domains/book-import';
 import { novelRepository } from '@domains/library';
 import {
   deleteReaderArtifacts,
-} from '@domains/reader';
+} from '@domains/reader-content';
 import { ensureDefaultTocRules, tocRuleRepository } from '@domains/settings';
 import { db } from '@infra/db';
 import { CACHE_KEYS, storage } from '@infra/storage';
@@ -36,13 +36,9 @@ vi.mock('@domains/library', () => ({
   },
 }));
 
-vi.mock('@domains/reader', () => ({
+vi.mock('@domains/reader-content', () => ({
   deleteReaderArtifacts: vi.fn(),
   loadAndPurifyChapters: vi.fn(),
-}));
-
-vi.mock('@domains/settings', () => ({
-  ensureDefaultTocRules: vi.fn(),
 }));
 
 vi.mock('@domains/settings', () => ({

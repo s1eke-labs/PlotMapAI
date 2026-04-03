@@ -28,7 +28,7 @@ vi.mock('@domains/analysis', async () => {
   };
 });
 
-vi.mock('@domains/reader', () => ({
+vi.mock('@domains/reader-shell', () => ({
   ReaderProvider: ({ children }: { children: ReactNode }) => children,
   ReaderPageContainer: ({
     analysisController,

@@ -6,7 +6,7 @@ import {
   type AnalysisExecutionContext,
 } from '@domains/analysis';
 import { novelRepository } from '@domains/library';
-import { loadAndPurifyChapters } from '@domains/reader';
+import { loadAndPurifyChapters } from '@domains/reader-content';
 import { getAiConfig } from '@domains/settings';
 
 async function loadAnalysisExecutionContext(novelId: number): Promise<AnalysisExecutionContext> {

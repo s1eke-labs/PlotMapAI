@@ -1,4 +1,4 @@
-import { resetReaderSessionStoreForTests } from '@domains/reader/hooks/sessionStore';
+import { resetReaderSessionStoreForTests } from '@domains/reader-session';
 
 export function resetReaderStoresForTests(): void {
   resetReaderSessionStoreForTests();
