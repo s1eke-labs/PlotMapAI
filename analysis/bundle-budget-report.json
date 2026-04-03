@@ -3,12 +3,12 @@
     {
       "dynamicImports": [],
       "facadeModuleId": null,
-      "fileName": "assets/analysis-BzeW2mYm.js",
-      "gzipBytes": 338,
+      "fileName": "assets/analysis-CXLROKrL.js",
+      "gzipBytes": 415,
       "imports": [
-        "assets/reader-DwyVH5Qc.js",
-        "assets/settings-BFF4Zau9.js",
-        "assets/library-Yn9cUmcT.js"
+        "assets/readerContentController-O1hBbzHX.js",
+        "assets/settings-DiJrkDh3.js",
+        "assets/library-DCYx39Wo.js"
       ],
       "isDynamicEntry": false,
       "isEntry": false,
@@ -16,25 +16,42 @@
       "moduleIds": [
         "/home/runner/work/PlotMapAI/PlotMapAI/src/application/use-cases/analysis.ts"
       ],
-      "rawBytes": 644
+      "rawBytes": 800
     },
     {
       "dynamicImports": [],
-      "facadeModuleId": "/home/runner/work/PlotMapAI/PlotMapAI/src/application/pages/BookDetailPage.tsx",
-      "fileName": "assets/BookDetailPage-BVG4OLdc.js",
-      "gzipBytes": 5001,
+      "facadeModuleId": null,
+      "fileName": "assets/arrow-left-292-3xHc.js",
+      "gzipBytes": 153,
       "imports": [
-        "assets/cn-Bh4-feJv.js",
-        "assets/reader-DwyVH5Qc.js",
-        "assets/settings-BFF4Zau9.js",
-        "assets/library-BUNccsXQ.js",
-        "assets/migrations-CTTtTLFd.js",
-        "assets/share-2-cFINyYDy.js",
-        "assets/file-text-CnCndqe-.js",
-        "assets/refresh-cw-DkUiSI4U.js",
-        "assets/paths-CwpUOXMW.js",
-        "assets/analysis-BzeW2mYm.js",
-        "assets/library-Yn9cUmcT.js"
+        "assets/cn-BADLdMXm.js"
+      ],
+      "isDynamicEntry": false,
+      "isEntry": false,
+      "isWorker": false,
+      "moduleIds": [
+        "/home/runner/work/PlotMapAI/PlotMapAI/node_modules/lucide-react/dist/esm/icons/arrow-left.js"
+      ],
+      "rawBytes": 151
+    },
+    {
+      "dynamicImports": [],
+      "facadeModuleId": "/home/runner/work/PlotMapAI/PlotMapAI/src/application/pages/book-detail/index.tsx",
+      "fileName": "assets/book-detail-UGZIrwUZ.js",
+      "gzipBytes": 5023,
+      "imports": [
+        "assets/cn-BADLdMXm.js",
+        "assets/readerContentController-O1hBbzHX.js",
+        "assets/settings-DiJrkDh3.js",
+        "assets/library-w0Hu6kgu.js",
+        "assets/arrow-left-292-3xHc.js",
+        "assets/share-2-BqpTIAo0.js",
+        "assets/file-text-DwDCybgd.js",
+        "assets/refresh-cw-DhIVpViC.js",
+        "assets/readerPreferenceStore-CO4w7ofx.js",
+        "assets/paths-C-bUrw0e.js",
+        "assets/analysis-CXLROKrL.js",
+        "assets/library-DCYx39Wo.js"
       ],
       "isDynamicEntry": true,
       "isEntry": false,
@@ -43,57 +60,78 @@
         "/home/runner/work/PlotMapAI/PlotMapAI/node_modules/lucide-react/dist/esm/icons/hash.js",
         "/home/runner/work/PlotMapAI/PlotMapAI/node_modules/lucide-react/dist/esm/icons/pause.js",
         "/home/runner/work/PlotMapAI/PlotMapAI/node_modules/lucide-react/dist/esm/icons/play.js",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/application/pages/BookDetailPage.tsx",
         "/home/runner/work/PlotMapAI/PlotMapAI/src/application/pages/book-detail/BookDetailActionPanel.tsx",
         "/home/runner/work/PlotMapAI/PlotMapAI/src/application/pages/book-detail/BookDetailDeleteDialog.tsx",
         "/home/runner/work/PlotMapAI/PlotMapAI/src/application/pages/book-detail/BookDetailHero.tsx",
         "/home/runner/work/PlotMapAI/PlotMapAI/src/application/pages/book-detail/BookDetailInsightsPanel.tsx",
         "/home/runner/work/PlotMapAI/PlotMapAI/src/application/pages/book-detail/BookDetailScreen.tsx",
         "/home/runner/work/PlotMapAI/PlotMapAI/src/application/pages/book-detail/BookDetailStats.tsx",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/application/pages/book-detail/index.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/application/pages/book-detail/index.tsx",
         "/home/runner/work/PlotMapAI/PlotMapAI/src/application/pages/book-detail/useBookDetailAnalysisController.ts",
         "/home/runner/work/PlotMapAI/PlotMapAI/src/application/pages/book-detail/useBookDetailDeleteFlow.ts",
         "/home/runner/work/PlotMapAI/PlotMapAI/src/application/pages/book-detail/useBookDetailPageViewModel.ts"
       ],
-      "rawBytes": 18236
+      "rawBytes": 18245
     },
     {
       "dynamicImports": [
-        "assets/UploadModal-BZp95xso.js"
+        "assets/UploadModal-DuPzevly.js"
       ],
-      "facadeModuleId": "/home/runner/work/PlotMapAI/PlotMapAI/src/application/pages/BookshelfPage.tsx",
-      "fileName": "assets/BookshelfPage-D4um-8XM.js",
-      "gzipBytes": 1629,
+      "facadeModuleId": "/home/runner/work/PlotMapAI/PlotMapAI/src/application/pages/bookshelf/index.tsx",
+      "fileName": "assets/bookshelf-DMI1nnlf.js",
+      "gzipBytes": 1819,
       "imports": [
-        "assets/cn-Bh4-feJv.js",
-        "assets/FileHandlingContext-CnprVVcU.js",
-        "assets/paths-CwpUOXMW.js",
-        "assets/library-Yn9cUmcT.js"
+        "assets/cn-BADLdMXm.js",
+        "assets/FileHandlingContext-mxjGfJHy.js",
+        "assets/paths-C-bUrw0e.js",
+        "assets/library-DCYx39Wo.js"
       ],
       "isDynamicEntry": true,
       "isEntry": false,
       "isWorker": false,
       "moduleIds": [
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/application/pages/BookshelfPage.tsx"
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/application/pages/bookshelf/BookshelfScreen.tsx",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/application/pages/bookshelf/index.tsx",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/application/pages/bookshelf/useBookshelfPageViewModel.ts"
       ],
-      "rawBytes": 4128
+      "rawBytes": 4830
     },
     {
       "dynamicImports": [],
-      "facadeModuleId": "/home/runner/work/PlotMapAI/PlotMapAI/src/application/pages/CharacterGraphPage.tsx",
-      "fileName": "assets/CharacterGraphPage-CrCztm8i.js",
-      "gzipBytes": 11618,
+      "facadeModuleId": null,
+      "fileName": "assets/BottomSheet--zdm5Jht.js",
+      "gzipBytes": 1943,
       "imports": [
-        "assets/cn-Bh4-feJv.js",
-        "assets/reader-DwyVH5Qc.js",
-        "assets/settings-BFF4Zau9.js",
-        "assets/library-BUNccsXQ.js",
-        "assets/migrations-CTTtTLFd.js",
-        "assets/refresh-cw-DkUiSI4U.js",
-        "assets/rotate-ccw-C8cYn18s.js",
-        "assets/paths-CwpUOXMW.js",
-        "assets/analysis-BzeW2mYm.js",
-        "assets/library-Yn9cUmcT.js"
+        "assets/cn-BADLdMXm.js",
+        "assets/readerContentController-O1hBbzHX.js",
+        "assets/settings-DiJrkDh3.js"
+      ],
+      "isDynamicEntry": false,
+      "isEntry": false,
+      "isWorker": false,
+      "moduleIds": [
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/shared/components/BottomSheet.tsx"
+      ],
+      "rawBytes": 4345
+    },
+    {
+      "dynamicImports": [],
+      "facadeModuleId": "/home/runner/work/PlotMapAI/PlotMapAI/src/application/pages/character-graph/index.tsx",
+      "fileName": "assets/character-graph-OI_kNWqJ.js",
+      "gzipBytes": 11850,
+      "imports": [
+        "assets/cn-BADLdMXm.js",
+        "assets/readerContentController-O1hBbzHX.js",
+        "assets/settings-DiJrkDh3.js",
+        "assets/library-w0Hu6kgu.js",
+        "assets/arrow-left-292-3xHc.js",
+        "assets/refresh-cw-DhIVpViC.js",
+        "assets/rotate-ccw-DCLeePUY.js",
+        "assets/readerPreferenceStore-CO4w7ofx.js",
+        "assets/paths-C-bUrw0e.js",
+        "assets/analysis-CXLROKrL.js",
+        "assets/library-DCYx39Wo.js",
+        "assets/BottomSheet--zdm5Jht.js"
       ],
       "isDynamicEntry": true,
       "isEntry": false,
@@ -102,7 +140,9 @@
         "/home/runner/work/PlotMapAI/PlotMapAI/node_modules/lucide-react/dist/esm/icons/circle-question-mark.js",
         "/home/runner/work/PlotMapAI/PlotMapAI/node_modules/lucide-react/dist/esm/icons/maximize-2.js",
         "/home/runner/work/PlotMapAI/PlotMapAI/node_modules/lucide-react/dist/esm/icons/minimize-2.js",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/application/pages/CharacterGraphPage.tsx",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/application/pages/character-graph/CharacterGraphScreen.tsx",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/application/pages/character-graph/index.tsx",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/application/pages/character-graph/useCharacterGraphPageViewModel.ts",
         "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/character-graph/components/characterGraph/CharacterGraphCanvas.tsx",
         "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/character-graph/components/characterGraph/CharacterGraphInspector.tsx",
         "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/character-graph/components/characterGraph/CharacterGraphProfileContent.tsx",
@@ -118,13 +158,13 @@
         "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/character-graph/utils/characterGraphViewportTransform.ts",
         "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/character-graph/workers/layoutClient.ts"
       ],
-      "rawBytes": 41043
+      "rawBytes": 41854
     },
     {
       "dynamicImports": [],
       "facadeModuleId": null,
-      "fileName": "assets/cn-Bh4-feJv.js",
-      "gzipBytes": 60701,
+      "fileName": "assets/cn-BADLdMXm.js",
+      "gzipBytes": 61609,
       "imports": [],
       "isDynamicEntry": false,
       "isEntry": false,
@@ -162,17 +202,18 @@
         "/home/runner/work/PlotMapAI/PlotMapAI/src/infra/db/library.ts",
         "/home/runner/work/PlotMapAI/PlotMapAI/src/infra/db/reader.ts",
         "/home/runner/work/PlotMapAI/PlotMapAI/src/infra/db/settings.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/infra/migrations/dbSchema.ts",
         "/home/runner/work/PlotMapAI/PlotMapAI/src/shared/debug/index.ts",
         "/home/runner/work/PlotMapAI/PlotMapAI/src/shared/errors/model.ts",
         "/home/runner/work/PlotMapAI/PlotMapAI/src/shared/errors/presentation.ts",
         "/home/runner/work/PlotMapAI/PlotMapAI/src/shared/utils/cn.ts"
       ],
-      "rawBytes": 183793
+      "rawBytes": 186208
     },
     {
       "dynamicImports": [],
       "facadeModuleId": "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/settings/services/defaultPurificationRules.yaml?raw",
-      "fileName": "assets/defaultPurificationRules-CP5La6f5.js",
+      "fileName": "assets/defaultPurificationRules-CRcztGxo.js",
       "gzipBytes": 387,
       "imports": [],
       "isDynamicEntry": true,
@@ -186,7 +227,7 @@
     {
       "dynamicImports": [],
       "facadeModuleId": "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/settings/services/defaultTocRules.yaml?raw",
-      "fileName": "assets/defaultTocRules-bFOw0FkC.js",
+      "fileName": "assets/defaultTocRules-C38z7VTc.js",
       "gzipBytes": 2082,
       "imports": [],
       "isDynamicEntry": true,
@@ -200,22 +241,22 @@
     {
       "dynamicImports": [],
       "facadeModuleId": null,
-      "fileName": "assets/epub.worker-cO2m8yRV.js",
-      "gzipBytes": 36799,
+      "fileName": "assets/epub.worker-DGM3Hc_G.js",
+      "gzipBytes": 36813,
       "imports": [],
       "isDynamicEntry": false,
       "isEntry": true,
       "isWorker": true,
       "moduleIds": [],
-      "rawBytes": 121311
+      "rawBytes": 121367
     },
     {
       "dynamicImports": [],
       "facadeModuleId": null,
-      "fileName": "assets/file-text-CnCndqe-.js",
-      "gzipBytes": 238,
+      "fileName": "assets/file-text-DwDCybgd.js",
+      "gzipBytes": 241,
       "imports": [
-        "assets/cn-Bh4-feJv.js"
+        "assets/cn-BADLdMXm.js"
       ],
       "isDynamicEntry": false,
       "isEntry": false,
@@ -228,11 +269,11 @@
     {
       "dynamicImports": [],
       "facadeModuleId": null,
-      "fileName": "assets/FileHandlingContext-CnprVVcU.js",
-      "gzipBytes": 671,
+      "fileName": "assets/FileHandlingContext-mxjGfJHy.js",
+      "gzipBytes": 670,
       "imports": [
-        "assets/cn-Bh4-feJv.js",
-        "assets/paths-CwpUOXMW.js"
+        "assets/cn-BADLdMXm.js",
+        "assets/paths-C-bUrw0e.js"
       ],
       "isDynamicEntry": false,
       "isEntry": false,
@@ -244,26 +285,27 @@
     },
     {
       "dynamicImports": [
-        "assets/BookDetailPage-BVG4OLdc.js",
-        "assets/BookshelfPage-D4um-8XM.js",
-        "assets/CharacterGraphPage-CrCztm8i.js",
-        "assets/ReaderPage-CsLow2SE.js",
-        "assets/SettingsPage-BM0e6viy.js",
-        "assets/workbox-window.prod.es5-CfQuw9Fg.js"
+        "assets/book-detail-UGZIrwUZ.js",
+        "assets/bookshelf-DMI1nnlf.js",
+        "assets/character-graph-OI_kNWqJ.js",
+        "assets/reader-Cw1chteG.js",
+        "assets/settings-CKFcocA4.js",
+        "assets/workbox-window.prod.es5-DHdPsNjM.js"
       ],
       "facadeModuleId": "/home/runner/work/PlotMapAI/PlotMapAI/index.html",
-      "fileName": "assets/index-CNKffysW.js",
-      "gzipBytes": 93142,
+      "fileName": "assets/index-BS3FIKfb.js",
+      "gzipBytes": 95608,
       "imports": [
-        "assets/cn-Bh4-feJv.js",
-        "assets/settings-BFF4Zau9.js",
-        "assets/migrations-CTTtTLFd.js",
-        "assets/share-2-cFINyYDy.js",
-        "assets/refresh-cw-DkUiSI4U.js",
-        "assets/rotate-ccw-C8cYn18s.js",
-        "assets/service-DEOgKnxy.js",
-        "assets/FileHandlingContext-CnprVVcU.js",
-        "assets/paths-CwpUOXMW.js"
+        "assets/cn-BADLdMXm.js",
+        "assets/settings-DiJrkDh3.js",
+        "assets/arrow-left-292-3xHc.js",
+        "assets/share-2-BqpTIAo0.js",
+        "assets/refresh-cw-DhIVpViC.js",
+        "assets/rotate-ccw-DCLeePUY.js",
+        "assets/readerPreferenceStore-CO4w7ofx.js",
+        "assets/FileHandlingContext-mxjGfJHy.js",
+        "assets/paths-C-bUrw0e.js",
+        "assets/readerAppearanceStore-BZ_uxzuV.js"
       ],
       "isDynamicEntry": false,
       "isEntry": true,
@@ -287,6 +329,7 @@
         "/home/runner/work/PlotMapAI/PlotMapAI/node_modules/scheduler/cjs/scheduler.production.js",
         "/home/runner/work/PlotMapAI/PlotMapAI/node_modules/scheduler/index.js",
         "/home/runner/work/PlotMapAI/PlotMapAI/src/app/App.tsx",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/app/bootstrap/StartupRecoveryScreen.tsx",
         "/home/runner/work/PlotMapAI/PlotMapAI/src/app/bootstrap/initializeApp.ts",
         "/home/runner/work/PlotMapAI/PlotMapAI/src/app/bootstrap/startup.ts",
         "/home/runner/work/PlotMapAI/PlotMapAI/src/app/components/InstallPrompt.tsx",
@@ -294,26 +337,30 @@
         "/home/runner/work/PlotMapAI/PlotMapAI/src/app/components/ReloadPrompt.tsx",
         "/home/runner/work/PlotMapAI/PlotMapAI/src/app/components/ThemeToggle.tsx",
         "/home/runner/work/PlotMapAI/PlotMapAI/src/app/debug/DebugPanel.tsx",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/app/debug/pwaDebugTools.ts",
         "/home/runner/work/PlotMapAI/PlotMapAI/src/app/errors/AppErrorBoundary.tsx",
         "/home/runner/work/PlotMapAI/PlotMapAI/src/app/errors/global.ts",
         "/home/runner/work/PlotMapAI/PlotMapAI/src/app/errors/index.ts",
         "/home/runner/work/PlotMapAI/PlotMapAI/src/app/layout/Layout.tsx",
         "/home/runner/work/PlotMapAI/PlotMapAI/src/app/providers/ThemeContext.tsx",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/app/stores/appThemeStore.ts",
         "/home/runner/work/PlotMapAI/PlotMapAI/src/application/pages/index.ts",
         "/home/runner/work/PlotMapAI/PlotMapAI/src/application/use-cases/initializeApplication.ts",
         "/home/runner/work/PlotMapAI/PlotMapAI/src/i18n/config.ts",
         "/home/runner/work/PlotMapAI/PlotMapAI/src/i18n/locales/en.json",
         "/home/runner/work/PlotMapAI/PlotMapAI/src/i18n/locales/zh.json",
         "/home/runner/work/PlotMapAI/PlotMapAI/src/index.css",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/main.tsx"
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/infra/migrations/cleanup.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/infra/migrations/index.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/infra/migrations/storage.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/main.tsx",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/shared/stores/appThemeStore.ts"
       ],
-      "rawBytes": 299200
+      "rawBytes": 308248
     },
     {
       "dynamicImports": [],
       "facadeModuleId": "/home/runner/work/PlotMapAI/PlotMapAI/node_modules/js-yaml/dist/js-yaml.mjs",
-      "fileName": "assets/js-yaml-BmoEujaG.js",
+      "fileName": "assets/js-yaml-DHZMwn03.js",
       "gzipBytes": 13282,
       "imports": [],
       "isDynamicEntry": true,
@@ -327,49 +374,22 @@
     {
       "dynamicImports": [],
       "facadeModuleId": null,
-      "fileName": "assets/layout.worker-Dso_OJo3.js",
-      "gzipBytes": 3142,
+      "fileName": "assets/layout.worker-C_n791Te.js",
+      "gzipBytes": 3159,
       "imports": [],
       "isDynamicEntry": false,
       "isEntry": true,
       "isWorker": true,
       "moduleIds": [],
-      "rawBytes": 9199
+      "rawBytes": 9255
     },
     {
       "dynamicImports": [],
       "facadeModuleId": null,
-      "fileName": "assets/library-BUNccsXQ.js",
-      "gzipBytes": 30155,
+      "fileName": "assets/library-DCYx39Wo.js",
+      "gzipBytes": 4045,
       "imports": [
-        "assets/cn-Bh4-feJv.js",
-        "assets/reader-DwyVH5Qc.js",
-        "assets/settings-BFF4Zau9.js",
-        "assets/library-Yn9cUmcT.js"
-      ],
-      "isDynamicEntry": false,
-      "isEntry": false,
-      "isWorker": false,
-      "moduleIds": [
-        "/home/runner/work/PlotMapAI/PlotMapAI/node_modules/jszip/dist/jszip.min.js",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/application/use-cases/library.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/book-import/bookImportService.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/book-import/index.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/book-import/services/bookParser.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/book-import/services/epub/core.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/book-import/services/epub/parser.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/book-import/services/txtParser.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/book-import/workers/epubClient.ts"
-      ],
-      "rawBytes": 100481
-    },
-    {
-      "dynamicImports": [],
-      "facadeModuleId": null,
-      "fileName": "assets/library-Yn9cUmcT.js",
-      "gzipBytes": 3395,
-      "imports": [
-        "assets/cn-Bh4-feJv.js"
+        "assets/cn-BADLdMXm.js"
       ],
       "isDynamicEntry": false,
       "isEntry": false,
@@ -379,42 +399,46 @@
         "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/library/components/BookDetailActionButton.tsx",
         "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/library/components/CharacterShareChart.tsx",
         "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/library/components/TxtCover.tsx",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/library/hooks/useNovelCoverResource.ts",
         "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/library/index.ts",
         "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/library/mappers.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/library/novelRepository.ts"
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/library/novelRepository.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/library/utils/novelCoverResourceCache.ts"
       ],
-      "rawBytes": 8698
+      "rawBytes": 10754
     },
     {
       "dynamicImports": [],
       "facadeModuleId": null,
-      "fileName": "assets/migrations-CTTtTLFd.js",
-      "gzipBytes": 2325,
+      "fileName": "assets/library-w0Hu6kgu.js",
+      "gzipBytes": 30297,
       "imports": [
-        "assets/cn-Bh4-feJv.js",
-        "assets/settings-BFF4Zau9.js"
+        "assets/cn-BADLdMXm.js",
+        "assets/readerContentController-O1hBbzHX.js",
+        "assets/settings-DiJrkDh3.js",
+        "assets/library-DCYx39Wo.js"
       ],
       "isDynamicEntry": false,
       "isEntry": false,
       "isWorker": false,
       "moduleIds": [
-        "/home/runner/work/PlotMapAI/PlotMapAI/node_modules/lucide-react/dist/esm/icons/arrow-left.js",
-        "/home/runner/work/PlotMapAI/PlotMapAI/node_modules/zustand/esm/middleware.mjs",
-        "/home/runner/work/PlotMapAI/PlotMapAI/node_modules/zustand/esm/react.mjs",
-        "/home/runner/work/PlotMapAI/PlotMapAI/node_modules/zustand/esm/vanilla.mjs",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/infra/migrations/index.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/infra/migrations/readerStateCache.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/infra/migrations/storage.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/infra/storage/readerStateCache.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/shared/stores/appThemeStore.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/shared/stores/readerAppearanceStore.ts"
+        "/home/runner/work/PlotMapAI/PlotMapAI/node_modules/jszip/dist/jszip.min.js",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/application/services/bookLifecycleService.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/application/use-cases/library.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/book-import/bookImportService.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/book-import/index.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/book-import/services/bookParser.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/book-import/services/epub/core.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/book-import/services/epub/parser.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/book-import/services/txtParser.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/book-import/workers/epubClient.ts"
       ],
-      "rawBytes": 5957
+      "rawBytes": 100996
     },
     {
       "dynamicImports": [],
       "facadeModuleId": null,
-      "fileName": "assets/paths-CwpUOXMW.js",
+      "fileName": "assets/paths-C-bUrw0e.js",
       "gzipBytes": 129,
       "imports": [],
       "isDynamicEntry": false,
@@ -427,13 +451,87 @@
     },
     {
       "dynamicImports": [],
-      "facadeModuleId": null,
-      "fileName": "assets/reader-DwyVH5Qc.js",
-      "gzipBytes": 53543,
+      "facadeModuleId": "/home/runner/work/PlotMapAI/PlotMapAI/src/application/pages/reader/index.tsx",
+      "fileName": "assets/reader-Cw1chteG.js",
+      "gzipBytes": 9660,
       "imports": [
-        "assets/cn-Bh4-feJv.js",
-        "assets/settings-BFF4Zau9.js",
-        "assets/migrations-CTTtTLFd.js"
+        "assets/cn-BADLdMXm.js",
+        "assets/readerContentController-O1hBbzHX.js",
+        "assets/settings-DiJrkDh3.js",
+        "assets/arrow-left-292-3xHc.js",
+        "assets/readerPreferenceStore-CO4w7ofx.js",
+        "assets/paths-C-bUrw0e.js",
+        "assets/analysis-CXLROKrL.js",
+        "assets/library-DCYx39Wo.js",
+        "assets/BottomSheet--zdm5Jht.js",
+        "assets/readerAppearanceStore-BZ_uxzuV.js"
+      ],
+      "isDynamicEntry": true,
+      "isEntry": false,
+      "isWorker": false,
+      "moduleIds": [
+        "/home/runner/work/PlotMapAI/PlotMapAI/node_modules/lucide-react/dist/esm/icons/align-vertical-space-around.js",
+        "/home/runner/work/PlotMapAI/PlotMapAI/node_modules/lucide-react/dist/esm/icons/arrow-right.js",
+        "/home/runner/work/PlotMapAI/PlotMapAI/node_modules/lucide-react/dist/esm/icons/check.js",
+        "/home/runner/work/PlotMapAI/PlotMapAI/node_modules/lucide-react/dist/esm/icons/columns-2.js",
+        "/home/runner/work/PlotMapAI/PlotMapAI/node_modules/lucide-react/dist/esm/icons/ellipsis-vertical.js",
+        "/home/runner/work/PlotMapAI/PlotMapAI/node_modules/lucide-react/dist/esm/icons/list.js",
+        "/home/runner/work/PlotMapAI/PlotMapAI/node_modules/lucide-react/dist/esm/icons/menu.js",
+        "/home/runner/work/PlotMapAI/PlotMapAI/node_modules/lucide-react/dist/esm/icons/text-align-justify.js",
+        "/home/runner/work/PlotMapAI/PlotMapAI/node_modules/lucide-react/dist/esm/icons/text-align-start.js",
+        "/home/runner/work/PlotMapAI/PlotMapAI/node_modules/lucide-react/dist/esm/icons/type.js",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/application/pages/reader/ReaderScreen.tsx",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/application/pages/reader/index.tsx",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/application/pages/reader/useReaderPageViewModel.tsx",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-interaction/hooks/useContentClick.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-interaction/hooks/useReaderInput.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-interaction/hooks/useReaderMobileBack.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-interaction/hooks/useSidebarDrag.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-interaction/index.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-shell/components/ChapterList.tsx",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-shell/components/ReaderToolbar.tsx",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-shell/components/reader/ReaderSidebar.tsx",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-shell/components/reader/ReaderTopBar.tsx",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-shell/components/reader/ReaderViewport.tsx",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-shell/constants/readerSliderConfig.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-shell/constants/readerThemeConfig.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-shell/constants/readerThemes.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-shell/hooks/useReaderPreferences.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-shell/index.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-shell/pages/reader-page/ReaderContext.tsx",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-shell/pages/reader-page/ReaderPageLayout.tsx",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-shell/reader-analysis-bridge/index.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-shell/reader-analysis-bridge/useReaderAnalysisBridge.tsx",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-shell/utils/readerChromeTheme.ts"
+      ],
+      "rawBytes": 33570
+    },
+    {
+      "dynamicImports": [],
+      "facadeModuleId": null,
+      "fileName": "assets/readerAppearanceStore-BZ_uxzuV.js",
+      "gzipBytes": 150,
+      "imports": [
+        "assets/readerPreferenceStore-CO4w7ofx.js"
+      ],
+      "isDynamicEntry": false,
+      "isEntry": false,
+      "isWorker": false,
+      "moduleIds": [
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/shared/stores/readerAppearanceStore.ts"
+      ],
+      "rawBytes": 167
+    },
+    {
+      "dynamicImports": [],
+      "facadeModuleId": null,
+      "fileName": "assets/readerContentController-O1hBbzHX.js",
+      "gzipBytes": 44442,
+      "imports": [
+        "assets/cn-BADLdMXm.js",
+        "assets/settings-DiJrkDh3.js",
+        "assets/readerPreferenceStore-CO4w7ofx.js",
+        "assets/library-DCYx39Wo.js"
       ],
       "isDynamicEntry": false,
       "isEntry": false,
@@ -460,133 +558,112 @@
         "/home/runner/work/PlotMapAI/PlotMapAI/node_modules/framer-motion/dist/es/value/use-computed.mjs",
         "/home/runner/work/PlotMapAI/PlotMapAI/node_modules/framer-motion/dist/es/value/use-motion-value.mjs",
         "/home/runner/work/PlotMapAI/PlotMapAI/node_modules/framer-motion/dist/es/value/use-transform.mjs",
-        "/home/runner/work/PlotMapAI/PlotMapAI/node_modules/lucide-react/dist/esm/icons/align-vertical-space-around.js",
-        "/home/runner/work/PlotMapAI/PlotMapAI/node_modules/lucide-react/dist/esm/icons/arrow-right.js",
-        "/home/runner/work/PlotMapAI/PlotMapAI/node_modules/lucide-react/dist/esm/icons/check.js",
-        "/home/runner/work/PlotMapAI/PlotMapAI/node_modules/lucide-react/dist/esm/icons/columns-2.js",
-        "/home/runner/work/PlotMapAI/PlotMapAI/node_modules/lucide-react/dist/esm/icons/ellipsis-vertical.js",
-        "/home/runner/work/PlotMapAI/PlotMapAI/node_modules/lucide-react/dist/esm/icons/list.js",
-        "/home/runner/work/PlotMapAI/PlotMapAI/node_modules/lucide-react/dist/esm/icons/menu.js",
-        "/home/runner/work/PlotMapAI/PlotMapAI/node_modules/lucide-react/dist/esm/icons/text-align-justify.js",
-        "/home/runner/work/PlotMapAI/PlotMapAI/node_modules/lucide-react/dist/esm/icons/text-align-start.js",
-        "/home/runner/work/PlotMapAI/PlotMapAI/node_modules/lucide-react/dist/esm/icons/type.js",
         "/home/runner/work/PlotMapAI/PlotMapAI/node_modules/motion-dom/dist/es/animation/GroupAnimation.mjs",
         "/home/runner/work/PlotMapAI/PlotMapAI/node_modules/motion-dom/dist/es/animation/GroupAnimationWithThen.mjs",
         "/home/runner/work/PlotMapAI/PlotMapAI/node_modules/motion-dom/dist/es/render/object/ObjectVisualElement.mjs",
         "/home/runner/work/PlotMapAI/PlotMapAI/node_modules/motion-dom/dist/es/utils/transform.mjs",
         "/home/runner/work/PlotMapAI/PlotMapAI/node_modules/motion-utils/dist/es/easing/utils/get-easing-for-segment.mjs",
         "/home/runner/work/PlotMapAI/PlotMapAI/node_modules/motion-utils/dist/es/wrap.mjs",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/animations/pageTurnAnimations.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/components/ChapterList.tsx",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/components/ReaderToolbar.tsx",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/components/reader/PagedReaderContent.tsx",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/components/reader/ReaderFlowBlock.tsx",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/components/reader/ReaderImageViewer.tsx",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/components/reader/ReaderImageViewerSurface.tsx",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/components/reader/ReaderSidebar.tsx",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/components/reader/ReaderTopBar.tsx",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/components/reader/ReaderViewport.tsx",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/components/reader/ScrollReaderContent.tsx",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/components/reader/SummaryReaderContent.tsx",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/constants/pageTurnMode.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/constants/readerSliderConfig.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/constants/readerThemeConfig.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/constants/readerThemes.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/hooks/readerPreferencesStore.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/hooks/readerSessionStore.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/hooks/sessionStore.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/hooks/useContentClick.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/hooks/usePagedChapterTransition.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/hooks/usePagedReaderController.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/hooks/usePagedReaderLayout.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/hooks/useReaderChapterData.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/hooks/useReaderImageResource.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/hooks/useReaderImageViewerGesture.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/hooks/useReaderImageViewerTransition.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/hooks/useReaderInput.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/hooks/useReaderLifecycleController.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/hooks/useReaderMobileBack.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/hooks/useReaderNavigation.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/hooks/useReaderPreferences.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/hooks/useReaderRenderCache.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/hooks/useReaderRenderPreheater.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/hooks/useReaderRenderViewport.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/hooks/useReaderRestoreFlow.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/hooks/useReaderStatePersistence.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/hooks/useReaderVisibleRenderResults.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/hooks/useScrollModeChapters.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/hooks/useScrollReaderController.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/hooks/useSidebarDrag.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/index.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/pages/reader-page/ReaderContext.tsx",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/pages/reader-page/ReaderPageContainer.tsx",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/pages/reader-page/ReaderPageLayout.tsx",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/pages/reader-page/useReaderPageImageGalleryIndex.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/pages/reader-page/useReaderPageImageOverlay.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/pages/reader-page/useReaderPageImageViewerSession.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/reader-analysis-bridge/index.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/reader-analysis-bridge/useReaderAnalysisBridge.tsx",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/reader-layout/index.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/reader-layout/viewportLocators.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/reader-session/index.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/reader-session/mapper.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/reader-session/repository.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/reader-session/state.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/reader-session/useReaderSession.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/reader-ui/ReaderUiBridge.tsx",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/reader-ui/index.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/readerArtifactsService.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/readerContentService.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/utils/chapterImages.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/utils/pagedDrag.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/utils/pagedDragRenderState.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/utils/readerChromeTheme.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/utils/readerImageGallery.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/utils/readerImageResourceCache.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/utils/readerImageViewerTransform.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/utils/readerLayout.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/utils/readerLayoutShared.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/utils/readerLocator.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/utils/readerMeasurement.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/utils/readerMode.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/utils/readerPagination.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/utils/readerPosition.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/utils/readerRenderCache.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/utils/readerRenderCacheMapper.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader/utils/readerRenderCachePlanning.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/shared/components/BottomSheet.tsx"
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/application/services/readerContentController.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/book-content/index.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/book-content/repository.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-content/hooks/useReaderChapterData.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-content/index.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-content/readerContentController.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-content/readerContentService.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-content/utils/chapterImages.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-layout-engine/animations/pageTurnAnimations.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-layout-engine/components/reader/PagedReaderContent.tsx",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-layout-engine/components/reader/ReaderFlowBlock.tsx",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-layout-engine/components/reader/ScrollReaderContent.tsx",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-layout-engine/components/reader/SummaryReaderContent.tsx",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-layout-engine/hooks/usePagedChapterTransition.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-layout-engine/hooks/usePagedReaderController.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-layout-engine/hooks/usePagedReaderLayout.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-layout-engine/hooks/useReaderImageResource.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-layout-engine/hooks/useReaderLifecycleController.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-layout-engine/hooks/useReaderNavigation.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-layout-engine/hooks/useReaderRenderCache.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-layout-engine/hooks/useReaderRenderPreheater.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-layout-engine/hooks/useReaderRenderViewport.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-layout-engine/hooks/useReaderVisibleRenderResults.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-layout-engine/hooks/useScrollModeChapters.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-layout-engine/hooks/useScrollReaderController.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-layout-engine/index.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-layout-engine/reader-layout/index.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-layout-engine/reader-layout/useReaderLayoutController.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-layout-engine/reader-layout/viewportLocators.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-layout-engine/utils/pagedDrag.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-layout-engine/utils/pagedDragRenderState.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-layout-engine/utils/readerImageResourceCache.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-layout-engine/utils/readerLayout.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-layout-engine/utils/readerLayoutShared.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-layout-engine/utils/readerLocator.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-layout-engine/utils/readerMeasurement.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-layout-engine/utils/readerPagination.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-layout-engine/utils/readerRenderCache.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-layout-engine/utils/readerRenderCacheMapper.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-layout-engine/utils/readerRenderCachePlanning.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-media/components/reader/ReaderImageViewer.tsx",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-media/components/reader/ReaderImageViewerSurface.tsx",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-media/hooks/useReaderImageResource.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-media/hooks/useReaderImageViewerGesture.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-media/hooks/useReaderImageViewerTransition.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-media/index.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-media/pages/useReaderPageImageGalleryIndex.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-media/pages/useReaderPageImageOverlay.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-media/pages/useReaderPageImageViewerSession.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-media/readerContentService.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-media/utils/readerImageGallery.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-media/utils/readerImageResourceCache.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-media/utils/readerImageViewerTransform.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-session/index.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-session/mapper.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-session/readerSessionStore.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-session/repository.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-session/sessionStore.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-session/useReaderRestoreController.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-session/useReaderSession.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-session/useReaderStatePersistence.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/reader-shell/hooks/readerPreferencesStore.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/infra/storage/readerStateCache.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/shared/contracts/reader/preferences.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/shared/reader-runtime/ReaderRuntime.tsx",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/shared/reader-runtime/index.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/shared/utils/readerMode.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/shared/utils/readerPosition.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/shared/utils/readerStoredState.ts"
       ],
-      "rawBytes": 190571
-    },
-    {
-      "dynamicImports": [],
-      "facadeModuleId": "/home/runner/work/PlotMapAI/PlotMapAI/src/application/pages/ReaderPage.tsx",
-      "fileName": "assets/ReaderPage-CsLow2SE.js",
-      "gzipBytes": 432,
-      "imports": [
-        "assets/cn-Bh4-feJv.js",
-        "assets/reader-DwyVH5Qc.js",
-        "assets/settings-BFF4Zau9.js",
-        "assets/migrations-CTTtTLFd.js",
-        "assets/paths-CwpUOXMW.js",
-        "assets/analysis-BzeW2mYm.js",
-        "assets/library-Yn9cUmcT.js"
-      ],
-      "isDynamicEntry": true,
-      "isEntry": false,
-      "isWorker": false,
-      "moduleIds": [
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/application/pages/ReaderPage.tsx"
-      ],
-      "rawBytes": 791
+      "rawBytes": 156756
     },
     {
       "dynamicImports": [],
       "facadeModuleId": null,
-      "fileName": "assets/refresh-cw-DkUiSI4U.js",
-      "gzipBytes": 212,
+      "fileName": "assets/readerPreferenceStore-CO4w7ofx.js",
+      "gzipBytes": 1883,
       "imports": [
-        "assets/cn-Bh4-feJv.js"
+        "assets/cn-BADLdMXm.js",
+        "assets/settings-DiJrkDh3.js"
+      ],
+      "isDynamicEntry": false,
+      "isEntry": false,
+      "isWorker": false,
+      "moduleIds": [
+        "/home/runner/work/PlotMapAI/PlotMapAI/node_modules/zustand/esm/middleware.mjs",
+        "/home/runner/work/PlotMapAI/PlotMapAI/node_modules/zustand/esm/react.mjs",
+        "/home/runner/work/PlotMapAI/PlotMapAI/node_modules/zustand/esm/vanilla.mjs",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/shared/stores/persistence/createPersistedRuntime.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/shared/stores/readerPreferenceStore.ts"
+      ],
+      "rawBytes": 4957
+    },
+    {
+      "dynamicImports": [],
+      "facadeModuleId": null,
+      "fileName": "assets/refresh-cw-DhIVpViC.js",
+      "gzipBytes": 215,
+      "imports": [
+        "assets/cn-BADLdMXm.js"
       ],
       "isDynamicEntry": false,
       "isEntry": false,
@@ -599,10 +676,10 @@
     {
       "dynamicImports": [],
       "facadeModuleId": null,
-      "fileName": "assets/rotate-ccw-C8cYn18s.js",
-      "gzipBytes": 171,
+      "fileName": "assets/rotate-ccw-DCLeePUY.js",
+      "gzipBytes": 173,
       "imports": [
-        "assets/cn-Bh4-feJv.js"
+        "assets/cn-BADLdMXm.js"
       ],
       "isDynamicEntry": false,
       "isEntry": false,
@@ -614,31 +691,35 @@
     },
     {
       "dynamicImports": [],
-      "facadeModuleId": null,
-      "fileName": "assets/service-DEOgKnxy.js",
-      "gzipBytes": 395,
+      "facadeModuleId": "/home/runner/work/PlotMapAI/PlotMapAI/src/application/pages/settings/index.tsx",
+      "fileName": "assets/settings-CKFcocA4.js",
+      "gzipBytes": 1028,
       "imports": [
-        "assets/cn-Bh4-feJv.js"
+        "assets/cn-BADLdMXm.js",
+        "assets/settings-DiJrkDh3.js"
       ],
-      "isDynamicEntry": false,
+      "isDynamicEntry": true,
       "isEntry": false,
       "isWorker": false,
       "moduleIds": [
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/app/debug/service.ts"
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/application/pages/settings/SettingsScreen.tsx",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/application/pages/settings/index.tsx",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/application/pages/settings/useSettingsPageViewModel.ts",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/application/use-cases/aiSettings.ts"
       ],
-      "rawBytes": 787
+      "rawBytes": 2636
     },
     {
       "dynamicImports": [
-        "assets/js-yaml-BmoEujaG.js",
-        "assets/defaultPurificationRules-CP5La6f5.js",
-        "assets/defaultTocRules-bFOw0FkC.js"
+        "assets/js-yaml-DHZMwn03.js",
+        "assets/defaultPurificationRules-CRcztGxo.js",
+        "assets/defaultTocRules-C38z7VTc.js"
       ],
       "facadeModuleId": null,
-      "fileName": "assets/settings-BFF4Zau9.js",
-      "gzipBytes": 74549,
+      "fileName": "assets/settings-DiJrkDh3.js",
+      "gzipBytes": 75147,
       "imports": [
-        "assets/cn-Bh4-feJv.js"
+        "assets/cn-BADLdMXm.js"
       ],
       "isDynamicEntry": false,
       "isEntry": false,
@@ -967,6 +1048,7 @@
         "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/settings/components/settings/SettingsSectionHeader.tsx",
         "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/settings/components/settings/SettingsTabBar.tsx",
         "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/settings/components/settings/TocSettingsPanel.tsx",
+        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/settings/hooks/useAiSettingsManager.ts",
         "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/settings/hooks/usePurificationSettingsManager.ts",
         "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/settings/hooks/useTocSettingsManager.ts",
         "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/settings/index.ts",
@@ -974,7 +1056,6 @@
         "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/settings/purificationRuleRepository.ts",
         "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/settings/services/defaultPurificationRules.ts",
         "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/settings/services/defaultTocRules.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/settings/services/importedPurificationRules.ts",
         "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/settings/services/purifier.ts",
         "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/settings/services/yaml.ts",
         "/home/runner/work/PlotMapAI/PlotMapAI/src/domains/settings/tocRuleRepository.ts",
@@ -996,34 +1077,15 @@
         "/home/runner/work/PlotMapAI/PlotMapAI/src/shared/text-processing/workerClient.ts",
         "__vite-optional-peer-dep:@emotion/is-prop-valid:framer-motion"
       ],
-      "rawBytes": 255843
-    },
-    {
-      "dynamicImports": [],
-      "facadeModuleId": "/home/runner/work/PlotMapAI/PlotMapAI/src/application/pages/SettingsPage.tsx",
-      "fileName": "assets/SettingsPage-BM0e6viy.js",
-      "gzipBytes": 1871,
-      "imports": [
-        "assets/cn-Bh4-feJv.js",
-        "assets/settings-BFF4Zau9.js"
-      ],
-      "isDynamicEntry": true,
-      "isEntry": false,
-      "isWorker": false,
-      "moduleIds": [
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/application/hooks/useAiSettingsManager.ts",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/application/pages/SettingsPage.tsx",
-        "/home/runner/work/PlotMapAI/PlotMapAI/src/application/use-cases/settings.ts"
-      ],
-      "rawBytes": 5536
+      "rawBytes": 259341
     },
     {
       "dynamicImports": [],
       "facadeModuleId": null,
-      "fileName": "assets/share-2-cFINyYDy.js",
-      "gzipBytes": 328,
+      "fileName": "assets/share-2-BqpTIAo0.js",
+      "gzipBytes": 332,
       "imports": [
-        "assets/cn-Bh4-feJv.js"
+        "assets/cn-BADLdMXm.js"
       ],
       "isDynamicEntry": false,
       "isEntry": false,
@@ -1037,16 +1099,16 @@
     {
       "dynamicImports": [],
       "facadeModuleId": "/home/runner/work/PlotMapAI/PlotMapAI/src/application/components/UploadModal.tsx",
-      "fileName": "assets/UploadModal-BZp95xso.js",
-      "gzipBytes": 2179,
+      "fileName": "assets/UploadModal-DuPzevly.js",
+      "gzipBytes": 2189,
       "imports": [
-        "assets/cn-Bh4-feJv.js",
-        "assets/reader-DwyVH5Qc.js",
-        "assets/settings-BFF4Zau9.js",
-        "assets/library-BUNccsXQ.js",
-        "assets/migrations-CTTtTLFd.js",
-        "assets/file-text-CnCndqe-.js",
-        "assets/library-Yn9cUmcT.js"
+        "assets/cn-BADLdMXm.js",
+        "assets/readerContentController-O1hBbzHX.js",
+        "assets/settings-DiJrkDh3.js",
+        "assets/library-w0Hu6kgu.js",
+        "assets/file-text-DwDCybgd.js",
+        "assets/readerPreferenceStore-CO4w7ofx.js",
+        "assets/library-DCYx39Wo.js"
       ],
       "isDynamicEntry": true,
       "isEntry": false,
@@ -1055,12 +1117,12 @@
         "/home/runner/work/PlotMapAI/PlotMapAI/node_modules/lucide-react/dist/esm/icons/cloud-upload.js",
         "/home/runner/work/PlotMapAI/PlotMapAI/src/application/components/UploadModal.tsx"
       ],
-      "rawBytes": 4946
+      "rawBytes": 4974
     },
     {
       "dynamicImports": [],
       "facadeModuleId": "/home/runner/work/PlotMapAI/PlotMapAI/node_modules/workbox-window/build/workbox-window.prod.es5.mjs",
-      "fileName": "assets/workbox-window.prod.es5-CfQuw9Fg.js",
+      "fileName": "assets/workbox-window.prod.es5-DHdPsNjM.js",
       "gzipBytes": 2250,
       "imports": [],
       "isDynamicEntry": true,
@@ -1074,15 +1136,15 @@
     {
       "dynamicImports": [],
       "facadeModuleId": null,
-      "fileName": "assets/worker-CGBkZWqD.js",
-      "gzipBytes": 5616,
+      "fileName": "assets/worker-XWi4YnZc.js",
+      "gzipBytes": 5633,
       "imports": [],
       "isDynamicEntry": false,
       "isEntry": true,
       "isWorker": true,
       "moduleIds": [],
-      "rawBytes": 15777
+      "rawBytes": 15833
     }
   ],
-  "generatedAt": "2026-04-02T16:20:55.604Z"
+  "generatedAt": "2026-04-03T20:51:17.813Z"
 }
