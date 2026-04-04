@@ -69,10 +69,6 @@ function resolveReaderRichBlocks(params: {
     return params.richBlocks;
   }
 
-  if (params.richBlocks.length > 0) {
-    return params.richBlocks;
-  }
-
   return projectPlainTextToRichBlocks(params.plainText);
 }
 

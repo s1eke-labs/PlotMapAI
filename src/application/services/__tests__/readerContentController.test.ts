@@ -48,7 +48,15 @@ describe('applicationReaderContentController', () => {
       {
         novelId: 1,
         chapterIndex: 0,
-        contentRich: [],
+        contentRich: [
+          {
+            type: 'paragraph',
+            children: [{
+              type: 'text',
+              text: 'Legacy stored rich block',
+            }],
+          },
+        ],
         contentPlain: 'Hello world',
         contentFormat: 'plain',
         contentVersion: 1,
@@ -85,6 +93,50 @@ describe('applicationReaderContentController', () => {
       blockIndex: 2,
       imageKey: 'map',
       order: 0,
+    });
+  });
+
+  it('projects plain chapter text into paragraph rich blocks', async () => {
+    await expect(applicationReaderContentController.getChapterContent(1, 0)).resolves.toEqual({
+      index: 0,
+      title: 'Chapter 1',
+      plainText: 'Hello world',
+      richBlocks: [{
+        type: 'paragraph',
+        children: [{
+          type: 'text',
+          text: 'Hello world',
+        }],
+      }],
+      contentFormat: 'plain',
+      contentVersion: 1,
+      wordCount: 11,
+      totalChapters: 2,
+      hasPrev: false,
+      hasNext: true,
+    });
+  });
+
+  it('returns stored rich blocks for rich chapters', async () => {
+    await expect(applicationReaderContentController.getChapterContent(1, 1)).resolves.toEqual({
+      index: 1,
+      title: 'Chapter 2',
+      plainText: 'Plain text',
+      richBlocks: [
+        {
+          type: 'paragraph',
+          children: [{
+            type: 'text',
+            text: 'Plain text',
+          }],
+        },
+      ],
+      contentFormat: 'rich',
+      contentVersion: 4,
+      wordCount: 10,
+      totalChapters: 2,
+      hasPrev: true,
+      hasNext: false,
     });
   });
 
@@ -129,26 +181,6 @@ describe('applicationReaderContentController', () => {
       totalChapters: 2,
       hasPrev: false,
       hasNext: true,
-    });
-    await expect(applicationReaderContentController.getChapterContent(1, 1)).resolves.toEqual({
-      index: 1,
-      title: 'Chapter 2',
-      plainText: 'Plain text',
-      richBlocks: [
-        {
-          type: 'paragraph',
-          children: [{
-            type: 'text',
-            text: 'Plain text',
-          }],
-        },
-      ],
-      contentFormat: 'rich',
-      contentVersion: 4,
-      wordCount: 10,
-      totalChapters: 2,
-      hasPrev: true,
-      hasNext: false,
     });
     await expect(applicationReaderContentController.getImageGalleryEntries(1)).resolves.toEqual([
       { chapterIndex: 0, blockIndex: 2, imageKey: 'map', order: 0 },
