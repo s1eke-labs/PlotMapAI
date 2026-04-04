@@ -28,6 +28,8 @@ export interface ReaderVisibleRenderTarget {
   variantFamily: ReaderRenderVariant;
 }
 
+export type ScrollRenderMode = 'legacy-plain' | 'rich';
+
 export interface ReaderRenderPreheatTarget {
   chapterIndex: number;
   storageKind: ReaderRenderStorageKind;
@@ -102,10 +104,14 @@ export function buildChapterImageLayoutKey(
   novelId: number,
   chapter: Pick<ChapterContent, 'contentFormat' | 'plainText' | 'richBlocks'>,
   baseLayoutKey: string,
+  scrollRenderMode?: ScrollRenderMode,
 ): string {
+  let layoutKey = scrollRenderMode
+    ? `${baseLayoutKey}::scroll:${scrollRenderMode}`
+    : baseLayoutKey;
   const imageKeys = extractImageKeysFromChapter(chapter);
   if (imageKeys.length === 0) {
-    return baseLayoutKey;
+    return layoutKey;
   }
 
   const imageFingerprint = imageKeys
@@ -122,7 +128,8 @@ export function buildChapterImageLayoutKey(
     })
     .join(',');
 
-  return `${baseLayoutKey}::img:${imageFingerprint}`;
+  layoutKey = `${layoutKey}::img:${imageFingerprint}`;
+  return layoutKey;
 }
 
 export function buildVisibleRenderTargets(params: {
@@ -130,6 +137,7 @@ export function buildVisibleRenderTargets(params: {
   isPagedMode: boolean;
   novelId: number;
   pagedChapters: ChapterContent[];
+  scrollRenderMode: ScrollRenderMode;
   scrollChapters: Array<{ chapter: ChapterContent; index: number }>;
   variantSignatures: Record<ReaderRenderVariant, ReaderLayoutSignature>;
   viewMode: 'original' | 'summary';
@@ -203,6 +211,7 @@ export function buildVisibleRenderTargets(params: {
       params.novelId,
       renderableChapter.chapter,
       serializeReaderLayoutSignature(signature),
+      params.scrollRenderMode,
     );
 
     targets.push({

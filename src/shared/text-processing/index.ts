@@ -20,6 +20,13 @@ export {
   sortChapterImageGalleryEntries,
 } from './imageGallery';
 export type { ChapterImageGalleryEntry } from './imageGallery';
+export {
+  buildRichPaginationBlockSequence,
+  getPaginationBlockPlainText,
+  getRichInlinePlainText,
+  projectRichBlocksToPaginationBlocks,
+} from './richPagination';
+export type { RichPaginationBlockSequenceEntry } from './richPagination';
 export { loadRulesFromJson, purify, purifyChapter, purifyChapters, purifyTitles } from './purify';
 export { parseTxtDocument } from './txt';
 export {

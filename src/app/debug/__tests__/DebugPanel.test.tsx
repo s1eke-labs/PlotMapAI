@@ -9,16 +9,20 @@ const debugTest = vi.hoisted(() => {
     | ((entry: { time: number; category: string; message: string }) => void)
     | null = null;
   let featureFlags = {
+    readerLegacyPlainScroll: false,
     readerTelemetry: false,
   };
-  let featureSubscriber: ((flags: { readerTelemetry: boolean }) => void) | null = null;
+  let featureSubscriber: ((flags: {
+    readerLegacyPlainScroll: boolean;
+    readerTelemetry: boolean;
+  }) => void) | null = null;
 
   return {
     clearMock: vi.fn(() => {
       logs = [];
     }),
     getFeatureFlags: vi.fn(() => ({ ...featureFlags })),
-    setDebugFeatureEnabled: vi.fn((flag: 'readerTelemetry', enabled: boolean) => {
+    setDebugFeatureEnabled: vi.fn((flag: 'readerLegacyPlainScroll' | 'readerTelemetry', enabled: boolean) => {
       featureFlags = {
         ...featureFlags,
         [flag]: enabled,
@@ -39,7 +43,10 @@ const debugTest = vi.hoisted(() => {
         if (subscriber === callback) subscriber = null;
       };
     },
-    subscribeFeatures(callback: (flags: { readerTelemetry: boolean }) => void) {
+    subscribeFeatures(callback: (flags: {
+      readerLegacyPlainScroll: boolean;
+      readerTelemetry: boolean;
+    }) => void) {
       featureSubscriber = callback;
       return () => {
         if (featureSubscriber === callback) featureSubscriber = null;
@@ -52,6 +59,7 @@ const debugTest = vi.hoisted(() => {
     reset() {
       logs = [];
       featureFlags = {
+        readerLegacyPlainScroll: false,
         readerTelemetry: false,
       };
       subscriber = null;
@@ -136,12 +144,18 @@ describe('DebugPanel', () => {
     render(<DebugPanel />);
     await user.click(screen.getByTitle('Debug Panel'));
 
-    const toggle = screen.getByRole('switch');
-    expect(toggle).toHaveAttribute('aria-checked', 'false');
+    const toggles = screen.getAllByRole('switch');
+    const telemetryToggle = toggles[0];
+    const legacyToggle = toggles[1];
+    expect(telemetryToggle).toHaveAttribute('aria-checked', 'false');
+    expect(legacyToggle).toHaveAttribute('aria-checked', 'false');
 
-    await user.click(toggle);
+    await user.click(telemetryToggle);
+    await user.click(legacyToggle);
 
     expect(debugTest.setDebugFeatureEnabled).toHaveBeenCalledWith('readerTelemetry', true);
-    expect(toggle).toHaveAttribute('aria-checked', 'true');
+    expect(debugTest.setDebugFeatureEnabled).toHaveBeenCalledWith('readerLegacyPlainScroll', true);
+    expect(telemetryToggle).toHaveAttribute('aria-checked', 'true');
+    expect(legacyToggle).toHaveAttribute('aria-checked', 'true');
   });
 });

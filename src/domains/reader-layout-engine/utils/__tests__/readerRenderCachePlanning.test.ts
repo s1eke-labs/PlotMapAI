@@ -122,8 +122,8 @@ describe('readerRenderCachePlanning', () => {
       plainText: '[IMG:cover]\n[IMG:portrait]\n[IMG:map]',
     };
 
-    expect(buildChapterImageLayoutKey(7, chapter, 'base-layout')).toBe(
-      'base-layout::img:cover:pending,portrait:missing,map:1000x250',
+    expect(buildChapterImageLayoutKey(7, chapter, 'base-layout', 'rich')).toBe(
+      'base-layout::scroll:rich::img:cover:pending,portrait:missing,map:1000x250',
     );
   });
 
@@ -134,6 +134,7 @@ describe('readerRenderCachePlanning', () => {
       isPagedMode: false,
       novelId: 11,
       pagedChapters: [createChapter(0, 3)],
+      scrollRenderMode: 'rich',
       scrollChapters: [{ chapter: createChapter(2, 3), index: 2 }],
       variantSignatures: createVariantSignatures(),
       viewMode: 'summary',
@@ -145,6 +146,35 @@ describe('readerRenderCachePlanning', () => {
       exactKey: expect.stringContaining(':summary-shell:'),
       variantFamily: 'summary-shell',
     }));
+  });
+
+  it('separates scroll layout keys for rich and legacy plain render modes', () => {
+    const chapter = createChapter(0, 1);
+
+    const richTargets = buildVisibleRenderTargets({
+      currentChapter: chapter,
+      isPagedMode: false,
+      novelId: 7,
+      pagedChapters: [],
+      scrollRenderMode: 'rich',
+      scrollChapters: [{ chapter, index: 0 }],
+      variantSignatures: createVariantSignatures(),
+      viewMode: 'original',
+    });
+    const legacyTargets = buildVisibleRenderTargets({
+      currentChapter: chapter,
+      isPagedMode: false,
+      novelId: 7,
+      pagedChapters: [],
+      scrollRenderMode: 'legacy-plain',
+      scrollChapters: [{ chapter, index: 0 }],
+      variantSignatures: createVariantSignatures(),
+      viewMode: 'original',
+    });
+
+    expect(richTargets[0]?.layoutKey).toContain('::scroll:rich');
+    expect(legacyTargets[0]?.layoutKey).toContain('::scroll:legacy-plain');
+    expect(richTargets[0]?.layoutKey).not.toBe(legacyTargets[0]?.layoutKey);
   });
 
   it('builds preheat targets in the current order without duplicates', () => {

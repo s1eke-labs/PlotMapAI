@@ -4,6 +4,7 @@ import { createFakeReaderTextLayoutEngine } from '../../test/createFakeReaderTex
 import {
   createReaderTypographyMetrics,
   createScrollImageLayoutConstraints,
+  measureScrollReaderChapterLayout,
   measureReaderChapterLayout,
   resetReaderLayoutPretextCacheForTests,
 } from '../readerLayout';
@@ -102,6 +103,80 @@ describe('readerMeasurement', () => {
     expect(imageMetric).toBeDefined();
     expect(imageMetric?.displayHeight).toBe(344);
     expect(imageMetric?.displayWidth).toBe(172);
+  });
+
+  it('measures rich scroll blocks including poem lines and image captions', () => {
+    const textLayoutEngine = createFakeReaderTextLayoutEngine({ maxCharsPerLine: 8 });
+    const typography = createReaderTypographyMetrics(18, 1.8, 16, 600);
+    const measuredLayout = measureScrollReaderChapterLayout(
+      {
+        index: 0,
+        title: 'Chapter 1',
+        plainText: 'Section\nLine 1\nLine 2\nWorld map',
+        richBlocks: [
+          {
+            type: 'heading',
+            level: 2,
+            children: [{
+              type: 'text',
+              text: 'Section',
+            }],
+          },
+          {
+            type: 'poem',
+            lines: [
+              [{
+                type: 'text',
+                text: 'Line 1',
+              }],
+              [{
+                type: 'text',
+                text: 'Line 2',
+              }],
+            ],
+          },
+          {
+            type: 'image',
+            key: 'map',
+            caption: [{
+              type: 'text',
+              text: 'World map',
+            }],
+          },
+        ],
+        contentFormat: 'rich',
+        contentVersion: 1,
+        wordCount: 40,
+        totalChapters: 1,
+        hasPrev: false,
+        hasNext: false,
+      },
+      360,
+      typography,
+      new Map([
+        ['map', { width: 480, height: 240, aspectRatio: 2 }],
+      ]),
+      createScrollImageLayoutConstraints(360, 360),
+      textLayoutEngine,
+    );
+
+    expect(measuredLayout.renderMode).toBe('rich');
+    expect(
+      measuredLayout.metrics.map((metric) => metric.block.blockIndex),
+    ).toEqual([0, 1, 2, 3, 4]);
+    expect(measuredLayout.metrics.map((metric) => metric.block.kind)).toEqual([
+      'heading',
+      'heading',
+      'text',
+      'text',
+      'image',
+    ]);
+    expect(measuredLayout.metrics[2]?.block.container).toBe('poem-line');
+    expect(measuredLayout.metrics[4]).toMatchObject({
+      captionHeight: typography.bodyLineHeightPx * 2,
+      displayHeight: 180,
+      displayWidth: 360,
+    });
   });
 
   it('falls back to sans-serif when document.body is unavailable', () => {

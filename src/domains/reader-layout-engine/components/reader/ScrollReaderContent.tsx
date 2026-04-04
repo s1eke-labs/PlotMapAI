@@ -10,6 +10,7 @@ import type {
 
 import { cn } from '@shared/utils/cn';
 
+import RichBlockRenderer from './RichBlockRenderer';
 import ReaderFlowBlock from './ReaderFlowBlock';
 
 interface ScrollReaderChapter {
@@ -82,21 +83,38 @@ export default function ScrollReaderContent({
                 style={{ height: layout.totalHeight, position: 'relative' }}
               >
                 {visibleMetrics.map((metric) => (
-                  <ReaderFlowBlock
-                    chapterTitle={chapter.title}
-                    key={metric.block.key}
-                    imageRenderMode="scroll"
-                    item={metric}
-                    novelId={novelId}
-                    onImageActivate={onImageActivate}
-                    onRegisterImageElement={onRegisterImageElement}
-                    positionStyle={{
-                      left: 0,
-                      position: 'absolute',
-                      right: 0,
-                      top: metric.top,
-                    }}
-                  />
+                  layout.renderMode === 'rich' ? (
+                    <RichBlockRenderer
+                      chapterTitle={chapter.title}
+                      key={metric.block.key}
+                      item={metric}
+                      novelId={novelId}
+                      onImageActivate={onImageActivate}
+                      onRegisterImageElement={onRegisterImageElement}
+                      positionStyle={{
+                        left: 0,
+                        position: 'absolute',
+                        right: 0,
+                        top: metric.top,
+                      }}
+                    />
+                  ) : (
+                    <ReaderFlowBlock
+                      chapterTitle={chapter.title}
+                      key={metric.block.key}
+                      imageRenderMode="scroll"
+                      item={metric}
+                      novelId={novelId}
+                      onImageActivate={onImageActivate}
+                      onRegisterImageElement={onRegisterImageElement}
+                      positionStyle={{
+                        left: 0,
+                        position: 'absolute',
+                        right: 0,
+                        top: metric.top,
+                      }}
+                    />
+                  )
                 ))}
               </div>
             </div>

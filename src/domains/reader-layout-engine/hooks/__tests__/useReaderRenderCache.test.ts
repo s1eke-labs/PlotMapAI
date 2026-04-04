@@ -3,21 +3,26 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const debugLogMock = vi.hoisted(() => vi.fn());
 const debugFeatureState = vi.hoisted(() => {
-  const listeners = new Set<(featureFlags: { readerTelemetry: boolean }) => void>();
+  const listeners = new Set<(featureFlags: {
+    readerLegacyPlainScroll: boolean;
+    readerTelemetry: boolean;
+  }) => void>();
   let featureFlags = {
+    readerLegacyPlainScroll: false,
     readerTelemetry: false,
   };
 
   return {
     getFlags: vi.fn(() => ({ ...featureFlags })),
-    isEnabled: vi.fn((flag: 'readerTelemetry') => featureFlags[flag]),
+    isEnabled: vi.fn((flag: 'readerLegacyPlainScroll' | 'readerTelemetry') => featureFlags[flag]),
     reset() {
       featureFlags = {
+        readerLegacyPlainScroll: false,
         readerTelemetry: false,
       };
       listeners.clear();
     },
-    set(flag: 'readerTelemetry', enabled: boolean) {
+    set(flag: 'readerLegacyPlainScroll' | 'readerTelemetry', enabled: boolean) {
       featureFlags = {
         ...featureFlags,
         [flag]: enabled,
@@ -26,7 +31,10 @@ const debugFeatureState = vi.hoisted(() => {
         listener({ ...featureFlags });
       }
     },
-    subscribe: vi.fn((listener: (featureFlags: { readerTelemetry: boolean }) => void) => {
+    subscribe: vi.fn((listener: (featureFlags: {
+      readerLegacyPlainScroll: boolean;
+      readerTelemetry: boolean;
+    }) => void) => {
       listeners.add(listener);
       return () => {
         listeners.delete(listener);
@@ -69,6 +77,7 @@ const renderCacheMock = vi.hoisted(() => {
       layoutKey?: string;
       layoutSignature: object;
       novelId: number;
+      preferRichScrollRendering?: boolean;
       variantFamily: 'original-paged' | 'original-scroll' | 'summary-shell';
     }) => {
       let tree;
@@ -86,6 +95,7 @@ const renderCacheMock = vi.hoisted(() => {
           blockCount: 0,
           chapterIndex: params.chapter.index,
           metrics: [],
+          renderMode: params.preferRichScrollRendering === false ? 'legacy-plain' : 'rich',
           textWidth: 400,
           totalHeight: 0,
         };
@@ -115,6 +125,7 @@ const renderCacheMock = vi.hoisted(() => {
       layoutKey?: string;
       layoutSignature: object;
       novelId: number;
+      preferRichScrollRendering?: boolean;
       variantFamily: 'original-paged' | 'original-scroll' | 'summary-shell';
     }) => ({
       chapterIndex: params.chapter.index,
@@ -819,5 +830,38 @@ describe('useReaderRenderCache', () => {
 
     expect(result.current.isPreheating).toBe(false);
     expect(result.current.pendingPreheatCount).toBe(0);
+  });
+
+  it('switches scroll layouts back to legacy plain mode when the debug rollback flag is enabled', async () => {
+    const currentChapter = {
+      ...createChapter(0, 1),
+      contentFormat: 'rich' as const,
+      richBlocks: [{
+        type: 'paragraph' as const,
+        children: [{
+          type: 'text' as const,
+          text: 'Rich content',
+        }],
+      }],
+    };
+
+    const { result } = renderReaderRenderCacheHook({
+      chapters: [{ index: 0, title: 'Chapter 1', wordCount: 120 }],
+      currentChapter,
+      scrollChapters: [{ chapter: currentChapter, index: 0 }],
+    });
+
+    await waitFor(() => {
+      expect(result.current.scrollLayouts.get(0)?.renderMode).toBe('rich');
+    });
+
+    await act(async () => {
+      debugFeatureState.set('readerLegacyPlainScroll', true);
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(result.current.scrollLayouts.get(0)?.renderMode).toBe('legacy-plain');
+    });
   });
 });

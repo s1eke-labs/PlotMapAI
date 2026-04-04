@@ -71,9 +71,11 @@ describe('debug', () => {
     vi.stubEnv('VITE_DEBUG', 'true');
     const mod = await import('@shared/debug');
     expect(mod.getDebugFeatureFlags()).toEqual({
+      readerLegacyPlainScroll: false,
       readerTelemetry: false,
     });
     expect(mod.isDebugFeatureEnabled('readerTelemetry')).toBe(false);
+    expect(mod.isDebugFeatureEnabled('readerLegacyPlainScroll')).toBe(false);
   });
 
   it('setDebugFeatureEnabled updates feature flags and notifies subscribers', async () => {
@@ -82,16 +84,23 @@ describe('debug', () => {
     const listener = vi.fn();
     const unsubscribe = mod.debugFeatureSubscribe(listener);
 
+    mod.setDebugFeatureEnabled('readerLegacyPlainScroll', true);
     mod.setDebugFeatureEnabled('readerTelemetry', true);
 
     expect(mod.isDebugFeatureEnabled('readerTelemetry')).toBe(true);
+    expect(mod.isDebugFeatureEnabled('readerLegacyPlainScroll')).toBe(true);
     expect(listener).toHaveBeenCalledWith({
+      readerLegacyPlainScroll: true,
+      readerTelemetry: false,
+    });
+    expect(listener).toHaveBeenCalledWith({
+      readerLegacyPlainScroll: true,
       readerTelemetry: true,
     });
 
     unsubscribe();
     mod.setDebugFeatureEnabled('readerTelemetry', false);
-    expect(listener).toHaveBeenCalledTimes(1);
+    expect(listener).toHaveBeenCalledTimes(2);
   });
 
   it('registerPwaDebugTools exposes window debug methods in debug mode', async () => {

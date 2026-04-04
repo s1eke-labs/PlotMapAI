@@ -286,7 +286,7 @@ export function createReaderRenderCacheEntry<TTree extends StaticChapterRenderTr
 }
 
 export function createReaderRenderCacheManifestEntry(params: {
-  chapter: Pick<ChapterContent, 'index' | 'plainText' | 'title'>;
+  chapter: Pick<ChapterContent, 'contentFormat' | 'index' | 'plainText' | 'richBlocks' | 'title'>;
   layoutKey?: string;
   layoutSignature: ReaderLayoutSignature;
   novelId: number;
@@ -313,6 +313,7 @@ export function buildStaticRenderTree(params: {
   layoutKey?: string;
   layoutSignature: ReaderLayoutSignature;
   novelId: number;
+  preferRichScrollRendering?: boolean;
   typography: ReaderTypographyMetrics;
   variantFamily: ReaderRenderVariant;
 }): ReaderRenderCacheEntry {
@@ -327,6 +328,8 @@ export function buildStaticRenderTree(params: {
         params.layoutSignature.textWidth,
         params.layoutSignature.pageHeight,
       ),
+      undefined,
+      params.preferRichScrollRendering,
     );
   } else if (params.variantFamily === 'original-paged') {
     tree = buildStaticPagedChapterTree(
@@ -379,6 +382,7 @@ export function buildStaticRenderManifest(params: {
   layoutKey?: string;
   layoutSignature: ReaderLayoutSignature;
   novelId: number;
+  preferRichScrollRendering?: boolean;
   typography: ReaderTypographyMetrics;
   variantFamily: ReaderRenderVariant;
 }): ReaderRenderCacheManifestEntry {
@@ -391,6 +395,7 @@ export function buildStaticRenderManifest(params: {
       chapter: params.chapter,
       imageDimensionsByKey: params.imageDimensionsByKey,
       layoutSignature: params.layoutSignature,
+      preferRichScrollRendering: params.preferRichScrollRendering,
       typography: params.typography,
       variantFamily: params.variantFamily,
     }),

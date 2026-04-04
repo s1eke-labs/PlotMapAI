@@ -25,6 +25,7 @@ const renderCacheMock = vi.hoisted(() => {
       layoutKey: string;
       layoutSignature: object;
       novelId: number;
+      preferRichScrollRendering?: boolean;
       variantFamily: 'original-paged' | 'original-scroll' | 'summary-shell';
     }) => ({
       chapterIndex: params.chapter.index,
@@ -43,6 +44,7 @@ const renderCacheMock = vi.hoisted(() => {
       layoutKey: string;
       layoutSignature: object;
       novelId: number;
+      preferRichScrollRendering?: boolean;
       variantFamily: 'original-paged' | 'original-scroll' | 'summary-shell';
     }) => ({
       chapterIndex: params.chapter.index,
@@ -204,6 +206,7 @@ function renderReaderRenderPreheaterHook(options?: {
     novelId: options?.novelId ?? 1,
     onMaterializedEntry,
     preheatTargets,
+    preferRichScrollRendering: true,
     readerTelemetryEnabled: options?.readerTelemetryEnabled ?? false,
     typography,
     variantSignatures,

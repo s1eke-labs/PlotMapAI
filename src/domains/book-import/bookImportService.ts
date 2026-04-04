@@ -8,6 +8,7 @@ import type {
 import { debugLog } from '@shared/debug';
 import { AppErrorCode, createAppError, toAppError } from '@shared/errors';
 import {
+  buildRichPaginationBlockSequence,
   buildChapterImageGalleryEntries,
   normalizeImportedChapters,
   sortChapterImageGalleryEntries,
@@ -75,44 +76,23 @@ function buildRichChapterImageGalleryEntries(params: {
   imageKey: string;
   order: number;
 }> {
-  const entries: Array<{
-    blockIndex: number;
-    chapterIndex: number;
-    imageKey: string;
-    order: number;
-  }> = [];
-  let nextBlockIndex = 1;
-  let nextImageOrder = 0;
+  const isImageEntry = (
+    entry: ReturnType<typeof buildRichPaginationBlockSequence>[number],
+  ): entry is ReturnType<typeof buildRichPaginationBlockSequence>[number] & {
+    block: Extract<ReturnType<typeof buildRichPaginationBlockSequence>[number]['block'], { type: 'image' }>;
+  } => entry.block.type === 'image';
 
-  const visitBlocks = (blocks: RichBlock[]): void => {
-    blocks.forEach((block) => {
-      if (block.type === 'blockquote') {
-        visitBlocks(block.children);
-        return;
-      }
-
-      if (block.type === 'list') {
-        block.items.forEach((item) => visitBlocks(item));
-        return;
-      }
-
-      const blockIndex = nextBlockIndex;
-      nextBlockIndex += 1;
-
-      if (block.type === 'image') {
-        entries.push({
-          blockIndex,
-          chapterIndex: params.chapterIndex,
-          imageKey: block.key,
-          order: nextImageOrder,
-        });
-        nextImageOrder += 1;
-      }
-    });
-  };
-
-  visitBlocks(params.richBlocks);
-  return entries;
+  return buildRichPaginationBlockSequence({
+    chapterIndex: params.chapterIndex,
+    richBlocks: params.richBlocks,
+  })
+    .filter(isImageEntry)
+    .map((entry, order) => ({
+      blockIndex: entry.blockIndex,
+      chapterIndex: params.chapterIndex,
+      imageKey: entry.block.key,
+      order,
+    }));
 }
 
 function buildPreparedChapterImageGalleryEntries(params: {

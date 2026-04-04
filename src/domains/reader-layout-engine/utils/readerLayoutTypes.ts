@@ -1,4 +1,11 @@
 import type { LayoutCursor, LayoutLine } from '@chenglou/pretext';
+import type {
+  PaginationContainer,
+  PaginationListContext,
+  RichBlock,
+  RichInline,
+  RichTextAlign,
+} from '@shared/contracts';
 
 export const PAGED_VIEWPORT_TOP_PADDING_PX = 16;
 
@@ -15,15 +22,27 @@ export interface ReaderLocator {
 }
 
 export interface ReaderBlock {
+  align?: RichTextAlign;
   chapterIndex: number;
+  blockquoteDepth?: number;
   blockIndex: number;
+  container?: PaginationContainer;
+  headingLevel?: 1 | 2 | 3 | 4 | 5 | 6;
+  imageCaption?: RichInline[];
   key: string;
   kind: 'heading' | 'text' | 'image' | 'blank';
+  listContext?: PaginationListContext;
   text?: string;
   imageKey?: string;
   marginBefore: number;
   marginAfter: number;
+  originalTag?: string;
   paragraphIndex: number;
+  renderRole?: 'hr' | 'plain' | 'rich-text' | 'unsupported';
+  richChildren?: RichInline[];
+  showListMarker?: boolean;
+  sourceBlockType?: RichBlock['type'];
+  indent?: number;
 }
 
 export interface ReaderTypographyMetrics {
@@ -69,6 +88,10 @@ export interface ReaderMeasuredLine extends LayoutLine {
 
 export interface VirtualBlockMetrics {
   block: ReaderBlock;
+  captionFont?: string;
+  captionFontSizePx?: number;
+  captionHeight?: number;
+  captionLineHeightPx?: number;
   contentHeight: number;
   displayHeight?: number;
   displayWidth?: number;
@@ -87,6 +110,7 @@ export interface MeasuredChapterLayout {
   blockCount: number;
   chapterIndex: number;
   metrics: VirtualBlockMetrics[];
+  renderMode: 'legacy-plain' | 'rich';
   textWidth: number;
   totalHeight: number;
 }

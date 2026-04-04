@@ -19,6 +19,12 @@ import {
   getApproximateMaxCharsPerLine,
   resolveReaderImageSize,
 } from './readerLayoutShared';
+import {
+  buildRichScrollReaderBlocks,
+  getRichScrollHorizontalTextWidth,
+  getRichScrollRuleHeight,
+  shouldUseRichScrollBlocks,
+} from './richScroll';
 
 const MAX_PRETEXT_CACHE_SIZE = 256;
 const PRETEXT_CACHE = new Map<string, PreparedTextWithSegments | null>();
@@ -272,6 +278,177 @@ export function measureReaderChapterLayout(
     blockCount: blocks.length,
     chapterIndex: chapter.index,
     metrics,
+    renderMode: 'legacy-plain',
+    textWidth: width,
+    totalHeight: offsetTop,
+  };
+}
+
+export function measureScrollReaderChapterLayout(
+  chapter: ChapterContent,
+  width: number,
+  typography: ReaderTypographyMetrics,
+  imageDimensionsByKey: Map<string, ReaderImageDimensions | null | undefined>,
+  imageLayoutConstraints?: ReaderImageLayoutConstraints,
+  textLayoutEngine: ReaderTextLayoutEngine = browserReaderTextLayoutEngine,
+  preferRichScrollRendering = true,
+): MeasuredChapterLayout {
+  if (!shouldUseRichScrollBlocks(chapter, preferRichScrollRendering)) {
+    return measureReaderChapterLayout(
+      chapter,
+      width,
+      typography,
+      imageDimensionsByKey,
+      imageLayoutConstraints,
+      textLayoutEngine,
+    );
+  }
+
+  const blocks = buildRichScrollReaderBlocks(chapter, typography.paragraphSpacing);
+  const metrics: VirtualBlockMetrics[] = [];
+  let offsetTop = 0;
+
+  for (const block of blocks) {
+    let blockMetrics: VirtualBlockMetrics;
+
+    if (block.kind === 'heading' || block.kind === 'text') {
+      const font = block.kind === 'heading' ? typography.headingFont : typography.bodyFont;
+      const fontSizePx = block.kind === 'heading'
+        ? typography.headingFontSize
+        : typography.bodyFontSize;
+      const lineHeightPx = block.kind === 'heading'
+        ? typography.headingLineHeightPx
+        : typography.bodyLineHeightPx;
+      const textWidth = getRichScrollHorizontalTextWidth(block, width);
+
+      if (block.renderRole === 'hr') {
+        blockMetrics = {
+          block,
+          contentHeight: getRichScrollRuleHeight(),
+          font,
+          fontSizePx,
+          fontWeight: 400,
+          height: block.marginBefore + getRichScrollRuleHeight() + block.marginAfter,
+          lineHeightPx,
+          lines: [],
+          marginAfter: block.marginAfter,
+          marginBefore: block.marginBefore,
+          top: offsetTop,
+        };
+      } else {
+        const lines = textLayoutEngine.layoutLines({
+          font,
+          fontSizePx,
+          lineHeightPx,
+          maxWidth: textWidth,
+          text: block.text ?? '',
+        });
+        const contentHeight = lines.length * lineHeightPx;
+
+        blockMetrics = {
+          block,
+          contentHeight,
+          font,
+          fontSizePx,
+          fontWeight: block.kind === 'heading' ? 700 : 400,
+          height: block.marginBefore + contentHeight + block.marginAfter,
+          lineHeightPx,
+          lines,
+          marginAfter: block.marginAfter,
+          marginBefore: block.marginBefore,
+          top: offsetTop,
+        };
+      }
+    } else if (block.kind === 'image') {
+      const availableWidth = getRichScrollHorizontalTextWidth(block, width);
+      const resolvedImageSize = resolveReaderImageSize(
+        availableWidth,
+        block.imageKey,
+        imageDimensionsByKey,
+        imageLayoutConstraints,
+      );
+      const displayWidth = resolvedImageSize.width;
+      const displayHeight = resolvedImageSize.height;
+      const captionText = block.imageCaption?.map((inline) => {
+        if (inline.type === 'text') {
+          return inline.text;
+        }
+
+        if (inline.type === 'lineBreak') {
+          return '\n';
+        }
+
+        return inline.children.map((child) => {
+          if (child.type === 'text') {
+            return child.text;
+          }
+
+          if (child.type === 'lineBreak') {
+            return '\n';
+          }
+
+          return '';
+        }).join('');
+      }).join('') ?? '';
+      const captionFontSizePx = typography.bodyFontSize;
+      const captionLineHeightPx = typography.bodyLineHeightPx;
+      const captionLines = captionText.length > 0
+        ? textLayoutEngine.layoutLines({
+          font: typography.bodyFont,
+          fontSizePx: captionFontSizePx,
+          lineHeightPx: captionLineHeightPx,
+          maxWidth: availableWidth,
+          text: captionText,
+        })
+        : [];
+      const captionHeight = captionLines.length * captionLineHeightPx;
+      const captionSpacing = captionLines.length > 0 ? 8 : 0;
+      const contentHeight = displayHeight + captionSpacing + captionHeight;
+
+      blockMetrics = {
+        block,
+        captionFont: typography.bodyFont,
+        captionFontSizePx,
+        captionHeight,
+        captionLineHeightPx,
+        contentHeight,
+        displayHeight,
+        displayWidth,
+        font: typography.bodyFont,
+        fontSizePx: typography.bodyFontSize,
+        fontWeight: 400,
+        height: block.marginBefore + contentHeight + block.marginAfter,
+        lineHeightPx: typography.bodyLineHeightPx,
+        lines: [],
+        marginAfter: block.marginAfter,
+        marginBefore: block.marginBefore,
+        top: offsetTop,
+      };
+    } else {
+      blockMetrics = {
+        block,
+        contentHeight: 0,
+        font: typography.bodyFont,
+        fontSizePx: typography.bodyFontSize,
+        fontWeight: 400,
+        height: block.marginAfter,
+        lineHeightPx: typography.bodyLineHeightPx,
+        lines: [],
+        marginAfter: block.marginAfter,
+        marginBefore: 0,
+        top: offsetTop,
+      };
+    }
+
+    metrics.push(blockMetrics);
+    offsetTop += blockMetrics.height;
+  }
+
+  return {
+    blockCount: blocks.length,
+    chapterIndex: chapter.index,
+    metrics,
+    renderMode: 'rich',
     textWidth: width,
     totalHeight: offsetTop,
   };

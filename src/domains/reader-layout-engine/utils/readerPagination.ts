@@ -29,7 +29,11 @@ import {
   getApproximateMaxCharsPerLine,
   resolveReaderImageSize,
 } from './readerLayoutShared';
-import { measureReaderChapterLayout } from './readerMeasurement';
+import {
+  measureReaderChapterLayout,
+  measureScrollReaderChapterLayout,
+} from './readerMeasurement';
+import { shouldUseRichScrollBlocks } from './richScroll';
 
 interface EstimatedReaderBlockMetric {
   block: ReaderBlock;
@@ -64,14 +68,16 @@ export function buildStaticScrollChapterTree(
   imageDimensionsByKey: Map<string, ReaderImageDimensions | null | undefined>,
   imageLayoutConstraints?: ReaderImageLayoutConstraints,
   textLayoutEngine?: ReaderTextLayoutEngine,
+  preferRichScrollRendering = true,
 ): StaticScrollChapterTree {
-  return measureReaderChapterLayout(
+  return measureScrollReaderChapterLayout(
     chapter,
     width,
     typography,
     imageDimensionsByKey,
     imageLayoutConstraints,
     textLayoutEngine,
+    preferRichScrollRendering,
   );
 }
 
@@ -687,11 +693,34 @@ export function estimateReaderRenderQueryManifest(params: {
   chapter: ChapterContent;
   imageDimensionsByKey: Map<string, ReaderImageDimensions | null | undefined>;
   layoutSignature: ReaderLayoutSignature;
+  preferRichScrollRendering?: boolean;
   typography: ReaderTypographyMetrics;
   variantFamily: ReaderRenderVariant;
 }): ReaderRenderQueryManifest {
   if (params.variantFamily === 'summary-shell') {
     return {};
+  }
+
+  const preferRichScrollRendering = params.preferRichScrollRendering ?? true;
+
+  if (
+    params.variantFamily === 'original-scroll'
+    && shouldUseRichScrollBlocks(params.chapter, preferRichScrollRendering)
+  ) {
+    const scrollTree = buildStaticScrollChapterTree(
+      params.chapter,
+      params.layoutSignature.textWidth,
+      params.typography,
+      params.imageDimensionsByKey,
+      createScrollImageLayoutConstraints(
+        params.layoutSignature.textWidth,
+        params.layoutSignature.pageHeight,
+      ),
+      undefined,
+      preferRichScrollRendering,
+    );
+
+    return createReaderRenderQueryManifest('original-scroll', scrollTree);
   }
 
   const blocks = buildReaderBlocks(params.chapter, params.typography.paragraphSpacing);

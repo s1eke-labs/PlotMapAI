@@ -40,6 +40,7 @@ interface UseReaderRenderPreheaterParams {
   novelId: number;
   onMaterializedEntry: () => void;
   preheatTargets: ReaderRenderPreheatTarget[];
+  preferRichScrollRendering: boolean;
   readerTelemetryEnabled: boolean;
   typography: ReaderTypographyMetrics;
   variantSignatures: Record<ReaderRenderVariant, ReaderLayoutSignature>;
@@ -71,6 +72,7 @@ export function useReaderRenderPreheater({
   novelId,
   onMaterializedEntry,
   preheatTargets,
+  preferRichScrollRendering,
   readerTelemetryEnabled,
   typography,
   variantSignatures,
@@ -156,10 +158,15 @@ export function useReaderRenderPreheater({
           }
 
           const contentHash = createChapterContentHash(chapter);
+          let scrollRenderMode: 'legacy-plain' | 'rich' | undefined;
+          if (target.variantFamily === 'original-scroll') {
+            scrollRenderMode = preferRichScrollRendering ? 'rich' : 'legacy-plain';
+          }
           const layoutKey = buildChapterImageLayoutKey(
             novelId,
             chapter,
             serializeReaderLayoutSignature(signature),
+            scrollRenderMode,
           );
 
           const lookup = {
@@ -218,6 +225,7 @@ export function useReaderRenderPreheater({
               layoutKey,
               layoutSignature: signature,
               novelId,
+              preferRichScrollRendering,
               typography,
               variantFamily: target.variantFamily,
             });
@@ -245,6 +253,7 @@ export function useReaderRenderPreheater({
             layoutKey,
             layoutSignature: signature,
             novelId,
+            preferRichScrollRendering,
             typography,
             variantFamily: target.variantFamily,
           });
@@ -302,6 +311,7 @@ export function useReaderRenderPreheater({
     loadedChaptersRef,
     novelId,
     preheatTargets,
+    preferRichScrollRendering,
     typography,
     variantSignatures,
   ]);

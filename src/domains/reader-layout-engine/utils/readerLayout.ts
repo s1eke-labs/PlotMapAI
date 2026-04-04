@@ -8,6 +8,7 @@ export {
 export {
   createReaderTypographyMetrics,
   getReaderLayoutPretextCacheSizeForTests,
+  measureScrollReaderChapterLayout,
   measureReaderChapterLayout,
   resetReaderLayoutPretextCacheForTests,
 } from './readerMeasurement';

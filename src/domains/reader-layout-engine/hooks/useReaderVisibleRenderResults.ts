@@ -39,6 +39,7 @@ interface UseReaderVisibleRenderResultsParams {
   activeVariant: ReaderRenderVariant;
   currentChapterIndex: number | null;
   novelId: number;
+  preferRichScrollRendering: boolean;
   revisionKey: string;
   scrollChapterCount: number;
   typography: ReaderTypographyMetrics;
@@ -50,6 +51,7 @@ export function useReaderVisibleRenderResults({
   activeVariant,
   currentChapterIndex,
   novelId,
+  preferRichScrollRendering,
   revisionKey,
   scrollChapterCount,
   typography,
@@ -86,6 +88,7 @@ export function useReaderVisibleRenderResults({
           layoutKey: target.layoutKey,
           layoutSignature: variantSignatures[target.variantFamily],
           novelId,
+          preferRichScrollRendering,
           typography,
           variantFamily: target.variantFamily,
         }),
@@ -96,6 +99,7 @@ export function useReaderVisibleRenderResults({
     });
   }, [
     novelId,
+    preferRichScrollRendering,
     revisionKey,
     typography,
     variantSignatures,

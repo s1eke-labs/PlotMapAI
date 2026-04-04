@@ -1,10 +1,24 @@
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import userEvent from '@testing-library/user-event';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const useReaderImageResourceMock = vi.hoisted(() => vi.fn());
+
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string) => key,
+  }),
+}));
+
+vi.mock('../../../hooks/useReaderImageResource', () => ({
+  useReaderImageResource: useReaderImageResourceMock,
+}));
 
 import ScrollReaderContent from '../ScrollReaderContent';
 import { createFakeReaderTextLayoutEngine } from '../../../test/createFakeReaderTextLayoutEngine';
 import {
   createReaderTypographyMetrics,
+  measureScrollReaderChapterLayout,
   measureReaderChapterLayout,
 } from '../../../utils/readerLayout';
 
@@ -37,7 +51,106 @@ function createScrollChapterLayout(content: string) {
   };
 }
 
+function createRichScrollChapterLayout() {
+  const chapter = {
+    index: 0,
+    title: 'Chapter 1',
+    plainText: 'Section\nHeroic opening\nRemember the river.\nThe world map',
+    richBlocks: [
+      {
+        type: 'heading',
+        level: 2,
+        children: [{
+          type: 'text',
+          text: 'Section',
+        }],
+      },
+      {
+        type: 'paragraph',
+        children: [
+          {
+            type: 'text',
+            marks: ['bold'],
+            text: 'Heroic',
+          },
+          {
+            type: 'text',
+            text: ' opening',
+          },
+        ],
+      },
+      {
+        type: 'blockquote',
+        children: [{
+          type: 'paragraph',
+          children: [{
+            type: 'text',
+            text: 'Remember the river.',
+          }],
+        }],
+      },
+      {
+        type: 'list',
+        ordered: false,
+        items: [[{
+          type: 'paragraph',
+          children: [{
+            type: 'text',
+            text: 'Pack lightly',
+          }],
+        }]],
+      },
+      {
+        type: 'poem',
+        lines: [[{
+          type: 'text',
+          text: 'The wind remembers',
+        }], [{
+          type: 'text',
+          text: 'the river path',
+        }]],
+      },
+      {
+        type: 'image',
+        key: 'map',
+        caption: [{
+          type: 'text',
+          text: 'The world map',
+        }],
+      },
+      {
+        type: 'hr',
+      },
+    ],
+    contentFormat: 'rich' as const,
+    contentVersion: 1,
+    wordCount: 100,
+    totalChapters: 1,
+    hasPrev: false,
+    hasNext: false,
+  };
+  const typography = createReaderTypographyMetrics(18, 1.8, 24, 920);
+
+  return {
+    chapter,
+    layout: measureScrollReaderChapterLayout(
+      chapter,
+      920,
+      typography,
+      new Map([
+        ['map', { width: 920, height: 460, aspectRatio: 2 }],
+      ]),
+      undefined,
+      TEXT_LAYOUT_ENGINE,
+    ),
+  };
+}
+
 describe('ScrollReaderContent', () => {
+  beforeEach(() => {
+    useReaderImageResourceMock.mockReset();
+  });
+
   it('renders sticky chapter chrome plus the full static chapter tree in scroll mode', () => {
     const { chapter, layout } = createScrollChapterLayout('Text');
 
@@ -174,5 +287,54 @@ describe('ScrollReaderContent', () => {
     const fragments = container.querySelectorAll('[data-testid="reader-flow-text-fragment"]');
     expect(fragments).toHaveLength(1);
     expect(fragments[0]?.children).toHaveLength(0);
+  });
+
+  it('renders rich blocks in scroll mode and keeps image activation aligned to block indices', async () => {
+    useReaderImageResourceMock.mockReturnValue('blob:map');
+    const onImageActivate = vi.fn();
+    const onRegisterImageElement = vi.fn();
+    const { chapter, layout } = createRichScrollChapterLayout();
+    const user = userEvent.setup();
+
+    render(
+      <ScrollReaderContent
+        chapters={[{
+          index: 0,
+          chapter,
+          layout,
+        }]}
+        novelId={1}
+        onChapterElement={() => {}}
+        onImageActivate={onImageActivate}
+        onRegisterImageElement={onRegisterImageElement}
+        readerTheme="auto"
+        textClassName=""
+        headerBgClassName=""
+      />,
+    );
+
+    expect(screen.getByRole('heading', { name: 'Section', level: 2 })).toBeInTheDocument();
+    expect(screen.getByText('Heroic').tagName).toBe('STRONG');
+    expect(screen.getByText('Remember the river.').closest('[style]')).toBeTruthy();
+    expect(screen.getByText('Pack lightly')).toBeInTheDocument();
+    expect(screen.getByText('The wind remembers')).toBeInTheDocument();
+    expect(screen.getByText('the river path')).toBeInTheDocument();
+    expect(screen.getByText('The world map')).toBeInTheDocument();
+    expect(screen.getByTestId('reader-rich-hr')).toBeInTheDocument();
+
+    const imageButton = screen.getByRole('button', { name: 'reader.imageViewer.title' });
+    await user.click(imageButton);
+
+    expect(onRegisterImageElement).toHaveBeenCalledWith({
+      blockIndex: 7,
+      chapterIndex: 0,
+      imageKey: 'map',
+    }, expect.anything());
+    expect(onImageActivate).toHaveBeenCalledWith(expect.objectContaining({
+      blockIndex: 7,
+      chapterIndex: 0,
+      imageKey: 'map',
+      sourceElement: imageButton,
+    }));
   });
 });

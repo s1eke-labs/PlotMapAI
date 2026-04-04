@@ -192,6 +192,63 @@ describe('bookImportService', () => {
     ]);
   });
 
+  it('keeps rich gallery block indices aligned with projected poem lines', async () => {
+    vi.mocked(parseBook).mockResolvedValueOnce({
+      author: 'Parsed Author',
+      chapters: [
+        {
+          content: 'Line 1\nLine 2\n\nImage caption',
+          title: 'Poem Chapter',
+          contentFormat: 'rich',
+          richBlocks: [
+            {
+              type: 'poem',
+              lines: [
+                [{
+                  type: 'text',
+                  text: 'Line 1',
+                }],
+                [{
+                  type: 'text',
+                  text: 'Line 2',
+                }],
+              ],
+            },
+            {
+              type: 'image',
+              key: 'poem-map',
+              caption: [{
+                type: 'text',
+                text: 'Image caption',
+              }],
+            },
+          ],
+        },
+      ],
+      coverBlob: null,
+      description: 'Parsed desc',
+      encoding: 'utf-8',
+      fileHash: 'poem-rich-hash',
+      images: [{
+        imageKey: 'poem-map',
+        blob: new Blob(['image']),
+      }],
+      rawText: 'raw',
+      tags: ['fiction'],
+      title: 'Illustrated Novel',
+      totalWords: 20,
+    });
+
+    const result = await bookImportService.parseBookImport(
+      new File(['content'], 'poem.epub', { type: 'application/epub+zip' }),
+      tocRules,
+    );
+
+    expect(result.imageGalleryEntries).toEqual([
+      { blockIndex: 3, chapterIndex: 0, imageKey: 'poem-map', order: 0 },
+    ]);
+  });
+
   it('normalizes chapter content without a duplicated leading title line', async () => {
     vi.mocked(parseBook).mockResolvedValueOnce({
       author: 'Parsed Author',

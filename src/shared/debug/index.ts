@@ -7,6 +7,7 @@ const isDebug = import.meta.env.VITE_DEBUG === 'true';
 export const MAX_LOGS = 500;
 
 export interface DebugFeatureFlags {
+  readerLegacyPlainScroll: boolean;
   readerTelemetry: boolean;
 }
 
@@ -34,6 +35,7 @@ const logs: DebugEntry[] = [];
 const listeners = new Set<LogListener>();
 const featureListeners = new Set<FeatureListener>();
 const debugFeatureFlags: DebugFeatureFlags = {
+  readerLegacyPlainScroll: false,
   readerTelemetry: false,
 };
 

@@ -111,6 +111,7 @@ export function buildReaderBlocks(
     marginBefore: HEADING_TOP_MARGIN_PX,
     marginAfter: HEADING_BOTTOM_MARGIN_PX,
     paragraphIndex: -1,
+    renderRole: 'plain',
   }];
 
   blocks.push(...buildChapterBlockSequence({
@@ -142,6 +143,7 @@ export function buildReaderBlocks(
           IMAGE_BLOCK_MARGIN_PX +
           (block.hasParagraphSpacingAfter ? paragraphSpacing : 0),
         paragraphIndex: block.paragraphIndex,
+        renderRole: 'plain',
       };
     }
 
@@ -153,6 +155,7 @@ export function buildReaderBlocks(
       marginBefore: 0,
       marginAfter: block.hasParagraphSpacingAfter ? paragraphSpacing : 0,
       paragraphIndex: block.paragraphIndex,
+      renderRole: 'plain',
       text: block.text,
     };
   }));
@@ -161,9 +164,11 @@ export function buildReaderBlocks(
 }
 
 export function createChapterContentHash(
-  chapter: Pick<ChapterContent, 'index' | 'plainText' | 'title'>,
+  chapter: Pick<ChapterContent, 'contentFormat' | 'index' | 'plainText' | 'richBlocks' | 'title'>,
 ): string {
-  const source = `${chapter.index}\u0000${chapter.title}\u0000${chapter.plainText}`;
+  const source = chapter.contentFormat === 'rich'
+    ? `${chapter.index}\u0000${chapter.title}\u0000${chapter.plainText}\u0000${chapter.contentFormat}\u0000${JSON.stringify(chapter.richBlocks)}`
+    : `${chapter.index}\u0000${chapter.title}\u0000${chapter.plainText}\u0000${chapter.contentFormat}`;
   let hashA = 0x811c9dc5;
   let hashB = 0x01000193;
   const UINT32_MOD = 0x1_0000_0000;
