@@ -10,9 +10,13 @@ import type {
 
 import { useTranslation } from 'react-i18next';
 
-import { READER_CONTENT_TOKEN_DEFAULTS } from '@shared/reader-content';
+import { READER_CONTENT_CLASS_NAMES } from '@domains/reader-shell/constants/readerContentContract';
 import { cn } from '@shared/utils/cn';
 import { useReaderImageResource } from '../../hooks/useReaderImageResource';
+import {
+  getReaderContentBlockClassName,
+  getReaderContentContextClassName,
+} from '../../utils/readerContentStyling';
 import {
   formatRichScrollListMarker,
   resolveRichScrollBlockInsets,
@@ -64,7 +68,7 @@ function RichImage({
     <img
       src={imageUrl}
       alt=""
-      className="block max-h-full max-w-full rounded-lg object-contain object-center shadow-md"
+      className="block max-h-full max-w-full object-contain object-center"
       decoding="async"
       draggable={false}
       loading="lazy"
@@ -134,7 +138,8 @@ function renderRichContent(metric: StaticScrollBlockNode, chapterTitle?: string)
       <TagName
         data-testid="reader-rich-text-fragment"
         className={cn(
-          'break-words whitespace-pre-wrap font-semibold tracking-tight',
+          getReaderContentBlockClassName(block),
+          'break-words whitespace-pre-wrap font-semibold',
           resolveTextAlignClass(block.align),
         )}
         style={{
@@ -159,7 +164,7 @@ function renderRichContent(metric: StaticScrollBlockNode, chapterTitle?: string)
       <div className="flex h-full items-center">
         <div
           data-testid="reader-rich-hr"
-          className="w-full border-t border-border-color/40"
+          className={cn(getReaderContentBlockClassName(block), 'w-full')}
           style={{ height: metric.contentHeight }}
         />
       </div>
@@ -172,7 +177,7 @@ function renderRichContent(metric: StaticScrollBlockNode, chapterTitle?: string)
     return (
       <div
         data-testid="reader-rich-table"
-        className="h-full overflow-x-auto rounded-xl border border-border-color/40 bg-surface/60 px-1 py-1 shadow-sm"
+        className={cn(getReaderContentBlockClassName(block), 'h-full overflow-x-auto px-1 py-1')}
       >
         <table
           className="min-w-full table-fixed border-collapse"
@@ -206,10 +211,7 @@ function renderRichContent(metric: StaticScrollBlockNode, chapterTitle?: string)
                     return (
                       <td
                         key={cellKey}
-                        className="border border-border-color/30 align-top text-left"
-                        style={{
-                          padding: `${READER_CONTENT_TOKEN_DEFAULTS.tableCellPaddingYPx}px ${READER_CONTENT_TOKEN_DEFAULTS.tableCellPaddingXPx}px`,
-                        }}
+                        className={READER_CONTENT_CLASS_NAMES.tableCell}
                       >
                         <RichInlineRenderer
                           inlines={cell.children}
@@ -231,9 +233,9 @@ function renderRichContent(metric: StaticScrollBlockNode, chapterTitle?: string)
     <div
       data-testid={textFragmentTestId}
       className={cn(
+        getReaderContentBlockClassName(block),
         'break-words whitespace-pre-wrap',
         resolveTextAlignClass(block.align),
-        block.renderRole === 'unsupported' ? 'text-text-secondary' : undefined,
       )}
       style={{
         font: metric.font,
@@ -279,7 +281,7 @@ export default function RichBlockRenderer({
 
   if (block.kind === 'image') {
     content = (
-      <figure className={cn('flex h-full w-full flex-col', resolveImageJustifyClass(block.align))}>
+      <figure className={cn(getReaderContentBlockClassName(block), 'flex h-full w-full flex-col', resolveImageJustifyClass(block.align))}>
         <div
           className={cn('relative flex w-full', resolveImageJustifyClass(block.align))}
           style={{
@@ -305,14 +307,14 @@ export default function RichBlockRenderer({
               <figcaption
                 data-testid="reader-flow-image-caption"
                 className={cn(
-                  'w-full text-sm text-text-secondary',
+                  READER_CONTENT_CLASS_NAMES.imageCaption,
+                  'w-full text-sm',
                   resolveTextAlignClass(block.align),
                 )}
                 style={{
                   font: metric.captionFont,
                   fontSize: `${metric.captionFontSizePx}px`,
                   lineHeight: `${metric.captionLineHeightPx}px`,
-                  marginTop: `${READER_CONTENT_TOKEN_DEFAULTS.imageCaptionGapPx}px`,
                   minHeight: metric.captionHeight,
                 }}
               >
@@ -355,10 +357,13 @@ export default function RichBlockRenderer({
 
   if (block.listContext) {
     content = (
-      <div className="flex h-full min-w-0 items-start" style={{ paddingLeft: `${listPaddingStart}px` }}>
+      <div
+        className={cn(getReaderContentContextClassName('list-item'), 'flex h-full min-w-0 items-start')}
+        style={{ paddingLeft: `${listPaddingStart}px` }}
+      >
         <div
           aria-hidden="true"
-          className="shrink-0 text-right text-text-secondary"
+          className={cn(READER_CONTENT_CLASS_NAMES.listMarker, 'shrink-0 text-right')}
           style={{
             fontSize: `${metric.fontSizePx}px`,
             lineHeight: `${metric.lineHeightPx}px`,
@@ -373,7 +378,10 @@ export default function RichBlockRenderer({
     );
   } else if (insets.poemInset > 0) {
     content = (
-      <div style={{ paddingLeft: `${insets.poemInset}px` }}>
+      <div
+        className={getReaderContentContextClassName('poem-line')}
+        style={{ paddingLeft: `${insets.poemInset}px` }}
+      >
         {content}
       </div>
     );
@@ -382,9 +390,9 @@ export default function RichBlockRenderer({
   if ((block.blockquoteDepth ?? 0) > 0) {
     content = (
       <div
-        className="h-full border-l border-border-color/40"
+        className={cn(getReaderContentContextClassName('blockquote'), 'h-full')}
         style={{
-          paddingLeft: `${Math.max(0, insets.quoteInset - 1)}px`,
+          paddingLeft: `calc(${insets.quoteInset}px - var(--pm-reader-blockquote-border-width))`,
         }}
       >
         {content}

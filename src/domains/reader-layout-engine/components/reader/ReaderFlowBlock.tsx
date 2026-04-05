@@ -9,7 +9,7 @@ import type {
 
 import { useTranslation } from 'react-i18next';
 
-import { READER_CONTENT_TOKEN_DEFAULTS } from '@shared/reader-content';
+import { READER_CONTENT_CLASS_NAMES } from '@domains/reader-shell/constants/readerContentContract';
 import { cn } from '@shared/utils/cn';
 
 import { useReaderImageResource } from '../../hooks/useReaderImageResource';
@@ -17,6 +17,10 @@ import type {
   ReaderImageActivationPayload,
   ReaderImageGalleryEntry,
 } from '../../utils/readerImageGallery';
+import {
+  getReaderContentBlockClassName,
+  getReaderContentContextClassName,
+} from '../../utils/readerContentStyling';
 import {
   formatRichScrollListMarker,
   resolveRichScrollBlockInsets,
@@ -157,7 +161,7 @@ function ReaderLayoutImage({
     <img
       src={imageUrl}
       alt=""
-      className="mx-auto block max-h-full max-w-full rounded-lg shadow-md object-contain object-center"
+      className="mx-auto block max-h-full max-w-full object-contain object-center"
       decoding="async"
       draggable={false}
       loading={imageRenderMode === 'paged' ? 'eager' : 'lazy'}
@@ -336,7 +340,11 @@ export default function ReaderFlowBlock({
     return (
       <div
         id={imageItem.anchorId}
-        className={cn('flex items-center overflow-visible', resolveImageJustifyClass(imageItem.align))}
+        className={cn(
+          getReaderContentBlockClassName({ kind: 'image' }),
+          'flex items-center overflow-visible',
+          resolveImageJustifyClass(imageItem.align),
+        )}
         style={{
           ...positionStyle,
           height: imageItem.height,
@@ -399,7 +407,8 @@ export default function ReaderFlowBlock({
             <figcaption
               data-testid="reader-flow-image-caption"
               className={cn(
-                'w-full text-sm text-text-secondary',
+                READER_CONTENT_CLASS_NAMES.imageCaption,
+                'w-full text-sm',
                 resolveTextAlignClass(imageItem.align),
               )}
               style={{
@@ -412,9 +421,6 @@ export default function ReaderFlowBlock({
                   : undefined,
                 minHeight: imageItem.captionLines && imageItem.captionLineHeightPx
                   ? `${imageItem.captionLines.length * imageItem.captionLineHeightPx}px`
-                  : undefined,
-                marginTop: imageItem.captionSpacing
-                  ? `${READER_CONTENT_TOKEN_DEFAULTS.imageCaptionGapPx}px`
                   : undefined,
                 whiteSpace: 'pre',
               }}
@@ -477,7 +483,7 @@ export default function ReaderFlowBlock({
         <div className="flex h-full items-center">
           <div
             data-testid="reader-flow-hr"
-            className="w-full border-t border-border-color/40"
+            className={cn(getReaderContentBlockClassName({ kind: 'text', renderRole: 'hr' }), 'w-full')}
           />
         </div>
       </div>
@@ -489,7 +495,10 @@ export default function ReaderFlowBlock({
     let content = (
       <div
         data-testid="reader-flow-table"
-        className="h-full overflow-x-auto rounded-xl border border-border-color/40 bg-surface/60 px-1 py-1 shadow-sm"
+        className={cn(
+          getReaderContentBlockClassName({ kind: 'text', renderRole: 'table' }),
+          'h-full overflow-x-auto px-1 py-1',
+        )}
       >
         <table
           className="min-w-full table-fixed border-collapse"
@@ -521,10 +530,7 @@ export default function ReaderFlowBlock({
                     return (
                       <td
                         key={cellKey}
-                        className="border border-border-color/30 align-top text-left"
-                        style={{
-                          padding: `${READER_CONTENT_TOKEN_DEFAULTS.tableCellPaddingYPx}px ${READER_CONTENT_TOKEN_DEFAULTS.tableCellPaddingXPx}px`,
-                        }}
+                        className={READER_CONTENT_CLASS_NAMES.tableCell}
                       >
                         <RichInlineRenderer
                           inlines={cell.children}
@@ -544,9 +550,9 @@ export default function ReaderFlowBlock({
     if ((textItem.blockquoteDepth ?? 0) > 0) {
       content = (
         <div
-          className="h-full border-l border-border-color/40"
+          className={cn(getReaderContentContextClassName('blockquote'), 'h-full')}
           style={{
-            paddingLeft: `${Math.max(0, insets.quoteInset - 1)}px`,
+            paddingLeft: `calc(${insets.quoteInset}px - var(--pm-reader-blockquote-border-width))`,
           }}
         >
           {content}
@@ -576,7 +582,11 @@ export default function ReaderFlowBlock({
       return (
         <TagName
           data-testid="reader-flow-text-fragment"
-          className={cn('break-words font-semibold tracking-tight', resolveTextAlignClass(textItem.align))}
+          className={cn(
+            getReaderContentBlockClassName({ kind: 'heading' }),
+            'break-words font-semibold',
+            resolveTextAlignClass(textItem.align),
+          )}
           style={{
             ...textStyle,
             overflow: 'hidden',
@@ -597,9 +607,11 @@ export default function ReaderFlowBlock({
       <div
         data-testid="reader-flow-text-fragment"
         className={cn(
-          'opacity-90',
+          getReaderContentBlockClassName({
+            kind: 'text',
+            renderRole: textItem.renderRole,
+          }),
           resolveTextAlignClass(textItem.align),
-          textItem.renderRole === 'unsupported' ? 'text-text-secondary' : undefined,
         )}
         style={{
           ...textStyle,
@@ -628,7 +640,10 @@ export default function ReaderFlowBlock({
     content = (
       <div
         data-testid="reader-flow-table-fallback"
-        className="rounded-xl border border-border-color/40 bg-surface/60 px-4 py-3 shadow-sm"
+        className={cn(
+          getReaderContentBlockClassName({ kind: 'text', renderRole: 'unsupported' }),
+          'px-4 py-3',
+        )}
       >
         {content}
       </div>
@@ -637,10 +652,13 @@ export default function ReaderFlowBlock({
 
   if (textItem.listContext) {
     content = (
-      <div className="flex h-full min-w-0 items-start" style={{ paddingLeft: `${listPaddingStart}px` }}>
+      <div
+        className={cn(getReaderContentContextClassName('list-item'), 'flex h-full min-w-0 items-start')}
+        style={{ paddingLeft: `${listPaddingStart}px` }}
+      >
         <div
           aria-hidden="true"
-          className="shrink-0 text-right text-text-secondary"
+          className={cn(READER_CONTENT_CLASS_NAMES.listMarker, 'shrink-0 text-right')}
           style={{
             fontSize: `${textItem.fontSizePx}px`,
             lineHeight: `${textItem.lineHeightPx}px`,
@@ -655,7 +673,10 @@ export default function ReaderFlowBlock({
     );
   } else if (insets.poemInset > 0) {
     content = (
-      <div style={{ paddingLeft: `${insets.poemInset}px` }}>
+      <div
+        className={getReaderContentContextClassName('poem-line')}
+        style={{ paddingLeft: `${insets.poemInset}px` }}
+      >
         {content}
       </div>
     );
@@ -664,9 +685,9 @@ export default function ReaderFlowBlock({
   if ((textItem.blockquoteDepth ?? 0) > 0) {
     content = (
       <div
-        className="h-full border-l border-border-color/40"
+        className={cn(getReaderContentContextClassName('blockquote'), 'h-full')}
         style={{
-          paddingLeft: `${Math.max(0, insets.quoteInset - 1)}px`,
+          paddingLeft: `calc(${insets.quoteInset}px - var(--pm-reader-blockquote-border-width))`,
         }}
       >
         {content}

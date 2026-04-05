@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react';
 import type { Mark, RichInline } from '@shared/contracts';
 
+import { READER_CONTENT_CLASS_NAMES } from '@domains/reader-shell/constants/readerContentContract';
+
 function applyMark(content: ReactNode, mark: Mark, key: string): ReactNode {
   if (mark === 'bold') {
     return <strong key={key}>{content}</strong>;
@@ -35,7 +37,7 @@ function renderInlineChild(inline: RichInline, key: string): ReactNode {
       <a
         key={key}
         href={inline.href}
-        className="text-accent underline decoration-current underline-offset-2"
+        className={READER_CONTENT_CLASS_NAMES.inlineLink}
       >
         <RichInlineRenderer inlines={inline.children} keyPrefix={`${key}:link`} />
       </a>

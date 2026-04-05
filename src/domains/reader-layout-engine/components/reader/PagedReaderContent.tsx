@@ -11,6 +11,7 @@ import type {
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { animate, AnimatePresence, motion, useMotionValue, useTransform } from 'motion/react';
 
+import { READER_CONTENT_CLASS_NAMES } from '@domains/reader-shell/constants/readerContentContract';
 import { cn } from '@shared/utils/cn';
 
 import {
@@ -63,6 +64,8 @@ interface PagedReaderContentProps {
   previousChapterPreview?: ChapterContent | null;
   previousLayout?: PaginatedChapterLayout | null;
   readerTheme: string;
+  rootClassName: string;
+  rootStyle: React.CSSProperties;
   textClassName: string;
   twoColumnGap?: number;
   twoColumnWidth?: number;
@@ -161,6 +164,8 @@ function PagedPageFrame({
   pagedContentRef,
   pagedViewportRef,
   readerTheme,
+  rootClassName,
+  rootStyle,
   textClassName,
   headerBgClassName,
   onImageActivate,
@@ -176,6 +181,8 @@ function PagedPageFrame({
   pagedContentRef?: React.Ref<HTMLDivElement>;
   pagedViewportRef?: React.Ref<HTMLDivElement>;
   readerTheme: string;
+  rootClassName: string;
+  rootStyle: React.CSSProperties;
   textClassName: string;
   headerBgClassName: string;
   onImageActivate?: (payload: ReaderImageActivationPayload) => void;
@@ -185,61 +192,76 @@ function PagedPageFrame({
   ) => void;
 }) {
   return (
-    <div data-testid="paged-reader-page-frame" className="flex h-full w-full flex-col">
-      <div className={cn('w-full shrink-0 border-b border-border-color/20 backdrop-blur-sm', headerBgClassName)}>
-        <div className={cn('mx-auto flex w-full max-w-[1400px] items-center justify-between gap-4 px-4 py-3 sm:px-8 md:px-12', textClassName)}>
-          <h1 className={cn('truncate text-sm font-medium transition-colors', readerTheme === 'auto' ? 'text-text-secondary' : 'opacity-60')}>
-            {chapter.title}
-          </h1>
-          {pageCount > 1 ? (
-            <div className="whitespace-nowrap text-xs font-medium text-text-secondary">
-              {pageIndex + 1} / {pageCount}
-            </div>
-          ) : null}
+    <div
+      data-testid="paged-reader-page-frame"
+      className={cn(rootClassName, 'flex h-full w-full flex-col')}
+      style={rootStyle}
+    >
+      <div className={cn(READER_CONTENT_CLASS_NAMES.chapter, 'flex h-full w-full flex-col')}>
+        <div
+          className={cn(
+            READER_CONTENT_CLASS_NAMES.chapterHeader,
+            'w-full shrink-0 border-b border-border-color/20 backdrop-blur-sm',
+            headerBgClassName,
+          )}
+        >
+          <div className={cn('mx-auto flex w-full max-w-[1400px] items-center justify-between gap-4 px-4 py-3 sm:px-8 md:px-12', textClassName)}>
+            <h1 className={cn('truncate text-sm font-medium transition-colors', readerTheme === 'auto' ? 'text-text-secondary' : 'opacity-60')}>
+              {chapter.title}
+            </h1>
+            {pageCount > 1 ? (
+              <div className="whitespace-nowrap text-xs font-medium text-text-secondary">
+                {pageIndex + 1} / {pageCount}
+              </div>
+            ) : null}
+          </div>
         </div>
-      </div>
 
-      <div className={cn('min-h-0 flex-1', pageBgClassName ?? headerBgClassName)}>
-        <div className={cn('mx-auto h-full w-full max-w-[1400px] px-4 sm:px-8 md:px-12', textClassName)}>
-          <div
-            ref={pagedViewportRef}
-            data-testid="paged-reader-measurement-viewport"
-            className="h-full overflow-hidden"
-            style={{ paddingTop: `${PAGED_VIEWPORT_TOP_PADDING_PX}px` }}
-          >
+        <div className={cn('min-h-0 flex-1', pageBgClassName ?? headerBgClassName)}>
+          <div className={cn('mx-auto h-full w-full max-w-[1400px] px-4 sm:px-8 md:px-12', textClassName)}>
             <div
-              ref={pagedContentRef}
-              data-testid="paged-reader-content-body"
-              className="flex h-full"
-              style={{
-                gap: layout.columnCount > 1 ? `${layout.columnGap}px` : '0px',
-              }}
+              ref={pagedViewportRef}
+              data-testid="paged-reader-measurement-viewport"
+              className="h-full overflow-hidden"
+              style={{ paddingTop: `${PAGED_VIEWPORT_TOP_PADDING_PX}px` }}
             >
-              {pageSlice.columns.map((column) => (
-                <div
-                  key={[
-                    pageIndex,
-                    column.items[0]?.key ?? 'empty',
-                    column.items[column.items.length - 1]?.key ?? 'empty',
-                  ].join(':')}
-                  className="flex min-w-0 flex-1 flex-col overflow-hidden selection:bg-accent/30"
-                  style={{
-                    width: `${layout.columnWidth}px`,
-                  }}
-                >
-                  {column.items.map((item) => (
-                    <ReaderFlowBlock
-                      chapterTitle={chapter.title}
-                      key={item.key}
-                      imageRenderMode="paged"
-                      item={item}
-                      novelId={novelId}
-                      onImageActivate={onImageActivate}
-                      onRegisterImageElement={onRegisterImageElement}
-                    />
-                  ))}
-                </div>
-              ))}
+              <div
+                ref={pagedContentRef}
+                data-testid="paged-reader-content-body"
+                className="flex h-full"
+                style={{
+                  gap: layout.columnCount > 1 ? `${layout.columnGap}px` : '0px',
+                }}
+              >
+                {pageSlice.columns.map((column) => (
+                  <div
+                    key={[
+                      pageIndex,
+                      column.items[0]?.key ?? 'empty',
+                      column.items[column.items.length - 1]?.key ?? 'empty',
+                    ].join(':')}
+                    className={cn(
+                      READER_CONTENT_CLASS_NAMES.content,
+                      'flex min-w-0 flex-1 flex-col overflow-hidden',
+                    )}
+                    style={{
+                      width: `${layout.columnWidth}px`,
+                    }}
+                  >
+                    {column.items.map((item) => (
+                      <ReaderFlowBlock
+                        chapterTitle={chapter.title}
+                        key={item.key}
+                        imageRenderMode="paged"
+                        item={item}
+                        novelId={novelId}
+                        onImageActivate={onImageActivate}
+                        onRegisterImageElement={onRegisterImageElement}
+                      />
+                    ))}
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>
@@ -273,6 +295,8 @@ export default function PagedReaderContent({
   previousChapterPreview = null,
   previousLayout = null,
   readerTheme,
+  rootClassName,
+  rootStyle,
   textClassName,
   twoColumnGap = 48,
   twoColumnWidth,
@@ -695,6 +719,8 @@ export default function PagedReaderContent({
                 pageIndex={activeDragTransition.current.pageIndex}
                 pageSlice={activeDragTransition.current.pageSlice}
                 readerTheme={readerTheme}
+                rootClassName={rootClassName}
+                rootStyle={rootStyle}
                 textClassName={textClassName}
                 headerBgClassName={headerBgClassName}
                 onImageActivate={onImageActivate}
@@ -718,6 +744,8 @@ export default function PagedReaderContent({
                 pageIndex={activeDragTransition.preview.pageIndex}
                 pageSlice={activeDragTransition.preview.pageSlice}
                 readerTheme={readerTheme}
+                rootClassName={rootClassName}
+                rootStyle={rootStyle}
                 textClassName={textClassName}
                 headerBgClassName={headerBgClassName}
                 onImageActivate={onImageActivate}
@@ -748,6 +776,8 @@ export default function PagedReaderContent({
                 pagedContentRef={pagedContentRef}
                 pagedViewportRef={handlePagedViewportRef}
                 readerTheme={readerTheme}
+                rootClassName={rootClassName}
+                rootStyle={rootStyle}
                 textClassName={textClassName}
                 headerBgClassName={headerBgClassName}
                 onImageActivate={onImageActivate}

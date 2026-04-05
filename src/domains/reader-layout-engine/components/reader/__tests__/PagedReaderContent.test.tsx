@@ -1,6 +1,8 @@
 import { render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { READER_CONTENT_CLASS_NAMES } from '@domains/reader-shell/constants/readerContentContract';
+
 import PagedReaderContent from '../PagedReaderContent';
 import { createFakeReaderTextLayoutEngine } from '../../../test/createFakeReaderTextLayoutEngine';
 import {
@@ -88,6 +90,8 @@ function renderPagedContent(
       pageIndex={0}
       pagedViewportRef={{ current: null }}
       readerTheme="auto"
+      rootClassName="pm-reader pm-reader--paged pm-reader--theme-auto"
+      rootStyle={{}}
       textClassName=""
       headerBgClassName=""
       pageBgClassName="bg-[#f4ecd8]"
@@ -193,6 +197,11 @@ describe('PagedReaderContent', () => {
     renderPagedContent();
 
     expect(screen.getByTestId('paged-reader-page-frame')).toBeInTheDocument();
+    expect(screen.getByTestId('paged-reader-page-frame')).toHaveClass(
+      READER_CONTENT_CLASS_NAMES.root,
+      'pm-reader--paged',
+      'pm-reader--theme-auto',
+    );
     expect(screen.getByRole('heading', { name: 'Chapter 1', level: 2 })).toBeInTheDocument();
     expect(screen.getByText('Text')).toBeInTheDocument();
   });
@@ -411,6 +420,8 @@ describe('PagedReaderContent', () => {
         pageIndex={0}
         pagedViewportRef={{ current: null }}
         readerTheme="auto"
+        rootClassName="pm-reader pm-reader--paged pm-reader--theme-auto"
+        rootStyle={{}}
         textClassName=""
         headerBgClassName=""
         pageBgClassName="bg-[#f4ecd8]"

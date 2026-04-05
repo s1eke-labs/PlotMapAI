@@ -103,6 +103,7 @@ vi.mock('@domains/reader-shell', () => ({
   useReaderPreferences: () => ({
     currentTheme: {
       bg: 'bg-page',
+      contentVariables: {},
       sidebarBg: 'bg-sidebar',
       text: 'text-reader',
     },

@@ -2,6 +2,8 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { READER_CONTENT_CLASS_NAMES } from '@domains/reader-shell/constants/readerContentContract';
+
 const useReaderImageResourceMock = vi.hoisted(() => vi.fn());
 
 vi.mock('react-i18next', () => ({
@@ -163,6 +165,8 @@ describe('ScrollReaderContent', () => {
         }]}
         novelId={1}
         readerTheme="auto"
+        rootClassName="pm-reader pm-reader--scroll pm-reader--theme-auto"
+        rootStyle={{}}
         textClassName=""
         headerBgClassName=""
         onChapterElement={() => {}}
@@ -173,6 +177,14 @@ describe('ScrollReaderContent', () => {
     expect(screen.getByRole('heading', { name: 'Chapter 1', level: 2 })).toBeInTheDocument();
     expect(screen.getByText('Text')).toBeInTheDocument();
     expect(screen.getByTestId('scroll-reader-content-body')).toBeInTheDocument();
+    expect(screen.getByTestId('scroll-reader-content-body')).toHaveClass(
+      READER_CONTENT_CLASS_NAMES.content,
+    );
+    expect(screen.getByTestId('scroll-reader-content-body').closest('.pm-reader')).toHaveClass(
+      READER_CONTENT_CLASS_NAMES.root,
+      'pm-reader--scroll',
+      'pm-reader--theme-auto',
+    );
     expect(screen.queryByTestId('paged-reader-page-frame')).not.toBeInTheDocument();
   });
 
@@ -202,6 +214,8 @@ describe('ScrollReaderContent', () => {
         }]}
         novelId={1}
         readerTheme="auto"
+        rootClassName="pm-reader pm-reader--scroll pm-reader--theme-auto"
+        rootStyle={{}}
         textClassName=""
         headerBgClassName=""
         onChapterElement={() => {}}
@@ -224,6 +238,8 @@ describe('ScrollReaderContent', () => {
         }]}
         novelId={1}
         readerTheme="auto"
+        rootClassName="pm-reader pm-reader--scroll pm-reader--theme-auto"
+        rootStyle={{}}
         textClassName=""
         headerBgClassName=""
         onChapterElement={() => {}}
@@ -249,6 +265,8 @@ describe('ScrollReaderContent', () => {
         }]}
         novelId={1}
         readerTheme="auto"
+        rootClassName="pm-reader pm-reader--scroll pm-reader--theme-auto"
+        rootStyle={{}}
         textClassName=""
         headerBgClassName=""
         onChapterElement={() => {}}
@@ -273,6 +291,8 @@ describe('ScrollReaderContent', () => {
         }]}
         novelId={1}
         readerTheme="auto"
+        rootClassName="pm-reader pm-reader--scroll pm-reader--theme-auto"
+        rootStyle={{}}
         textClassName=""
         headerBgClassName=""
         onChapterElement={() => {}}
@@ -308,6 +328,8 @@ describe('ScrollReaderContent', () => {
         onImageActivate={onImageActivate}
         onRegisterImageElement={onRegisterImageElement}
         readerTheme="auto"
+        rootClassName="pm-reader pm-reader--scroll pm-reader--theme-auto"
+        rootStyle={{}}
         textClassName=""
         headerBgClassName=""
       />,
