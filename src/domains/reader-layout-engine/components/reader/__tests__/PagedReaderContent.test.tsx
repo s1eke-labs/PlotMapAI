@@ -699,6 +699,49 @@ describe('PagedReaderContent', () => {
     }));
   });
 
+  it('treats a drag that starts on the image hit target as a page turn instead of image activation', () => {
+    const onImageActivate = vi.fn();
+    const onRequestNextPage = vi.fn();
+    const { chapter, currentLayout } = buildDeterministicPagedImageLayout();
+    const { container } = renderPagedContent({
+      chapter,
+      currentLayout,
+      onImageActivate,
+      onRequestNextPage,
+      pageIndex: 0,
+    });
+
+    const imageButton = screen.getByRole('button', { name: 'reader.imageViewer.title' });
+    const interactiveLayer = getPagedInteractiveLayer(container);
+
+    fireEvent.pointerDown(imageButton, {
+      buttons: 1,
+      clientX: 420,
+      clientY: 240,
+      pointerId: 1,
+      pointerType: 'touch',
+    });
+    fireEvent.pointerMove(interactiveLayer, {
+      buttons: 1,
+      clientX: 180,
+      clientY: 240,
+      pointerId: 1,
+      pointerType: 'touch',
+    });
+
+    expect(screen.queryByRole('button', { name: 'reader.imageViewer.title' })).not.toBeInTheDocument();
+
+    fireEvent.pointerUp(interactiveLayer, {
+      clientX: 180,
+      clientY: 240,
+      pointerId: 1,
+      pointerType: 'touch',
+    });
+
+    expect(onRequestNextPage).toHaveBeenCalledTimes(1);
+    expect(onImageActivate).not.toHaveBeenCalled();
+  });
+
   it('temporarily removes image activation after a page turn token change and restores it after the cooldown', async () => {
     vi.useFakeTimers();
     const onImageActivate = vi.fn();

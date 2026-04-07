@@ -398,9 +398,11 @@ export default function ReaderFlowBlock({
                     sourceElement: event.currentTarget,
                   });
                 }}
-                onPointerDownCapture={(event) => {
-                  event.stopPropagation();
-                }}
+                onPointerDownCapture={imageRenderMode === 'scroll'
+                  ? (event) => {
+                    event.stopPropagation();
+                  }
+                  : undefined}
               />
             ) : null}
           </div>
