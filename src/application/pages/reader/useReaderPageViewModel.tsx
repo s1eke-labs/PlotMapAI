@@ -90,11 +90,6 @@ export function useReaderPageViewModel(novelId: number): ReaderPageViewModel {
     chapterIndex,
     viewMode,
   });
-  const { handleMobileBack } = useReaderMobileBack({
-    fallbackHref: novelDetailHref,
-    isSidebarOpen: sidebar.isSidebarOpen,
-    closeSidebar,
-  });
 
   const chapterData = useReaderChapterData({
     novelId,
@@ -170,6 +165,13 @@ export function useReaderPageViewModel(novelId: number): ReaderPageViewModel {
     dismissBlockedInteraction,
     isEnabled: viewMode === 'original',
     novelId,
+  });
+  const { handleMobileBack } = useReaderMobileBack({
+    closeImageViewer: imageOverlay.closeImageViewer,
+    fallbackHref: novelDetailHref,
+    isImageViewerOpen: imageOverlay.isImageViewerOpen,
+    isSidebarOpen: sidebar.isSidebarOpen,
+    closeSidebar,
   });
   const isContentInteractionLocked =
     isChromeVisible || sidebar.isSidebarOpen || imageOverlay.isImageViewerOpen;
