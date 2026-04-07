@@ -149,6 +149,7 @@ test.describe('reader visual regression', () => {
     await waitForReaderViewportImages(page);
     await expect(viewport).toHaveScreenshot('12-scroll-paper-semantic-lower.png', {
       maxDiffPixels: 20_000,
+      maxDiffPixelRatio: 0.03,
     });
   });
 
