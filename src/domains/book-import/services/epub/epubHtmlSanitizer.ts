@@ -1,5 +1,8 @@
 import { DOMParser as XmldomDOMParser } from '@xmldom/xmldom';
 
+const LEADING_BOM_PATTERN = /^\uFEFF+/u;
+const LEADING_XML_DECLARATION_PATTERN = /^\s*<\?xml[\s\S]*?\?>\s*/iu;
+
 const BLOCKED_TAG_NAMES = new Set([
   'head',
   'header',
@@ -41,7 +44,6 @@ const IMAGE_ALLOWED_ATTRIBUTES = new Set([
 ]);
 
 const ELEMENT_NODE = 1;
-
 function getLocalName(element: Element): string {
   return (element.localName || element.tagName || '').toLowerCase();
 }
@@ -168,8 +170,28 @@ function sanitizeTree(root: Element): void {
   }
 }
 
-function parseMarkup(parser: DOMParser, html: string, mimeType: DOMParserSupportedType): Document {
-  return parser.parseFromString(html, mimeType);
+function normalizeMarkupForParsing(html: string): string {
+  return html
+    .replace(LEADING_BOM_PATTERN, '')
+    .replace(LEADING_XML_DECLARATION_PATTERN, '')
+    .replace(LEADING_BOM_PATTERN, '');
+}
+
+function hasParserError(document: Document): boolean {
+  return document.getElementsByTagName('parsererror').length > 0;
+}
+
+function parseMarkup(
+  html: string,
+  mimeType: DOMParserSupportedType,
+): Document | null {
+  try {
+    const parser = createDomParser();
+    const document = parser.parseFromString(html, mimeType);
+    return hasParserError(document) ? null : document;
+  } catch {
+    return null;
+  }
 }
 
 function createDomParser(): DOMParser {
@@ -177,7 +199,9 @@ function createDomParser(): DOMParser {
     return new globalThis.DOMParser();
   }
 
-  return new XmldomDOMParser() as unknown as DOMParser;
+  return new XmldomDOMParser({
+    onError: () => {},
+  }) as unknown as DOMParser;
 }
 
 function resolveSanitizedRoot(document: Document): Element {
@@ -190,10 +214,11 @@ function resolveSanitizedRoot(document: Document): Element {
 }
 
 export function sanitizeEpubHtml(html: string): Element {
-  const parser = createDomParser();
-  let document = parseMarkup(parser, html, 'application/xhtml+xml');
-  if (document.getElementsByTagName('parsererror').length > 0) {
-    document = parseMarkup(parser, html, 'text/html');
+  const normalizedMarkup = normalizeMarkupForParsing(html);
+  const document = parseMarkup(normalizedMarkup, 'application/xhtml+xml')
+    ?? parseMarkup(normalizedMarkup, 'text/html');
+  if (!document) {
+    throw new Error('Failed to parse EPUB chapter markup');
   }
 
   const root = resolveSanitizedRoot(document);

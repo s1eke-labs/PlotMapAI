@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { sanitizeEpubHtml } from '../epub/epubHtmlSanitizer';
 
@@ -40,5 +40,73 @@ describe('sanitizeEpubHtml', () => {
     expect(image?.getAttribute('style')).toBe('width: 640px');
     expect(image?.hasAttribute('src')).toBe(false);
     expect(image?.hasAttribute('onload')).toBe(false);
+  });
+
+  it('normalizes a leading BOM and xml declaration before parsing', () => {
+    const NativeDOMParser = globalThis.DOMParser;
+    let capturedSource = '';
+
+    class CapturingDomParser {
+      parseFromString(source: string): Document {
+        capturedSource = source;
+        return new NativeDOMParser().parseFromString(`
+          <html>
+            <body>
+              <p>Body</p>
+            </body>
+          </html>
+        `, 'text/html');
+      }
+    }
+
+    vi.stubGlobal('DOMParser', CapturingDomParser);
+
+    try {
+      const root = sanitizeEpubHtml(`
+        \uFEFF
+        <?xml version="1.0" encoding="utf-8"?>
+        <html>
+          <body>
+            <p>Body</p>
+          </body>
+        </html>
+      `);
+
+      expect(root.textContent).toContain('Body');
+      expect(capturedSource.startsWith('\uFEFF')).toBe(false);
+      expect(capturedSource.trimStart().startsWith('<?xml')).toBe(false);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('falls back to html parsing when xhtml parsing throws', () => {
+    const NativeDOMParser = globalThis.DOMParser;
+    const mimeTypes: string[] = [];
+
+    class ThrowingDomParser {
+      parseFromString(source: string, mimeType: DOMParserSupportedType): Document {
+        mimeTypes.push(mimeType);
+        if (mimeType === 'application/xhtml+xml') {
+          throw new Error('xhtml parsing failed');
+        }
+
+        return new NativeDOMParser().parseFromString(source, 'text/html');
+      }
+    }
+
+    vi.stubGlobal('DOMParser', ThrowingDomParser);
+
+    try {
+      const root = sanitizeEpubHtml('<html><body><p>Fallback</p></body></html>');
+
+      expect(root.textContent).toContain('Fallback');
+      expect(mimeTypes).toEqual([
+        'application/xhtml+xml',
+        'text/html',
+      ]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });
