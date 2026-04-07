@@ -137,6 +137,7 @@ export interface StaticTextPageItemRecord {
   marginBefore: number;
   originalTag?: string;
   renderRole?: 'hr' | 'plain' | 'rich-text' | 'table' | 'unsupported';
+  richLineFragments?: RichInline[][];
   showListMarker?: boolean;
   sourceBlockType?: RichBlock['type'];
   tableRowHeights?: number[];

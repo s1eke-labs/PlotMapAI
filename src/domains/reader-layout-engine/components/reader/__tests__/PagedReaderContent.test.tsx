@@ -12,6 +12,7 @@ import {
   createReaderViewportMetrics,
   findPageIndexForLocator,
   getPagedContentHeight,
+  measurePagedReaderChapterLayout,
   measureReaderChapterLayout,
 } from '../../../utils/readerLayout';
 import {
@@ -486,6 +487,76 @@ describe('PagedReaderContent', () => {
 
     expect(screen.getByRole('heading', { name: 'Chapter 1', level: 2 })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Wrong Heading', level: 2 })).not.toBeInTheDocument();
+  });
+
+  it('renders rich EPUB inline marks in paged mode', () => {
+    const chapter = {
+      ...createChapter({
+        plainText: 'Bold italic Link',
+      }),
+      contentFormat: 'rich' as const,
+      richBlocks: [{
+        type: 'paragraph' as const,
+        children: [
+          {
+            marks: ['bold'] as const,
+            text: 'Bold',
+            type: 'text' as const,
+          },
+          {
+            text: ' ',
+            type: 'text' as const,
+          },
+          {
+            marks: ['italic'] as const,
+            text: 'italic',
+            type: 'text' as const,
+          },
+          {
+            text: ' ',
+            type: 'text' as const,
+          },
+          {
+            children: [{
+              text: 'Link',
+              type: 'text' as const,
+            }],
+            href: '#anchor',
+            type: 'link' as const,
+          },
+        ],
+      }],
+    };
+    const viewportMetrics = createReaderViewportMetrics(720, 1200, 720, 1200, 18);
+    const typography = createReaderTypographyMetrics(
+      18,
+      1.8,
+      24,
+      viewportMetrics.pagedViewportWidth,
+    );
+    const measuredLayout = measurePagedReaderChapterLayout(
+      chapter,
+      viewportMetrics.pagedColumnWidth,
+      typography,
+      new Map(),
+      TEXT_LAYOUT_ENGINE,
+    );
+    const currentLayout = composePaginatedChapterLayout(
+      measuredLayout,
+      getPagedContentHeight(viewportMetrics.pagedViewportHeight),
+      viewportMetrics.pagedColumnCount,
+      viewportMetrics.pagedColumnGap,
+    );
+
+    renderPagedContent({
+      chapter,
+      currentLayout,
+    });
+
+    const pageFrame = screen.getByTestId('paged-reader-page-frame');
+    expect(pageFrame.querySelector('strong')).not.toBeNull();
+    expect(pageFrame.querySelector('em')).not.toBeNull();
+    expect(screen.getByRole('link', { name: 'Link' })).toHaveAttribute('href', '#anchor');
   });
 
   it('applies an opaque page background to animated layers', () => {

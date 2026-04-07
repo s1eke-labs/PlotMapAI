@@ -286,6 +286,98 @@ describe('readerPagination', () => {
     ]);
   });
 
+  it('keeps inline EPUB marks when building a paged tree from rich chapter content', () => {
+    const textLayoutEngine = createFakeReaderTextLayoutEngine({ maxCharsPerLine: 40 });
+    const chapter = {
+      index: 0,
+      title: 'Chapter 1',
+      plainText: 'Bold and italic Link',
+      richBlocks: [{
+        type: 'paragraph' as const,
+        children: [
+          {
+            marks: ['bold'] as const,
+            text: 'Bold',
+            type: 'text' as const,
+          },
+          {
+            text: ' and ',
+            type: 'text' as const,
+          },
+          {
+            marks: ['italic'] as const,
+            text: 'italic',
+            type: 'text' as const,
+          },
+          {
+            text: ' ',
+            type: 'text' as const,
+          },
+          {
+            children: [{
+              text: 'Link',
+              type: 'text' as const,
+            }],
+            href: '#note',
+            type: 'link' as const,
+          },
+        ],
+      }],
+      contentFormat: 'rich' as const,
+      contentVersion: 1,
+      wordCount: 40,
+      totalChapters: 1,
+      hasPrev: false,
+      hasNext: false,
+    };
+    const typography = createReaderTypographyMetrics(18, 1.6, 16, 420);
+
+    const tree = buildStaticPagedChapterTree(
+      chapter,
+      320,
+      220,
+      1,
+      0,
+      typography,
+      new Map(),
+      textLayoutEngine,
+    );
+    const pageItem = tree.pageSlices
+      .flatMap((page) => page.columns.flatMap((column) => column.items))
+      .find((item) => item.kind === 'text' && item.renderRole === 'rich-text');
+
+    expect(pageItem && 'richLineFragments' in pageItem ? pageItem.richLineFragments : undefined).toEqual([
+      [
+        {
+          marks: ['bold'],
+          text: 'Bold',
+          type: 'text',
+        },
+        {
+          text: ' and ',
+          type: 'text',
+        },
+        {
+          marks: ['italic'],
+          text: 'italic',
+          type: 'text',
+        },
+        {
+          text: ' ',
+          type: 'text',
+        },
+        {
+          children: [{
+            text: 'Link',
+            type: 'text',
+          }],
+          href: '#note',
+          type: 'link',
+        },
+      ],
+    ]);
+  });
+
   it('drops terminal paragraph spacing when that keeps the next paragraph on the same page', () => {
     const measuredLayout = createMeasuredLayout([
       createTextMetric({ blockIndex: 1, lineCount: 1, marginAfter: 16, top: 0 }),

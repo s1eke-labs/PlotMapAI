@@ -1,6 +1,8 @@
 import type { Mark, RichInline } from '@shared/contracts';
 import type { ReaderMeasuredLine } from './readerLayoutTypes';
 
+import { getRichInlinePlainText } from '@shared/text-processing';
+
 function areMarksEqual(
   left: readonly Mark[] | undefined,
   right: readonly Mark[] | undefined,
@@ -151,6 +153,39 @@ export function sliceRichInlinesByGraphemeRange(
   return compactRichInlines(sliced);
 }
 
+function findGraphemeSequenceRange(
+  source: string[],
+  target: string[],
+  startIndex: number,
+): { start: number; end: number } | null {
+  if (target.length === 0) {
+    return {
+      start: startIndex,
+      end: startIndex,
+    };
+  }
+
+  const maxStartIndex = source.length - target.length;
+  for (let sourceIndex = Math.max(0, startIndex); sourceIndex <= maxStartIndex; sourceIndex += 1) {
+    let matches = true;
+    for (let targetIndex = 0; targetIndex < target.length; targetIndex += 1) {
+      if (source[sourceIndex + targetIndex] !== target[targetIndex]) {
+        matches = false;
+        break;
+      }
+    }
+
+    if (matches) {
+      return {
+        start: sourceIndex,
+        end: sourceIndex + target.length,
+      };
+    }
+  }
+
+  return null;
+}
+
 export function createRichLineFragments(
   inlines: RichInline[] | undefined,
   lines: ReaderMeasuredLine[],
@@ -159,9 +194,36 @@ export function createRichLineFragments(
     return undefined;
   }
 
-  return lines.map((line) => sliceRichInlinesByGraphemeRange(
-    inlines,
-    line.start.graphemeIndex,
-    line.end.graphemeIndex,
-  ));
+  const fullText = getRichInlinePlainText(inlines);
+  const fullTextGraphemes = getGraphemes(fullText);
+  let sequentialFallbackCursor = 0;
+
+  return lines.map((line) => {
+    const rangeSliced = sliceRichInlinesByGraphemeRange(
+      inlines,
+      line.start.graphemeIndex,
+      line.end.graphemeIndex,
+    );
+    if (getRichInlinePlainText(rangeSliced) === line.text) {
+      sequentialFallbackCursor = Math.max(sequentialFallbackCursor, line.end.graphemeIndex);
+      return rangeSliced;
+    }
+
+    const lineGraphemes = getGraphemes(line.text);
+    const matchedRange = findGraphemeSequenceRange(
+      fullTextGraphemes,
+      lineGraphemes,
+      sequentialFallbackCursor,
+    );
+    if (!matchedRange) {
+      return rangeSliced;
+    }
+
+    sequentialFallbackCursor = matchedRange.end;
+    return sliceRichInlinesByGraphemeRange(
+      inlines,
+      matchedRange.start,
+      matchedRange.end,
+    );
+  });
 }

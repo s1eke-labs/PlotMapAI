@@ -274,6 +274,201 @@ describe('readerRenderCache', () => {
     expect(await db.readerRenderCache.toArray()).toEqual([]);
   });
 
+  it('round-trips paged rich inline fragments through Dexie render cache entries', async () => {
+    const { db } = await import('@infra/db');
+    const {
+      createReaderLayoutSignature,
+      createReaderTypographyMetrics,
+      getPagedContentHeight,
+    } = await import('../readerLayout');
+    const {
+      buildStaticRenderTree,
+      coercePagedTree,
+      getReaderRenderCacheEntryFromDexie,
+      persistReaderRenderCacheEntry,
+    } = await import('../readerRenderCache');
+
+    await db.delete();
+    await db.open();
+
+    const chapter = {
+      index: 3,
+      title: 'Styled Chapter',
+      plainText: 'Bold italic Link',
+      richBlocks: [{
+        type: 'paragraph' as const,
+        children: [
+          {
+            marks: ['bold'] as const,
+            text: 'Bold',
+            type: 'text' as const,
+          },
+          {
+            text: ' ',
+            type: 'text' as const,
+          },
+          {
+            marks: ['italic'] as const,
+            text: 'italic',
+            type: 'text' as const,
+          },
+          {
+            text: ' ',
+            type: 'text' as const,
+          },
+          {
+            children: [{
+              text: 'Link',
+              type: 'text' as const,
+            }],
+            href: '#anchor',
+            type: 'link' as const,
+          },
+        ],
+      }],
+      contentFormat: 'rich' as const,
+      contentVersion: 1,
+      hasNext: true,
+      hasPrev: true,
+      totalChapters: 6,
+      wordCount: 120,
+    };
+    const layoutSignature = createReaderLayoutSignature({
+      columnCount: 1,
+      columnGap: 0,
+      fontSize: 18,
+      lineSpacing: 1.6,
+      pageHeight: getPagedContentHeight(720),
+      paragraphSpacing: 16,
+      textWidth: 320,
+    });
+    const entry = buildStaticRenderTree({
+      chapter,
+      imageDimensionsByKey: new Map(),
+      layoutSignature,
+      novelId: 42,
+      typography: createReaderTypographyMetrics(18, 1.6, 16, 320),
+      variantFamily: 'original-paged',
+    });
+
+    await persistReaderRenderCacheEntry(entry);
+
+    const hydratedEntry = await getReaderRenderCacheEntryFromDexie({
+      chapterIndex: entry.chapterIndex,
+      contentHash: entry.contentHash,
+      contentFormat: entry.contentFormat,
+      contentVersion: entry.contentVersion,
+      layoutFeatureSet: entry.layoutFeatureSet,
+      layoutKey: entry.layoutKey,
+      novelId: entry.novelId,
+      rendererVersion: entry.rendererVersion,
+      variantFamily: entry.variantFamily,
+    });
+    const pagedTree = coercePagedTree(hydratedEntry);
+    const pageItem = pagedTree?.pageSlices
+      .flatMap((page) => page.columns.flatMap((column) => column.items))
+      .find((item) => item.kind === 'text' && item.renderRole === 'rich-text');
+
+    expect(pageItem && 'richLineFragments' in pageItem ? pageItem.richLineFragments : undefined).toEqual([
+      [
+        {
+          marks: ['bold'],
+          text: 'Bold',
+          type: 'text',
+        },
+        {
+          text: ' ',
+          type: 'text',
+        },
+        {
+          marks: ['italic'],
+          text: 'italic',
+          type: 'text',
+        },
+        {
+          text: ' ',
+          type: 'text',
+        },
+        {
+          children: [{
+            text: 'Link',
+            type: 'text',
+          }],
+          href: '#anchor',
+          type: 'link',
+        },
+      ],
+    ]);
+  });
+
+  it('treats paged render cache entries from older renderer versions as misses', async () => {
+    const { db } = await import('@infra/db');
+    const {
+      createReaderLayoutSignature,
+      createReaderTypographyMetrics,
+      getPagedContentHeight,
+    } = await import('../readerLayout');
+    const {
+      READER_RENDERER_VERSION,
+      buildStaticRenderTree,
+      getReaderRenderCacheRecordFromDexie,
+    } = await import('../readerRenderCache');
+
+    await db.delete();
+    await db.open();
+
+    const chapter = {
+      index: 5,
+      title: 'Cache Version Probe',
+      plainText: 'Stale paged cache should miss.',
+      richBlocks: [],
+      contentFormat: 'plain' as const,
+      contentVersion: 1,
+      hasNext: false,
+      hasPrev: true,
+      totalChapters: 6,
+      wordCount: 60,
+    };
+    const layoutSignature = createReaderLayoutSignature({
+      columnCount: 1,
+      columnGap: 0,
+      fontSize: 18,
+      lineSpacing: 1.6,
+      pageHeight: getPagedContentHeight(720),
+      paragraphSpacing: 16,
+      textWidth: 320,
+    });
+    const entry = buildStaticRenderTree({
+      chapter,
+      imageDimensionsByKey: new Map(),
+      layoutSignature,
+      novelId: 55,
+      typography: createReaderTypographyMetrics(18, 1.6, 16, 320),
+      variantFamily: 'original-paged',
+    });
+
+    await db.readerRenderCache.add({
+      ...entry,
+      expiresAt: '2026-04-21T00:00:00.000Z',
+      rendererVersion: READER_RENDERER_VERSION - 1,
+      updatedAt: '2026-04-07T00:00:00.000Z',
+    });
+
+    const record = await getReaderRenderCacheRecordFromDexie({
+      chapterIndex: entry.chapterIndex,
+      contentHash: entry.contentHash,
+      contentFormat: entry.contentFormat,
+      contentVersion: entry.contentVersion,
+      layoutFeatureSet: entry.layoutFeatureSet,
+      layoutKey: entry.layoutKey,
+      novelId: entry.novelId,
+      rendererVersion: entry.rendererVersion,
+      variantFamily: entry.variantFamily,
+    });
+
+    expect(record).toBeNull();
+  });
+
   it('prunes the oldest persisted cache entries when the global cap is exceeded', async () => {
     const { db } = await import('@infra/db');
     const {
