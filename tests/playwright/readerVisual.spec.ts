@@ -7,6 +7,7 @@ import {
   seedChapterRichContent,
   setPageTurnMode,
   setReaderPreferences,
+  waitForReaderViewportImages,
 } from './helpers/readerVisualHarness';
 
 test.describe('reader visual regression', () => {
@@ -28,6 +29,7 @@ test.describe('reader visual regression', () => {
   test('renders the image viewer overlay baseline', async ({ page }) => {
     await importFixtureToDetailPage(page, 'imageViewer');
     await openReaderFromDetailPage(page);
+    await waitForReaderViewportImages(page);
 
     await page.getByLabel('Image Viewer').first().click();
 
@@ -37,6 +39,7 @@ test.describe('reader visual regression', () => {
   test('renders image captions with stable spacing', async ({ page }) => {
     await importFixtureToDetailPage(page, 'imageCaption');
     await openReaderFromDetailPage(page);
+    await waitForReaderViewportImages(page);
 
     await expect(page.getByTestId('reader-viewport')).toHaveScreenshot('04-image-caption.png');
   });
@@ -93,6 +96,7 @@ test.describe('reader visual regression', () => {
   test('renders multi-image chapters with stable gallery spacing', async ({ page }) => {
     await importFixtureToDetailPage(page, 'multiImage');
     await openReaderFromDetailPage(page);
+    await waitForReaderViewportImages(page, 2);
 
     await expect(page.getByTestId('reader-viewport')).toHaveScreenshot('10-multi-image-viewport.png');
   });
@@ -142,6 +146,7 @@ test.describe('reader visual regression', () => {
     expect(scrollTop).toBeGreaterThan(0);
 
     await expect(targetTable).toBeVisible();
+    await waitForReaderViewportImages(page);
     await expect(viewport).toHaveScreenshot('12-scroll-paper-semantic-lower.png');
   });
 

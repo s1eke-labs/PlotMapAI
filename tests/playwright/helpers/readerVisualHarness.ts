@@ -218,6 +218,23 @@ export async function openReaderFromDetailPage(page: Page): Promise<void> {
   });
 }
 
+export async function waitForReaderViewportImages(
+  page: Page,
+  minimumCount = 1,
+): Promise<void> {
+  const viewportImages = page.getByTestId('reader-viewport').locator('img');
+
+  await expect.poll(async () => viewportImages.count()).toBeGreaterThanOrEqual(minimumCount);
+  await expect.poll(async () => viewportImages.evaluateAll((images) => {
+    return images.every((image) => {
+      return image instanceof HTMLImageElement
+        && image.complete
+        && image.naturalWidth > 0
+        && image.naturalHeight > 0;
+    });
+  })).toBe(true);
+}
+
 export async function setReaderPreferences(
   page: Page,
   overrides: ReaderPreferenceOverrides,
