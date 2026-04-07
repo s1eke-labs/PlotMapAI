@@ -1,3 +1,4 @@
+import type { MotionValue } from 'motion/react';
 import type { ReaderImageGalleryEntry } from '../../utils/readerImageGallery';
 import type { ReaderImageViewerViewportSize } from '../../utils/readerImageViewerTypes';
 
@@ -8,11 +9,7 @@ import { cn } from '@shared/utils/cn';
 
 import { useReaderImageViewerGesture } from '../../hooks/useReaderImageViewerGesture';
 import { useReaderImageResource } from '../../hooks/useReaderImageResource';
-import {
-  buildAnchoredTransform,
-  TRANSFORM_ANIMATION_MS,
-  TRANSFORM_EASE,
-} from '../../utils/readerImageViewerTransform';
+import { buildAnchoredTransform } from '../../utils/readerImageViewerTransform';
 
 interface ReaderImageViewerSurfaceProps {
   activeEntry: ReaderImageGalleryEntry;
@@ -20,6 +17,7 @@ interface ReaderImageViewerSurfaceProps {
   canNavigateNext: boolean;
   canNavigatePrev: boolean;
   consumeDeferredStageClick: () => boolean;
+  dismissProgress: MotionValue<number>;
   entries: ReaderImageGalleryEntry[];
   entryTransitionMode: 'anchor' | 'none';
   getOriginRect: (entry: ReaderImageGalleryEntry | null) => DOMRect | null;
@@ -27,11 +25,19 @@ interface ReaderImageViewerSurfaceProps {
   onClearNavigationTransition: () => void;
   onPrepareNavigationTransition: (direction: -1 | 1, targetEntryId: string) => void;
   onRequestClose: () => void;
+  onRequestDismissClose: () => void;
   onRequestNavigate: (direction: 'next' | 'prev') => Promise<boolean>;
   originRect: DOMRect | null;
   suppressDeferredStageClick: () => void;
   viewportSize: ReaderImageViewerViewportSize;
 }
+
+const SURFACE_TRANSITION = {
+  damping: 36,
+  mass: 0.96,
+  stiffness: 360,
+  type: 'spring',
+} as const;
 
 export default function ReaderImageViewerSurface({
   activeEntry,
@@ -39,6 +45,7 @@ export default function ReaderImageViewerSurface({
   canNavigateNext,
   canNavigatePrev,
   consumeDeferredStageClick,
+  dismissProgress,
   entries,
   entryTransitionMode,
   getOriginRect,
@@ -46,6 +53,7 @@ export default function ReaderImageViewerSurface({
   onClearNavigationTransition,
   onPrepareNavigationTransition,
   onRequestClose,
+  onRequestDismissClose,
   onRequestNavigate,
   originRect,
   suppressDeferredStageClick,
@@ -61,25 +69,34 @@ export default function ReaderImageViewerSurface({
     handleStageClick,
     handleStageDoubleClick,
     handleStageWheel,
-    isTransformAnimating,
+    scaleMotionValue,
+    surfaceOpacity,
     targetRect,
-    transformState,
+    translateXMotionValue,
+    translateYMotionValue,
   } = useReaderImageViewerGesture({
     activeEntry,
     activeIndex,
     canNavigateNext,
     canNavigatePrev,
     consumeDeferredStageClick,
+    dismissProgress,
     entries,
     hasImageResource: Boolean(imageUrl),
     novelId,
     onClearNavigationTransition,
     onPrepareNavigationTransition,
     onRequestClose,
+    onRequestDismissClose,
     onRequestNavigate,
     suppressDeferredStageClick,
     viewportSize,
   });
+  const imageSurfaceStyle = {
+    '--reader-image-dismiss-progress': dismissProgress,
+    '--reader-image-surface-opacity': surfaceOpacity,
+    opacity: 'calc((1 - var(--reader-image-dismiss-progress) * 0.08) * var(--reader-image-surface-opacity))',
+  };
 
   return (
     <div
@@ -117,10 +134,7 @@ export default function ReaderImageViewerSurface({
             x: 0,
             y: 0,
           }}
-        transition={{
-          duration: 0.24,
-          ease: [0.22, 1, 0.36, 1],
-        }}
+        transition={SURFACE_TRANSITION}
       >
         <div
           data-reader-image-surface=""
@@ -132,16 +146,13 @@ export default function ReaderImageViewerSurface({
             width: targetRect.width,
           }}
         >
-          <div
-            className={cn(
-              'relative h-full w-full origin-center',
-              isTransformAnimating && 'transition-transform',
-            )}
+          <motion.div
+            className={cn('relative h-full w-full origin-center will-change-transform')}
             style={{
-              transform: `translate3d(${transformState.translateX}px, ${transformState.translateY}px, 0) scale(${transformState.scale})`,
-              transitionDuration: isTransformAnimating ? `${TRANSFORM_ANIMATION_MS}ms` : undefined,
-              transitionProperty: isTransformAnimating ? 'transform' : undefined,
-              transitionTimingFunction: isTransformAnimating ? TRANSFORM_EASE : undefined,
+              ...imageSurfaceStyle,
+              scale: scaleMotionValue,
+              x: translateXMotionValue,
+              y: translateYMotionValue,
             }}
           >
             {imageUrl ? (
@@ -157,7 +168,7 @@ export default function ReaderImageViewerSurface({
                 <Loader2 className="h-8 w-8 animate-spin" />
               </div>
             )}
-          </div>
+          </motion.div>
         </div>
       </motion.div>
     </div>

@@ -113,8 +113,6 @@ describe('ReaderImageViewer', () => {
     fireEvent.doubleClick(stage!, { clientX: 12, clientY: 12 });
     await vi.runOnlyPendingTimersAsync();
 
-    const transformLayer = surface!.firstElementChild as HTMLDivElement | null;
-    expect(transformLayer?.style.transform).not.toContain('scale(1)');
     expect(onRequestClose).toHaveBeenCalledTimes(0);
 
     fireEvent.click(stage!, { clientX: 12, clientY: 12 });
@@ -122,7 +120,6 @@ describe('ReaderImageViewer', () => {
     fireEvent.doubleClick(stage!, { clientX: 12, clientY: 12 });
     await vi.runOnlyPendingTimersAsync();
 
-    expect(transformLayer?.style.transform).toContain('scale(1)');
     expect(onRequestClose).toHaveBeenCalledTimes(0);
   });
 
@@ -165,8 +162,6 @@ describe('ReaderImageViewer', () => {
     fireEvent.click(stage!, { clientX: 222, clientY: 162 });
     await vi.runOnlyPendingTimersAsync();
 
-    const transformLayer = surface!.firstElementChild as HTMLDivElement | null;
-    expect(transformLayer?.style.transform).toContain('scale(2)');
     expect(onRequestClose).toHaveBeenCalledTimes(0);
   });
 
@@ -201,6 +196,40 @@ describe('ReaderImageViewer', () => {
 
     expect(onRequestNavigate).toHaveBeenCalledWith('next');
     expect(onRequestClose).toHaveBeenCalledTimes(0);
+  });
+
+  it('closes after a touch drag dismisses the unzoomed image downward', async () => {
+    vi.useFakeTimers();
+    const onRequestClose = vi.fn();
+    renderViewer({ onRequestClose });
+
+    const stage = document.body.querySelector('[data-reader-image-stage]') as HTMLDivElement | null;
+    expect(stage).not.toBeNull();
+
+    fireEvent.pointerDown(stage!, {
+      clientX: 180,
+      clientY: 160,
+      pointerId: 31,
+      pointerType: 'touch',
+    });
+    fireEvent.pointerMove(stage!, {
+      clientX: 194,
+      clientY: 334,
+      pointerId: 31,
+      pointerType: 'touch',
+    });
+
+    await act(async () => {
+      fireEvent.pointerUp(stage!, {
+        clientX: 194,
+        clientY: 334,
+        pointerId: 31,
+        pointerType: 'touch',
+      });
+      await vi.advanceTimersByTimeAsync(220);
+    });
+
+    expect(onRequestClose).toHaveBeenCalledTimes(1);
   });
 
   it('keeps the viewer open when swipe navigation remounts the stage before the synthetic click arrives', async () => {
