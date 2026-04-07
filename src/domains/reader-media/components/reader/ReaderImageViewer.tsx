@@ -175,7 +175,7 @@ export default function ReaderImageViewer({
                 key={`${novelId}:${createReaderImageEntryId(activeEntry)}`}
                 data-reader-image-transition-direction={resolvedSurfaceTransition.direction}
                 data-reader-image-transition-kind={resolvedSurfaceTransition.kind}
-                className="absolute inset-0"
+                className="absolute inset-0 z-[2] overflow-hidden bg-black"
                 custom={resolvedSurfaceTransition}
                 variants={IMAGE_SWITCH_VARIANTS}
                 initial="initial"
@@ -197,6 +197,7 @@ export default function ReaderImageViewer({
                   entries={entries}
                   entryTransitionMode={isNavigationTransitionPending ? 'none' : 'anchor'}
                   getOriginRect={getOriginRect}
+                  isNavigationTransitionPending={isNavigationTransitionPending}
                   novelId={novelId}
                   onClearNavigationTransition={clearNavigationTransition}
                   onPrepareNavigationTransition={prepareNavigationTransition}

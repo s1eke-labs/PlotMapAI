@@ -36,6 +36,7 @@ interface GestureHarnessProps {
   consumeDeferredStageClick?: () => boolean;
   entries?: ReaderImageGalleryEntry[];
   hasImageResource?: boolean;
+  isNavigationTransitionPending?: boolean;
   novelId?: number;
   onClearNavigationTransition?: () => void;
   onPrepareNavigationTransition?: (direction: -1 | 1, targetEntryId: string) => void;
@@ -54,6 +55,7 @@ function renderHarness({
   consumeDeferredStageClick = () => false,
   entries: harnessEntries = entries,
   hasImageResource = true,
+  isNavigationTransitionPending = false,
   novelId = 1,
   onClearNavigationTransition = () => undefined,
   onPrepareNavigationTransition = () => undefined,
@@ -74,6 +76,7 @@ function renderHarness({
       dismissProgress,
       entries: harnessEntries,
       hasImageResource,
+      isNavigationTransitionPending,
       novelId,
       onClearNavigationTransition,
       onPrepareNavigationTransition,
@@ -242,6 +245,33 @@ describe('useReaderImageViewerGesture', () => {
 
     expect(onRequestNavigate).toHaveBeenCalledWith('next');
     expect(onClearNavigationTransition).toHaveBeenCalledTimes(1);
+  });
+
+  it('ignores follow-up swipe navigation while a slide transition is still pending', async () => {
+    const onRequestNavigate = vi.fn().mockResolvedValue(true);
+    const { stage } = renderHarness({
+      canNavigatePrev: true,
+      isNavigationTransitionPending: true,
+      onRequestNavigate,
+    });
+
+    fireEvent.pointerDown(stage, {
+      clientX: 280,
+      clientY: 180,
+      pointerId: 24,
+      pointerType: 'touch',
+    });
+    await act(async () => {
+      fireEvent.pointerUp(stage, {
+        clientX: 120,
+        clientY: 184,
+        pointerId: 24,
+        pointerType: 'touch',
+      });
+      await Promise.resolve();
+    });
+
+    expect(onRequestNavigate).not.toHaveBeenCalled();
   });
 
   it('suppresses delayed close when touch double tap promotes to zoom', async () => {

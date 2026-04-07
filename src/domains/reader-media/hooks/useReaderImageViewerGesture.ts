@@ -79,6 +79,7 @@ interface UseReaderImageViewerGestureParams {
   dismissProgress: MotionValue<number>;
   entries: ReaderImageGalleryEntry[];
   hasImageResource: boolean;
+  isNavigationTransitionPending: boolean;
   novelId: number;
   onClearNavigationTransition: () => void;
   onPrepareNavigationTransition: (direction: -1 | 1, targetEntryId: string) => void;
@@ -170,6 +171,7 @@ export function useReaderImageViewerGesture({
   dismissProgress,
   entries,
   hasImageResource,
+  isNavigationTransitionPending,
   novelId,
   onClearNavigationTransition,
   onPrepareNavigationTransition,
@@ -392,6 +394,10 @@ export function useReaderImageViewerGesture({
   }, []);
 
   const handleNavigate = useCallback(async (direction: 'next' | 'prev'): Promise<boolean> => {
+    if (isNavigationTransitionPending) {
+      return true;
+    }
+
     const candidateEntry = entries[activeIndex + (direction === 'next' ? 1 : -1)] ?? null;
     if (candidateEntry) {
       flushSync(() => {
@@ -429,6 +435,7 @@ export function useReaderImageViewerGesture({
     onRequestNavigate,
     readTransformState,
     targetRect,
+    isNavigationTransitionPending,
   ]);
 
   const zoomAtPoint = useCallback((point: ReaderImageViewerPoint): boolean => {
@@ -481,6 +488,13 @@ export function useReaderImageViewerGesture({
   ]);
 
   const handleStageClick = useCallback((event: ReactMouseEvent<HTMLDivElement>) => {
+    if (isNavigationTransitionPending) {
+      clearPendingClose();
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+
     if (dragDismissClosingRef.current) {
       event.preventDefault();
       event.stopPropagation();
@@ -500,9 +514,15 @@ export function useReaderImageViewerGesture({
       closeIntentTimeoutRef.current = null;
       onRequestClose();
     }, SINGLE_CLICK_CLOSE_DELAY_MS);
-  }, [clearPendingClose, consumeDeferredStageClick, onRequestClose]);
+  }, [clearPendingClose, consumeDeferredStageClick, isNavigationTransitionPending, onRequestClose]);
 
   const handleStageWheel = useCallback((event: ReactWheelEvent<HTMLDivElement>) => {
+    if (isNavigationTransitionPending) {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+
     clearPendingClose();
     stopMotionAnimations();
     dismissProgress.set(0);
@@ -549,9 +569,16 @@ export function useReaderImageViewerGesture({
     stopMotionAnimations,
     surfaceOpacity,
     targetRect,
+    isNavigationTransitionPending,
   ]);
 
   const handleStageDoubleClick = useCallback((event: ReactMouseEvent<HTMLDivElement>) => {
+    if (isNavigationTransitionPending) {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+
     if (dragDismissClosingRef.current) {
       return;
     }
@@ -559,9 +586,16 @@ export function useReaderImageViewerGesture({
     event.preventDefault();
     event.stopPropagation();
     zoomAtPoint({ x: event.clientX, y: event.clientY });
-  }, [zoomAtPoint]);
+  }, [isNavigationTransitionPending, zoomAtPoint]);
 
   const handlePointerDown = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    if (isNavigationTransitionPending) {
+      suppressNextClickRef.current = true;
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+
     if (dragDismissClosingRef.current) {
       return;
     }
@@ -615,6 +649,7 @@ export function useReaderImageViewerGesture({
     readTransformState,
     stopMotionAnimations,
     surfaceOpacity,
+    isNavigationTransitionPending,
   ]);
 
   const handlePointerMove = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {

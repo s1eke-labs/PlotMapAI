@@ -21,6 +21,7 @@ interface ReaderImageViewerSurfaceProps {
   entries: ReaderImageGalleryEntry[];
   entryTransitionMode: 'anchor' | 'none';
   getOriginRect: (entry: ReaderImageGalleryEntry | null) => DOMRect | null;
+  isNavigationTransitionPending: boolean;
   novelId: number;
   onClearNavigationTransition: () => void;
   onPrepareNavigationTransition: (direction: -1 | 1, targetEntryId: string) => void;
@@ -49,6 +50,7 @@ export default function ReaderImageViewerSurface({
   entries,
   entryTransitionMode,
   getOriginRect,
+  isNavigationTransitionPending,
   novelId,
   onClearNavigationTransition,
   onPrepareNavigationTransition,
@@ -83,6 +85,7 @@ export default function ReaderImageViewerSurface({
     dismissProgress,
     entries,
     hasImageResource: Boolean(imageUrl),
+    isNavigationTransitionPending,
     novelId,
     onClearNavigationTransition,
     onPrepareNavigationTransition,
@@ -101,7 +104,11 @@ export default function ReaderImageViewerSurface({
   return (
     <div
       data-reader-image-stage=""
-      className="absolute inset-0 touch-none"
+      data-reader-image-navigation-pending={isNavigationTransitionPending ? '' : undefined}
+      className={cn(
+        'absolute inset-0 touch-none',
+        isNavigationTransitionPending && 'pointer-events-none',
+      )}
       onClick={handleStageClick}
       onDoubleClick={handleStageDoubleClick}
       onPointerCancel={handlePointerCancel}
