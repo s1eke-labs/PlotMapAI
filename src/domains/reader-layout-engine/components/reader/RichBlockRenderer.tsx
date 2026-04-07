@@ -149,6 +149,8 @@ function renderRichContent(metric: StaticScrollBlockNode, chapterTitle?: string)
         }}
       >
         <RichInlineRenderer
+          baseFont={metric.font}
+          baseFontSizePx={metric.fontSizePx}
           inlines={richChildren.length > 0 ? richChildren : [{
             type: 'text',
             text: chapterTitle ?? block.text ?? '',
@@ -214,6 +216,8 @@ function renderRichContent(metric: StaticScrollBlockNode, chapterTitle?: string)
                         className={READER_CONTENT_CLASS_NAMES.tableCell}
                       >
                         <RichInlineRenderer
+                          baseFont={metric.font}
+                          baseFontSizePx={metric.fontSizePx}
                           inlines={cell.children}
                           keyPrefix={cellKey}
                         />
@@ -245,6 +249,8 @@ function renderRichContent(metric: StaticScrollBlockNode, chapterTitle?: string)
       }}
     >
       <RichInlineRenderer
+        baseFont={metric.font}
+        baseFontSizePx={metric.fontSizePx}
         inlines={richChildren.length > 0 ? richChildren : [{
           type: 'text',
           text: block.text ?? '',
@@ -319,6 +325,8 @@ export default function RichBlockRenderer({
                 }}
               >
                 <RichInlineRenderer
+                  baseFont={metric.captionFont}
+                  baseFontSizePx={metric.captionFontSizePx}
                   inlines={block.imageCaption ?? []}
                   keyPrefix={`${block.key}:caption`}
                 />

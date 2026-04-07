@@ -370,6 +370,7 @@ export function composePaginatedChapterLayout(
         captionHeight,
         captionLineHeightPx: metric.captionLineHeightPx,
         captionLines: metric.captionLines,
+        captionRichLineFragments: metric.captionRichLineFragments,
         captionSpacing,
         chapterIndex: metric.block.chapterIndex,
         displayHeight,
@@ -517,7 +518,9 @@ export function composePaginatedChapterLayout(
         marginBefore,
         originalTag: metric.block.originalTag,
         renderRole: metric.block.renderRole,
-        richLineFragments: createRichLineFragments(metric.block.richChildren, lines),
+        richLineFragments: metric.richLineFragments
+          ? metric.richLineFragments.slice(lineIndex, lineIndex + lineCount)
+          : createRichLineFragments(metric.block.richChildren, lines),
         showListMarker: metric.block.showListMarker,
         sourceBlockType: metric.block.sourceBlockType,
         text: metric.block.text ?? '',

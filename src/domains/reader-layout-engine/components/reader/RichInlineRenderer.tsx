@@ -2,14 +2,43 @@ import type { ReactNode } from 'react';
 import type { Mark, RichInline } from '@shared/contracts';
 
 import { READER_CONTENT_CLASS_NAMES } from '@domains/reader-shell/constants/readerContentContract';
+import { getRichInlineTypographyStyle } from '../../utils/richInlineTypography';
 
-function applyMark(content: ReactNode, mark: Mark, key: string): ReactNode {
+function getMarkStyle(
+  mark: Mark,
+  baseFont: string | undefined,
+  baseFontSizePx: number | undefined,
+) {
+  if (!baseFont || typeof baseFontSizePx !== 'number') {
+    return undefined;
+  }
+
+  if (mark === 'underline' || mark === 'strike') {
+    return undefined;
+  }
+
+  return getRichInlineTypographyStyle({
+    baseFont,
+    baseFontSizePx,
+    marks: [mark],
+  });
+}
+
+function applyMark(
+  content: ReactNode,
+  mark: Mark,
+  key: string,
+  baseFont: string | undefined,
+  baseFontSizePx: number | undefined,
+): ReactNode {
+  const style = getMarkStyle(mark, baseFont, baseFontSizePx);
+
   if (mark === 'bold') {
-    return <strong key={key}>{content}</strong>;
+    return <strong key={key} style={style}>{content}</strong>;
   }
 
   if (mark === 'italic') {
-    return <em key={key}>{content}</em>;
+    return <em key={key} style={style}>{content}</em>;
   }
 
   if (mark === 'underline') {
@@ -21,13 +50,18 @@ function applyMark(content: ReactNode, mark: Mark, key: string): ReactNode {
   }
 
   if (mark === 'sup') {
-    return <sup key={key}>{content}</sup>;
+    return <sup key={key} style={style}>{content}</sup>;
   }
 
-  return <sub key={key}>{content}</sub>;
+  return <sub key={key} style={style}>{content}</sub>;
 }
 
-function renderInlineChild(inline: RichInline, key: string): ReactNode {
+function renderInlineChild(
+  inline: RichInline,
+  key: string,
+  baseFont: string | undefined,
+  baseFontSizePx: number | undefined,
+): ReactNode {
   if (inline.type === 'lineBreak') {
     return <br key={key} />;
   }
@@ -39,31 +73,45 @@ function renderInlineChild(inline: RichInline, key: string): ReactNode {
         href={inline.href}
         className={READER_CONTENT_CLASS_NAMES.inlineLink}
       >
-        <RichInlineRenderer inlines={inline.children} keyPrefix={`${key}:link`} />
+        <RichInlineRenderer
+          baseFont={baseFont}
+          baseFontSizePx={baseFontSizePx}
+          inlines={inline.children}
+          keyPrefix={`${key}:link`}
+        />
       </a>
     );
   }
 
   let content: ReactNode = inline.text;
   for (const [markIndex, mark] of (inline.marks ?? []).entries()) {
-    content = applyMark(content, mark, `${key}:mark:${markIndex}:${mark}`);
+    content = applyMark(content, mark, `${key}:mark:${markIndex}:${mark}`, baseFont, baseFontSizePx);
   }
 
   return <span key={key}>{content}</span>;
 }
 
 interface RichInlineRendererProps {
+  baseFont?: string;
+  baseFontSizePx?: number;
   inlines: RichInline[];
   keyPrefix?: string;
 }
 
 export default function RichInlineRenderer({
+  baseFont,
+  baseFontSizePx,
   inlines,
   keyPrefix = 'inline',
 }: RichInlineRendererProps) {
   return (
     <>
-      {inlines.map((inline, index) => renderInlineChild(inline, `${keyPrefix}:${index}`))}
+      {inlines.map((inline, index) => renderInlineChild(
+        inline,
+        `${keyPrefix}:${index}`,
+        baseFont,
+        baseFontSizePx,
+      ))}
     </>
   );
 }

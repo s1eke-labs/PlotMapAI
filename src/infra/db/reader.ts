@@ -91,6 +91,7 @@ export interface StaticReaderBlockRecord {
 
 export interface StaticScrollBlockRecord {
   block: StaticReaderBlockRecord;
+  captionRichLineFragments?: RichInline[][];
   contentHeight: number;
   displayHeight?: number;
   displayWidth?: number;
@@ -102,6 +103,7 @@ export interface StaticScrollBlockRecord {
   lines: StaticTextLineRecord[];
   marginAfter: number;
   marginBefore: number;
+  richLineFragments?: RichInline[][];
   tableRowHeights?: number[];
   top: number;
 }
@@ -153,6 +155,7 @@ export interface StaticImagePageItemRecord {
   captionHeight?: number;
   captionLineHeightPx?: number;
   captionLines?: StaticTextLineRecord[];
+  captionRichLineFragments?: RichInline[][];
   captionSpacing?: number;
   chapterIndex: number;
   blockIndex: number;

@@ -47,7 +47,7 @@ export type ReaderLayoutFeatureSet =
   | 'scroll-rich-inline'
   | 'paged-pagination-block'
   | 'summary-shell';
-export const READER_RENDERER_VERSION = 3;
+export const READER_RENDERER_VERSION = 4;
 
 interface ReaderRenderCacheRecordBase {
   chapterIndex: number;

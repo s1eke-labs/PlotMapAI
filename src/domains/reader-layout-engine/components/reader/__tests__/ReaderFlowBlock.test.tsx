@@ -293,6 +293,68 @@ describe('ReaderFlowBlock', () => {
     );
   });
 
+  it('renders rich image captions with explicit sup and bold styling', () => {
+    useReaderImageResourceMock.mockReturnValue('blob:reader-image');
+
+    render(
+      <ReaderFlowBlock
+        imageRenderMode="paged"
+        novelId={1}
+        item={{
+          blockIndex: 8,
+          captionFont: '400 18px sans-serif',
+          captionFontSizePx: 18,
+          captionLineHeightPx: 24,
+          captionLines: [{
+            end: { graphemeIndex: 8, segmentIndex: 0 },
+            lineIndex: 0,
+            start: { graphemeIndex: 0, segmentIndex: 0 },
+            text: 'A2 bold',
+            width: 120,
+          }],
+          captionRichLineFragments: [[
+            {
+              text: 'A',
+              type: 'text',
+            },
+            {
+              marks: ['sup'],
+              text: '2',
+              type: 'text',
+            },
+            {
+              text: ' ',
+              type: 'text',
+            },
+            {
+              marks: ['bold'],
+              text: 'bold',
+              type: 'text',
+            },
+          ]],
+          captionSpacing: 8,
+          chapterIndex: 0,
+          displayHeight: 180,
+          displayWidth: 240,
+          edge: 'start',
+          height: 220,
+          imageKey: 'captioned',
+          key: '0:image:8',
+          kind: 'image',
+          marginAfter: 0,
+          marginBefore: 0,
+        }}
+      />,
+    );
+
+    const caption = screen.getByTestId('reader-flow-image-caption');
+    expect(caption.querySelector('sup')).not.toBeNull();
+    expect(caption.querySelector('strong')).not.toBeNull();
+    expect(caption.querySelector('sup')).toHaveStyle({
+      fontSize: '13.5px',
+    });
+  });
+
   it('uses an expanded hit target for images and prevents bubbling to the reader viewport', () => {
     useReaderImageResourceMock.mockReturnValue('blob:reader-image');
     const onImageActivate = vi.fn();

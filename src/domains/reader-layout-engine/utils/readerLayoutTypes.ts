@@ -96,6 +96,7 @@ export interface VirtualBlockMetrics {
   captionFontSizePx?: number;
   captionHeight?: number;
   captionLines?: ReaderMeasuredLine[];
+  captionRichLineFragments?: RichInline[][];
   captionLineHeightPx?: number;
   captionSpacing?: number;
   contentHeight: number;
@@ -109,6 +110,7 @@ export interface VirtualBlockMetrics {
   lines: ReaderMeasuredLine[];
   marginAfter: number;
   marginBefore: number;
+  richLineFragments?: RichInline[][];
   top: number;
   tableRowHeights?: number[];
 }
@@ -162,6 +164,7 @@ export interface ReaderImagePageItem {
   captionHeight?: number;
   captionLineHeightPx?: number;
   captionLines?: ReaderMeasuredLine[];
+  captionRichLineFragments?: RichInline[][];
   captionSpacing?: number;
   chapterIndex: number;
   displayHeight: number;

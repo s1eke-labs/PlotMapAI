@@ -48,6 +48,7 @@ interface RenderImageItem {
   captionFontSizePx?: number;
   captionLineHeightPx?: number;
   captionLines?: StaticTextLine[];
+  captionRichLineFragments?: ReaderImagePageItem['captionRichLineFragments'];
   captionSpacing?: number;
   chapterIndex: number;
   displayHeight: number;
@@ -112,6 +113,8 @@ function serializeTextLines(lines: StaticTextLine[]): string {
 function renderRichLineFragments(
   richLineFragments: NonNullable<ReaderTextPageItem['richLineFragments']>,
   keyPrefix: string,
+  baseFont: string,
+  baseFontSizePx: number,
   firstLineIndent?: number,
 ) {
   const lineCounts = new Map<string, number>();
@@ -132,6 +135,8 @@ function renderRichLineFragments(
       >
         {line.length > 0 ? (
           <RichInlineRenderer
+            baseFont={baseFont}
+            baseFontSizePx={baseFontSizePx}
             inlines={line}
             keyPrefix={lineKey}
           />
@@ -241,6 +246,7 @@ export default function ReaderFlowBlock({
         captionFontSizePx: item.captionFontSizePx,
         captionLineHeightPx: item.captionLineHeightPx,
         captionLines: item.captionLines,
+        captionRichLineFragments: item.captionRichLineFragments,
         captionSpacing: item.captionSpacing,
         chapterIndex: item.block.chapterIndex,
         displayHeight: item.displayHeight ?? item.contentHeight,
@@ -293,6 +299,7 @@ export default function ReaderFlowBlock({
         captionFontSizePx: pageImageItem.captionFontSizePx,
         captionLineHeightPx: pageImageItem.captionLineHeightPx,
         captionLines: pageImageItem.captionLines,
+        captionRichLineFragments: pageImageItem.captionRichLineFragments,
         captionSpacing: pageImageItem.captionSpacing,
         chapterIndex: pageImageItem.chapterIndex,
         displayHeight: pageImageItem.displayHeight,
@@ -335,7 +342,11 @@ export default function ReaderFlowBlock({
 
   if (imageItem) {
     const serializedCaption = serializeTextLines(imageItem.captionLines ?? []);
-    const hasCaption = Boolean(imageItem.captionLines && imageItem.captionLines.length > 0);
+    const hasRichCaption = Boolean(
+      imageItem.captionRichLineFragments?.some((line) => line.length > 0),
+    );
+    const hasCaption = hasRichCaption
+      || Boolean(imageItem.captionLines && imageItem.captionLines.length > 0);
 
     return (
       <div
@@ -428,7 +439,14 @@ export default function ReaderFlowBlock({
                 whiteSpace: 'pre',
               }}
             >
-              {serializedCaption}
+              {hasRichCaption && imageItem.captionFont && imageItem.captionFontSizePx
+                ? renderRichLineFragments(
+                  imageItem.captionRichLineFragments ?? [],
+                  `${imageItem.blockIndex}:caption`,
+                  imageItem.captionFont,
+                  imageItem.captionFontSizePx,
+                )
+                : serializedCaption}
             </figcaption>
           ) : null}
         </div>
@@ -536,6 +554,8 @@ export default function ReaderFlowBlock({
                         className={READER_CONTENT_CLASS_NAMES.tableCell}
                       >
                         <RichInlineRenderer
+                          baseFont={textItem.font}
+                          baseFontSizePx={textItem.fontSizePx}
                           inlines={cell.children}
                           keyPrefix={cellKey}
                         />
@@ -601,6 +621,8 @@ export default function ReaderFlowBlock({
             ? renderRichLineFragments(
               textItem.richLineFragments ?? [],
               `${textItem.blockIndex}:heading`,
+              textItem.font,
+              textItem.fontSizePx,
             )
             : renderedText}
         </TagName>
@@ -631,6 +653,8 @@ export default function ReaderFlowBlock({
           ? renderRichLineFragments(
             textItem.richLineFragments ?? [],
             `${textItem.blockIndex}:text`,
+            textItem.font,
+            textItem.fontSizePx,
             typeof textItem.indent === 'number' && textItem.lineStartIndex === 0
               ? textItem.indent
               : undefined,

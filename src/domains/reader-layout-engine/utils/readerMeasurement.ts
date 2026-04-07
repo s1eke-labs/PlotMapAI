@@ -1,4 +1,5 @@
 import type { PreparedTextWithSegments } from '@chenglou/pretext';
+import type { RichInline } from '@shared/contracts';
 import type { ChapterContent } from '../readerContentService';
 import type { ReaderImageDimensions } from './readerImageResourceCache';
 import type {
@@ -27,11 +28,17 @@ import {
   shouldUseRichScrollBlocks,
 } from './richScroll';
 import {
+  getRichTextLayoutCacheSizeForTests,
+  layoutRichTextWithPretext,
+  resetRichTextLayoutCacheForTests,
+} from './richTextLayout';
+import {
   createReaderContentMeasuredTokenValues,
   READER_CONTENT_MEASURED_TOKEN_NAMES,
   READER_CONTENT_TOKEN_DEFAULTS,
 } from '@shared/reader-content';
 import { getRichInlinePlainText } from '@shared/text-processing';
+import { createRichLineFragments } from './richLineFragments';
 
 const MAX_PRETEXT_CACHE_SIZE = 256;
 const PRETEXT_CACHE = new Map<string, PreparedTextWithSegments | null>();
@@ -44,6 +51,11 @@ interface PreparedTextBlock {
 
 let browserTextMeasureRoot: HTMLDivElement | null = null;
 
+export interface ReaderRichTextLayoutResult {
+  lines: ReaderMeasuredLine[];
+  richLineFragments: RichInline[][];
+}
+
 export interface ReaderTextLayoutEngine {
   layoutLines: (params: {
     font: string;
@@ -52,6 +64,13 @@ export interface ReaderTextLayoutEngine {
     maxWidth: number;
     text: string;
   }) => ReaderMeasuredLine[];
+  layoutRichLines?: (params: {
+    font: string;
+    fontSizePx: number;
+    inlines: RichInline[];
+    lineHeightPx: number;
+    maxWidth: number;
+  }) => ReaderRichTextLayoutResult | null;
 }
 
 function getPreparedTextFromCache(key: string): PreparedTextWithSegments | null | undefined {
@@ -238,6 +257,15 @@ export const browserReaderTextLayoutEngine: ReaderTextLayoutEngine = {
   layoutLines(params) {
     return measurePreparedTextBlock(params);
   },
+  layoutRichLines(params) {
+    return layoutRichTextWithPretext({
+      baseFont: params.font,
+      baseFontSizePx: params.fontSizePx,
+      inlines: params.inlines,
+      lineHeightPx: params.lineHeightPx,
+      maxWidth: params.maxWidth,
+    });
+  },
 };
 
 export function createReaderTypographyMetrics(
@@ -273,9 +301,11 @@ export function createReaderTypographyMetrics(
 }
 
 function measureCaptionLines(params: {
+  captionInlines?: RichInline[];
   captionText: string;
   lineHeightPx: number;
   maxWidth: number;
+  preferRichTextLayout?: boolean;
   textLayoutEngine: ReaderTextLayoutEngine;
   typography: ReaderTypographyMetrics;
 }): Pick<
@@ -285,25 +315,42 @@ function measureCaptionLines(params: {
   | 'captionHeight'
   | 'captionLineHeightPx'
   | 'captionLines'
+  | 'captionRichLineFragments'
   | 'captionSpacing'
 > {
-  const captionLines = params.captionText.length > 0
-    ? params.textLayoutEngine.layoutLines({
+  const richCaptionLayout = params.preferRichTextLayout
+    && params.captionInlines
+    && params.captionInlines.length > 0
+    && params.textLayoutEngine.layoutRichLines
+    ? params.textLayoutEngine.layoutRichLines({
+      font: params.typography.bodyFont,
+      fontSizePx: params.typography.bodyFontSize,
+      inlines: params.captionInlines,
+      lineHeightPx: params.lineHeightPx,
+      maxWidth: params.maxWidth,
+    })
+    : null;
+  const captionLines = richCaptionLayout?.lines ?? (
+    params.captionText.length > 0
+      ? params.textLayoutEngine.layoutLines({
+        font: params.typography.bodyFont,
+        fontSizePx: params.typography.bodyFontSize,
+        lineHeightPx: params.lineHeightPx,
+        maxWidth: params.maxWidth,
+        text: params.captionText,
+      })
+      : []
+  );
+  const measuredCaptionHeight = captionLines.length * params.lineHeightPx;
+  const browserCaptionHeight = richCaptionLayout
+    ? null
+    : measureTextHeightWithBrowserLayout({
       font: params.typography.bodyFont,
       fontSizePx: params.typography.bodyFontSize,
       lineHeightPx: params.lineHeightPx,
       maxWidth: params.maxWidth,
       text: params.captionText,
-    })
-    : [];
-  const measuredCaptionHeight = captionLines.length * params.lineHeightPx;
-  const browserCaptionHeight = measureTextHeightWithBrowserLayout({
-    font: params.typography.bodyFont,
-    fontSizePx: params.typography.bodyFontSize,
-    lineHeightPx: params.lineHeightPx,
-    maxWidth: params.maxWidth,
-    text: params.captionText,
-  });
+    });
   const captionHeight = Math.max(measuredCaptionHeight, browserCaptionHeight ?? 0);
 
   return {
@@ -312,6 +359,7 @@ function measureCaptionLines(params: {
     captionHeight,
     captionLineHeightPx: params.lineHeightPx,
     captionLines,
+    captionRichLineFragments: richCaptionLayout?.richLineFragments,
     captionSpacing: captionLines.length > 0
       ? READER_CONTENT_TOKEN_DEFAULTS.imageCaptionGapPx
       : 0,
@@ -321,6 +369,7 @@ function measureCaptionLines(params: {
 function measureTableRows(params: {
   lineHeightPx: number;
   maxWidth: number;
+  preferRichTextLayout?: boolean;
   tableRows: NonNullable<VirtualBlockMetrics['block']['tableRows']>;
   textLayoutEngine: ReaderTextLayoutEngine;
   typography: ReaderTypographyMetrics;
@@ -349,15 +398,28 @@ function measureTableRows(params: {
   const rowHeights = params.tableRows.map((row) => {
     const maxCellHeight = Math.max(...row.map((cell) => {
       const cellText = getRichInlinePlainText(cell.children);
-      const measuredLines = cellText.length > 0
-        ? params.textLayoutEngine.layoutLines({
+      const richCellLayout = params.preferRichTextLayout
+        && cell.children.length > 0
+        && params.textLayoutEngine.layoutRichLines
+        ? params.textLayoutEngine.layoutRichLines({
           font: params.typography.bodyFont,
           fontSizePx: params.typography.bodyFontSize,
+          inlines: cell.children,
           lineHeightPx: params.lineHeightPx,
           maxWidth: cellMaxWidth,
-          text: cellText,
         })
-        : [];
+        : null;
+      const measuredLines = richCellLayout?.lines ?? (
+        cellText.length > 0
+          ? params.textLayoutEngine.layoutLines({
+            font: params.typography.bodyFont,
+            fontSizePx: params.typography.bodyFontSize,
+            lineHeightPx: params.lineHeightPx,
+            maxWidth: cellMaxWidth,
+            text: cellText,
+          })
+          : []
+      );
 
       return Math.max(measuredLines.length, 1) * params.lineHeightPx
         + READER_CONTENT_TOKEN_DEFAULTS.tableCellPaddingYPx * 2;
@@ -379,6 +441,7 @@ function measureReaderBlocks(params: {
   chapterIndex: number;
   imageDimensionsByKey: Map<string, ReaderImageDimensions | null | undefined>;
   imageLayoutConstraints?: ReaderImageLayoutConstraints;
+  preferRichTextLayout?: boolean;
   renderMode: MeasuredChapterLayout['renderMode'];
   richAware: boolean;
   textLayoutEngine: ReaderTextLayoutEngine;
@@ -409,6 +472,7 @@ function measureReaderBlocks(params: {
         const tableMetrics = measureTableRows({
           lineHeightPx,
           maxWidth,
+          preferRichTextLayout: params.preferRichTextLayout,
           tableRows: block.tableRows,
           textLayoutEngine: params.textLayoutEngine,
           typography: params.typography,
@@ -443,7 +507,19 @@ function measureReaderBlocks(params: {
           top: offsetTop,
         };
       } else {
-        const lines = params.textLayoutEngine.layoutLines({
+        const richLayout = params.preferRichTextLayout
+          && block.richChildren
+          && block.richChildren.length > 0
+          && params.textLayoutEngine.layoutRichLines
+          ? params.textLayoutEngine.layoutRichLines({
+            font,
+            fontSizePx,
+            inlines: block.richChildren,
+            lineHeightPx,
+            maxWidth,
+          })
+          : null;
+        const lines = richLayout?.lines ?? params.textLayoutEngine.layoutLines({
           font,
           fontSizePx,
           lineHeightPx,
@@ -463,6 +539,12 @@ function measureReaderBlocks(params: {
           lines,
           marginAfter: block.marginAfter,
           marginBefore: block.marginBefore,
+          richLineFragments: richLayout?.richLineFragments
+            ?? (
+              block.richChildren
+                ? createRichLineFragments(block.richChildren, lines)
+                : undefined
+            ),
           top: offsetTop,
         };
       }
@@ -479,9 +561,11 @@ function measureReaderBlocks(params: {
       const displayWidth = resolvedImageSize.width;
       const displayHeight = resolvedImageSize.height;
       const captionMetrics = measureCaptionLines({
+        captionInlines: block.imageCaption ?? [],
         captionText: getRichInlinePlainText(block.imageCaption ?? []),
         lineHeightPx: params.typography.bodyLineHeightPx,
         maxWidth: displayWidth,
+        preferRichTextLayout: params.preferRichTextLayout,
         textLayoutEngine: params.textLayoutEngine,
         typography: params.typography,
       });
@@ -549,6 +633,7 @@ export function measureReaderChapterLayout(
     chapterIndex: chapter.index,
     imageDimensionsByKey,
     imageLayoutConstraints,
+    preferRichTextLayout: false,
     renderMode: 'legacy-plain',
     richAware: false,
     textLayoutEngine,
@@ -570,6 +655,7 @@ export function measurePagedReaderChapterLayout(
     blocks: buildPagedReaderBlocks(chapter, typography.paragraphSpacing),
     chapterIndex: chapter.index,
     imageDimensionsByKey,
+    preferRichTextLayout: richAware,
     renderMode: richAware ? 'rich' : 'legacy-plain',
     richAware,
     textLayoutEngine,
@@ -603,6 +689,7 @@ export function measureScrollReaderChapterLayout(
     chapterIndex: chapter.index,
     imageDimensionsByKey,
     imageLayoutConstraints,
+    preferRichTextLayout: false,
     renderMode: 'rich',
     richAware: true,
     textLayoutEngine,
@@ -621,11 +708,12 @@ function resolveReaderFontFamily(): string {
 }
 
 export function getReaderLayoutPretextCacheSizeForTests(): number {
-  return PRETEXT_CACHE.size;
+  return PRETEXT_CACHE.size + getRichTextLayoutCacheSizeForTests();
 }
 
 export function resetReaderLayoutPretextCacheForTests(): void {
   PRETEXT_CACHE.clear();
+  resetRichTextLayoutCacheForTests();
   browserTextMeasureRoot?.remove();
   browserTextMeasureRoot = null;
 }

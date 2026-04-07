@@ -4,6 +4,7 @@ import { createFakeReaderTextLayoutEngine } from '../../test/createFakeReaderTex
 import {
   createReaderTypographyMetrics,
   createScrollImageLayoutConstraints,
+  measurePagedReaderChapterLayout,
   measureScrollReaderChapterLayout,
   measureReaderChapterLayout,
   resetReaderLayoutPretextCacheForTests,
@@ -219,6 +220,66 @@ describe('readerMeasurement', () => {
       displayWidth: 180,
     });
     expect(imageMetric?.captionHeight).toBe(typography.bodyLineHeightPx * 3);
+  });
+
+  it('stores rich caption line fragments for paged rich image blocks', () => {
+    const textLayoutEngine = createFakeReaderTextLayoutEngine({ maxCharsPerLine: 24 });
+    const typography = createReaderTypographyMetrics(18, 1.8, 16, 600);
+    const measuredLayout = measurePagedReaderChapterLayout(
+      {
+        index: 0,
+        title: 'Chapter 1',
+        plainText: 'Signal 2',
+        richBlocks: [
+          {
+            type: 'image',
+            key: 'seal',
+            caption: [
+              {
+                text: 'Signal',
+                type: 'text',
+              },
+              {
+                text: ' ',
+                type: 'text',
+              },
+              {
+                marks: ['sup'],
+                text: '2',
+                type: 'text',
+              },
+            ],
+          },
+        ],
+        contentFormat: 'rich',
+        contentVersion: 1,
+        wordCount: 10,
+        totalChapters: 1,
+        hasPrev: false,
+        hasNext: false,
+      },
+      320,
+      typography,
+      new Map([
+        ['seal', { width: 320, height: 180, aspectRatio: 16 / 9 }],
+      ]),
+      textLayoutEngine,
+    );
+
+    const imageMetric = measuredLayout.metrics.find((metric) => metric.block.kind === 'image');
+    expect(imageMetric?.captionRichLineFragments).toEqual([
+      [
+        {
+          text: 'Signal ',
+          type: 'text',
+        },
+        {
+          marks: ['sup'],
+          text: '2',
+          type: 'text',
+        },
+      ],
+    ]);
   });
 
   it('falls back to sans-serif when document.body is unavailable', () => {

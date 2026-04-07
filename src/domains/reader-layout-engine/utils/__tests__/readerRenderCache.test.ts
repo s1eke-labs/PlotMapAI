@@ -401,6 +401,170 @@ describe('readerRenderCache', () => {
     ]);
   });
 
+  it('round-trips paged rich image caption fragments through Dexie render cache entries', async () => {
+    vi.doMock('@chenglou/pretext', () => {
+      const prepareWithSegments = (text: string) => {
+        const segments = text.split(/( )/).filter((segment) => segment.length > 0);
+        return {
+          breakablePrefixWidths: segments.map((segment) => (segment === ' ' ? null : Array.from({
+            length: segment.length,
+          }, (_, index) => (index + 1) * 8))),
+          breakableWidths: segments.map((segment) => (segment === ' '
+            ? null
+            : Array.from({ length: segment.length }, () => 8))),
+          chunks: [{
+            consumedEndSegmentIndex: segments.length,
+            endSegmentIndex: segments.length,
+            startSegmentIndex: 0,
+          }],
+          discretionaryHyphenWidth: 0,
+          kinds: segments.map((segment) => (segment === ' ' ? 'space' : 'text')),
+          lineEndFitAdvances: segments.map((segment) => (segment === ' ' ? 0 : segment.length * 8)),
+          lineEndPaintAdvances: segments.map((segment) => (segment === ' ' ? 0 : segment.length * 8)),
+          segLevels: null,
+          segments,
+          simpleLineWalkFastPath: false,
+          tabStopAdvance: 0,
+          widths: segments.map((segment) => (segment === ' ' ? 4 : segment.length * 8)),
+        };
+      };
+
+      return {
+        layoutNextLine: (prepared: ReturnType<typeof prepareWithSegments>) => ({
+          end: {
+            graphemeIndex: 0,
+            segmentIndex: prepared.segments.length,
+          },
+          start: {
+            graphemeIndex: 0,
+            segmentIndex: 0,
+          },
+          text: prepared.segments.join(''),
+          width: prepared.widths.reduce((total, width) => total + width, 0),
+        }),
+        layoutWithLines: (
+          prepared: ReturnType<typeof prepareWithSegments>,
+          _maxWidth: number,
+          lineHeight: number,
+        ) => ({
+          height: lineHeight,
+          lineCount: 1,
+          lines: [{
+            end: {
+              graphemeIndex: 0,
+              segmentIndex: prepared.segments.length,
+            },
+            start: {
+              graphemeIndex: 0,
+              segmentIndex: 0,
+            },
+            text: prepared.segments.join(''),
+            width: prepared.widths.reduce((total, width) => total + width, 0),
+          }],
+        }),
+        prepareWithSegments,
+      };
+    });
+
+    const { db } = await import('@infra/db');
+    const {
+      createReaderLayoutSignature,
+      createReaderTypographyMetrics,
+      getPagedContentHeight,
+    } = await import('../readerLayout');
+    const {
+      buildStaticRenderTree,
+      coercePagedTree,
+      getReaderRenderCacheEntryFromDexie,
+      persistReaderRenderCacheEntry,
+    } = await import('../readerRenderCache');
+
+    await db.delete();
+    await db.open();
+
+    const chapter = {
+      index: 4,
+      title: 'Captioned Chapter',
+      plainText: 'Signal 2',
+      richBlocks: [{
+        type: 'image' as const,
+        key: 'seal',
+        caption: [
+          {
+            text: 'Signal',
+            type: 'text' as const,
+          },
+          {
+            text: ' ',
+            type: 'text' as const,
+          },
+          {
+            marks: ['sup'] as const,
+            text: '2',
+            type: 'text' as const,
+          },
+        ],
+      }],
+      contentFormat: 'rich' as const,
+      contentVersion: 1,
+      hasNext: true,
+      hasPrev: true,
+      totalChapters: 6,
+      wordCount: 40,
+    };
+    const layoutSignature = createReaderLayoutSignature({
+      columnCount: 1,
+      columnGap: 0,
+      fontSize: 18,
+      lineSpacing: 1.6,
+      pageHeight: getPagedContentHeight(720),
+      paragraphSpacing: 16,
+      textWidth: 320,
+    });
+    const entry = buildStaticRenderTree({
+      chapter,
+      imageDimensionsByKey: new Map([
+        ['seal', { aspectRatio: 16 / 9, height: 180, width: 320 }],
+      ]),
+      layoutSignature,
+      novelId: 42,
+      typography: createReaderTypographyMetrics(18, 1.6, 16, 320),
+      variantFamily: 'original-paged',
+    });
+
+    await persistReaderRenderCacheEntry(entry);
+
+    const hydratedEntry = await getReaderRenderCacheEntryFromDexie({
+      chapterIndex: entry.chapterIndex,
+      contentHash: entry.contentHash,
+      contentFormat: entry.contentFormat,
+      contentVersion: entry.contentVersion,
+      layoutFeatureSet: entry.layoutFeatureSet,
+      layoutKey: entry.layoutKey,
+      novelId: entry.novelId,
+      rendererVersion: entry.rendererVersion,
+      variantFamily: entry.variantFamily,
+    });
+    const pagedTree = coercePagedTree(hydratedEntry);
+    const imageItem = pagedTree?.pageSlices
+      .flatMap((page) => page.columns.flatMap((column) => column.items))
+      .find((item) => item.kind === 'image');
+
+    expect(imageItem && 'captionRichLineFragments' in imageItem ? imageItem.captionRichLineFragments : undefined).toEqual([
+      [
+        {
+          text: 'Signal ',
+          type: 'text',
+        },
+        {
+          marks: ['sup'],
+          text: '2',
+          type: 'text',
+        },
+      ],
+    ]);
+  });
+
   it('treats paged render cache entries from older renderer versions as misses', async () => {
     const { db } = await import('@infra/db');
     const {
