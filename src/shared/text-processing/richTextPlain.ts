@@ -1,4 +1,4 @@
-import type { RichBlock, RichInline } from '@shared/contracts';
+import type { RichBlock, RichInline, RichTableCell } from '@shared/contracts';
 
 function inlineSequenceToPlainText(inlines: RichInline[]): string {
   return inlines
@@ -22,6 +22,15 @@ function listItemToPlainText(item: RichBlock[]): string {
     .filter((text) => text.length > 0)
     .join('\n')
     .trim();
+}
+
+function tableRowToPlainText(row: RichTableCell[]): string {
+  const cellTexts = row.map((cell) => inlineSequenceToPlainText(cell.children).trim());
+  if (cellTexts.every((cellText) => cellText.length === 0)) {
+    return '';
+  }
+
+  return cellTexts.join(' | ');
 }
 
 function blockToPlainText(block: RichBlock): string {
@@ -77,11 +86,7 @@ function blockToPlainText(block: RichBlock): string {
 
   if (block.type === 'table') {
     return block.rows
-      .map((row) =>
-        row
-          .map((cell) => inlineSequenceToPlainText(cell.children).trim())
-          .filter((cellText) => cellText.length > 0)
-          .join(' | '))
+      .map((row) => tableRowToPlainText(row))
       .filter((rowText) => rowText.length > 0)
       .join('\n')
       .trim();

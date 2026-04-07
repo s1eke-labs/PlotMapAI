@@ -61,4 +61,50 @@ describe('richTextToPlainText', () => {
       'Table fallback',
     ].join('\n\n'));
   });
+
+  it('preserves empty table columns in plain-text projection', () => {
+    const text = richTextToPlainText([{
+      type: 'table',
+      rows: [
+        [
+          {
+            children: [{ type: 'text', text: 'Route' }],
+          },
+          {
+            children: [{ type: 'text', text: 'Status' }],
+          },
+          {
+            children: [{ type: 'text', text: 'Notes' }],
+          },
+        ],
+        [
+          {
+            children: [{ type: 'text', text: 'North Lock' }],
+          },
+          {
+            children: [],
+          },
+          {
+            children: [{ type: 'text', text: 'Open after dusk' }],
+          },
+        ],
+        [
+          {
+            children: [],
+          },
+          {
+            children: [],
+          },
+          {
+            children: [],
+          },
+        ],
+      ],
+    }]);
+
+    expect(text).toBe([
+      'Route | Status | Notes',
+      'North Lock |  | Open after dusk',
+    ].join('\n'));
+  });
 });
