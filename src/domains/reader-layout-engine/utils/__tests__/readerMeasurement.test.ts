@@ -315,7 +315,7 @@ describe('readerMeasurement', () => {
       createReaderTypographyMetrics: createTypography,
       measureReaderChapterLayout: measureLayout,
       resetReaderLayoutPretextCacheForTests: resetCache,
-    } = await import('../readerMeasurement');
+    } = await import('../readerLayout');
 
     const typography = createTypography(16, 1.6, 16, 400);
     const measuredLayout = measureLayout({
@@ -363,7 +363,7 @@ describe('readerMeasurement', () => {
       getReaderLayoutPretextCacheSizeForTests: getCacheSize,
       measureReaderChapterLayout: measureLayout,
       resetReaderLayoutPretextCacheForTests: resetCache,
-    } = await import('../readerMeasurement');
+    } = await import('../readerLayout');
 
     const typography = createTypography(18, 1.8, 16, 600);
 

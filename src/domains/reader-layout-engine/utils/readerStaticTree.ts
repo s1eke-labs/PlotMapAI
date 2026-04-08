@@ -1,6 +1,6 @@
 import type { ChapterContent } from '@shared/contracts/reader';
 import type { ReaderImageDimensions } from './readerImageResourceCache';
-import type { ReaderTextLayoutEngine } from './readerMeasurement';
+import type { ReaderTextLayoutEngine } from './readerTextMeasurement';
 import type {
   MeasuredChapterLayout,
   PageSlice,
@@ -20,7 +20,7 @@ import {
 import {
   measurePagedReaderChapterLayout,
   measureScrollReaderChapterLayout,
-} from './readerMeasurement';
+} from './readerChapterMeasurement';
 import { createRichLineFragments } from './richLineFragments';
 
 export function getPagedContentHeight(pagedViewportHeight: number): number {

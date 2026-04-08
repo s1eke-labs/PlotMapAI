@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { createFakeReaderTextLayoutEngine } from '../../test/createFakeReaderTextLayoutEngine';
 import { createReaderLayoutSignature } from '../readerLayoutShared';
-import { createReaderTypographyMetrics } from '../readerMeasurement';
+import { createReaderTypographyMetrics } from '../readerTextMeasurement';
 import {
   buildStaticPagedChapterTree,
   composePaginatedChapterLayout,
