@@ -3,10 +3,11 @@ import type {
   Chapter,
   ChapterContent,
   PageTarget,
+  ReaderChapterCacheApi,
   ReaderRestoreTarget,
+  ReaderSessionCommands,
+  ReaderSessionSnapshot,
 } from '@shared/contracts/reader';
-import type { ReaderChapterCacheApi } from '@domains/reader-content';
-import type { ReaderSessionCommands, ReaderSessionSnapshot } from '@domains/reader-session';
 
 import {
   useReaderLayoutQueries,

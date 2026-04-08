@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import type { Chapter, ChapterContent, ReaderRestoreTarget } from '@shared/contracts/reader';
-import type { ReaderChapterCacheApi } from '@domains/reader-content';
-import type { ReaderSessionCommands, ReaderSessionSnapshot } from '@domains/reader-session';
+import type {
+  Chapter,
+  ChapterContent,
+  ReaderChapterCacheApi,
+  ReaderRestoreTarget,
+  ReaderSessionCommands,
+  ReaderSessionSnapshot,
+} from '@shared/contracts/reader';
 
 import type { ScrollModeAnchor } from './useScrollModeChapters';
 import {

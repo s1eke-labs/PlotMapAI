@@ -1,6 +1,11 @@
 import { useCallback, useMemo } from 'react';
-import type { Chapter, ChapterContent, PageTarget } from '@shared/contracts/reader';
-import type { ReaderSessionCommands, ReaderSessionSnapshot } from '@domains/reader-session';
+import type {
+  Chapter,
+  ChapterContent,
+  PageTarget,
+  ReaderSessionCommands,
+  ReaderSessionSnapshot,
+} from '@shared/contracts/reader';
 
 import type { UsePagedReaderControllerResult } from './usePagedReaderController';
 import { useReaderNavigationRuntime } from '@shared/reader-runtime';

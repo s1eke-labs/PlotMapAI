@@ -6,6 +6,7 @@ import type {
   PageSlice,
   PaginatedChapterLayout,
   ReaderImageLayoutConstraints,
+  ReaderTypographyMetrics,
   StaticPagedChapterTree,
   StaticScrollChapterTree,
   StaticSummaryShellTree,
@@ -40,7 +41,7 @@ export function createScrollImageLayoutConstraints(
 export function buildStaticScrollChapterTree(
   chapter: ChapterContent,
   width: number,
-  typography: any, // or ReaderTypographyMetrics if imported
+  typography: ReaderTypographyMetrics,
   imageDimensionsByKey: Map<string, ReaderImageDimensions | null | undefined>,
   imageLayoutConstraints?: ReaderImageLayoutConstraints,
   textLayoutEngine?: ReaderTextLayoutEngine,
@@ -439,7 +440,7 @@ export function buildStaticPagedChapterTree(
   columnHeight: number,
   columnCount: number,
   columnGap: number,
-  typography: any, // or ReaderTypographyMetrics
+  typography: ReaderTypographyMetrics,
   imageDimensionsByKey: Map<string, ReaderImageDimensions | null | undefined>,
   textLayoutEngine?: ReaderTextLayoutEngine,
 ): StaticPagedChapterTree {
