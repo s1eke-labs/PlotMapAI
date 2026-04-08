@@ -16,7 +16,7 @@ import type {
 
 import { db } from '@infra/db';
 
-import { extractImageKeysFromChapter } from './chapterImages';
+import { extractImageKeysFromChapter } from '@shared/text-processing';
 import {
   buildStaticPagedChapterTree,
   buildStaticScrollChapterTree,

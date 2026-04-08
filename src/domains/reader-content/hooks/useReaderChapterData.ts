@@ -26,7 +26,7 @@ import {
   preloadReaderImageResources,
 } from '@domains/reader-media';
 import { readerContentService } from '../readerContentService';
-import { extractImageKeysFromChapter } from '../utils/chapterImages';
+import { extractImageKeysFromChapter } from '@shared/text-processing';
 
 export interface ReaderHydrateDataResult {
   hasChapters: boolean;

@@ -1,5 +1,10 @@
 export { detectChapters, splitByChapters } from './chapterDetection';
 export {
+  extractImageKeysFromChapter,
+  extractImageKeysFromRichBlocks,
+  extractImageKeysFromText,
+} from './chapterImages';
+export {
   buildChapterBlockSequence,
   parseParagraphSegments,
 } from './chapterBlocks';

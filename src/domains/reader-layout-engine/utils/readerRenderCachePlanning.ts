@@ -13,7 +13,7 @@ import type {
   ReaderRenderStorageKind,
 } from './readerRenderCache';
 
-import { extractImageKeysFromChapter } from './chapterImages';
+import { extractImageKeysFromChapter } from '@shared/text-processing';
 import {
   createChapterContentHash,
   serializeReaderLayoutSignature,

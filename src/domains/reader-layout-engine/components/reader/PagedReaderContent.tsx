@@ -29,7 +29,7 @@ import {
   shouldClearPendingCommittedPageOverride,
   type PendingCommittedPageOverride,
 } from '../../utils/pagedDragRenderState';
-import { extractImageKeysFromChapter } from '../../utils/chapterImages';
+import { extractImageKeysFromChapter } from '@shared/text-processing';
 import { preloadReaderImageResources } from '../../utils/readerImageResourceCache';
 import { PAGED_VIEWPORT_TOP_PADDING_PX } from '../../utils/readerLayout';
 import ReaderFlowBlock from './ReaderFlowBlock';

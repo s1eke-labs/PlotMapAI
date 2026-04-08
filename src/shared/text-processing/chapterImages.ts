@@ -1,13 +1,7 @@
 import type { ChapterContent } from '@shared/contracts/reader';
 import type { RichBlock } from '@shared/contracts';
-import type { ChapterTextSegment } from '@shared/text-processing/chapterBlocks';
-
-import { parseParagraphSegments } from '@shared/text-processing/chapterBlocks';
 
 const IMG_PATTERN = /\[IMG:([^\]]+)\]/g;
-
-export type { ChapterTextSegment };
-export { parseParagraphSegments };
 
 export function extractImageKeysFromText(text: string): string[] {
   const imageKeys = new Set<string>();
