@@ -12,7 +12,7 @@ import { useTranslation } from 'react-i18next';
 import { READER_CONTENT_CLASS_NAMES } from '@shared/reader-content';
 import { cn } from '@shared/utils/cn';
 
-import { useReaderImageResource } from '../../hooks/useReaderImageResource';
+import { useReaderImageResource } from '@domains/reader-media';
 import type {
   ReaderImageActivationPayload,
   ReaderImageGalleryEntry,

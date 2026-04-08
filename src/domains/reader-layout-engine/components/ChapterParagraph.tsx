@@ -2,7 +2,7 @@ import type { CSSProperties } from 'react';
 
 import { useMemo } from 'react';
 
-import { useReaderImageResource } from '../hooks/useReaderImageResource';
+import { useReaderImageResource } from '@domains/reader-media';
 import { parseParagraphSegments } from '@shared/text-processing';
 
 function InlineImage({
