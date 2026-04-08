@@ -204,7 +204,7 @@ vi.mock('@shared/debug', () => ({
 vi.mock('../../utils/readerImageResourceCache', () => imageCacheMock);
 vi.mock('../../utils/readerRenderCache', () => renderCacheMock);
 
-import type { ChapterContent } from '../../readerContentService';
+import type { ChapterContent } from '@shared/contracts/reader';
 import type { ReaderLayoutSignature } from '../../utils/readerLayout';
 import { useReaderRenderPreheater } from '../useReaderRenderPreheater';
 

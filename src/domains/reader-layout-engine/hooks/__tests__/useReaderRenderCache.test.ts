@@ -302,7 +302,7 @@ vi.mock('../../utils/readerImageResourceCache', () => imageCacheMock);
 
 vi.mock('../../utils/readerRenderCache', () => renderCacheMock);
 
-import type { Chapter, ChapterContent } from '../../readerContentService';
+import type { Chapter, ChapterContent } from '@shared/contracts/reader';
 import {
   createReaderLayoutSignature,
   createReaderViewportMetrics,

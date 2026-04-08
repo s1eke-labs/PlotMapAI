@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { Chapter, ChapterContent } from '../readerContentService';
+import type { Chapter, ChapterContent } from '@shared/contracts/reader';
 import { SCROLL_READING_ANCHOR_RATIO } from '@shared/utils/readerPosition';
 
 export interface ScrollModeAnchor {

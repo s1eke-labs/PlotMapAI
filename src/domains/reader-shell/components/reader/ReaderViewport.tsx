@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import type { ChapterContent } from '../../readerContentService';
+import type { ChapterContent } from '@shared/contracts/reader';
 import {
   PagedReaderContent,
   ScrollReaderContent,

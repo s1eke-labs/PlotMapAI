@@ -8,7 +8,7 @@ const imageCacheMock = vi.hoisted(() => ({
 
 vi.mock('../readerImageResourceCache', () => imageCacheMock);
 
-import type { ChapterContent } from '../../readerContentService';
+import type { ChapterContent } from '@shared/contracts/reader';
 import {
   buildChapterImageLayoutKey,
   buildPreheatTargets,

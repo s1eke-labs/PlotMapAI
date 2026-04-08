@@ -11,7 +11,7 @@ import {
   writeReaderBootstrapSnapshot,
 } from '@infra/storage/readerStateCache';
 
-import { resetReaderSessionStoreForTests } from '../sessionStore';
+import { resetReaderSessionStoreForTests } from '../readerSessionStore';
 import { useReaderStatePersistence } from '../useReaderStatePersistence';
 
 function seedReaderBootstrapSnapshot(

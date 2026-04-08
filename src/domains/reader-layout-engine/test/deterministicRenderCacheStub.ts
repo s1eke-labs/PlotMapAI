@@ -1,5 +1,5 @@
 import type { RefObject } from 'react';
-import type { ChapterContent } from '../readerContentService';
+import type { ChapterContent } from '@shared/contracts/reader';
 import type {
   ReaderLocator,
   ReaderMeasuredLine,

@@ -1,6 +1,6 @@
 import { renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ChapterContent } from '../../readerContentService';
+import type { ChapterContent } from '@shared/contracts/reader';
 import type {
   ReaderLayoutSignature,
   ReaderTypographyMetrics,

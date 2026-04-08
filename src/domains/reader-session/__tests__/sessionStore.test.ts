@@ -7,7 +7,7 @@ import {
   setChapterIndex,
   setRestoreStatus,
   useReaderSessionSelector,
-} from '../sessionStore';
+} from '../readerSessionStore';
 
 describe('sessionStore selectors', () => {
   beforeEach(() => {

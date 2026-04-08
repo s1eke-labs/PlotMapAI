@@ -7,9 +7,9 @@ const clearReaderImageResourcesForNovelMock = vi.hoisted(() => vi.fn());
 const preloadReaderImageResourcesMock = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 
 import { useReaderPageImageOverlay } from '../useReaderPageImageOverlay';
-import { readerContentService } from '../../readerContentService';
+import { readerContentService } from '@domains/reader-content';
 
-vi.mock('../../readerContentService', () => ({
+vi.mock('@domains/reader-content', () => ({
   readerContentService: {
     getImageGalleryEntries: vi.fn(),
   },

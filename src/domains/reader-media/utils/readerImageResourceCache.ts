@@ -1,4 +1,4 @@
-import { readerContentService } from '../readerContentService';
+import { readerContentService } from '@domains/reader-content';
 
 const RELEASE_DELAY_MS = 10_000;
 

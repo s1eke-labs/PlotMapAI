@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { readerContentService } from '../../readerContentService';
+import { readerContentService } from '@domains/reader-content';
 import {
   acquireReaderImageResource,
   areReaderImageResourcesReady,
@@ -11,7 +11,7 @@ import {
   resetReaderImageResourceCacheForTests,
 } from '../readerImageResourceCache';
 
-vi.mock('../../readerContentService', () => ({
+vi.mock('@domains/reader-content', () => ({
   readerContentService: {
     getImageBlob: vi.fn(),
   },

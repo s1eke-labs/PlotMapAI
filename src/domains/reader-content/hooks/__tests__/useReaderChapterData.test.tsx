@@ -4,10 +4,10 @@ import { act, renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createReaderContextWrapper } from '@test/readerRuntimeTestUtils';
 
-import { readerContentService } from '../../readerContentService';
+import { readerContentService } from '@domains/reader-content';
 import { useReaderChapterData } from '../useReaderChapterData';
 
-vi.mock('../../readerContentService', () => ({
+vi.mock('@domains/reader-content', () => ({
   readerContentService: {
     getChapterContent: vi.fn(),
     getChapters: vi.fn(),

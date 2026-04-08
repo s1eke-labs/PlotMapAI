@@ -1,3 +1,4 @@
+import type { ReaderSessionSnapshot as SessionStoreSnapshot } from '@shared/contracts/reader';
 import type {
   ReaderMode,
   ReaderRestoreTarget,
@@ -12,8 +13,7 @@ import {
   setChapterIndex as setSessionChapterIndex,
   setMode as setSessionMode,
   useReaderSessionSelector,
-  type ReaderSessionSnapshot as SessionStoreSnapshot,
-} from './sessionStore';
+} from './readerSessionStore';
 import { useReaderStatePersistence } from './useReaderStatePersistence';
 import { getReaderViewMode, isPagedReaderMode } from '@shared/utils/readerMode';
 

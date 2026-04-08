@@ -25,7 +25,7 @@ import {
   areReaderImageResourcesReady,
   preloadReaderImageResources,
 } from '@domains/reader-media';
-import { readerContentService } from '../readerContentService';
+import { readerContentService } from '@domains/reader-content';
 import { extractImageKeysFromChapter } from '@shared/text-processing';
 
 export interface ReaderHydrateDataResult {

@@ -1,5 +1,5 @@
 import type { Dispatch, ReactNode, RefObject, SetStateAction } from 'react';
-import type { ChapterContent } from '../../readerContentService';
+import type { ChapterContent } from '@shared/contracts/reader';
 import type { ReaderContextValue } from '@test/readerRuntimeTestUtils';
 import type { ChapterChangeSource, ReaderRestoreTarget } from '@shared/contracts/reader';
 

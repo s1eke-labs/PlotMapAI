@@ -4,7 +4,7 @@ import {
   registerReaderContentController,
   resetReaderContentControllerForTests,
 } from '../readerContentController';
-import { readerContentService } from '../readerContentService';
+import { readerContentService } from '@domains/reader-content';
 
 describe('readerContentService', () => {
   const controller = {

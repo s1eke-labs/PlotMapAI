@@ -11,7 +11,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createReaderContextWrapper } from '@test/readerRuntimeTestUtils';
-import { getReaderSessionSnapshot, resetReaderSessionStoreForTests } from '../sessionStore';
+import { getReaderSessionSnapshot, resetReaderSessionStoreForTests } from '../readerSessionStore';
 import { useReaderRestoreFlow } from '../useReaderRestoreFlow';
 
 function makeContainer({

@@ -3,7 +3,7 @@ import type { ReaderImageGalleryEntry } from '../utils/readerImageGallery';
 
 import { startTransition, useCallback, useEffect, useRef, useState } from 'react';
 
-import { readerContentService } from '../readerContentService';
+import { readerContentService } from '@domains/reader-content';
 
 interface UseReaderPageImageGalleryIndexResult {
   entries: ReaderImageGalleryEntry[];

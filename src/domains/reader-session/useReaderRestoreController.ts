@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react';
 
-import type { ChapterContent } from './readerContentService';
+import type { ChapterContent } from '@shared/contracts/reader';
 import type { ReaderSessionSnapshot } from './useReaderSession';
 import type { ReaderMode, ReaderRestoreTarget, ReaderSessionCommands, StoredReaderState } from '@shared/contracts/reader';
 
@@ -21,7 +21,7 @@ import {
   completeRestore,
   getStoredReaderStateSnapshot,
   setPendingRestoreTarget as setStorePendingRestoreTarget,
-} from './sessionStore';
+} from './readerSessionStore';
 
 interface UseReaderRestoreControllerParams {
   sessionSnapshot: Pick<

@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react';
-import type { ChapterContent } from '../../readerContentService';
+import type { ChapterContent } from '@shared/contracts/reader';
 import type {
   StaticScrollChapterTree,
   VisibleBlockRange,

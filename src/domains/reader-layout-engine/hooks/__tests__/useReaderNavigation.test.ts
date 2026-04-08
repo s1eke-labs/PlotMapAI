@@ -1,4 +1,4 @@
-import type { Chapter, ChapterContent } from '../../readerContentService';
+import type { Chapter, ChapterContent } from '@shared/contracts/reader';
 import type { ReaderMode } from '@shared/contracts/reader';
 
 import { act, renderHook } from '@testing-library/react';

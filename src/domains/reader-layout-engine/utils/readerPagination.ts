@@ -1,4 +1,4 @@
-import type { ChapterContent } from '../readerContentService';
+import type { ChapterContent } from '@shared/contracts/reader';
 import type { ReaderImageDimensions } from './readerImageResourceCache';
 import type { ReaderTextLayoutEngine } from './readerMeasurement';
 import type {

@@ -10,25 +10,19 @@ import {
   getStoredReaderStateSnapshot,
   hydrateSession,
   markUserInteracted,
-  mergeStoredReaderState,
   persistStoredReaderState,
   readInitialStoredReaderState,
   setSessionNovelId,
   useReaderSessionSelector,
-  type StoredReaderState,
-} from './sessionStore';
-import { createDefaultStoredReaderState } from './state';
+} from './readerSessionStore';
+import type { StoredReaderState } from '@shared/contracts/reader';
+import { createDefaultStoredReaderState, mergeStoredReaderState } from './state';
 
 interface PersistReaderStateOptions {
   flush?: boolean;
 }
 
-export type { PageTarget, StoredReaderState } from './sessionStore';
-export type {
-  ReaderMode,
-  ReaderNavigationIntent,
-  ReaderRestoreTarget,
-} from './sessionStore';
+export type { PageTarget, ReaderMode, ReaderNavigationIntent, ReaderRestoreTarget, StoredReaderState } from '@shared/contracts/reader';
 
 function buildNovelScopedInitialState(
   initialStoredState: StoredReaderState | null,

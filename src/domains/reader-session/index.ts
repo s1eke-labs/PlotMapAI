@@ -32,7 +32,7 @@ export {
 export {
   flushPersistence,
   resetReaderSessionStoreForTests,
-} from './sessionStore';
+} from './readerSessionStore';
 export {
   useReaderRestoreController,
   useReaderRestoreFlow,
