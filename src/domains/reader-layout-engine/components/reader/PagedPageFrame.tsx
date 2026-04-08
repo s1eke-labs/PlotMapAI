@@ -1,16 +1,18 @@
 import type { ChapterContent } from '@shared/contracts/reader';
 import type { CSSProperties } from 'react';
-import type { PaginatedChapterLayout, PageSlice } from '../../utils/readerLayout';
+import type { PaginatedChapterLayout, PageSlice } from '../../layout-core/internal';
 import type {
   ReaderImageActivationPayload,
   ReaderImageGalleryEntry,
-} from '../../utils/readerImageGallery';
+} from '../../layout-core/internal';
 
 import { READER_CONTENT_CLASS_NAMES } from '@shared/reader-content';
 import { cn } from '@shared/utils/cn';
 
-import { PAGED_VIEWPORT_TOP_PADDING_PX } from '../../utils/readerLayout';
-import ReaderFlowBlock from './ReaderFlowBlock';
+import {
+  PAGED_VIEWPORT_TOP_PADDING_PX,
+  ReaderFlowBlock,
+} from '../../layout-core/internal';
 
 interface PagedPageFrameProps {
   chapter: ChapterContent;

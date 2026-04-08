@@ -5,7 +5,7 @@ import type {
   StaticPagedChapterTree,
   StaticScrollChapterTree,
   StaticSummaryShellTree,
-} from '../utils/readerLayout';
+} from '../layout-core/internal';
 import type { ReaderRenderCacheSource } from '../utils/readerRenderCache';
 import type { ReaderVisibleRenderTarget } from '../utils/readerRenderCachePlanning';
 import type { ReaderVisibleRenderResultsResult } from './readerRenderCacheTypes';

@@ -12,6 +12,19 @@ const SOURCE_EXTENSIONS = new Set(['.ts', '.tsx']);
 const RESTRICTED_READER_IMPORT = /from\s+['"](@domains\/reader-(?:content|session|shell)(?:\/[^'"]*)?)['"]/g;
 const PASS_THROUGH_EXPORT_LINE = /^export\s+(type\s+)?\{[^}]+\}\s+from\s+['"][^'"]+['"];?$/;
 const PASS_THROUGH_EXPORT_STAR_LINE = /^export\s+\*\s+from\s+['"][^'"]+['"];?$/;
+const READER_LAYOUT_ENGINE_ROOT_BARREL_PATH = 'src/domains/reader-layout-engine/index.ts';
+const ALLOWED_READER_LAYOUT_ENGINE_ROOT_EXPORT_LINES = new Set([
+  "export { PagedReaderContent } from './paged-runtime';",
+  "export { usePagedReaderController as usePagedReaderViewportController } from './paged-runtime';",
+  "export type { UsePagedReaderControllerResult as UsePagedReaderViewportControllerResult } from './paged-runtime';",
+  "export { ScrollReaderContent } from './scroll-runtime';",
+  "export { useScrollReaderController as useScrollReaderViewportController } from './scroll-runtime';",
+  "export type { UseScrollReaderControllerResult as UseScrollReaderViewportControllerResult } from './scroll-runtime';",
+  "export { SummaryReaderContent } from './layout-core';",
+  "export { resolveReaderContentRootProps } from './layout-core';",
+  "export type { ReaderContentRootProps, ReaderContentRootTheme } from './layout-core';",
+  "export { clearReaderRenderCacheMemoryForNovel, deletePersistedReaderRenderCache } from './render-cache';",
+]);
 
 function isReaderFamilyPath(filePath) {
   return filePath.startsWith('src/domains/reader-')
@@ -93,6 +106,18 @@ export function isPassThroughReaderFile(filePath, source) {
   ));
 }
 
+export function findInvalidReaderLayoutEngineRootExports(filePath, source) {
+  if (filePath !== READER_LAYOUT_ENGINE_ROOT_BARREL_PATH) {
+    return [];
+  }
+
+  return stripComments(source)
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+    .filter((line) => !ALLOWED_READER_LAYOUT_ENGINE_ROOT_EXPORT_LINES.has(line));
+}
+
 export function evaluateReaderArchitecture(
   files,
   options = {},
@@ -101,6 +126,7 @@ export function evaluateReaderArchitecture(
   const oversizedFiles = [];
   const restrictedImports = [];
   const passThroughFiles = [];
+  const invalidRootBarrelExports = [];
 
   Object.entries(files).forEach(([filePath, source]) => {
     const lineCount = countFileLines(source);
@@ -115,9 +141,16 @@ export function evaluateReaderArchitecture(
     if (isPassThroughReaderFile(filePath, source)) {
       passThroughFiles.push(filePath);
     }
+
+    findInvalidReaderLayoutEngineRootExports(filePath, source).forEach((line) => {
+      invalidRootBarrelExports.push({ filePath, line });
+    });
   });
 
   return {
+    invalidRootBarrelExports: invalidRootBarrelExports.sort((left, right) => (
+      left.filePath.localeCompare(right.filePath) || left.line.localeCompare(right.line)
+    )),
     oversizedFiles: oversizedFiles.sort((left, right) => right.lineCount - left.lineCount),
     passThroughFiles: passThroughFiles.sort(),
     restrictedImports: restrictedImports.sort((left, right) => (
@@ -164,7 +197,8 @@ export function runReaderArchitectureCheck(
   const files = collectReaderFiles(rootDirectory, requestedPaths);
   const result = evaluateReaderArchitecture(files);
   const warningCount =
-    result.oversizedFiles.length
+    result.invalidRootBarrelExports.length
+    + result.oversizedFiles.length
     + result.restrictedImports.length
     + result.passThroughFiles.length;
 
@@ -179,6 +213,10 @@ export function runReaderArchitectureCheck(
   printWarningSection(
     'pass-through re-export files in the Reader family',
     result.passThroughFiles,
+  );
+  printWarningSection(
+    'reader-layout-engine root barrel exporting non-stable symbols',
+    result.invalidRootBarrelExports.map(({ filePath, line }) => `${filePath} -> ${line}`),
   );
 
   if (warningCount === 0) {

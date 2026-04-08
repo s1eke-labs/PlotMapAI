@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import {
   READER_FILE_LINE_LIMIT,
   evaluateReaderArchitecture,
+  findInvalidReaderLayoutEngineRootExports,
   findRestrictedReaderImports,
   isPassThroughReaderFile,
 } from '../checkReaderArchitecture.mjs';
@@ -48,5 +49,34 @@ describe('checkReaderArchitecture', () => {
       'src/domains/reader-shell/index.ts',
       'export { ReaderProvider } from \'./pages/reader-page/ReaderContext\';\n',
     )).toBe(false);
+  });
+
+  it('flags reader-layout-engine root barrel exports outside the stable public surface', () => {
+    expect(findInvalidReaderLayoutEngineRootExports(
+      'src/domains/reader-layout-engine/index.ts',
+      [
+        'export { PagedReaderContent } from \'./paged-runtime\';',
+        'export { buildStaticPagedChapterTree } from \'./layout-core\';',
+      ].join('\n'),
+    )).toEqual([
+      'export { buildStaticPagedChapterTree } from \'./layout-core\';',
+    ]);
+  });
+
+  it('includes invalid reader-layout-engine root barrel exports in the aggregated result', () => {
+    const result = evaluateReaderArchitecture({
+      'src/domains/reader-layout-engine/index.ts': [
+        'export { PagedReaderContent } from \'./paged-runtime\';',
+        'export { resolveReaderContentRootProps } from \'./layout-core\';',
+        'export { buildStaticPagedChapterTree } from \'./layout-core\';',
+      ].join('\n'),
+    });
+
+    expect(result.invalidRootBarrelExports).toEqual([
+      expect.objectContaining({
+        filePath: 'src/domains/reader-layout-engine/index.ts',
+        line: 'export { buildStaticPagedChapterTree } from \'./layout-core\';',
+      }),
+    ]);
   });
 });

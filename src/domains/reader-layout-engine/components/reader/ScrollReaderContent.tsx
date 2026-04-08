@@ -3,17 +3,19 @@ import type { ChapterContent } from '@shared/contracts/reader';
 import type {
   StaticScrollChapterTree,
   VisibleBlockRange,
-} from '../../utils/readerLayout';
+} from '../../layout-core/internal';
 import type {
   ReaderImageActivationPayload,
   ReaderImageGalleryEntry,
-} from '../../utils/readerImageGallery';
+} from '../../layout-core/internal';
 
 import { READER_CONTENT_CLASS_NAMES } from '@shared/reader-content';
 import { cn } from '@shared/utils/cn';
 
-import RichBlockRenderer from './RichBlockRenderer';
-import ReaderFlowBlock from './ReaderFlowBlock';
+import {
+  ReaderFlowBlock,
+  RichBlockRenderer,
+} from '../../layout-core/internal';
 
 interface ScrollReaderChapter {
   chapter: ChapterContent;

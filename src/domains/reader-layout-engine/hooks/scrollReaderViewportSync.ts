@@ -6,7 +6,7 @@ import {
   calculateVisibleScrollBlockRanges,
   resolveCurrentScrollLocator,
   resolveCurrentScrollLocatorOffset,
-} from '../reader-layout/viewportLocators';
+} from '../layout-core/internal';
 import type { ChapterContent } from '@shared/contracts/reader';
 import type {
   RenderableScrollLayout,

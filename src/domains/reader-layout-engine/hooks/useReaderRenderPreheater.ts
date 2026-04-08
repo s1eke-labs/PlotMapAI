@@ -4,7 +4,7 @@ import type {
   ReaderLayoutSignature,
   ReaderRenderVariant,
   ReaderTypographyMetrics,
-} from '../utils/readerLayout';
+} from '../layout-core/internal';
 import type { ReaderRenderPreheatTarget } from '../utils/readerRenderCachePlanning';
 import type {
   ReaderRenderPreheaterResult,
@@ -17,7 +17,7 @@ import { debugLog } from '@shared/debug';
 import {
   createChapterContentHash,
   serializeReaderLayoutSignature,
-} from '../utils/readerLayout';
+} from '../layout-core/internal';
 import {
   buildStaticRenderManifest,
   buildStaticRenderTree,

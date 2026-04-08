@@ -8,12 +8,12 @@ import type { ScrollReaderLayout } from './scrollReaderControllerTypes';
 
 import { useCallback, useEffect } from 'react';
 
-import { getChapterBoundaryLocator } from '../utils/readerLayout';
+import { getChapterBoundaryLocator } from '../layout-core/internal';
 import {
   canSkipReaderRestore,
   SCROLL_READING_ANCHOR_RATIO,
 } from '@shared/utils/readerPosition';
-import { buildFocusedScrollWindow } from './scrollReaderWindowing';
+import { buildFocusedScrollWindow } from '../scroll-runtime/internal';
 
 function setStableRestoreWindow(
   setScrollModeChapters: Dispatch<SetStateAction<number[]>>,

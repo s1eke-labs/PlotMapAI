@@ -12,21 +12,23 @@ import type {
   UseScrollReaderControllerParams,
   UseScrollReaderControllerResult,
   VisibleScrollBlockRange,
-} from './scrollReaderControllerTypes';
-import type { ScrollModeAnchor } from './useScrollModeChapters';
+} from '../scroll-runtime/internal';
+import type { ScrollModeAnchor } from '../scroll-runtime/internal';
 import {
   EMPTY_PAGED_CHAPTERS,
   EMPTY_SCROLL_READER_CHAPTERS,
-} from './scrollReaderControllerTypes';
-import { useReaderRenderCache } from './useReaderRenderCache';
-import { useScrollModeChapters } from './useScrollModeChapters';
-import { useScrollReaderRestore } from './scrollReaderRestore';
-import { useScrollReaderViewportSync } from './scrollReaderViewportSync';
-import { useScrollReaderWindowing } from './scrollReaderWindowing';
+} from '../scroll-runtime/internal';
+import { useReaderRenderCache } from '../render-cache/internal';
+import {
+  useScrollModeChapters,
+  useScrollReaderRestore,
+  useScrollReaderViewportSync,
+  useScrollReaderWindowing,
+} from '../scroll-runtime/internal';
 
 export type {
   UseScrollReaderControllerResult,
-} from './scrollReaderControllerTypes';
+} from '../scroll-runtime/internal';
 
 export function useScrollReaderController({
   enabled,

@@ -8,7 +8,7 @@ import type {
   StaticPagedChapterTree,
   StaticScrollChapterTree,
   StaticSummaryShellTree,
-} from '../utils/readerLayout';
+} from '../layout-core/internal';
 import type {
   ReaderLayoutFeatureSet,
   ReaderRenderCacheSource,

@@ -21,7 +21,7 @@ import {
   getActiveVariant,
   type ScrollRenderMode,
 } from '../utils/readerRenderCachePlanning';
-import { preloadReaderImageResources } from '../utils/readerImageResourceCache';
+import { preloadReaderImageResources } from '../layout-core/internal';
 import { useReaderRenderPreheater } from './useReaderRenderPreheater';
 import { useReaderRenderViewport } from './useReaderRenderViewport';
 import { useReaderVisibleRenderResults } from './useReaderVisibleRenderResults';

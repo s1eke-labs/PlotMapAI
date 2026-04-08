@@ -1,12 +1,14 @@
 import type { ChapterContent, PageTarget } from '@shared/contracts/reader';
 import type { Variants } from 'motion/react';
-import type { ReaderPageTurnMode } from '../../constants/pageTurnMode';
-import type { PaginatedChapterLayout } from '../../utils/readerLayout';
+import type { PaginatedChapterLayout } from '../../layout-core/internal';
 import type {
   ReaderImageActivationPayload,
   ReaderImageGalleryEntry,
-} from '../../utils/readerImageGallery';
-import type { PendingCommittedPageOverride } from '../../utils/pagedDragRenderState';
+} from '../../layout-core/internal';
+import type {
+  PendingCommittedPageOverride,
+  ReaderPageTurnMode,
+} from '../../paged-runtime/internal';
 
 import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
@@ -16,22 +18,16 @@ import { cn } from '@shared/utils/cn';
 import {
   getPageTurnAnimation,
   type PageTurnDirection,
-} from '../../animations/pageTurnAnimations';
-import { getPagedDragLayerOffsets } from '../../utils/pagedDrag';
-import {
+  getPagedDragLayerOffsets,
   getEffectivePagedRenderPageIndex,
-  shouldClearPendingCommittedPageOverride,
-} from '../../utils/pagedDragRenderState';
-import { PagedPageFrame } from './PagedPageFrame';
-import {
   getFallbackViewportWidth,
-  usePagedReaderImagePrewarm,
-  usePagedViewportBridge,
-} from './pagedReaderViewport';
-import {
+  PagedPageFrame,
+  shouldClearPendingCommittedPageOverride,
   type PagePreviewTarget,
   usePagedReaderDrag,
-} from './usePagedReaderDrag';
+  usePagedReaderImagePrewarm,
+  usePagedViewportBridge,
+} from '../../paged-runtime/internal';
 
 interface PagedReaderContentProps {
   chapter: ChapterContent;

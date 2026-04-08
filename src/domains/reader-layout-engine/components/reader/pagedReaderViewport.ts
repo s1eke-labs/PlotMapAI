@@ -4,8 +4,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { extractImageKeysFromChapter } from '@shared/text-processing';
 
-import { preloadReaderImageResources } from '../../utils/readerImageResourceCache';
-import type { PaginatedChapterLayout } from '../../utils/readerLayout';
+import {
+  preloadReaderImageResources,
+  type PaginatedChapterLayout,
+} from '../../layout-core/internal';
 
 export interface ViewportSize {
   height: number;

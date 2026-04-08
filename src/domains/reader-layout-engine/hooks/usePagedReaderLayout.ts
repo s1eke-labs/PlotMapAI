@@ -1,7 +1,10 @@
 import type { PageTarget, ReaderRestoreTarget } from '@shared/contracts/reader';
-import type { PaginatedChapterLayout } from '../utils/readerLayout';
+import type { PaginatedChapterLayout } from '../layout-core/internal';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { findPageIndexForLocator, getChapterBoundaryLocator } from '../utils/readerLayout';
+import {
+  findPageIndexForLocator,
+  getChapterBoundaryLocator,
+} from '../layout-core/internal';
 import { resolvePagedTargetPage } from '@shared/utils/readerPosition';
 
 const TWO_COLUMN_GAP = 48;

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type {
   Chapter,
   ChapterContent,
@@ -14,10 +14,13 @@ import {
   useReaderNavigationRuntime,
   useReaderViewportContext,
 } from '@shared/reader-runtime';
-import { resolveCurrentPagedLocator } from '../reader-layout/viewportLocators';
-import { usePagedChapterTransition } from './usePagedChapterTransition';
-import { usePagedReaderLayout } from './usePagedReaderLayout';
-import { useReaderRenderCache } from './useReaderRenderCache';
+import { resolveCurrentPagedLocator } from '../layout-core/internal';
+import {
+  usePagedChapterPreviews,
+  usePagedChapterTransition,
+  usePagedReaderLayout,
+} from '../paged-runtime/internal';
+import { useReaderRenderCache } from '../render-cache/internal';
 
 type NavigationDirection = 'next' | 'prev';
 type DirectionalNavigationReplay = (
@@ -30,7 +33,6 @@ type PagedReaderLayout =
     ? Layout
     : never;
 
-const EMPTY_PAGED_CHAPTERS: ChapterContent[] = [];
 const EMPTY_SCROLL_CHAPTERS: Array<{ chapter: ChapterContent; index: number }> = [];
 
 interface PagedReaderControllerPreferences {
@@ -127,23 +129,9 @@ export function usePagedReaderController({
     direction: 'next',
     token: 0,
   });
-  const [chapterCacheSnapshotState, setChapterCacheSnapshotState] = useState<{
-    novelId: number;
-    snapshot: Map<number, ChapterContent>;
-  }>({
-    novelId,
-    snapshot: new Map(),
-  });
   const [pagedContentElement, setPagedContentElement] = useState<HTMLDivElement | null>(null);
   const [pagedViewportElement, setPagedViewportElement] = useState<HTMLDivElement | null>(null);
   const replayDirectionalNavigationRef = useRef<DirectionalNavigationReplay>(() => {});
-
-  useEffect(() => {
-    setChapterCacheSnapshotState({
-      novelId,
-      snapshot: cache.snapshotCachedChapters(),
-    });
-  }, [cache, chapterDataRevision, novelId]);
 
   useEffect(() => {
     if (enabled) {
@@ -161,15 +149,18 @@ export function usePagedReaderController({
     setPagedViewportElement(null);
   }, [enabled, navigation, viewport.pagedViewportRef]);
 
-  const chapterCacheSnapshot = chapterCacheSnapshotState.novelId === novelId
-    ? chapterCacheSnapshotState.snapshot
-    : new Map<number, ChapterContent>();
-  const previousChapterPreview = currentChapter?.hasPrev
-    ? chapterCacheSnapshot.get(chapterIndex - 1) ?? null
-    : null;
-  const nextChapterPreview = currentChapter?.hasNext
-    ? chapterCacheSnapshot.get(chapterIndex + 1) ?? null
-    : null;
+  const {
+    nextChapterPreview,
+    pagedChapters,
+    previousChapterPreview,
+  } = usePagedChapterPreviews({
+    cache,
+    chapterDataRevision,
+    chapterIndex,
+    currentChapter,
+    enabled,
+    novelId,
+  });
 
   const handlePagedViewportRef = useCallback((element: HTMLDivElement | null) => {
     viewport.pagedViewportRef.current = element;
@@ -183,20 +174,6 @@ export function usePagedReaderController({
       previousElement === element ? previousElement : element
     ));
   }, []);
-
-  const pagedChapters = useMemo(() => {
-    if (!enabled) {
-      return EMPTY_PAGED_CHAPTERS;
-    }
-
-    const chaptersToLayout = new Map<number, ChapterContent>();
-    for (const renderableChapter of [previousChapterPreview, currentChapter, nextChapterPreview]) {
-      if (renderableChapter) {
-        chaptersToLayout.set(renderableChapter.index, renderableChapter);
-      }
-    }
-    return Array.from(chaptersToLayout.values());
-  }, [currentChapter, enabled, nextChapterPreview, previousChapterPreview]);
 
   const renderCache = useReaderRenderCache({
     chapters,
