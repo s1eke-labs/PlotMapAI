@@ -396,19 +396,6 @@ export default function DebugPanel() {
             className="ml-3"
           />
         </div>
-        <div className="col-span-2 flex items-center justify-between rounded-lg border border-border-color/50 px-3 py-2">
-          <div className="min-w-0">
-            <div className="text-xs font-medium text-text-primary">{t('debug.features.readerLegacyPlainScroll.label')}</div>
-            <div className="text-[10px] text-text-secondary">{t('debug.features.readerLegacyPlainScroll.description')}</div>
-          </div>
-          <Toggle
-            checked={featureFlags.readerLegacyPlainScroll}
-            onChange={(checked) => {
-              setDebugFeatureEnabled('readerLegacyPlainScroll', checked);
-            }}
-            className="ml-3"
-          />
-        </div>
         <button
           onClick={() => window.history.back()}
           className="flex items-center justify-center gap-2 rounded-lg border border-border-color/50 px-3 py-2 text-xs font-medium text-text-primary transition-colors hover:bg-white/10"

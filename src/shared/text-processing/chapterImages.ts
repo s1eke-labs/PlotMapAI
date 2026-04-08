@@ -44,8 +44,9 @@ export function extractImageKeysFromRichBlocks(richBlocks: RichBlock[]): string[
 export function extractImageKeysFromChapter(
   chapter: Pick<ChapterContent, 'contentFormat' | 'plainText' | 'richBlocks'>,
 ): string[] {
-  if (chapter.contentFormat === 'rich') {
-    return extractImageKeysFromRichBlocks(chapter.richBlocks);
+  const richImageKeys = extractImageKeysFromRichBlocks(chapter.richBlocks);
+  if (richImageKeys.length > 0) {
+    return richImageKeys;
   }
 
   return extractImageKeysFromText(chapter.plainText);

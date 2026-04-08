@@ -157,7 +157,7 @@ describe('application library use-cases', () => {
       userMessageKey: 'bookDetail.analysisLoadError',
     });
     expect(data.contentSummary).toEqual({
-      contentFormat: 'plain',
+      contentFormat: 'rich',
       contentVersion: null,
       importFormatVersion: null,
       lastParsedAt: null,
@@ -172,7 +172,7 @@ describe('application library use-cases', () => {
     vi.mocked(chapterRichContentRepository.listNovelChapterRichContents).mockResolvedValue([
       {
         chapterIndex: 0,
-        contentFormat: 'plain',
+        contentFormat: 'rich',
         contentVersion: 1,
         importFormatVersion: 1,
         plainText: 'Chapter one',

@@ -518,7 +518,7 @@ describe('parseEpubCore', () => {
     }]);
   });
 
-  it('falls back to plain chapter projection when rich parsing throws for a chapter', async () => {
+  it('falls back to structured paragraph projection when rich parsing throws for a chapter', async () => {
     const zip = new JSZip();
     zip.file('META-INF/container.xml', `<?xml version="1.0"?>
 <container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
@@ -569,8 +569,14 @@ describe('parseEpubCore', () => {
     expect(result.chapters).toEqual([{
       title: 'ch1.xhtml',
       content: 'Fallback paragraph.',
-      contentFormat: 'plain',
-      richBlocks: [],
+      contentFormat: 'rich',
+      richBlocks: [{
+        type: 'paragraph',
+        children: [{
+          type: 'text',
+          text: 'Fallback paragraph.',
+        }],
+      }],
     }]);
   });
 

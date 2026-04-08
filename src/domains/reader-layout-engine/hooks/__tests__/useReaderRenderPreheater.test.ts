@@ -58,7 +58,7 @@ const renderCacheMock = vi.hoisted(() => {
       && params.chapter.richBlocks.length > 0
       && params.preferRichScrollRendering !== false
       ? 'scroll-rich-inline'
-      : 'scroll-legacy-plain';
+      : 'scroll-plain';
   };
   const buildKey = (params: {
     chapterIndex: number;

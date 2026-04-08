@@ -278,10 +278,6 @@
       "readerTelemetry": {
         "label": "Reader 遥测",
         "description": "输出更详细的阅读布局快照和预热来源日志"
-      },
-      "readerLegacyPlainScroll": {
-        "label": "旧版纯文本滚动",
-        "description": "临时强制滚动模式退回纯文本块渲染器"
       }
     },
     "actions": {

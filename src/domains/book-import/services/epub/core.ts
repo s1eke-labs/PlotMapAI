@@ -5,7 +5,12 @@ import type { ParsedBook, ParsedChapter } from '../bookParser';
 import type { BookImportProgress } from '../progress';
 import type { ManifestItem } from './types';
 
-import { computeHash, purify, stripLeadingChapterTitle } from '@shared/text-processing';
+import {
+  computeHash,
+  projectPlainTextToRichBlocks,
+  purify,
+  stripLeadingChapterTitle,
+} from '@shared/text-processing';
 import { buildTocMap } from './toc';
 import { epubDomToRichBlocks, getRichBlockText } from './epubDomToRichBlocks';
 import { sanitizeEpubHtml } from './epubHtmlSanitizer';
@@ -69,8 +74,8 @@ function createFallbackChapter(
   return {
     title,
     content,
-    contentFormat: 'plain',
-    richBlocks: [],
+    contentFormat: 'rich',
+    richBlocks: projectPlainTextToRichBlocks(content),
   };
 }
 

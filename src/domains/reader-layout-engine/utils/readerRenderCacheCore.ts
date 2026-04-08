@@ -10,12 +10,12 @@ import { shouldUseRichScrollBlocks } from './richScroll';
 
 export const READER_RENDER_CACHE_PERSISTED_LIMIT = 240;
 export const READER_RENDER_CACHE_TTL_MS = 14 * 24 * 60 * 60 * 1000;
-export const READER_RENDERER_VERSION = 4;
+export const READER_RENDERER_VERSION = 5;
 
 export type ReaderRenderCacheSource = 'memory' | 'dexie' | 'built';
 export type ReaderRenderStorageKind = 'render-tree' | 'manifest';
 export type ReaderLayoutFeatureSet =
-  | 'scroll-legacy-plain'
+  | 'scroll-plain'
   | 'scroll-rich-inline'
   | 'paged-pagination-block'
   | 'summary-shell';
@@ -92,7 +92,7 @@ export function resolveReaderLayoutFeatureSet(params: {
     params.preferRichScrollRendering,
   )
     ? 'scroll-rich-inline'
-    : 'scroll-legacy-plain';
+    : 'scroll-plain';
 }
 
 export function buildReaderRenderCacheKey(params: ReaderRenderCacheLookupParams): string {

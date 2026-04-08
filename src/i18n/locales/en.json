@@ -278,10 +278,6 @@
       "readerTelemetry": {
         "label": "Reader Telemetry",
         "description": "Verbose reader layout snapshots and preheat source logs"
-      },
-      "readerLegacyPlainScroll": {
-        "label": "Legacy Plain Scroll",
-        "description": "Temporarily force scroll mode back to the plain-text block renderer"
       }
     },
     "actions": {

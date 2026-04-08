@@ -22,7 +22,7 @@
 | `readingProgress` | `@domains/reader-session` | `reader-session`, `application` orchestration | `readReadingProgress/replaceReadingProgress/deleteReadingProgress` |
 | `readerRenderCache` | `@domains/reader-layout-engine` | `reader-layout-engine`, `application` orchestration | render cache utils, `deletePersistedReaderRenderCache` |
 
-旧书如果没有 `chapterRichContents` 行，表示它们仍处于 plain-only 兼容状态；调用方必须允许 rich 读取结果为空，而不是把“无 rich row”当作损坏数据。
+当前版本要求每个章节都存在 `chapterRichContents` 行，并以结构化 `richBlocks + plainText projection` 作为唯一规范模型。缺失 structured content 或仍携带已退场的 plain-only 数据，都应视为异常数据并引导 reparse / recovery，而不是继续按兼容状态读取。
 
 ## Rules
 

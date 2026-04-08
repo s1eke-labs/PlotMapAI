@@ -147,7 +147,7 @@ export function createDeterministicScrollLayout(
     blockCount: metrics.length,
     chapterIndex: chapter.index,
     metrics,
-    renderMode: 'legacy-plain',
+    renderMode: 'plain',
     textWidth: 640,
     totalHeight: Math.max(top, DEFAULT_SCROLL_VIEWPORT_HEIGHT),
   };

@@ -5,7 +5,13 @@ import { runParseTxtTask } from '@shared/text-processing';
 import { parseTxt } from '../txtParser';
 
 vi.mock('@shared/text-processing', () => ({
-  debugLog: vi.fn(),
+  projectPlainTextToRichBlocks: vi.fn((plainText: string) => [{
+    type: 'paragraph' as const,
+    children: [{
+      type: 'text' as const,
+      text: plainText,
+    }],
+  }]),
   runParseTxtTask: vi.fn(),
 }));
 

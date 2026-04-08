@@ -20,8 +20,27 @@ import {
   applyReaderHeadingRules,
   buildPostAstPlainProjection,
   buildProjectedBookChapters,
-  resolveProjectedRichBlocks,
 } from './chapterTextProjection';
+
+function createStructuredContentMissingError(params: {
+  chapterIndex: number;
+  contentFormat?: string;
+  novelId: number;
+}) {
+  return createAppError({
+    code: AppErrorCode.CHAPTER_STRUCTURED_CONTENT_MISSING,
+    kind: 'storage',
+    source: 'reader',
+    userMessageKey: 'reader.reparse.required',
+    debugMessage: 'Structured chapter content is missing or uses a retired format.',
+    details: {
+      chapterIndex: params.chapterIndex,
+      novelId: params.novelId,
+      missingTable: 'chapterRichContents',
+      ...(params.contentFormat ? { contentFormat: params.contentFormat } : {}),
+    },
+  });
+}
 
 export const applicationReaderContentRuntime: ReaderContentRuntimeValue = {
   async loadPurifiedBookChapters(
@@ -91,17 +110,17 @@ export const applicationReaderContentRuntime: ReaderContentRuntimeValue = {
     }
 
     if (!chapterRichContent) {
-      throw createAppError({
-        code: AppErrorCode.CHAPTER_STRUCTURED_CONTENT_MISSING,
-        kind: 'storage',
-        source: 'reader',
-        userMessageKey: 'reader.reparse.required',
-        debugMessage: 'Structured chapter content is missing for the requested chapter.',
-        details: {
-          chapterIndex,
-          novelId,
-          missingTable: 'chapterRichContents',
-        },
+      throw createStructuredContentMissingError({
+        chapterIndex,
+        novelId,
+      });
+    }
+
+    if (chapterRichContent.contentFormat !== 'rich') {
+      throw createStructuredContentMissingError({
+        chapterIndex,
+        contentFormat: chapterRichContent.contentFormat,
+        novelId,
       });
     }
 
@@ -124,12 +143,8 @@ export const applicationReaderContentRuntime: ReaderContentRuntimeValue = {
       hasPrev: chapterIndex > 0,
       hasNext: chapterIndex < totalChapters - 1,
       plainText,
-      richBlocks: resolveProjectedRichBlocks({
-        contentFormat: chapterRichContent.contentFormat,
-        plainText,
-        richBlocks: projection.richBlocks,
-      }),
-      contentFormat: chapterRichContent.contentFormat,
+      richBlocks: projection.richBlocks,
+      contentFormat: 'rich',
       contentVersion: chapterRichContent.contentVersion,
     };
   },

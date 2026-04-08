@@ -25,6 +25,7 @@ export {
   sortChapterImageGalleryEntries,
 } from './imageGallery';
 export type { ChapterImageGalleryEntry } from './imageGallery';
+export { projectPlainTextToRichBlocks } from './plainTextProjection';
 export { purifyRichBlocks } from './richPurify';
 export {
   buildRichPaginationBlockSequence,

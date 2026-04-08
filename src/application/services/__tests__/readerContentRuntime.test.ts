@@ -52,12 +52,12 @@ describe('applicationReaderContentRuntime', () => {
             type: 'paragraph',
             children: [{
               type: 'text',
-              text: 'Legacy stored rich block',
+              text: 'Hello world',
             }],
           },
         ],
         contentPlain: 'Hello world',
-        contentFormat: 'plain',
+        contentFormat: 'rich',
         contentVersion: 1,
         importFormatVersion: 1,
         updatedAt: new Date().toISOString(),
@@ -95,7 +95,7 @@ describe('applicationReaderContentRuntime', () => {
     });
   });
 
-  it('projects plain chapter text into paragraph rich blocks', async () => {
+  it('returns stored rich blocks for structured chapters', async () => {
     await expect(applicationReaderContentRuntime.getChapterContent(1, 0)).resolves.toEqual({
       index: 0,
       title: 'Chapter 1',
@@ -107,7 +107,7 @@ describe('applicationReaderContentRuntime', () => {
           text: 'Hello world',
         }],
       }],
-      contentFormat: 'plain',
+      contentFormat: 'rich',
       contentVersion: 1,
       wordCount: 11,
       totalChapters: 2,
@@ -175,7 +175,7 @@ describe('applicationReaderContentRuntime', () => {
           text: 'Hi world',
         }],
       }],
-      contentFormat: 'plain',
+      contentFormat: 'rich',
       contentVersion: 1,
       wordCount: 11,
       totalChapters: 2,
@@ -234,6 +234,26 @@ describe('applicationReaderContentRuntime', () => {
         chapterIndex: 0,
         novelId: 1,
         missingTable: 'chapterRichContents',
+      },
+    });
+  });
+
+  it('fails when structured chapter content still uses the retired plain format', async () => {
+    const record = await db.chapterRichContents.where('[novelId+chapterIndex]').equals([1, 0]).first();
+    if (!record) {
+      throw new Error('Expected seed rich content record');
+    }
+
+    await db.chapterRichContents.update(record.id, {
+      contentFormat: 'plain' as never,
+    });
+
+    await expect(applicationReaderContentRuntime.getChapterContent(1, 0)).rejects.toMatchObject({
+      code: AppErrorCode.CHAPTER_STRUCTURED_CONTENT_MISSING,
+      details: {
+        chapterIndex: 0,
+        contentFormat: 'plain',
+        novelId: 1,
       },
     });
   });

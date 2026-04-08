@@ -43,7 +43,7 @@ export type BookDetailAnalysisAction = 'start' | 'pause' | 'resume' | 'restart';
 export type BookDetailActionTone = 'neutral' | 'brand' | 'brand-soft' | 'warning' | 'danger';
 
 export interface BookDetailContentSummary {
-  contentFormat: 'plain' | 'rich';
+  contentFormat: 'rich';
   contentVersion: number | null;
   importFormatVersion: number | null;
   lastParsedAt: string | null;

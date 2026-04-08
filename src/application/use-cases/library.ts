@@ -32,7 +32,7 @@ export interface CharacterGraphPageData {
 }
 
 export interface BookDetailContentSummary {
-  contentFormat: 'plain' | 'rich';
+  contentFormat: 'rich';
   contentVersion: number | null;
   importFormatVersion: number | null;
   lastParsedAt: string | null;
@@ -47,16 +47,12 @@ function buildBookDetailContentSummary(
 ): BookDetailContentSummary {
   if (richContents.length === 0) {
     return {
-      contentFormat: 'plain',
+      contentFormat: 'rich',
       contentVersion: null,
       importFormatVersion: null,
       lastParsedAt: null,
     };
   }
-
-  const contentFormat = richContents.some((chapter) => chapter.contentFormat === 'rich')
-    ? 'rich'
-    : 'plain';
   const contentVersion = richContents.reduce<number | null>((latest, chapter) => {
     if (latest == null) {
       return chapter.contentVersion;
@@ -80,7 +76,7 @@ function buildBookDetailContentSummary(
   }, null);
 
   return {
-    contentFormat,
+    contentFormat: 'rich',
     contentVersion,
     importFormatVersion,
     lastParsedAt,

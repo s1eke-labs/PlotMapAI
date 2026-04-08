@@ -15,8 +15,6 @@ vi.mock('react-i18next', () => ({
         'debug.filters.logs': 'Logs',
         'debug.features.readerTelemetry.label': 'Reader Telemetry',
         'debug.features.readerTelemetry.description': 'Verbose reader layout snapshots and preheat source logs',
-        'debug.features.readerLegacyPlainScroll.label': 'Legacy Plain Scroll',
-        'debug.features.readerLegacyPlainScroll.description': 'Temporarily force scroll mode back to the plain-text block renderer',
         'debug.actions.goBack': 'Go Back',
         'debug.actions.installPrompt': 'Install Prompt',
         'debug.actions.iosHint': 'iOS Hint',
@@ -60,11 +58,9 @@ const debugTest = vi.hoisted(() => {
     | ((entries: Array<{ key: string; time: number; value: unknown }>) => void)
     | null = null;
   let featureFlags = {
-    readerLegacyPlainScroll: false,
     readerTelemetry: false,
   };
   let featureSubscriber: ((flags: {
-    readerLegacyPlainScroll: boolean;
     readerTelemetry: boolean;
   }) => void) | null = null;
 
@@ -78,7 +74,7 @@ const debugTest = vi.hoisted(() => {
     }),
     getFeatureFlags: vi.fn(() => ({ ...featureFlags })),
     getSnapshots: vi.fn(() => [...snapshots]),
-    setDebugFeatureEnabled: vi.fn((flag: 'readerLegacyPlainScroll' | 'readerTelemetry', enabled: boolean) => {
+    setDebugFeatureEnabled: vi.fn((flag: 'readerTelemetry', enabled: boolean) => {
       featureFlags = {
         ...featureFlags,
         [flag]: enabled,
@@ -111,7 +107,6 @@ const debugTest = vi.hoisted(() => {
       };
     },
     subscribeFeatures(callback: (flags: {
-      readerLegacyPlainScroll: boolean;
       readerTelemetry: boolean;
     }) => void) {
       featureSubscriber = callback;
@@ -135,7 +130,6 @@ const debugTest = vi.hoisted(() => {
       logs = [];
       snapshots = [];
       featureFlags = {
-        readerLegacyPlainScroll: false,
         readerTelemetry: false,
       };
       subscriber = null;
@@ -284,18 +278,12 @@ describe('DebugPanel', () => {
     render(<DebugPanel />);
     await user.click(screen.getByTitle('Debug Panel'));
 
-    const toggles = screen.getAllByRole('switch');
-    const telemetryToggle = toggles[0];
-    const legacyToggle = toggles[1];
+    const [telemetryToggle] = screen.getAllByRole('switch');
     expect(telemetryToggle).toHaveAttribute('aria-checked', 'false');
-    expect(legacyToggle).toHaveAttribute('aria-checked', 'false');
 
     await user.click(telemetryToggle);
-    await user.click(legacyToggle);
 
     expect(debugTest.setDebugFeatureEnabled).toHaveBeenCalledWith('readerTelemetry', true);
-    expect(debugTest.setDebugFeatureEnabled).toHaveBeenCalledWith('readerLegacyPlainScroll', true);
     expect(telemetryToggle).toHaveAttribute('aria-checked', 'true');
-    expect(legacyToggle).toHaveAttribute('aria-checked', 'true');
   });
 });

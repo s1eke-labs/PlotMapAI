@@ -35,7 +35,7 @@ export interface ReaderVisibleRenderTarget {
   variantFamily: ReaderRenderVariant;
 }
 
-export type ScrollRenderMode = 'legacy-plain' | 'rich';
+export type ScrollRenderMode = 'plain' | 'rich';
 
 export interface ReaderRenderPreheatTarget {
   chapterIndex: number;

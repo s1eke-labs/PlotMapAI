@@ -50,7 +50,7 @@ export interface ReaderRenderQueryManifestRecord {
 }
 
 export type ReaderLayoutFeatureSetRecord =
-  | 'scroll-legacy-plain'
+  | 'scroll-plain'
   | 'scroll-rich-inline'
   | 'paged-pagination-block'
   | 'summary-shell';
@@ -231,7 +231,7 @@ export interface ReaderRenderCacheRecord {
   layoutKey: string;
   layoutSignature: ReaderLayoutSignatureRecord;
   contentHash: string;
-  contentFormat: 'plain' | 'rich';
+  contentFormat: 'rich';
   contentVersion: number;
   rendererVersion: number;
   layoutFeatureSet: ReaderLayoutFeatureSetRecord;

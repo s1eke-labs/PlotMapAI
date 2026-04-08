@@ -111,7 +111,7 @@ describe('useBookDetailPageViewModel', () => {
       analysisStatus: createStatusResponse(),
       analysisStatusError: null,
       contentSummary: {
-        contentFormat: 'plain',
+        contentFormat: 'rich',
         contentVersion: null,
         importFormatVersion: null,
         lastParsedAt: null,
