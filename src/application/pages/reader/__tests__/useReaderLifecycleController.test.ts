@@ -1,5 +1,5 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createReaderContextWrapper } from '@test/readerRuntimeTestUtils';
 
 import type {
@@ -7,6 +7,7 @@ import type {
   ReaderLoadActiveChapterResult,
 } from '@domains/reader-content';
 import { useReaderLifecycleController } from '@application/pages/reader/useReaderLifecycleController';
+import { resetReaderSessionStoreForTests } from '@domains/reader-session';
 import type { ReaderRestoreTarget, StoredReaderState } from '@shared/contracts/reader';
 
 function createDeferred<T>() {
@@ -112,6 +113,10 @@ function createProps(
 const { Wrapper } = createReaderContextWrapper();
 
 describe('useReaderLifecycleController', () => {
+  beforeEach(() => {
+    resetReaderSessionStoreForTests();
+  });
+
   it('drives hydration into restore and returns to ready when restore settles', async () => {
     const hydrateDeferred = createDeferred<ReaderHydrateDataResult>();
     const loadDeferred = createDeferred<ReaderLoadActiveChapterResult>();
@@ -147,10 +152,7 @@ describe('useReaderLifecycleController', () => {
       wrapper: Wrapper,
     });
 
-    expect(result.current.lifecycleStatus).toBe('hydrating');
-    await waitFor(() => {
-      expect(result.current.lifecycleStatus).toBe('loading-chapters');
-    });
+    expect(result.current.lifecycleStatus).toBe('loading-chapters');
 
     await act(async () => {
       hydrateDeferred.resolve({
@@ -206,7 +208,7 @@ describe('useReaderLifecycleController', () => {
     });
 
     await waitFor(() => {
-      expect(result.current.lifecycleStatus).toBe('restoring-position');
+      expect(result.current.lifecycleStatus).toBe('ready');
     });
     expect(setPendingRestoreTarget).toHaveBeenLastCalledWith(restoreTarget, { force: true });
     expect(startRestoreMaskForTarget).toHaveBeenLastCalledWith(restoreTarget);
@@ -441,7 +443,7 @@ describe('useReaderLifecycleController', () => {
     });
 
     await waitFor(() => {
-      expect(result.current.lifecycleStatus).toBe('restoring-position');
+      expect(result.current.lifecycleStatus).toBe('awaiting-paged-layout');
     });
     expect(result.current.showLoadingOverlay).toBe(true);
 

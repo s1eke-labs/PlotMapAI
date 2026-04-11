@@ -104,7 +104,7 @@ describe('useReaderStatePersistence', () => {
     });
   });
 
-  it('persists state and merges partial updates', () => {
+  it('persists state and merges partial updates', async () => {
     const { result } = renderHook(() => useReaderStatePersistence(1));
 
     act(() => {
@@ -140,6 +140,10 @@ describe('useReaderStatePersistence', () => {
       },
     });
 
+    await act(async () => {
+      await result.current.flushReaderState();
+    });
+
     expect(readReaderBootstrapSnapshot(1)?.state).toEqual({
       canonical: {
         chapterIndex: 7,
@@ -153,7 +157,7 @@ describe('useReaderStatePersistence', () => {
     });
   });
 
-  it('drops legacy Dexie rows and keeps cache state during hydration', async () => {
+  it('drops legacy Dexie rows and falls back to default state during hydration', async () => {
     seedReaderBootstrapSnapshot(1, {
       canonical: {
         chapterIndex: 4,
@@ -181,15 +185,13 @@ describe('useReaderStatePersistence', () => {
 
     expect(state).toEqual({
       canonical: {
-        chapterIndex: 4,
+        chapterIndex: 0,
         edge: 'start',
       },
-      hints: {
-        chapterProgress: 0.75,
-        contentMode: 'paged',
-      },
+      hints: undefined,
     });
     await expect(db.readingProgress.where('novelId').equals(1).first()).resolves.toBeUndefined();
+    expect(readReaderBootstrapSnapshot(1)).toBeNull();
   });
 
   it('treats the canonical chapter as authoritative for initial stored state', () => {
@@ -215,7 +217,7 @@ describe('useReaderStatePersistence', () => {
     });
   });
 
-  it('replaces a detailed canonical locator when a chapter boundary is persisted', () => {
+  it('replaces a detailed canonical locator when a chapter boundary is persisted', async () => {
     seedReaderBootstrapSnapshot(1, {
       canonical: {
         chapterIndex: 0,
@@ -246,6 +248,10 @@ describe('useReaderStatePersistence', () => {
         contentMode: 'scroll',
         pageIndex: undefined,
       },
+    });
+
+    await act(async () => {
+      await result.current.flushReaderState();
     });
 
     expect(readReaderBootstrapSnapshot(1)?.state).toEqual({
@@ -288,7 +294,7 @@ describe('useReaderStatePersistence', () => {
     expect(readReaderBootstrapSnapshot(0)).toBeNull();
   });
 
-  it('does not carry the previous novel state into a new novel before hydration', () => {
+  it('does not carry the previous novel state into a new novel before hydration', async () => {
     const { result, rerender } = renderHook(
       ({ novelId }: { novelId: number }) => useReaderStatePersistence(novelId),
       { initialProps: { novelId: 1 } },
@@ -304,6 +310,10 @@ describe('useReaderStatePersistence', () => {
           chapterProgress: 0.65,
         },
       });
+    });
+
+    await act(async () => {
+      await result.current.flushReaderState();
     });
 
     expect(readReaderBootstrapSnapshot(1)?.state).toEqual({

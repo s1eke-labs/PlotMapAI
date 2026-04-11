@@ -7,6 +7,8 @@ export interface PersistedRuntimePatchOptions {
   writeCache?: boolean;
 }
 
+export type PersistedRuntimeCacheWritePolicy = 'eager' | 'afterPersist';
+
 export interface PersistedRuntime<TState, THydrateOptions = void> {
   flush: () => Promise<void>;
   hydrate: (options?: THydrateOptions) => Promise<TState>;
@@ -18,10 +20,13 @@ export interface PersistedRuntime<TState, THydrateOptions = void> {
 }
 
 interface CreatePersistedRuntimeOptions<TState, THydrateOptions = void> {
+  cacheWritePolicy?: PersistedRuntimeCacheWritePolicy;
   createInitialState: () => TState;
   hydrate?: (options: THydrateOptions | undefined) => Promise<Partial<TState> | null | undefined>;
   isEnabled?: () => boolean;
   mergeState?: (current: TState, partial: Partial<TState>) => TState;
+  onPersistError?: (error: unknown, state: TState) => void;
+  onPersistSuccess?: (state: TState) => void;
   onReset?: () => void;
   onStateChange?: (nextState: TState) => void;
   persist?: (state: TState) => Promise<void>;
@@ -41,10 +46,13 @@ function defaultMergeState<TState>(
 }
 
 export function createPersistedRuntime<TState, THydrateOptions = void>({
+  cacheWritePolicy = 'eager',
   createInitialState,
   hydrate,
   isEnabled = () => true,
   mergeState = defaultMergeState,
+  onPersistError,
+  onPersistSuccess,
   onReset,
   onStateChange,
   persist,
@@ -59,6 +67,7 @@ export function createPersistedRuntime<TState, THydrateOptions = void>({
   let hydrated = false;
   let persistQueue: Promise<void> = Promise.resolve();
   let persistTimerId: number | null = null;
+  let pendingPersistWriteCache = true;
   let revision = 0;
   let epoch = 0;
 
@@ -67,6 +76,70 @@ export function createPersistedRuntime<TState, THydrateOptions = void>({
       window.clearTimeout(persistTimerId);
       persistTimerId = null;
     }
+  }
+
+  function writeCacheWithPolicy(
+    state: TState,
+    options: PersistedRuntimePatchOptions,
+    phase: PersistedRuntimeCacheWritePolicy,
+  ): void {
+    if (options.writeCache === false || cacheWritePolicy !== phase) {
+      return;
+    }
+
+    writeCache?.(state);
+  }
+
+  function notifyPersistSuccess(state: TState): void {
+    try {
+      onPersistSuccess?.(state);
+    } catch {
+      // Callbacks are best-effort and should never break the persist queue.
+    }
+  }
+
+  function notifyPersistError(error: unknown, state: TState): void {
+    try {
+      onPersistError?.(error, state);
+    } catch {
+      // Error callbacks are best-effort and should never break the persist queue.
+    }
+  }
+
+  function enqueuePersistTask(params: {
+    epochAtSchedule: number;
+    revisionAtSchedule?: number;
+    state: TState;
+    writeCacheAfterPersist: boolean;
+  }): void {
+    const {
+      epochAtSchedule,
+      revisionAtSchedule,
+      state,
+      writeCacheAfterPersist,
+    } = params;
+
+    persistQueue = persistQueue.then(async () => {
+      if (!persist) {
+        return;
+      }
+      if (epochAtSchedule !== epoch) {
+        return;
+      }
+      if (typeof revisionAtSchedule === 'number' && revisionAtSchedule !== revision) {
+        return;
+      }
+
+      try {
+        await persist(state);
+        if (writeCacheAfterPersist) {
+          writeCacheWithPolicy(state, { writeCache: true }, 'afterPersist');
+        }
+        notifyPersistSuccess(state);
+      } catch (error) {
+        notifyPersistError(error, state);
+      }
+    });
   }
 
   function applyState(
@@ -80,10 +153,7 @@ export function createPersistedRuntime<TState, THydrateOptions = void>({
     const nextState = mergeState(store.getState(), partial);
     store.setState(nextState);
     onStateChange?.(nextState);
-
-    if (options.writeCache !== false) {
-      writeCache?.(nextState);
-    }
+    writeCacheWithPolicy(nextState, options, 'eager');
 
     if (!persist || !options.persist || !isEnabled()) {
       return nextState;
@@ -93,36 +163,29 @@ export function createPersistedRuntime<TState, THydrateOptions = void>({
       clearPersistTimer();
       const snapshot = store.getState();
       const epochAtFlush = epoch;
-      persistQueue = persistQueue
-        .then(async () => {
-          if (epochAtFlush !== epoch) {
-            return;
-          }
-
-          await persist(snapshot);
-        })
-        .catch(() => undefined);
+      enqueuePersistTask({
+        epochAtSchedule: epochAtFlush,
+        state: snapshot,
+        writeCacheAfterPersist:
+          cacheWritePolicy === 'afterPersist' && options.writeCache !== false,
+      });
       return nextState;
     }
 
     clearPersistTimer();
+    pendingPersistWriteCache = options.writeCache !== false;
     persistTimerId = window.setTimeout(() => {
       persistTimerId = null;
       const snapshot = store.getState();
       const epochAtSchedule = epoch;
       const revisionAtSchedule = revision;
-      persistQueue = persistQueue
-        .then(async () => {
-          if (epochAtSchedule !== epoch) {
-            return;
-          }
-          if (revisionAtSchedule !== revision) {
-            return;
-          }
-
-          await persist(snapshot);
-        })
-        .catch(() => undefined);
+      enqueuePersistTask({
+        epochAtSchedule,
+        revisionAtSchedule,
+        state: snapshot,
+        writeCacheAfterPersist:
+          cacheWritePolicy === 'afterPersist' && pendingPersistWriteCache,
+      });
     }, persistDelayMs);
 
     return nextState;
@@ -181,15 +244,12 @@ export function createPersistedRuntime<TState, THydrateOptions = void>({
       clearPersistTimer();
       const snapshot = store.getState();
       const epochAtFlush = epoch;
-      persistQueue = persistQueue
-        .then(async () => {
-          if (epochAtFlush !== epoch) {
-            return;
-          }
-
-          await persist(snapshot);
-        })
-        .catch(() => undefined);
+      enqueuePersistTask({
+        epochAtSchedule: epochAtFlush,
+        state: snapshot,
+        writeCacheAfterPersist:
+          cacheWritePolicy === 'afterPersist' && pendingPersistWriteCache,
+      });
     }
 
     await persistQueue;
@@ -201,6 +261,7 @@ export function createPersistedRuntime<TState, THydrateOptions = void>({
     hydrationPromise = null;
     hydrated = false;
     persistQueue = Promise.resolve();
+    pendingPersistWriteCache = true;
     revision = 0;
     onReset?.();
 

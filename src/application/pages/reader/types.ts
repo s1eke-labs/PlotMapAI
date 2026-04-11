@@ -1,5 +1,5 @@
 import type { ComponentProps } from 'react';
-import type { ChapterContent, PageTarget } from '@shared/contracts/reader';
+import type { ChapterContent, PageTarget, RestoreStatus } from '@shared/contracts/reader';
 import type { AppError } from '@shared/errors';
 import type {
   PagedReaderContent,
@@ -17,13 +17,7 @@ import type { ReaderPageLayoutProps } from '@domains/reader-shell';
 
 export interface ReaderPageViewModel extends ReaderPageLayoutProps {}
 
-export type ReaderLifecycleStatus =
-  | 'hydrating'
-  | 'loading-chapters'
-  | 'loading-chapter'
-  | 'restoring-position'
-  | 'ready'
-  | 'error';
+export type ReaderLifecycleStatus = RestoreStatus;
 
 export interface ReaderLifecycleControllerResult {
   handleRestoreSettled: (result: 'completed' | 'failed' | 'skipped') => void;

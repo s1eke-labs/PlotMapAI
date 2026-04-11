@@ -295,6 +295,7 @@
         "bookImport": "Import Diagnostics",
         "readerLayout": "Reader Diagnostics",
         "readerRestore": "Restore Diagnostics",
+        "readerLifecycle": "Lifecycle Diagnostics",
         "storage": "Storage Diagnostics"
       },
       "preview": {
@@ -308,6 +309,9 @@
         "restoreReason": "Reason {{reason}}",
         "restoreError": "Error {{metric}} Δ{{delta}} (tol {{tolerance}})",
         "restoreAttempts": "Attempts {{attempts}} · retryable {{retryable}}",
+        "lifecycleState": "State {{state}}",
+        "lifecycleEvent": "Event {{event}}",
+        "lifecyclePersistence": "Persistence {{status}} · load {{loadKey}}",
         "importOperation": "Operation {{operation}}",
         "importFile": "File {{file}}",
         "importStage": "Stage {{stage}}"

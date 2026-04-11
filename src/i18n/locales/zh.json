@@ -295,6 +295,7 @@
         "bookImport": "导入诊断",
         "readerLayout": "Reader 诊断",
         "readerRestore": "恢复诊断",
+        "readerLifecycle": "生命周期诊断",
         "storage": "存储诊断"
       },
       "preview": {
@@ -308,6 +309,9 @@
         "restoreReason": "原因 {{reason}}",
         "restoreError": "误差 {{metric}} Δ{{delta}}（阈值 {{tolerance}}）",
         "restoreAttempts": "尝试 {{attempts}} · 可重试 {{retryable}}",
+        "lifecycleState": "状态 {{state}}",
+        "lifecycleEvent": "事件 {{event}}",
+        "lifecyclePersistence": "持久化 {{status}} · 负载 {{loadKey}}",
         "importOperation": "操作 {{operation}}",
         "importFile": "文件 {{file}}",
         "importStage": "阶段 {{stage}}"

@@ -1,7 +1,11 @@
 export type {
   PageTarget,
+  ReaderLifecycleEvent,
+  ReaderLifecycleEventType,
   ReaderMode,
   ReaderNavigationIntent,
+  ReaderPersistenceFailure,
+  ReaderPersistenceStatus,
   ReaderRestoreMeasuredError,
   ReaderRestoreMetric,
   ReaderRestoreReason,
@@ -38,8 +42,10 @@ export {
   toReadingProgress,
 } from './repository';
 export {
+  dispatchReaderLifecycleEvent,
   flushPersistence,
   resetReaderSessionStoreForTests,
+  useReaderSessionSelector,
 } from './readerSessionStore';
 export {
   useReaderRestoreController,

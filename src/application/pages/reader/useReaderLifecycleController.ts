@@ -10,6 +10,10 @@ import type {
   UseReaderChapterDataResult,
 } from '@domains/reader-content';
 import type { UseReaderRestoreControllerResult } from '@domains/reader-session';
+import {
+  dispatchReaderLifecycleEvent,
+  useReaderSessionSelector,
+} from '@domains/reader-session';
 
 import {
   useReaderNavigationRuntime,
@@ -22,7 +26,6 @@ import { shouldKeepReaderRestoreMask } from '@shared/utils/readerPosition';
 
 import type {
   ReaderLifecycleControllerResult,
-  ReaderLifecycleStatus,
 } from './types';
 
 interface ReaderLifecycleControllerChapterData {
@@ -102,6 +105,7 @@ export function useReaderLifecycleController({
   const navigation = useReaderNavigationRuntime();
   const persistence = useReaderPersistenceRuntime();
   const viewport = useReaderViewportContext();
+  const lifecycleStatus = useReaderSessionSelector((state) => state.restoreStatus);
   const {
     chapters,
     currentChapter,
@@ -118,7 +122,6 @@ export function useReaderLifecycleController({
     startRestoreMaskForTarget,
     stopRestoreMask,
   } = restoreFlow;
-  const [lifecycleStatus, setLifecycleStatus] = useState<ReaderLifecycleStatus>('hydrating');
   const [controllerError, setControllerError] = useState<AppError | null>(null);
   const hasInitializedRef = useRef(false);
   const lastRequestedLoadKeyRef = useRef<string | null>(null);
@@ -147,11 +150,7 @@ export function useReaderLifecycleController({
 
     return isActiveChapterResolved ? currentChapter : null;
   }, [currentChapter, isActiveChapterResolved, lifecycleStatus]);
-  const isAwaitingPagedLayout = Boolean(
-    isPagedMode
-    && renderableChapter
-    && currentPagedLayoutChapterIndex !== chapterIndex,
-  );
+  const isAwaitingPagedLayout = lifecycleStatus === 'awaiting-paged-layout';
   const shouldKeepRestoreMask = shouldKeepReaderRestoreMask(pendingRestoreTarget);
   const isRestoringPosition = lifecycleStatus === 'restoring-position' && shouldKeepRestoreMask;
   const showLoadingOverlay =
@@ -193,7 +192,10 @@ export function useReaderLifecycleController({
     lastRequestedLoadKeyRef.current = loadKey;
     awaitingRestoreLoadKeyRef.current = null;
     setControllerError(null);
-    setLifecycleStatus('loading-chapter');
+    dispatchReaderLifecycleEvent({
+      type: 'CHAPTER_LOAD_STARTED',
+      loadKey,
+    });
 
     try {
       const runtime: ReaderLoadActiveChapterRuntime = {
@@ -218,25 +220,32 @@ export function useReaderLifecycleController({
         setPendingRestoreTarget(nextRestoreTarget, { force: true });
         startRestoreMaskForTarget(nextRestoreTarget);
         awaitingRestoreLoadKeyRef.current = loadKey;
-        setLifecycleStatus('restoring-position');
+        dispatchReaderLifecycleEvent({
+          type: 'CHAPTER_LOAD_COMPLETED_NEEDS_RESTORE',
+          loadKey,
+        });
         return;
       }
 
       clearPendingRestoreTarget();
       stopRestoreMask();
-      if (!isPagedReaderMode(params.mode)) {
-        setLifecycleStatus('ready');
-      }
+      dispatchReaderLifecycleEvent({
+        type: 'CHAPTER_LOAD_COMPLETED_NO_RESTORE',
+        awaitingPagedLayout:
+          isPagedReaderMode(params.mode)
+          && currentPagedLayoutChapterIndex !== params.chapterIndex,
+      });
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') {
         return;
       }
 
       setControllerError(error as AppError);
-      setLifecycleStatus('error');
+      dispatchReaderLifecycleEvent({ type: 'CHAPTER_LOAD_FAILED' });
     }
   }, [
     clearPendingRestoreTarget,
+    currentPagedLayoutChapterIndex,
     loadActiveChapter,
     navigation,
     novelId,
@@ -269,22 +278,21 @@ export function useReaderLifecycleController({
     stopRestoreMaskRef.current();
     resetReaderContentRef.current();
     navigation.setChapterChangeSource(null);
-    setLifecycleStatus('hydrating');
+    dispatchReaderLifecycleEvent({ type: 'RESET' });
 
     if (!novelId) {
       hasInitializedRef.current = true;
-      setLifecycleStatus('ready');
+      dispatchReaderLifecycleEvent({ type: 'HYDRATE_SUCCEEDED_NO_CHAPTERS' });
       return;
     }
 
+    dispatchReaderLifecycleEvent({ type: 'NOVEL_OPEN_STARTED' });
     let cancelled = false;
 
     Promise.resolve().then(async () => {
       if (cancelled) {
         return;
       }
-
-      setLifecycleStatus('loading-chapters');
 
       try {
         const hydrateResult = await hydrateReaderDataRef.current();
@@ -294,20 +302,23 @@ export function useReaderLifecycleController({
 
         if (!hydrateResult.hasChapters) {
           hasInitializedRef.current = true;
-          setLifecycleStatus('ready');
+          dispatchReaderLifecycleEvent({ type: 'HYDRATE_SUCCEEDED_NO_CHAPTERS' });
           return;
         }
 
+        dispatchReaderLifecycleEvent({ type: 'HYDRATE_SUCCEEDED_WITH_CHAPTERS' });
         const initialLoadParams = buildLoadParamsFromHydratedState(hydrateResult);
         hasInitializedRef.current = true;
         if (!initialLoadParams) {
-          setLifecycleStatus('ready');
+          dispatchReaderLifecycleEvent({
+            type: 'CHAPTER_LOAD_COMPLETED_NO_RESTORE',
+            awaitingPagedLayout: false,
+          });
           return;
         }
 
         queuedInitialLoadParamsRef.current = initialLoadParams;
         queuedInitialRestoreTargetRef.current = hydrateResult.initialRestoreTarget;
-        setLifecycleStatus('loading-chapter');
       } catch (error) {
         if (cancelled) {
           return;
@@ -317,7 +328,7 @@ export function useReaderLifecycleController({
         }
 
         setControllerError(error as AppError);
-        setLifecycleStatus('error');
+        dispatchReaderLifecycleEvent({ type: 'HYDRATE_FAILED' });
       }
     });
 
@@ -379,23 +390,21 @@ export function useReaderLifecycleController({
   ]);
 
   useEffect(() => {
-    if (!renderableChapter || !isPagedMode || currentPagedLayoutChapterIndex !== chapterIndex) {
-      return;
-    }
-
-    if (lifecycleStatus === 'loading-chapter') {
-      setLifecycleStatus('ready');
-      return;
-    }
-
     if (
-      lifecycleStatus === 'restoring-position'
-      && awaitingRestoreLoadKeyRef.current === currentLoadKey
-      && pendingRestoreTarget === null
+      lifecycleStatus !== 'restoring-position'
+      || awaitingRestoreLoadKeyRef.current !== currentLoadKey
+      || pendingRestoreTarget !== null
     ) {
-      awaitingRestoreLoadKeyRef.current = null;
-      setLifecycleStatus('ready');
+      return;
     }
+
+    awaitingRestoreLoadKeyRef.current = null;
+    dispatchReaderLifecycleEvent({
+      type: 'RESTORE_SETTLED',
+      result: 'completed',
+      awaitingPagedLayout:
+        isPagedMode && currentPagedLayoutChapterIndex !== chapterIndex,
+    });
   }, [
     chapterIndex,
     currentLoadKey,
@@ -403,6 +412,24 @@ export function useReaderLifecycleController({
     isPagedMode,
     lifecycleStatus,
     pendingRestoreTarget,
+  ]);
+
+  useEffect(() => {
+    if (
+      lifecycleStatus !== 'awaiting-paged-layout'
+      || !renderableChapter
+      || !isPagedMode
+      || currentPagedLayoutChapterIndex !== chapterIndex
+    ) {
+      return;
+    }
+
+    dispatchReaderLifecycleEvent({ type: 'PAGED_LAYOUT_READY' });
+  }, [
+    chapterIndex,
+    currentPagedLayoutChapterIndex,
+    isPagedMode,
+    lifecycleStatus,
     renderableChapter,
   ]);
 
@@ -412,16 +439,14 @@ export function useReaderLifecycleController({
     }
 
     awaitingRestoreLoadKeyRef.current = null;
-    if (result === 'failed') {
-      setLifecycleStatus('error');
-      return;
-    }
-
-    if (isPagedMode && currentPagedLayoutChapterIndex !== chapterIndex) {
-      return;
-    }
-
-    setLifecycleStatus('ready');
+    dispatchReaderLifecycleEvent({
+      type: 'RESTORE_SETTLED',
+      result,
+      awaitingPagedLayout:
+        result !== 'failed'
+        && isPagedMode
+        && currentPagedLayoutChapterIndex !== chapterIndex,
+    });
   }, [
     chapterIndex,
     currentLoadKey,

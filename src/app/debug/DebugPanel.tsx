@@ -51,7 +51,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   'character-graph': 'text-cyan-300',
 };
 
-const SNAPSHOT_ORDER = ['reader-layout', 'reader-restore', 'book-import', 'storage'];
+const SNAPSHOT_ORDER = ['reader-layout', 'reader-restore', 'reader-lifecycle', 'book-import', 'storage'];
 
 interface ReaderLayoutDiagnosticSnapshot {
   novelId: number | null;
@@ -72,6 +72,13 @@ interface ReaderRestoreDiagnosticSnapshot {
     chapterIndex?: number;
     mode?: string;
   };
+}
+
+interface ReaderLifecycleDiagnosticSnapshot {
+  currentState?: string;
+  lastEvent?: string | null;
+  loadKey?: string | null;
+  persistenceStatus?: string;
 }
 
 interface StorageDiagnosticSnapshot {
@@ -130,6 +137,8 @@ function getSnapshotLabel(
       return t('debug.diagnostics.labels.storage');
     case 'reader-restore':
       return t('debug.diagnostics.labels.readerRestore');
+    case 'reader-lifecycle':
+      return t('debug.diagnostics.labels.readerLifecycle');
     default:
       return key;
   }
@@ -208,6 +217,22 @@ function buildSnapshotPreview(
           attempts: value.attempts ?? 0,
           retryable: String(value.retryable ?? false),
         }),
+    ];
+  }
+
+  if (snapshot.key === 'reader-lifecycle') {
+    const value = snapshot.value as ReaderLifecycleDiagnosticSnapshot;
+    return [
+      t('debug.diagnostics.preview.lifecycleState', {
+        state: String(value.currentState ?? '-'),
+      }),
+      t('debug.diagnostics.preview.lifecycleEvent', {
+        event: String(value.lastEvent ?? '-'),
+      }),
+      t('debug.diagnostics.preview.lifecyclePersistence', {
+        status: String(value.persistenceStatus ?? '-'),
+        loadKey: String(value.loadKey ?? '-'),
+      }),
     ];
   }
 
