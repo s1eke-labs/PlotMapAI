@@ -3,7 +3,6 @@ import { subscribeWithSelector } from 'zustand/middleware';
 import { createStore, type StoreApi } from 'zustand/vanilla';
 
 import type { ReaderPageTurnMode } from '@shared/contracts/reader/preferences';
-import { isPagedPageTurnMode } from '@shared/contracts/reader/preferences';
 import {
   createPersistedRuntime,
 } from '@shared/stores/persistence/createPersistedRuntime';
@@ -33,8 +32,12 @@ import {
 import {
   buildStoredReaderState,
   clampChapterProgress,
+  clampPageIndex,
+  createDefaultStoredReaderState,
+  getStoredChapterIndex,
   mergeStoredReaderState,
-  resolveModeFromStoredState,
+  toCanonicalPositionFromLocator,
+  toReaderLocatorFromCanonical,
 } from './state';
 import {
   readReadingProgress,
@@ -103,44 +106,52 @@ function shouldMaskRestore(target: ReaderRestoreTarget | null | undefined): bool
 }
 
 function toStoredReaderState(state: ReaderSessionInternalState): StoredReaderState {
+  const canonical = state.canonical
+    ?? toCanonicalPositionFromLocator(state.locator)
+    ?? {
+      chapterIndex: state.chapterIndex,
+      edge: 'start' as const,
+    };
+
   return buildStoredReaderState({
-    chapterIndex: state.chapterIndex,
-    mode: state.mode,
-    chapterProgress: state.chapterProgress,
-    lastContentMode: state.lastContentMode,
-    locator: state.locator,
+    canonical,
+    hints: {
+      chapterProgress: clampChapterProgress(state.chapterProgress),
+      pageIndex: clampPageIndex(state.locator?.pageIndex),
+      contentMode: state.mode === 'summary' ? state.lastContentMode : state.mode,
+    },
   });
 }
 
-function getRemoteProgressSnapshot(progress: ReadingProgress): string {
+function getRemoteProgressSnapshot(progress: ReadingProgress | null): string {
+  if (!progress) {
+    return 'null';
+  }
+
   return JSON.stringify({
-    chapterIndex: progress.chapterIndex,
-    mode: progress.mode,
-    chapterProgress: clampChapterProgress(progress.chapterProgress) ?? null,
-    locator: progress.locator ?? null,
+    canonical: progress.canonical,
   });
 }
 
-function toRemoteProgress(state: ReaderSessionInternalState): ReadingProgress {
+function toRemoteProgress(state: ReaderSessionInternalState): ReadingProgress | null {
   return toReadingProgress(toStoredReaderState(state));
 }
 
-function inferPageTurnModeFromPersistedState(
-  state: StoredReaderState | null | undefined,
-): ReaderPageTurnMode {
-  return state?.mode === 'paged' || state?.lastContentMode === 'paged'
-    ? 'cover'
-    : 'scroll';
-}
-
 function createInitialReaderSessionState(): ReaderSessionInternalState {
+  const initialStoredState = createDefaultStoredReaderState();
+  const chapterIndex = getStoredChapterIndex(initialStoredState);
   const mode: ReaderMode = 'scroll';
+
   return {
     novelId: 0,
+    canonical: initialStoredState.canonical,
     mode,
-    chapterIndex: 0,
-    chapterProgress: undefined,
-    locator: undefined,
+    chapterIndex,
+    chapterProgress: initialStoredState.hints?.chapterProgress,
+    locator: toReaderLocatorFromCanonical(
+      initialStoredState.canonical,
+      initialStoredState.hints?.pageIndex,
+    ),
     restoreStatus: 'hydrating',
     lastContentMode: 'scroll',
     pendingRestoreTarget: null,
@@ -171,16 +182,17 @@ async function persistRemoteReaderSession(state: ReaderSessionInternalState): Pr
   }
 
   const progress = toRemoteProgress(state);
+  if (!progress) {
+    return;
+  }
+
   const snapshot = getRemoteProgressSnapshot(progress);
   if (snapshot === lastSyncedRemoteSnapshot) {
     return;
   }
 
   await replaceReadingProgress(novelId, {
-    chapterIndex: progress.chapterIndex,
-    mode: progress.mode,
-    chapterProgress: progress.chapterProgress,
-    locator: progress.locator,
+    canonical: progress.canonical,
   });
   setLastSyncedRemoteSnapshot(snapshot);
 }
@@ -205,21 +217,21 @@ function updateStoredReaderState(
 ): StoredReaderState {
   const currentState = readerSessionStore.getState();
   const merged = mergeStoredReaderState(toStoredReaderState(currentState), nextState);
-  const mode = resolveModeFromStoredState(merged);
-  const nextLastContentMode = merged.lastContentMode
-    ?? resolveLastContentMode(mode, currentState.lastContentMode);
+  const nextCanonical = merged.canonical;
+  const nextChapterIndex = getStoredChapterIndex(merged);
+  const nextLocator = toReaderLocatorFromCanonical(nextCanonical, merged.hints?.pageIndex);
+  const shouldPersistRemote = options.persistRemote ?? true;
 
   readerSessionRuntime.patch({
-    mode,
-    chapterIndex: merged.chapterIndex ?? 0,
-    chapterProgress: clampChapterProgress(merged.chapterProgress),
-    locator: merged.locator,
-    lastContentMode: resolveLastContentMode(mode, nextLastContentMode),
+    canonical: nextCanonical,
+    chapterIndex: nextChapterIndex,
+    chapterProgress: clampChapterProgress(merged.hints?.chapterProgress),
+    locator: nextLocator,
     hasUserInteracted: options.markUserInteracted ?? currentState.hasUserInteracted,
   }, {
-    bumpRevision: options.persistRemote,
+    bumpRevision: shouldPersistRemote,
     flush: options.flush,
-    persist: options.persistRemote,
+    persist: shouldPersistRemote,
   });
 
   return merged;
@@ -233,15 +245,17 @@ export async function hydrateSession(
   sessionHydrationEpoch += 1;
   const epochAtStart = sessionHydrationEpoch;
   const localState = readLocalSessionState(novelId);
+  const initialStoredState = createDefaultStoredReaderState();
 
   readerSessionRuntime.patch({
     novelId,
     restoreStatus: 'hydrating',
     pendingRestoreTarget: null,
     hasUserInteracted: false,
-    chapterIndex: 0,
+    canonical: initialStoredState.canonical,
+    chapterIndex: getStoredChapterIndex(initialStoredState),
     chapterProgress: undefined,
-    locator: undefined,
+    locator: toReaderLocatorFromCanonical(initialStoredState.canonical),
     mode: 'scroll',
     lastContentMode: 'scroll',
   }, { writeCache: false });
@@ -260,57 +274,58 @@ export async function hydrateSession(
     return buildStoredReaderState(remoteState ?? localState);
   }
 
-  const baseState = remoteState ?? localState;
-  const resolvedPageTurnMode = options.hasConfiguredPageTurnMode && options.pageTurnMode
-    ? options.pageTurnMode
-    : inferPageTurnModeFromPersistedState(baseState);
-  const resolvedContentMode = resolveContentModeFromPageTurnMode(resolvedPageTurnMode);
-  const mode = baseState?.mode === 'summary'
-    ? 'summary'
-    : resolvedContentMode;
+  const baseState = buildStoredReaderState(remoteState ?? localState);
+  const resolvedPageTurnMode = options.pageTurnMode ?? 'scroll';
+  const mode = resolveContentModeFromPageTurnMode(resolvedPageTurnMode);
   const nextLastContentMode = resolveLastContentMode(
     mode,
-    isPagedPageTurnMode(resolvedPageTurnMode) ? 'paged' : 'scroll',
+    mode === 'paged' ? 'paged' : 'scroll',
   );
-  const hydratedState = buildStoredReaderState({
-    ...baseState,
-    mode,
-    lastContentMode: nextLastContentMode,
-  });
-  const pendingRestoreTarget = createRestoreTargetFromPersistedState(hydratedState);
+  const pendingRestoreTarget = createRestoreTargetFromPersistedState(baseState, mode);
 
   readerSessionRuntime.patch({
     novelId,
+    canonical: baseState.canonical,
     mode,
-    chapterIndex: hydratedState.chapterIndex ?? 0,
-    chapterProgress: clampChapterProgress(hydratedState.chapterProgress),
-    locator: hydratedState.locator,
+    chapterIndex: getStoredChapterIndex(baseState),
+    chapterProgress: clampChapterProgress(baseState.hints?.chapterProgress),
+    locator: toReaderLocatorFromCanonical(baseState.canonical, baseState.hints?.pageIndex),
     lastContentMode: nextLastContentMode,
     pendingRestoreTarget,
     restoreStatus: shouldMaskRestore(pendingRestoreTarget) ? 'restoring' : 'ready',
   });
 
-  return hydratedState;
+  return baseState;
 }
 
 export function setMode(mode: ReaderMode, options: SessionUpdateOptions = {}): void {
   const currentState = readerSessionStore.getState();
-  updateStoredReaderState(
-    {
-      chapterIndex: currentState.chapterIndex,
-      chapterProgress: currentState.chapterProgress,
-      mode,
-      lastContentMode: resolveLastContentMode(mode, currentState.lastContentMode),
-    },
-    { persistRemote: true, markUserInteracted: options.markUserInteracted, flush: options.flush },
-  );
+  readerSessionRuntime.patch({
+    mode,
+    lastContentMode: resolveLastContentMode(mode, currentState.lastContentMode),
+    hasUserInteracted: options.markUserInteracted ?? currentState.hasUserInteracted,
+  }, {
+    flush: options.flush,
+    persist: false,
+  });
 }
 
 export function setChapterIndex(chapterIndex: number, options: SessionUpdateOptions = {}): void {
-  updateStoredReaderState(
-    { chapterIndex },
-    { persistRemote: true, markUserInteracted: options.markUserInteracted, flush: options.flush },
-  );
+  const currentState = readerSessionStore.getState();
+  const shouldPersistRemote = options.persistRemote ?? false;
+
+  readerSessionRuntime.patch({
+    chapterIndex,
+    chapterProgress:
+      currentState.chapterIndex === chapterIndex ? currentState.chapterProgress : undefined,
+    locator:
+      currentState.locator?.chapterIndex === chapterIndex ? currentState.locator : undefined,
+    hasUserInteracted: options.markUserInteracted ?? currentState.hasUserInteracted,
+  }, {
+    bumpRevision: shouldPersistRemote,
+    flush: options.flush,
+    persist: shouldPersistRemote,
+  });
 }
 
 export function setReadingPosition(
@@ -377,10 +392,10 @@ export function readInitialStoredReaderState(novelId: number): StoredReaderState
 
 export function persistStoredReaderState(
   nextState: StoredReaderState,
-  options?: { flush?: boolean },
+  options?: { flush?: boolean; persistRemote?: boolean },
 ): void {
   updateStoredReaderState(nextState, {
-    persistRemote: true,
+    persistRemote: options?.persistRemote ?? true,
     flush: options?.flush,
   });
 }

@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import type {
   ChapterChangeSource,
+  ReaderLocator,
   ReaderRestoreTarget,
   RestoreSettledResult,
   StoredReaderState,
@@ -42,11 +43,16 @@ function makeContainer({
 
 function createStoredState(overrides: StoredReaderState = {}): StoredReaderState {
   return {
-    chapterIndex: 5,
-    mode: 'scroll',
-    chapterProgress: 0.4,
-    lastContentMode: 'scroll',
-    locator: undefined,
+    canonical: {
+      chapterIndex: 5,
+      blockIndex: 2,
+      kind: 'text',
+      lineIndex: 0,
+    },
+    hints: {
+      chapterProgress: 0.4,
+      contentMode: 'scroll',
+    },
     ...overrides,
   };
 }
@@ -78,7 +84,7 @@ function createCurrentChapter(index = 5) {
   };
 }
 
-function createLocator(overrides: Partial<NonNullable<StoredReaderState['locator']>> = {}) {
+function createLocator(overrides: Partial<ReaderLocator> = {}): ReaderLocator {
   return {
     chapterIndex: 5,
     blockIndex: 2,
@@ -94,10 +100,10 @@ interface RestoreRuntimeHarness {
   contentRef: { current: HTMLDivElement | null };
   getCurrentAnchorRef: { current: () => ScrollModeAnchor | null };
   getCurrentOriginalLocatorRef: {
-    current: () => NonNullable<StoredReaderState['locator']> | null;
+    current: () => ReaderLocator | null;
   };
   getCurrentPagedLocatorRef: {
-    current: () => NonNullable<StoredReaderState['locator']> | null;
+    current: () => ReaderLocator | null;
   };
   isScrollSyncSuppressedRef: { current: boolean };
   preparePersistenceFlushRef: { current: () => void };
@@ -334,7 +340,6 @@ describe('useReaderRestoreFlow', () => {
     expect(result.current.pendingRestoreTargetRef.current).toMatchObject({
       chapterIndex: 5,
       mode: 'scroll',
-      locator,
     });
     expect(markUserInteracted).toHaveBeenCalledTimes(2);
     expect(setChapterIndex).toHaveBeenLastCalledWith(5);
@@ -345,8 +350,7 @@ describe('useReaderRestoreFlow', () => {
     const persistReaderState = vi.fn();
     const latestReaderStateRef = {
       current: createStoredState({
-        chapterIndex: 8,
-        locator: createLocator({
+        canonical: createLocator({
           chapterIndex: 8,
         }),
       }),
@@ -383,16 +387,12 @@ describe('useReaderRestoreFlow', () => {
     });
 
     expect(persistReaderState).toHaveBeenCalledWith(expect.objectContaining({
-      chapterIndex: 8,
-      locator: latestReaderStateRef.current.locator,
-      mode: 'scroll',
+      canonical: latestReaderStateRef.current.canonical,
     }), {
       flush: undefined,
     });
     expect(capturedState).toMatchObject({
-      chapterIndex: 8,
-      locator: latestReaderStateRef.current.locator,
-      mode: 'scroll',
+      canonical: latestReaderStateRef.current.canonical,
     });
   });
 
@@ -429,9 +429,12 @@ describe('useReaderRestoreFlow', () => {
     });
 
     expect(persistReaderState).toHaveBeenCalledWith(expect.objectContaining({
-      chapterIndex: 5,
-      locator,
-      mode: 'scroll',
+      canonical: {
+        chapterIndex: 5,
+        blockIndex: 2,
+        kind: 'text',
+        lineIndex: 0,
+      },
     }), {
       flush: undefined,
     });
@@ -466,9 +469,12 @@ describe('useReaderRestoreFlow', () => {
     unmount();
 
     expect(persistReaderState).toHaveBeenCalledWith(expect.objectContaining({
-      chapterIndex: 5,
-      locator,
-      mode: 'scroll',
+      canonical: {
+        chapterIndex: 5,
+        blockIndex: 2,
+        kind: 'text',
+        lineIndex: 0,
+      },
     }), {
       flush: undefined,
     });

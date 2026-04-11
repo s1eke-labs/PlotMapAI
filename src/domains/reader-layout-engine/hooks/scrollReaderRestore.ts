@@ -3,6 +3,7 @@ import type {
   ChapterContent,
   ReaderLocator,
   ReaderRestoreTarget,
+  StoredReaderState,
 } from '@shared/contracts/reader';
 import type { ScrollReaderLayout } from './scrollReaderControllerTypes';
 
@@ -13,6 +14,7 @@ import {
   canSkipReaderRestore,
   SCROLL_READING_ANCHOR_RATIO,
 } from '@shared/utils/readerPosition';
+import { toCanonicalPositionFromLocator } from '@shared/utils/readerStoredState';
 import { buildFocusedScrollWindow } from '../scroll-runtime/internal';
 
 function setStableRestoreWindow(
@@ -41,11 +43,7 @@ export function useScrollReaderRestore(params: {
   };
   pendingRestoreTarget: ReaderRestoreTarget | null;
   pendingRestoreTargetRef: MutableRefObject<ReaderRestoreTarget | null>;
-  persistReaderState: (state: {
-    chapterIndex: number;
-    locator?: ReaderLocator;
-    mode: 'scroll';
-  }) => void;
+  persistReaderState: (state: StoredReaderState) => void;
   persistence: {
     notifyRestoreSettled: (status: 'completed' | 'skipped') => void;
     suppressScrollSyncTemporarily: () => void;
@@ -218,9 +216,11 @@ export function useScrollReaderRestore(params: {
       container.scrollTop = resolvedTarget.scrollTop;
       if (resolvedTarget.locator) {
         persistReaderState({
-          chapterIndex: resolvedTarget.locator.chapterIndex,
-          mode: 'scroll',
-          locator: resolvedTarget.locator,
+          canonical: toCanonicalPositionFromLocator(resolvedTarget.locator),
+          hints: {
+            pageIndex: undefined,
+            contentMode: 'scroll',
+          },
         });
       }
       navigation.setChapterChangeSource(null);

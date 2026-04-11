@@ -15,20 +15,28 @@ describe('readerStateCache', () => {
 
   it('round-trips a typed reader bootstrap snapshot', () => {
     writeReaderBootstrapSnapshot(7, {
-      chapterIndex: 3,
-      mode: 'summary',
-      chapterProgress: 0.4,
-      lastContentMode: 'paged',
+      canonical: {
+        chapterIndex: 3,
+        edge: 'start',
+      },
+      hints: {
+        chapterProgress: 0.4,
+        contentMode: 'paged',
+      },
     });
 
     expect(readReaderBootstrapSnapshot(7)).toEqual({
-      version: 1,
+      version: 2,
       state: {
-        chapterIndex: 3,
-        mode: 'summary',
-        chapterProgress: 0.4,
-        lastContentMode: 'paged',
-        locator: undefined,
+        canonical: {
+          chapterIndex: 3,
+          edge: 'start',
+        },
+        hints: {
+          chapterProgress: 0.4,
+          contentMode: 'paged',
+          pageIndex: undefined,
+        },
       },
     });
   });
@@ -45,18 +53,20 @@ describe('readerStateCache', () => {
 
   it('treats a snapshot with an invalid state schema as invalid', () => {
     storage.cache.set(CACHE_KEYS.readerBootstrap(7), {
-      version: 1,
-      state: {
-        chapterIndex: '3',
-        mode: 'summary',
-      },
+      version: 2,
+      state: null,
     });
 
     expect(readReaderBootstrapSnapshot(7)).toBeNull();
   });
 
   it('clears the typed bootstrap snapshot', () => {
-    writeReaderBootstrapSnapshot(7, { chapterIndex: 2, mode: 'scroll' });
+    writeReaderBootstrapSnapshot(7, {
+      canonical: {
+        chapterIndex: 2,
+        edge: 'start',
+      },
+    });
     clearReaderBootstrapSnapshot(7);
 
     expect(readReaderBootstrapSnapshot(7)).toBeNull();

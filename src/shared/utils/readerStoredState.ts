@@ -1,4 +1,63 @@
-import type { ReaderLocator, ReaderMode, StoredReaderState } from '@shared/contracts/reader';
+import type {
+  CanonicalPosition,
+  ReaderLocator,
+  StoredReaderState,
+} from '@shared/contracts/reader';
+
+function hasOwn<T extends object>(obj: T, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(obj, key);
+}
+
+function isValidLocatorKind(value: unknown): value is NonNullable<CanonicalPosition['kind']> {
+  return value === 'heading' || value === 'text' || value === 'image';
+}
+
+function isContentMode(
+  value: unknown,
+): value is NonNullable<NonNullable<StoredReaderState['hints']>['contentMode']> {
+  return value === 'scroll' || value === 'paged';
+}
+
+function toChapterBoundaryCanonical(
+  chapterIndex: number | undefined,
+): CanonicalPosition | undefined {
+  if (typeof chapterIndex !== 'number') {
+    return undefined;
+  }
+
+  return {
+    chapterIndex,
+    edge: 'start',
+  };
+}
+
+function resolveLegacyContentMode(
+  source: Record<string, unknown>,
+): NonNullable<NonNullable<StoredReaderState['hints']>['contentMode']> | undefined {
+  if (isContentMode(source.mode)) {
+    return source.mode;
+  }
+  if (isContentMode(source.lastContentMode)) {
+    return source.lastContentMode;
+  }
+  return undefined;
+}
+
+function buildLegacyHints(
+  chapterProgress: number | undefined,
+  pageIndex: number | undefined,
+  contentMode: NonNullable<NonNullable<StoredReaderState['hints']>['contentMode']> | undefined,
+): StoredReaderState['hints'] {
+  if (chapterProgress === undefined && pageIndex === undefined && !contentMode) {
+    return undefined;
+  }
+
+  return {
+    chapterProgress,
+    pageIndex,
+    contentMode,
+  };
+}
 
 export function clampChapterProgress(value: number | undefined): number | undefined {
   if (typeof value !== 'number' || Number.isNaN(value)) return undefined;
@@ -7,11 +66,70 @@ export function clampChapterProgress(value: number | undefined): number | undefi
   return value;
 }
 
-export function shouldUseLocatorAsPrimaryPosition(
-  mode: ReaderMode | undefined,
-  locator: ReaderLocator | null | undefined,
-): locator is ReaderLocator {
-  return mode !== 'summary' && Boolean(locator);
+export function clampPageIndex(value: number | undefined): number | undefined {
+  if (typeof value !== 'number' || Number.isNaN(value)) return undefined;
+  if (value < 0) return 0;
+  return Math.floor(value);
+}
+
+export function sanitizeCanonicalPosition(raw: unknown): CanonicalPosition | undefined {
+  if (!raw || typeof raw !== 'object') {
+    return undefined;
+  }
+
+  const parsed = raw as Record<string, unknown>;
+  if (typeof parsed.chapterIndex !== 'number') {
+    return undefined;
+  }
+
+  const canonical: CanonicalPosition = {
+    chapterIndex: parsed.chapterIndex,
+  };
+
+  if (typeof parsed.blockIndex === 'number') {
+    canonical.blockIndex = parsed.blockIndex;
+  }
+  if (isValidLocatorKind(parsed.kind)) {
+    canonical.kind = parsed.kind;
+  }
+  if (typeof parsed.lineIndex === 'number') {
+    canonical.lineIndex = parsed.lineIndex;
+  }
+
+  const startCursor = parsed.startCursor && typeof parsed.startCursor === 'object'
+    ? parsed.startCursor as Record<string, unknown>
+    : null;
+  const endCursor = parsed.endCursor && typeof parsed.endCursor === 'object'
+    ? parsed.endCursor as Record<string, unknown>
+    : null;
+
+  if (
+    startCursor
+    && typeof startCursor.segmentIndex === 'number'
+    && typeof startCursor.graphemeIndex === 'number'
+  ) {
+    canonical.startCursor = {
+      segmentIndex: startCursor.segmentIndex,
+      graphemeIndex: startCursor.graphemeIndex,
+    };
+  }
+
+  if (
+    endCursor
+    && typeof endCursor.segmentIndex === 'number'
+    && typeof endCursor.graphemeIndex === 'number'
+  ) {
+    canonical.endCursor = {
+      segmentIndex: endCursor.segmentIndex,
+      graphemeIndex: endCursor.graphemeIndex,
+    };
+  }
+
+  if (parsed.edge === 'start' || parsed.edge === 'end') {
+    canonical.edge = parsed.edge;
+  }
+
+  return canonical;
 }
 
 export function sanitizeLocator(raw: unknown): ReaderLocator | undefined {
@@ -61,51 +179,156 @@ export function sanitizeLocator(raw: unknown): ReaderLocator | undefined {
   };
 }
 
-export function sanitizeStoredReaderState(raw: unknown): StoredReaderState | null {
-  if (!raw || typeof raw !== 'object') return null;
+export function toCanonicalPositionFromLocator(
+  locator?: ReaderLocator,
+): CanonicalPosition | undefined {
+  if (!locator) {
+    return undefined;
+  }
+
+  return {
+    chapterIndex: locator.chapterIndex,
+    blockIndex: locator.blockIndex,
+    kind: locator.kind,
+    lineIndex: locator.lineIndex,
+    startCursor: locator.startCursor ? { ...locator.startCursor } : undefined,
+    endCursor: locator.endCursor ? { ...locator.endCursor } : undefined,
+    edge: locator.edge,
+  };
+}
+
+export function toReaderLocatorFromCanonical(
+  canonical: CanonicalPosition | null | undefined,
+  pageIndexHint?: number,
+): ReaderLocator | undefined {
+  if (!canonical || typeof canonical.blockIndex !== 'number' || !canonical.kind) {
+    return undefined;
+  }
+
+  return {
+    chapterIndex: canonical.chapterIndex,
+    blockIndex: canonical.blockIndex,
+    kind: canonical.kind,
+    lineIndex: canonical.lineIndex,
+    startCursor: canonical.startCursor ? { ...canonical.startCursor } : undefined,
+    endCursor: canonical.endCursor ? { ...canonical.endCursor } : undefined,
+    edge: canonical.edge,
+    pageIndex: clampPageIndex(pageIndexHint),
+  };
+}
+
+function normalizeHints(raw: unknown): StoredReaderState['hints'] {
+  if (!raw || typeof raw !== 'object') {
+    return undefined;
+  }
+
   const parsed = raw as Record<string, unknown>;
-  const mode = parsed.mode === 'scroll' || parsed.mode === 'paged' || parsed.mode === 'summary'
-    ? parsed.mode
+  const chapterProgress = clampChapterProgress(
+    typeof parsed.chapterProgress === 'number' ? parsed.chapterProgress : undefined,
+  );
+  const pageIndex = clampPageIndex(
+    typeof parsed.pageIndex === 'number' ? parsed.pageIndex : undefined,
+  );
+  const contentMode = parsed.contentMode === 'scroll' || parsed.contentMode === 'paged'
+    ? parsed.contentMode
     : undefined;
-  const locator = sanitizeLocator(parsed.locator);
-  const chapterIndex = typeof parsed.chapterIndex === 'number' ? parsed.chapterIndex : undefined;
+
+  if (chapterProgress === undefined && pageIndex === undefined && !contentMode) {
+    return undefined;
+  }
+
+  return {
+    chapterProgress,
+    pageIndex,
+    contentMode,
+  };
+}
+
+export function sanitizeStoredReaderState(raw: unknown): StoredReaderState | null {
+  if (!raw || typeof raw !== 'object') {
+    return null;
+  }
+
+  const parsed = raw as Record<string, unknown>;
+  const legacyLocator = sanitizeLocator(parsed.locator);
+  const legacyChapterIndex = typeof parsed.chapterIndex === 'number' ? parsed.chapterIndex : undefined;
+  const canonical = sanitizeCanonicalPosition(parsed.canonical)
+    ?? toCanonicalPositionFromLocator(legacyLocator)
+    ?? toChapterBoundaryCanonical(legacyChapterIndex);
+
+  const normalizedHints = normalizeHints(parsed.hints);
+  const legacyChapterProgress = clampChapterProgress(
+    typeof parsed.chapterProgress === 'number' ? parsed.chapterProgress : undefined,
+  );
+  const legacyPageIndex = clampPageIndex(
+    typeof parsed.pageIndex === 'number'
+      ? parsed.pageIndex
+      : legacyLocator?.pageIndex,
+  );
+  const legacyContentMode = resolveLegacyContentMode(parsed);
+  const hints = normalizedHints ?? buildLegacyHints(
+    legacyChapterProgress,
+    legacyPageIndex,
+    legacyContentMode,
+  );
 
   return buildStoredReaderState({
-    chapterIndex: locator?.chapterIndex ?? chapterIndex,
-    mode,
-    chapterProgress: clampChapterProgress(
-      typeof parsed.chapterProgress === 'number' ? parsed.chapterProgress : undefined,
-    ),
-    lastContentMode: parsed.lastContentMode === 'paged' || parsed.lastContentMode === 'scroll'
-      ? parsed.lastContentMode
-      : undefined,
-    locator,
+    canonical,
+    hints,
   });
 }
 
-export function resolveModeFromStoredState(
+export function getStoredChapterIndex(
   state: StoredReaderState | null | undefined,
-): ReaderMode {
-  return state?.mode ?? 'scroll';
+): number {
+  if (typeof state?.canonical?.chapterIndex === 'number') {
+    return state.canonical.chapterIndex;
+  }
+
+  const legacy = state as Record<string, unknown> | null | undefined;
+  if (typeof legacy?.chapterIndex === 'number') {
+    return legacy.chapterIndex;
+  }
+
+  const locator = sanitizeLocator(legacy?.locator);
+  return locator?.chapterIndex ?? 0;
 }
 
 export function buildStoredReaderState(
   state: StoredReaderState | null | undefined,
 ): StoredReaderState {
-  const mode = resolveModeFromStoredState(state);
-  const primaryLocator = shouldUseLocatorAsPrimaryPosition(mode, state?.locator)
-    ? state.locator
+  const legacyState = state as Record<string, unknown> | null | undefined;
+  const legacyLocator = sanitizeLocator(legacyState?.locator);
+  const legacyChapterIndex = typeof legacyState?.chapterIndex === 'number'
+    ? legacyState.chapterIndex
     : undefined;
-  const chapterProgress = mode === 'summary'
-    ? clampChapterProgress(state?.chapterProgress)
-    : undefined;
+  const canonical = sanitizeCanonicalPosition(state?.canonical)
+    ?? toCanonicalPositionFromLocator(legacyLocator)
+    ?? toChapterBoundaryCanonical(legacyChapterIndex)
+    ?? createDefaultStoredReaderState().canonical;
+  const normalizedHints = normalizeHints(state?.hints);
+  const legacyChapterProgress = clampChapterProgress(
+    typeof legacyState?.chapterProgress === 'number'
+      ? legacyState.chapterProgress
+      : undefined,
+  );
+  const legacyPageIndex = clampPageIndex(
+    typeof legacyState?.pageIndex === 'number'
+      ? legacyState.pageIndex
+      : legacyLocator?.pageIndex,
+  );
+  const legacyContentMode = resolveLegacyContentMode(
+    legacyState ?? {},
+  );
+  const hints = normalizedHints ?? buildLegacyHints(
+    legacyChapterProgress,
+    legacyPageIndex,
+    legacyContentMode,
+  );
 
   return {
-    chapterIndex: primaryLocator?.chapterIndex ?? state?.chapterIndex ?? 0,
-    mode,
-    chapterProgress,
-    lastContentMode: state?.lastContentMode ?? (mode === 'paged' ? 'paged' : 'scroll'),
-    locator: primaryLocator,
+    canonical,
+    hints,
   };
 }
 
@@ -118,44 +341,52 @@ export function mergeStoredReaderState(
     return canonicalBaseState;
   }
 
-  const nextMode = overrideState.mode ?? canonicalBaseState.mode;
-  const overrideLocator = shouldUseLocatorAsPrimaryPosition(nextMode, overrideState.locator)
-    ? overrideState.locator
-    : undefined;
-  const nextChapterIndex = overrideLocator?.chapterIndex
-    ?? overrideState.chapterIndex
-    ?? canonicalBaseState.chapterIndex;
-  const chapterIndexChanged = nextChapterIndex !== canonicalBaseState.chapterIndex;
-  const nextChapterProgress = nextMode === 'summary'
-    ? clampChapterProgress(
-      overrideState.chapterProgress
-        ?? (
-          !chapterIndexChanged && canonicalBaseState.mode === 'summary'
-            ? canonicalBaseState.chapterProgress
-            : undefined
-        ),
-    )
-    : undefined;
-  const nextLocator = nextMode === 'summary'
-    ? undefined
-    : overrideLocator
-      ?? (chapterIndexChanged ? undefined : canonicalBaseState.locator);
+  const overrideCanonical = sanitizeCanonicalPosition(overrideState.canonical);
+  const nextCanonical = overrideCanonical ?? canonicalBaseState.canonical;
+  const chapterChanged =
+    nextCanonical?.chapterIndex !== canonicalBaseState.canonical?.chapterIndex;
+
+  const baseHints = canonicalBaseState.hints;
+  const overrideHints = normalizeHints(overrideState.hints) ?? overrideState.hints;
+  const hasOverrideHints = Boolean(overrideHints && typeof overrideHints === 'object');
+  const hasChapterProgressOverride = hasOverrideHints
+    && hasOwn(overrideHints as Record<string, unknown>, 'chapterProgress');
+  const hasPageIndexOverride = hasOverrideHints
+    && hasOwn(overrideHints as Record<string, unknown>, 'pageIndex');
+
+  let nextChapterProgress: number | undefined;
+  if (hasChapterProgressOverride) {
+    nextChapterProgress = clampChapterProgress(overrideHints?.chapterProgress);
+  } else if (!chapterChanged) {
+    nextChapterProgress = baseHints?.chapterProgress;
+  }
+
+  let nextPageIndex: number | undefined;
+  if (hasPageIndexOverride) {
+    nextPageIndex = clampPageIndex(overrideHints?.pageIndex);
+  } else if (!chapterChanged) {
+    nextPageIndex = baseHints?.pageIndex;
+  }
+
+  const nextContentMode = overrideHints?.contentMode ?? baseHints?.contentMode;
+  const nextHints = buildLegacyHints(
+    nextChapterProgress,
+    nextPageIndex,
+    nextContentMode,
+  );
 
   return buildStoredReaderState({
-    chapterIndex: nextChapterIndex,
-    mode: nextMode,
-    chapterProgress: nextChapterProgress,
-    lastContentMode: overrideState?.lastContentMode ?? canonicalBaseState.lastContentMode,
-    locator: nextLocator,
+    canonical: nextCanonical,
+    hints: nextHints,
   });
 }
 
 export function createDefaultStoredReaderState(): StoredReaderState {
   return {
-    chapterIndex: 0,
-    mode: 'scroll',
-    chapterProgress: undefined,
-    lastContentMode: 'scroll',
-    locator: undefined,
+    canonical: {
+      chapterIndex: 0,
+      edge: 'start',
+    },
+    hints: undefined,
   };
 }

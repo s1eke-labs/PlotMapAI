@@ -9,14 +9,11 @@ import {
 } from '../mapper';
 
 describe('reader session mapper', () => {
-  it('maps persisted progress into stored reader state', () => {
+  it('maps canonical persisted progress into stored reader state', () => {
     const record: ReadingProgressRecord = {
       id: 1,
       novelId: 7,
-      chapterIndex: 4,
-      mode: 'paged',
-      chapterProgress: undefined,
-      locator: {
+      canonical: {
         chapterIndex: 4,
         blockIndex: 2,
         kind: 'text',
@@ -26,30 +23,45 @@ describe('reader session mapper', () => {
     };
 
     expect(toStoredReaderState(record)).toMatchObject({
-      chapterIndex: 4,
-      mode: 'paged',
-      locator: {
+      canonical: {
         chapterIndex: 4,
         blockIndex: 2,
         kind: 'text',
         lineIndex: 3,
       },
+      hints: undefined,
     });
   });
 
-  it('maps canonical reader state into a persisted progress record', () => {
-    const state = {
-      chapterIndex: 2,
-      mode: 'summary' as const,
-      chapterProgress: 0.65,
-      lastContentMode: 'scroll' as const,
-    };
-
-    expect(toReadingProgress(state)).toEqual({
+  it('returns null for legacy mixed records without canonical payload', () => {
+    const legacyRecord: ReadingProgressRecord = {
+      id: 1,
+      novelId: 7,
       chapterIndex: 2,
       mode: 'summary',
       chapterProgress: 0.65,
-      locator: undefined,
+      updatedAt: '2026-04-01T00:00:00.000Z',
+    };
+
+    expect(toStoredReaderState(legacyRecord)).toBeNull();
+  });
+
+  it('maps canonical reader state into canonical persisted progress records', () => {
+    const state = {
+      canonical: {
+        chapterIndex: 2,
+        edge: 'start' as const,
+      },
+      hints: {
+        chapterProgress: 0.65,
+      },
+    };
+
+    expect(toReadingProgress(state)).toEqual({
+      canonical: {
+        chapterIndex: 2,
+        edge: 'start',
+      },
     });
     expect(toReadingProgressRecord({
       existingId: 1,
@@ -59,9 +71,10 @@ describe('reader session mapper', () => {
     })).toMatchObject({
       id: 1,
       novelId: 7,
-      chapterIndex: 2,
-      mode: 'summary',
-      chapterProgress: 0.65,
+      canonical: {
+        chapterIndex: 2,
+        edge: 'start',
+      },
     });
   });
 });

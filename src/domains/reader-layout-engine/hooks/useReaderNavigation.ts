@@ -9,6 +9,7 @@ import type {
 
 import type { UsePagedReaderControllerResult } from './usePagedReaderController';
 import { useReaderNavigationRuntime } from '@shared/reader-runtime';
+import { createCanonicalPositionFromNavigationIntent } from '@shared/utils/readerPosition';
 
 type NavigationDirection = 'next' | 'prev';
 
@@ -77,18 +78,17 @@ export function useReaderNavigation({
     navigation.setChapterChangeSource('navigation');
     navigation.setPendingPageTarget(pageTarget);
     setChapterIndex(targetIndex);
-    persistReaderState(
-      mode === 'summary'
+    persistReaderState({
+      canonical: createCanonicalPositionFromNavigationIntent({
+        chapterIndex: targetIndex,
+        pageTarget,
+      }),
+      hints: mode === 'summary'
         ? {
-          chapterIndex: targetIndex,
-          mode,
           chapterProgress: pageTarget === 'end' ? 1 : 0,
         }
-        : {
-          chapterIndex: targetIndex,
-          mode,
-        },
-    );
+        : undefined,
+    });
   }, [
     beforeChapterChange,
     chapters.length,

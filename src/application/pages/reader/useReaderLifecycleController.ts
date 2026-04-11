@@ -16,6 +16,7 @@ import {
   useReaderPersistenceRuntime,
   useReaderViewportContext,
 } from '@shared/reader-runtime';
+import { getStoredChapterIndex } from '@shared/utils/readerStoredState';
 import { isPagedReaderMode } from '@shared/utils/readerMode';
 import { shouldKeepReaderRestoreMask } from '@shared/utils/readerPosition';
 
@@ -70,8 +71,18 @@ function buildLoadParamsFromHydratedState(
     return null;
   }
 
-  const chapterIndex = result.resolvedState.chapterIndex ?? result.storedState.chapterIndex ?? 0;
-  const mode = result.resolvedState.mode ?? result.storedState.mode ?? 'scroll';
+  const resolvedLegacy = result.resolvedState as Record<string, unknown>;
+  const storedLegacy = result.storedState as Record<string, unknown>;
+  const chapterIndex = getStoredChapterIndex(result.resolvedState);
+  const mode = result.resolvedState.hints?.contentMode
+    ?? result.storedState.hints?.contentMode
+    ?? (resolvedLegacy.mode === 'scroll' || resolvedLegacy.mode === 'paged'
+      ? resolvedLegacy.mode
+      : undefined)
+    ?? (storedLegacy.mode === 'scroll' || storedLegacy.mode === 'paged'
+      ? storedLegacy.mode
+      : undefined)
+    ?? 'scroll';
 
   return {
     chapterIndex,

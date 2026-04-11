@@ -14,6 +14,8 @@ import {
   useReaderNavigationRuntime,
   useReaderViewportContext,
 } from '@shared/reader-runtime';
+import { createCanonicalPositionFromNavigationIntent } from '@shared/utils/readerPosition';
+import { toCanonicalPositionFromLocator } from '@shared/utils/readerStoredState';
 import { resolveCurrentPagedLocator } from '../layout-core/internal';
 import {
   usePagedChapterPreviews,
@@ -265,8 +267,13 @@ export function usePagedReaderController({
     setPendingPageTarget(pageTarget);
     setChapterIndex(targetIndex);
     persistReaderState({
-      chapterIndex: targetIndex,
-      mode: 'paged',
+      canonical: createCanonicalPositionFromNavigationIntent({
+        chapterIndex: targetIndex,
+        pageTarget,
+      }),
+      hints: {
+        contentMode: 'paged',
+      },
     });
     return true;
   }, [
@@ -413,9 +420,14 @@ export function usePagedReaderController({
 
     const locator = layoutQueries.getCurrentPagedLocator();
     persistReaderState({
-      chapterIndex: locator?.chapterIndex ?? chapterIndex,
-      mode: 'paged',
-      locator: locator ?? undefined,
+      canonical: toCanonicalPositionFromLocator(locator ?? undefined) ?? {
+        chapterIndex,
+        edge: 'start',
+      },
+      hints: {
+        pageIndex: locator?.pageIndex ?? pageIndex,
+        contentMode: 'paged',
+      },
     });
   }, [
     chapterIndex,

@@ -11,11 +11,13 @@ export type {
   ReaderImageViewerViewportSize,
 } from './media';
 export type {
+  CanonicalPosition,
   ChapterChangeSource,
   PageTarget,
   ReaderLocatorBoundary,
   ReaderMode,
   ReaderNavigationIntent,
+  ReaderStateHints,
   ReaderRestoreTarget,
   ReaderSessionCommands,
   ReaderSessionSnapshot,

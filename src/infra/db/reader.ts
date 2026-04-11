@@ -25,6 +25,22 @@ export interface ReaderLocatorRecord {
   pageIndex?: number;
 }
 
+export interface CanonicalPositionRecord {
+  chapterIndex: number;
+  blockIndex?: number;
+  kind?: 'heading' | 'text' | 'image';
+  lineIndex?: number;
+  startCursor?: {
+    segmentIndex: number;
+    graphemeIndex: number;
+  };
+  endCursor?: {
+    segmentIndex: number;
+    graphemeIndex: number;
+  };
+  edge?: 'start' | 'end';
+}
+
 export interface ReaderLayoutCursorRecord {
   segmentIndex: number;
   graphemeIndex: number;
@@ -215,8 +231,10 @@ export type ReaderRenderTreeRecord =
 export interface ReadingProgressRecord {
   id: number;
   novelId: number;
-  chapterIndex: number;
-  mode: string;
+  canonical?: CanonicalPositionRecord;
+  // Legacy mixed-model fields retained only for read/drop compatibility.
+  chapterIndex?: number;
+  mode?: string;
   chapterProgress?: number;
   locator?: ReaderLocatorRecord;
   updatedAt: string;

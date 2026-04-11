@@ -16,10 +16,17 @@ import {
   useReaderSessionSelector,
 } from './readerSessionStore';
 import type { StoredReaderState } from '@shared/contracts/reader';
-import { createDefaultStoredReaderState, mergeStoredReaderState } from './state';
+import {
+  buildStoredReaderState,
+  clampChapterProgress,
+  clampPageIndex,
+  createDefaultStoredReaderState,
+  mergeStoredReaderState,
+} from './state';
 
 interface PersistReaderStateOptions {
   flush?: boolean;
+  persistRemote?: boolean;
 }
 
 export type { PageTarget, ReaderMode, ReaderNavigationIntent, ReaderRestoreTarget, StoredReaderState } from '@shared/contracts/reader';
@@ -27,19 +34,11 @@ export type { PageTarget, ReaderMode, ReaderNavigationIntent, ReaderRestoreTarge
 function buildNovelScopedInitialState(
   initialStoredState: StoredReaderState | null,
 ): StoredReaderState {
-  const resolvedMode = initialStoredState?.mode ?? 'scroll';
-
   if (!initialStoredState) {
     return createDefaultStoredReaderState();
   }
 
-  return {
-    chapterIndex: initialStoredState.chapterIndex ?? 0,
-    mode: resolvedMode,
-    chapterProgress: initialStoredState.chapterProgress,
-    lastContentMode: initialStoredState.lastContentMode ?? (resolvedMode === 'paged' ? 'paged' : 'scroll'),
-    locator: initialStoredState.locator,
-  };
+  return buildStoredReaderState(initialStoredState);
 }
 
 export function useReaderStatePersistence(novelId: number): {
@@ -53,19 +52,20 @@ export function useReaderStatePersistence(novelId: number): {
 } {
   const sessionNovelId = useReaderSessionSelector((state) => state.novelId);
   const hasUserInteracted = useReaderSessionSelector((state) => state.hasUserInteracted);
-  const chapterIndex = useReaderSessionSelector((state) => state.chapterIndex);
+  const canonical = useReaderSessionSelector((state) => state.canonical);
   const mode = useReaderSessionSelector((state) => state.mode);
-  const chapterProgress = useReaderSessionSelector((state) => state.chapterProgress);
   const lastContentMode = useReaderSessionSelector((state) => state.lastContentMode);
+  const chapterProgress = useReaderSessionSelector((state) => state.chapterProgress);
   const locator = useReaderSessionSelector((state) => state.locator);
   const storedState = useMemo<StoredReaderState>(() => ({
-    chapterIndex,
-    mode,
-    chapterProgress,
-    lastContentMode,
-    locator,
+    canonical,
+    hints: {
+      chapterProgress: clampChapterProgress(chapterProgress),
+      pageIndex: clampPageIndex(locator?.pageIndex),
+      contentMode: mode === 'summary' ? lastContentMode : mode,
+    },
   }), [
-    chapterIndex,
+    canonical,
     chapterProgress,
     lastContentMode,
     locator,
@@ -126,7 +126,10 @@ export function useReaderStatePersistence(novelId: number): {
       );
       persistStoredReaderState(
         mergedState,
-        { flush: options?.flush },
+        {
+          flush: options?.flush,
+          persistRemote: options?.persistRemote,
+        },
       );
       latestReaderStateRef.current = getStoredReaderStateSnapshot();
     },

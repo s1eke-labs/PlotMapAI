@@ -6,6 +6,7 @@ import {
   useReaderPersistenceRuntime,
   useReaderViewportContext,
 } from '@shared/reader-runtime';
+import { toCanonicalPositionFromLocator } from '@shared/utils/readerStoredState';
 
 import type {
   ScrollAnchorSnapshot,
@@ -98,9 +99,14 @@ export function useScrollReaderController({
 
     const locator = layoutQueries.getCurrentOriginalLocator();
     persistReaderState({
-      chapterIndex: locator?.chapterIndex ?? anchor.chapterIndex,
-      mode: 'scroll',
-      locator: locator ?? undefined,
+      canonical: toCanonicalPositionFromLocator(locator ?? undefined) ?? {
+        chapterIndex: anchor.chapterIndex,
+        edge: 'start',
+      },
+      hints: {
+        pageIndex: undefined,
+        contentMode: 'scroll',
+      },
     });
 
     const nextChapterIndex = locator?.chapterIndex ?? anchor.chapterIndex;

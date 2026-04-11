@@ -5,6 +5,7 @@ import type { UsePagedReaderViewportControllerResult } from '@domains/reader-lay
 import type { ReaderSessionCommands, ReaderSessionSnapshot } from '@domains/reader-session';
 
 import { useReaderNavigationRuntime } from '@shared/reader-runtime';
+import { createCanonicalPositionFromNavigationIntent } from '@shared/utils/readerPosition';
 
 import type { ReaderNavigationControllerResult } from './types';
 
@@ -59,18 +60,17 @@ export function useReaderNavigation({
     navigation.setChapterChangeSource('navigation');
     navigation.setPendingPageTarget(pageTarget);
     setChapterIndex(targetIndex);
-    persistReaderState(
-      mode === 'summary'
+    persistReaderState({
+      canonical: createCanonicalPositionFromNavigationIntent({
+        chapterIndex: targetIndex,
+        pageTarget,
+      }),
+      hints: mode === 'summary'
         ? {
-          chapterIndex: targetIndex,
-          mode,
           chapterProgress: pageTarget === 'end' ? 1 : 0,
         }
-        : {
-          chapterIndex: targetIndex,
-          mode,
-        },
-    );
+        : undefined,
+    });
   }, [
     beforeChapterChange,
     chapters.length,

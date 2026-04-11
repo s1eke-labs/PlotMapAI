@@ -249,11 +249,17 @@ describe('usePagedReaderController', () => {
     expect(sessionCommands.setChapterIndex).not.toHaveBeenCalled();
 
     await waitFor(() => {
-      expect(sessionCommands.persistReaderState).toHaveBeenLastCalledWith({
-        chapterIndex: 0,
-        locator: createLocator(0, 1),
-        mode: 'paged',
-      });
+      expect(sessionCommands.persistReaderState).toHaveBeenLastCalledWith(expect.objectContaining({
+        canonical: expect.objectContaining({
+          chapterIndex: 0,
+          blockIndex: 1,
+          kind: 'text',
+        }),
+        hints: expect.objectContaining({
+          pageIndex: 1,
+          contentMode: 'paged',
+        }),
+      }));
     });
   });
 
@@ -276,9 +282,14 @@ describe('usePagedReaderController', () => {
     expect(contextValue.getPendingPageTarget()).toBe('start');
     expect(result.current.pendingPageTarget).toBe('start');
     expect(sessionCommands.setChapterIndex).toHaveBeenCalledWith(1);
-    expect(sessionCommands.persistReaderState).toHaveBeenCalledWith({
-      chapterIndex: 1,
-      mode: 'paged',
+    expect(sessionCommands.persistReaderState).toHaveBeenLastCalledWith({
+      canonical: {
+        chapterIndex: 1,
+        edge: 'start',
+      },
+      hints: {
+        contentMode: 'paged',
+      },
     });
     expect(result.current.pageTurnDirection).toBe('next');
     expect(result.current.pageTurnToken).toBe(1);
@@ -347,11 +358,7 @@ describe('usePagedReaderController', () => {
       pendingRestoreTargetRef,
     });
 
-    expect(sessionCommands.persistReaderState).not.toHaveBeenCalledWith({
-      chapterIndex: 0,
-      locator,
-      mode: 'paged',
-    });
+    expect(sessionCommands.persistReaderState).not.toHaveBeenCalled();
 
     pendingRestoreTargetRef.current = null;
 
@@ -362,11 +369,17 @@ describe('usePagedReaderController', () => {
     });
 
     await waitFor(() => {
-      expect(sessionCommands.persistReaderState).toHaveBeenLastCalledWith({
-        chapterIndex: 0,
-        locator,
-        mode: 'paged',
-      });
+      expect(sessionCommands.persistReaderState).toHaveBeenLastCalledWith(expect.objectContaining({
+        canonical: expect.objectContaining({
+          chapterIndex: 0,
+          blockIndex: 0,
+          kind: 'text',
+        }),
+        hints: expect.objectContaining({
+          pageIndex: 0,
+          contentMode: 'paged',
+        }),
+      }));
     });
 
     act(() => {

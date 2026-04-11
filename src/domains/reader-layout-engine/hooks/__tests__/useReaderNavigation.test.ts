@@ -121,8 +121,11 @@ describe('useReaderNavigation', () => {
     expect(contextValue.getPendingPageTarget()).toBe('end');
     expect(setChapterIndex).toHaveBeenCalledWith(2);
     expect(persistReaderState).toHaveBeenCalledWith({
-      chapterIndex: 2,
-      mode: 'scroll',
+      canonical: {
+        chapterIndex: 2,
+        edge: 'end',
+      },
+      hints: undefined,
     });
   });
 

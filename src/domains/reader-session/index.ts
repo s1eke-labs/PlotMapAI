@@ -17,11 +17,14 @@ export type { ReadingProgress } from './repository';
 export {
   buildStoredReaderState,
   clampChapterProgress,
+  clampPageIndex,
   createDefaultStoredReaderState,
+  getStoredChapterIndex,
   mergeStoredReaderState,
-  resolveModeFromStoredState,
+  sanitizeCanonicalPosition,
   sanitizeStoredReaderState,
-  shouldUseLocatorAsPrimaryPosition,
+  toCanonicalPositionFromLocator,
+  toReaderLocatorFromCanonical,
 } from './state';
 export {
   deleteReadingProgress,

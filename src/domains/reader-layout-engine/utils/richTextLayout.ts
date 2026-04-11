@@ -28,6 +28,37 @@ interface RichPreparedText {
   segmentRichFragments: RichInline[][];
 }
 
+function buildLegacyBreakablePrefixWidths(
+  breakableFitAdvances: Array<number[] | null>,
+): Array<number[] | null> {
+  return breakableFitAdvances.map((segmentAdvances) => {
+    if (!segmentAdvances) {
+      return null;
+    }
+
+    return segmentAdvances.reduce<number[]>((prefix, width) => {
+      const previousTotal = prefix.at(-1) ?? 0;
+      prefix.push(previousTotal + width);
+      return prefix;
+    }, []);
+  });
+}
+
+function getSegmentBreakableFitAdvances(
+  prepared: NonNullable<ReturnType<typeof getPreparedText>>,
+  index: number,
+): number[] | null {
+  const fitAdvances = prepared.breakableFitAdvances?.[index];
+  if (fitAdvances === null || Array.isArray(fitAdvances)) {
+    return fitAdvances;
+  }
+
+  const legacyPrepared = prepared as {
+    breakableWidths?: Array<number[] | null>;
+  };
+  return legacyPrepared.breakableWidths?.[index] ?? null;
+}
+
 export interface ReaderRichTextLayoutResult {
   lines: ReaderMeasuredLine[];
   richLineFragments: RichInline[][];
@@ -52,8 +83,7 @@ function buildRichPreparedText(params: {
   const widths: number[] = [];
   const lineEndFitAdvances: number[] = [];
   const lineEndPaintAdvances: number[] = [];
-  const breakableWidths: Array<number[] | null> = [];
-  const breakablePrefixWidths: Array<number[] | null> = [];
+  const breakableFitAdvances: Array<number[] | null> = [];
   let searchCursor = 0;
 
   for (let index = 0; index < basePrepared.segments.length; index += 1) {
@@ -68,8 +98,7 @@ function buildRichPreparedText(params: {
       widths.push(basePrepared.widths[index] ?? 0);
       lineEndFitAdvances.push(basePrepared.lineEndFitAdvances[index] ?? 0);
       lineEndPaintAdvances.push(basePrepared.lineEndPaintAdvances[index] ?? 0);
-      breakableWidths.push(basePrepared.breakableWidths[index] ?? null);
-      breakablePrefixWidths.push(basePrepared.breakablePrefixWidths[index] ?? null);
+      breakableFitAdvances.push(getSegmentBreakableFitAdvances(basePrepared, index));
       continue;
     }
 
@@ -96,8 +125,7 @@ function buildRichPreparedText(params: {
       widths.push(basePrepared.widths[index] ?? 0);
       lineEndFitAdvances.push(basePrepared.lineEndFitAdvances[index] ?? 0);
       lineEndPaintAdvances.push(basePrepared.lineEndPaintAdvances[index] ?? 0);
-      breakableWidths.push(basePrepared.breakableWidths[index] ?? null);
-      breakablePrefixWidths.push(basePrepared.breakablePrefixWidths[index] ?? null);
+      breakableFitAdvances.push(getSegmentBreakableFitAdvances(basePrepared, index));
       continue;
     }
 
@@ -119,25 +147,24 @@ function buildRichPreparedText(params: {
         : segmentWidth,
     );
 
-    if (basePrepared.breakableWidths[index] !== null) {
-      breakableWidths.push(graphemeWidthsForSegment);
-      breakablePrefixWidths.push(graphemeWidthsForSegment.reduce<number[]>((prefix, width) => {
-        const previousTotal = prefix.at(-1) ?? 0;
-        prefix.push(previousTotal + width);
-        return prefix;
-      }, []));
+    if (getSegmentBreakableFitAdvances(basePrepared, index) !== null) {
+      breakableFitAdvances.push(graphemeWidthsForSegment);
       continue;
     }
 
-    breakableWidths.push(null);
-    breakablePrefixWidths.push(null);
+    breakableFitAdvances.push(null);
   }
+
+  const legacyBreakableFields = {
+    breakablePrefixWidths: buildLegacyBreakablePrefixWidths(breakableFitAdvances),
+    breakableWidths: breakableFitAdvances,
+  };
 
   return {
     prepared: {
       ...basePrepared,
-      breakablePrefixWidths,
-      breakableWidths,
+      ...legacyBreakableFields,
+      breakableFitAdvances,
       lineEndFitAdvances,
       lineEndPaintAdvances,
       widths,

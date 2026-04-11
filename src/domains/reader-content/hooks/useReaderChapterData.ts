@@ -22,6 +22,7 @@ import {
   createRestoreTargetFromNavigationIntent,
   createRestoreTargetFromPersistedState,
 } from '@shared/utils/readerPosition';
+import { getStoredChapterIndex } from '@shared/utils/readerStoredState';
 import { extractImageKeysFromChapter } from '@shared/text-processing';
 import {
   areReaderImageResourcesReady,
@@ -170,15 +171,15 @@ export function useReaderChapterData({
       }
 
       const nextStoredState: StoredReaderState = {
-        chapterIndex: storedState.chapterIndex ?? 0,
-        mode: storedState.mode ?? 'scroll',
-        chapterProgress: storedState.chapterProgress,
-        locator: storedState.locator,
+        canonical: storedState.canonical,
+        hints: storedState.hints,
       };
+      const nextMode = nextStoredState.hints?.contentMode ?? 'scroll';
+      const nextStoredChapterIndex = getStoredChapterIndex(nextStoredState);
 
       latestReaderStateRef.current = nextStoredState;
-      setMode(nextStoredState.mode ?? 'scroll');
-      setChapterIndex(nextStoredState.chapterIndex ?? 0);
+      setMode(nextMode);
+      setChapterIndex(nextStoredChapterIndex);
 
       const toc = await readerContentRuntime.getChapters(resolvedNovelId, {
         signal: controller.signal,
@@ -212,16 +213,23 @@ export function useReaderChapterData({
       }
 
       const fallbackIndex = toc[0]?.index ?? 0;
-      const nextChapterIndex = nextStoredState.chapterIndex ?? fallbackIndex;
-      const nextMode = nextStoredState.mode ?? 'scroll';
+      const nextChapterIndex = nextStoredChapterIndex ?? fallbackIndex;
       const hasChapter = toc.some((chapter) => chapter.index === nextChapterIndex);
       const resolvedChapterIndex = hasChapter ? nextChapterIndex : fallbackIndex;
 
       const resolvedState: StoredReaderState = {
-        chapterIndex: resolvedChapterIndex,
-        mode: nextMode,
-        chapterProgress: hasChapter ? nextStoredState.chapterProgress : 0,
-        locator: hasChapter ? nextStoredState.locator : undefined,
+        canonical: hasChapter
+          ? nextStoredState.canonical
+          : {
+            chapterIndex: resolvedChapterIndex,
+            edge: 'start',
+          },
+        hints: {
+          ...nextStoredState.hints,
+          chapterProgress: hasChapter ? nextStoredState.hints?.chapterProgress : 0,
+          pageIndex: hasChapter ? nextStoredState.hints?.pageIndex : undefined,
+          contentMode: nextMode,
+        },
       };
 
       latestReaderStateRef.current = resolvedState;
@@ -231,7 +239,7 @@ export function useReaderChapterData({
 
       return {
         hasChapters: true,
-        initialRestoreTarget: createRestoreTargetFromPersistedState(resolvedState),
+        initialRestoreTarget: createRestoreTargetFromPersistedState(resolvedState, nextMode),
         resolvedState,
         storedState: nextStoredState,
       };

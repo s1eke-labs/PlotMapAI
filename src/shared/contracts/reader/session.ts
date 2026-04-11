@@ -8,12 +8,25 @@ export type RestoreStatus = 'hydrating' | 'restoring' | 'ready' | 'error';
 export type ReaderLocatorBoundary = PageTarget;
 export type ChapterChangeSource = 'navigation' | 'scroll' | 'restore' | null;
 
-export interface StoredReaderState {
-  chapterIndex?: number;
-  mode?: ReaderMode;
+export interface CanonicalPosition {
+  chapterIndex: number;
+  blockIndex?: number;
+  kind?: ReaderLocator['kind'];
+  lineIndex?: number;
+  startCursor?: ReaderLocator['startCursor'];
+  endCursor?: ReaderLocator['endCursor'];
+  edge?: ReaderLocator['edge'];
+}
+
+export interface ReaderStateHints {
   chapterProgress?: number;
-  lastContentMode?: 'scroll' | 'paged';
-  locator?: ReaderLocator;
+  pageIndex?: number;
+  contentMode?: 'scroll' | 'paged';
+}
+
+export interface StoredReaderState {
+  canonical?: CanonicalPosition;
+  hints?: ReaderStateHints;
 }
 
 export interface ReaderRestoreTarget {
@@ -33,6 +46,7 @@ export interface ReaderNavigationIntent {
 
 export interface ReaderSessionState {
   novelId: number;
+  canonical?: CanonicalPosition;
   mode: ReaderMode;
   chapterIndex: number;
   chapterProgress?: number;
@@ -53,7 +67,7 @@ export interface ReaderSessionCommands {
   markUserInteracted: () => void;
   persistReaderState: (
     nextState: StoredReaderState,
-    options?: { flush?: boolean },
+    options?: { flush?: boolean; persistRemote?: boolean },
   ) => void;
   flushReaderState: () => Promise<void>;
   loadPersistedReaderState: () => Promise<StoredReaderState>;
