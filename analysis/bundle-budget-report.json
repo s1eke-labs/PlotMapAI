@@ -250,11 +250,11 @@
         "assets/bookshelf-BheiwsuD.js",
         "assets/character-graph-BuJMTSvh.js",
         "assets/reader-B5tHI_Zp.js",
-        "assets/settings-BJqrYT5t.js",
+        "assets/settings-C7NK3JHY.js",
         "assets/workbox-window.prod.es5-CfQuw9Fg.js"
       ],
       "facadeModuleId": "/home/runner/work/PlotMapAI/PlotMapAI/index.html",
-      "fileName": "assets/index-DHRpDVDm.js",
+      "fileName": "assets/index-7zIwoQN4.js",
       "gzipBytes": 97545,
       "imports": [
         "assets/cn-BHYQHKz1.js",
@@ -1068,7 +1068,7 @@
     {
       "dynamicImports": [],
       "facadeModuleId": "/home/runner/work/PlotMapAI/PlotMapAI/src/application/pages/settings/index.tsx",
-      "fileName": "assets/settings-BJqrYT5t.js",
+      "fileName": "assets/settings-C7NK3JHY.js",
       "gzipBytes": 1026,
       "imports": [
         "assets/cn-BHYQHKz1.js",
@@ -1151,5 +1151,5 @@
       "rawBytes": 17034
     }
   ],
-  "generatedAt": "2026-04-11T15:09:56.863Z"
+  "generatedAt": "2026-04-11T15:26:10.069Z"
 }
