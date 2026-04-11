@@ -4,18 +4,18 @@ import type {
 } from '@infra/db/reader';
 import type {
   CanonicalPosition,
+  PersistedReadingProgress,
   ReaderLocator,
   StoredReaderState,
 } from '@shared/contracts/reader';
+import { buildPersistedReadingProgress } from '@shared/utils/readerPersistedProgress';
 
 import {
   buildStoredReaderState,
   sanitizeStoredReaderState,
 } from './state';
 
-export interface ReadingProgress {
-  canonical: CanonicalPosition;
-}
+export type ReadingProgress = PersistedReadingProgress;
 
 function isValidLocatorKind(value: unknown): value is NonNullable<CanonicalPosition['kind']> {
   return value === 'heading' || value === 'text' || value === 'image';
@@ -116,27 +116,42 @@ export function toStoredReaderState(record: ReadingProgressRecord): StoredReader
 
   return sanitizeStoredReaderState({
     canonical,
+    hints: {
+      chapterProgress: record.chapterProgress,
+      contentMode: record.contentMode,
+      pageIndex: record.pageIndex,
+      viewMode: record.viewMode,
+    },
   }) ?? buildStoredReaderState(undefined);
 }
 
-export function toReadingProgress(state: StoredReaderState): ReadingProgress | null {
-  const canonicalState = buildStoredReaderState(state);
-  if (!canonicalState.canonical) {
+export function toReadingProgress(
+  state: StoredReaderState,
+  metadata?: { revision?: number; updatedAt?: string },
+): ReadingProgress | null {
+  const normalizedState = buildStoredReaderState(state);
+  if (!normalizedState.canonical) {
     return null;
   }
 
-  return {
-    canonical: canonicalState.canonical,
-  };
+  return buildPersistedReadingProgress({
+    revision: metadata?.revision ?? 0,
+    state: normalizedState,
+    updatedAt: metadata?.updatedAt ?? new Date(0).toISOString(),
+  });
 }
 
 export function toReadingProgressRecord(params: {
   existingId?: number;
   novelId: number;
+  revision: number;
   state: StoredReaderState;
   updatedAt: string;
 }): ReadingProgressRecord | null {
-  const progress = toReadingProgress(params.state);
+  const progress = toReadingProgress(params.state, {
+    revision: params.revision,
+    updatedAt: params.updatedAt,
+  });
   if (!progress) {
     return null;
   }
@@ -144,7 +159,12 @@ export function toReadingProgressRecord(params: {
   return {
     id: params.existingId ?? 0,
     novelId: params.novelId,
-    canonical: toCanonicalPositionRecord(progress.canonical),
-    updatedAt: params.updatedAt,
+    canonical: toCanonicalPositionRecord(progress.state.canonical),
+    chapterProgress: progress.state.hints?.chapterProgress,
+    contentMode: progress.state.hints?.contentMode,
+    pageIndex: progress.state.hints?.pageIndex,
+    revision: progress.revision,
+    updatedAt: progress.updatedAt,
+    viewMode: progress.state.hints?.viewMode,
   };
 }

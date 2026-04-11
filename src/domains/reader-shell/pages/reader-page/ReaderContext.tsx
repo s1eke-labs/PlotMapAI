@@ -27,7 +27,7 @@ import {
 import {
   flushReaderPreferencesPersistence,
 } from '../../hooks/readerPreferencesStore';
-import { flushPersistence } from '@domains/reader-session';
+import { flushReaderStateWithCapture } from '@domains/reader-session';
 
 interface ReaderProviderProps {
   children: ReactNode;
@@ -56,9 +56,8 @@ function ReaderPersistenceBoundary({ children }: ReaderPersistenceBoundaryProps)
 
   useEffect(() => {
     const flushReaderPersistence = async (): Promise<void> => {
-      persistence.runBeforeFlush();
       await Promise.all([
-        flushPersistence(),
+        flushReaderStateWithCapture(persistence),
         flushReaderPreferencesPersistence(),
       ]).catch(() => undefined);
     };

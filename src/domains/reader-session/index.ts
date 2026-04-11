@@ -1,5 +1,6 @@
 export type {
   PageTarget,
+  PersistedReadingProgress,
   ReaderLifecycleEvent,
   ReaderLifecycleEventType,
   ReaderMode,
@@ -47,6 +48,7 @@ export {
   resetReaderSessionStoreForTests,
   useReaderSessionSelector,
 } from './readerSessionStore';
+export { flushReaderStateWithCapture } from './flushReaderState';
 export {
   useReaderRestoreController,
   useReaderRestoreFlow,

@@ -12,6 +12,7 @@ import {
   toCanonicalPositionFromLocator,
   toReaderLocatorFromCanonical,
 } from './readerStoredState';
+import { resolvePersistedReaderMode } from './readerMode';
 
 export interface ChapterRenderData {
   paragraphs: string[];
@@ -105,10 +106,9 @@ export function createRestoreTargetFromPersistedState(
   }
 
   const normalizedState = buildStoredReaderState(state);
-  const legacy = state as Record<string, unknown>;
-  const targetMode = legacy.mode === 'scroll' || legacy.mode === 'paged' || legacy.mode === 'summary'
-    ? legacy.mode
-    : mode;
+  const targetMode = resolvePersistedReaderMode(normalizedState, {
+    fallbackContentMode: mode === 'paged' ? 'paged' : 'scroll',
+  }).mode;
   const locator = toReaderLocatorFromCanonical(
     normalizedState.canonical,
     normalizedState.hints?.pageIndex,

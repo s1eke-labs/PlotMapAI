@@ -7,7 +7,7 @@ import type {
   ReaderLoadActiveChapterResult,
 } from '@domains/reader-content';
 import { useReaderLifecycleController } from '@application/pages/reader/useReaderLifecycleController';
-import { resetReaderSessionStoreForTests } from '@domains/reader-session';
+import { buildStoredReaderState, resetReaderSessionStoreForTests } from '@domains/reader-session';
 import type { ReaderRestoreTarget, StoredReaderState } from '@shared/contracts/reader';
 
 function createDeferred<T>() {
@@ -22,14 +22,14 @@ function createDeferred<T>() {
 }
 
 function createStoredState(overrides: StoredReaderState = {}): StoredReaderState {
-  return {
+  return buildStoredReaderState({
     chapterIndex: 1,
     mode: 'scroll',
     chapterProgress: undefined,
     lastContentMode: 'scroll',
     locator: undefined,
     ...overrides,
-  };
+  });
 }
 
 function createRestoreTarget(

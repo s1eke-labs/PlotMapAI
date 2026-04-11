@@ -1,5 +1,5 @@
 import { act, renderHook } from '@testing-library/react';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { db } from '@infra/db';
 import {
@@ -10,16 +10,25 @@ import {
   readReaderBootstrapSnapshot,
   writeReaderBootstrapSnapshot,
 } from '@infra/storage/readerStateCache';
+import { createReaderContextWrapper } from '@test/readerRuntimeTestUtils';
+import type { StoredReaderState } from '@shared/contracts/reader';
 
+import { replaceReadingProgress } from '../repository';
 import { resetReaderSessionStoreForTests } from '../readerSessionStore';
 import { useReaderStatePersistence } from '../useReaderStatePersistence';
 
 function seedReaderBootstrapSnapshot(
   novelId: number,
-  state: Parameters<typeof writeReaderBootstrapSnapshot>[1],
+  state: StoredReaderState,
 ): void {
-  writeReaderBootstrapSnapshot(novelId, state);
+  writeReaderBootstrapSnapshot(novelId, {
+    revision: 1,
+    state,
+    updatedAt: '2026-04-12T00:00:00.000Z',
+  });
 }
+
+const { Wrapper } = createReaderContextWrapper();
 
 describe('useReaderStatePersistence', () => {
   beforeEach(async () => {
@@ -30,7 +39,9 @@ describe('useReaderStatePersistence', () => {
   });
 
   it('returns defaults when no stored state exists', () => {
-    const { result } = renderHook(() => useReaderStatePersistence(1));
+    const { result } = renderHook(() => useReaderStatePersistence(1), {
+      wrapper: Wrapper,
+    });
 
     expect(result.current.initialStoredState).toBeNull();
     expect(result.current.latestReaderStateRef.current).toEqual({
@@ -54,7 +65,9 @@ describe('useReaderStatePersistence', () => {
       },
     });
 
-    const { result } = renderHook(() => useReaderStatePersistence(42));
+    const { result } = renderHook(() => useReaderStatePersistence(42), {
+      wrapper: Wrapper,
+    });
 
     expect(result.current.initialStoredState).toEqual({
       canonical: {
@@ -86,7 +99,9 @@ describe('useReaderStatePersistence', () => {
       },
     });
 
-    const { result } = renderHook(() => useReaderStatePersistence(1));
+    const { result } = renderHook(() => useReaderStatePersistence(1), {
+      wrapper: Wrapper,
+    });
 
     expect(result.current.initialStoredState).toEqual({
       canonical: {
@@ -105,7 +120,9 @@ describe('useReaderStatePersistence', () => {
   });
 
   it('persists state and merges partial updates', async () => {
-    const { result } = renderHook(() => useReaderStatePersistence(1));
+    const { result } = renderHook(() => useReaderStatePersistence(1), {
+      wrapper: Wrapper,
+    });
 
     act(() => {
       result.current.persistReaderState({
@@ -137,6 +154,7 @@ describe('useReaderStatePersistence', () => {
         chapterProgress: undefined,
         contentMode: 'scroll',
         pageIndex: undefined,
+        viewMode: 'original',
       },
     });
 
@@ -144,7 +162,7 @@ describe('useReaderStatePersistence', () => {
       await result.current.flushReaderState();
     });
 
-    expect(readReaderBootstrapSnapshot(1)?.state).toEqual({
+    expect(readReaderBootstrapSnapshot(1)?.progress.state).toEqual({
       canonical: {
         chapterIndex: 7,
         edge: 'start',
@@ -153,8 +171,64 @@ describe('useReaderStatePersistence', () => {
         chapterProgress: undefined,
         contentMode: 'scroll',
         pageIndex: undefined,
+        viewMode: 'original',
       },
     });
+  });
+
+  it('restores summary view and paged position hints from durable progress', async () => {
+    await replaceReadingProgress(1, {
+      canonical: {
+        chapterIndex: 5,
+        blockIndex: 2,
+        kind: 'text',
+      },
+      hints: {
+        chapterProgress: 0.55,
+        contentMode: 'paged',
+        pageIndex: 8,
+        viewMode: 'summary',
+      },
+    });
+
+    const { result } = renderHook(() => useReaderStatePersistence(1), {
+      wrapper: Wrapper,
+    });
+    let state!: Awaited<ReturnType<typeof result.current.loadPersistedReaderState>>;
+
+    await act(async () => {
+      state = await result.current.loadPersistedReaderState();
+    });
+
+    expect(state).toEqual({
+      canonical: {
+        chapterIndex: 5,
+        blockIndex: 2,
+        kind: 'text',
+      },
+      hints: {
+        chapterProgress: 0.55,
+        contentMode: 'paged',
+        pageIndex: 8,
+        viewMode: 'summary',
+      },
+    });
+  });
+
+  it('runs before-flush capture hooks before flushing durable state', async () => {
+    const runBeforeFlush = vi.fn();
+    const { Wrapper: beforeFlushWrapper } = createReaderContextWrapper({
+      runBeforeFlush,
+    });
+    const { result } = renderHook(() => useReaderStatePersistence(1), {
+      wrapper: beforeFlushWrapper,
+    });
+
+    await act(async () => {
+      await result.current.flushReaderState();
+    });
+
+    expect(runBeforeFlush).toHaveBeenCalledTimes(1);
   });
 
   it('drops legacy Dexie rows and falls back to default state during hydration', async () => {
@@ -176,7 +250,9 @@ describe('useReaderStatePersistence', () => {
       updatedAt: new Date().toISOString(),
     });
 
-    const { result } = renderHook(() => useReaderStatePersistence(1));
+    const { result } = renderHook(() => useReaderStatePersistence(1), {
+      wrapper: Wrapper,
+    });
     let state!: Awaited<ReturnType<typeof result.current.loadPersistedReaderState>>;
 
     await act(async () => {
@@ -192,6 +268,7 @@ describe('useReaderStatePersistence', () => {
         chapterProgress: undefined,
         contentMode: 'scroll',
         pageIndex: undefined,
+        viewMode: 'original',
       },
     });
     await expect(db.readingProgress.where('novelId').equals(1).first()).resolves.toBeUndefined();
@@ -208,7 +285,9 @@ describe('useReaderStatePersistence', () => {
       },
     });
 
-    const { result } = renderHook(() => useReaderStatePersistence(1));
+    const { result } = renderHook(() => useReaderStatePersistence(1), {
+      wrapper: Wrapper,
+    });
 
     expect(result.current.initialStoredState).toEqual({
       canonical: {
@@ -231,7 +310,9 @@ describe('useReaderStatePersistence', () => {
       },
     });
 
-    const { result } = renderHook(() => useReaderStatePersistence(1));
+    const { result } = renderHook(() => useReaderStatePersistence(1), {
+      wrapper: Wrapper,
+    });
 
     act(() => {
       result.current.persistReaderState({
@@ -251,6 +332,7 @@ describe('useReaderStatePersistence', () => {
         chapterProgress: undefined,
         contentMode: 'scroll',
         pageIndex: undefined,
+        viewMode: 'original',
       },
     });
 
@@ -258,7 +340,7 @@ describe('useReaderStatePersistence', () => {
       await result.current.flushReaderState();
     });
 
-    expect(readReaderBootstrapSnapshot(1)?.state).toEqual({
+    expect(readReaderBootstrapSnapshot(1)?.progress.state).toEqual({
       canonical: {
         chapterIndex: 1,
         edge: 'start',
@@ -267,12 +349,15 @@ describe('useReaderStatePersistence', () => {
         chapterProgress: undefined,
         contentMode: 'scroll',
         pageIndex: undefined,
+        viewMode: 'original',
       },
     });
   });
 
   it('marks user interaction', () => {
-    const { result } = renderHook(() => useReaderStatePersistence(1));
+    const { result } = renderHook(() => useReaderStatePersistence(1), {
+      wrapper: Wrapper,
+    });
 
     expect(result.current.hasUserInteractedRef.current).toBe(false);
 
@@ -284,7 +369,9 @@ describe('useReaderStatePersistence', () => {
   });
 
   it('does not write cache for novelId 0', () => {
-    const { result } = renderHook(() => useReaderStatePersistence(0));
+    const { result } = renderHook(() => useReaderStatePersistence(0), {
+      wrapper: Wrapper,
+    });
 
     act(() => {
       result.current.persistReaderState({
@@ -301,7 +388,7 @@ describe('useReaderStatePersistence', () => {
   it('does not carry the previous novel state into a new novel before hydration', async () => {
     const { result, rerender } = renderHook(
       ({ novelId }: { novelId: number }) => useReaderStatePersistence(novelId),
-      { initialProps: { novelId: 1 } },
+      { initialProps: { novelId: 1 }, wrapper: Wrapper },
     );
 
     act(() => {
@@ -320,7 +407,7 @@ describe('useReaderStatePersistence', () => {
       await result.current.flushReaderState();
     });
 
-    expect(readReaderBootstrapSnapshot(1)?.state).toEqual({
+    expect(readReaderBootstrapSnapshot(1)?.progress.state).toEqual({
       canonical: {
         chapterIndex: 3,
         edge: 'start',
@@ -329,6 +416,7 @@ describe('useReaderStatePersistence', () => {
         chapterProgress: 0.65,
         contentMode: 'scroll',
         pageIndex: undefined,
+        viewMode: 'original',
       },
     });
 

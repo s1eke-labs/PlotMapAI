@@ -58,14 +58,25 @@ describe('reader session mapper', () => {
     };
 
     expect(toReadingProgress(state)).toEqual({
-      canonical: {
-        chapterIndex: 2,
-        edge: 'start',
+      revision: 0,
+      state: {
+        canonical: {
+          chapterIndex: 2,
+          edge: 'start',
+        },
+        hints: {
+          chapterProgress: 0.65,
+          contentMode: undefined,
+          pageIndex: undefined,
+          viewMode: undefined,
+        },
       },
+      updatedAt: '1970-01-01T00:00:00.000Z',
     });
     expect(toReadingProgressRecord({
       existingId: 1,
       novelId: 7,
+      revision: 2,
       state,
       updatedAt: '2026-04-01T00:00:00.000Z',
     })).toMatchObject({
@@ -75,6 +86,9 @@ describe('reader session mapper', () => {
         chapterIndex: 2,
         edge: 'start',
       },
+      chapterProgress: 0.65,
+      revision: 2,
+      updatedAt: '2026-04-01T00:00:00.000Z',
     });
   });
 });

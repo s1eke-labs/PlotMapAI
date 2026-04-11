@@ -21,6 +21,7 @@ import {
   getContainerProgress,
   shouldKeepReaderRestoreMask,
 } from '@shared/utils/readerPosition';
+import { createReaderStateModeHints } from '@shared/utils/readerMode';
 import {
   buildStoredReaderState,
   getStoredChapterIndex,
@@ -360,21 +361,24 @@ export function useReaderRestoreController({
       currentReaderState,
       baseTarget,
     );
-    const nextPersistedState = targetMode === 'summary'
-      ? mergeStoredReaderState(currentReaderState, {
-        hints: {
-          ...currentReaderState.hints,
-          chapterProgress: targetRestoreTarget.chapterProgress ?? 0,
-        },
-      })
-      : currentReaderState;
+    const nextLastContentMode = currentReaderState.hints?.contentMode
+      ?? (mode === 'paged' ? 'paged' : 'scroll');
+    const nextPersistedState = mergeStoredReaderState(currentReaderState, {
+      hints: {
+        ...currentReaderState.hints,
+        ...createReaderStateModeHints(targetMode, nextLastContentMode),
+        chapterProgress: targetMode === 'summary'
+          ? targetRestoreTarget.chapterProgress ?? 0
+          : currentReaderState.hints?.chapterProgress,
+      },
+    });
 
     markUserInteracted();
     setChapterIndex(targetRestoreTarget.chapterIndex);
     rememberModeState(targetRestoreTarget);
     setPendingRestoreTarget(targetRestoreTarget, { force: true });
     setMode(targetMode);
-    persistReaderState(nextPersistedState, { persistRemote: false });
+    persistReaderState(nextPersistedState);
     const modeSwitchSnapshot = {
       source: 'useReaderRestoreController.switchMode',
       previousMode: mode,
@@ -383,6 +387,7 @@ export function useReaderRestoreController({
       locatorBoundary: targetRestoreTarget.locatorBoundary ?? null,
       hasLocator: Boolean(targetRestoreTarget.locator),
       chapterProgress: targetRestoreTarget.chapterProgress ?? null,
+      persistedHintViewMode: nextPersistedState.hints?.viewMode ?? null,
       persistedHintContentMode: nextPersistedState.hints?.contentMode ?? null,
     };
     setDebugSnapshot('reader-mode-switch', modeSwitchSnapshot);
@@ -463,8 +468,6 @@ export function useReaderRestoreController({
         hints: {
           chapterProgress: getContainerProgress(viewport.contentRef.current),
         },
-      }, {
-        persistRemote: false,
       });
     }, 150);
   }, [mode, persistReaderState, persistence, viewport.contentRef]);

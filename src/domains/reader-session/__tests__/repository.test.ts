@@ -42,7 +42,64 @@ describe('reader-session repository', () => {
         chapterIndex: 2,
         edge: 'start',
       },
-      hints: undefined,
+      hints: {
+        chapterProgress: 0.6,
+        contentMode: undefined,
+        pageIndex: undefined,
+        viewMode: undefined,
+      },
+    });
+  });
+
+  it('increments revision and persists full restore hints on replacement', async () => {
+    await replaceReadingProgress(1, {
+      canonical: {
+        chapterIndex: 2,
+        blockIndex: 1,
+        kind: 'text',
+      },
+      hints: {
+        chapterProgress: 0.3,
+        contentMode: 'paged',
+        pageIndex: 4,
+        viewMode: 'summary',
+      },
+    });
+    await replaceReadingProgress(1, {
+      canonical: {
+        chapterIndex: 2,
+        blockIndex: 1,
+        kind: 'text',
+      },
+      hints: {
+        chapterProgress: 0.6,
+        contentMode: 'paged',
+        pageIndex: 6,
+        viewMode: 'summary',
+      },
+    });
+
+    const row = await db.readingProgress.where('novelId').equals(1).first();
+
+    expect(row).toMatchObject({
+      revision: 2,
+      chapterProgress: 0.6,
+      contentMode: 'paged',
+      pageIndex: 6,
+      viewMode: 'summary',
+    });
+    await expect(readReadingProgress(1)).resolves.toEqual({
+      canonical: {
+        chapterIndex: 2,
+        blockIndex: 1,
+        kind: 'text',
+      },
+      hints: {
+        chapterProgress: 0.6,
+        contentMode: 'paged',
+        pageIndex: 6,
+        viewMode: 'summary',
+      },
     });
   });
 

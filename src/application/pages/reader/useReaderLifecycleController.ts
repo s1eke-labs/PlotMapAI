@@ -21,7 +21,7 @@ import {
   useReaderViewportContext,
 } from '@shared/reader-runtime';
 import { getStoredChapterIndex } from '@shared/utils/readerStoredState';
-import { isPagedReaderMode } from '@shared/utils/readerMode';
+import { isPagedReaderMode, resolvePersistedReaderMode } from '@shared/utils/readerMode';
 import { shouldKeepReaderRestoreMask } from '@shared/utils/readerPosition';
 
 import type {
@@ -70,22 +70,19 @@ function createLifecycleLoadKey(params: {
 function buildLoadParamsFromHydratedState(
   result: ReaderHydrateDataResult,
 ): ReaderLoadActiveChapterParams | null {
-  if (!result.resolvedState) {
+  const { resolvedState, storedState } = result;
+
+  if (!resolvedState) {
     return null;
   }
 
-  const resolvedLegacy = result.resolvedState as Record<string, unknown>;
-  const storedLegacy = result.storedState as Record<string, unknown>;
-  const chapterIndex = getStoredChapterIndex(result.resolvedState);
-  const mode = result.resolvedState.hints?.contentMode
-    ?? result.storedState.hints?.contentMode
-    ?? (resolvedLegacy.mode === 'scroll' || resolvedLegacy.mode === 'paged'
-      ? resolvedLegacy.mode
-      : undefined)
-    ?? (storedLegacy.mode === 'scroll' || storedLegacy.mode === 'paged'
-      ? storedLegacy.mode
-      : undefined)
-    ?? 'scroll';
+  const chapterIndex = getStoredChapterIndex(resolvedState);
+  const { mode } = resolvePersistedReaderMode(
+    resolvedState.hints?.viewMode ? resolvedState : storedState,
+    {
+      fallbackContentMode: 'scroll',
+    },
+  );
 
   return {
     chapterIndex,

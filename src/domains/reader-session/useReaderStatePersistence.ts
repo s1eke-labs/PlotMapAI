@@ -6,9 +6,12 @@ import {
   getReaderPreferencesSnapshot,
   hasConfiguredReaderPageTurnMode,
 } from '@domains/reader-shell';
-import { resolveContentModeFromPageTurnMode } from '@shared/utils/readerMode';
+import { useReaderPersistenceRuntime } from '@shared/reader-runtime';
 import {
-  flushPersistence,
+  createReaderStateModeHints,
+  resolvePersistedReaderMode,
+} from '@shared/utils/readerMode';
+import {
   getStoredReaderStateSnapshot,
   hydrateSession,
   markUserInteracted,
@@ -25,6 +28,7 @@ import {
   createDefaultStoredReaderState,
   mergeStoredReaderState,
 } from './state';
+import { flushReaderStateWithCapture } from './flushReaderState';
 
 interface PersistReaderStateOptions {
   flush?: boolean;
@@ -52,6 +56,7 @@ export function useReaderStatePersistence(novelId: number): {
   loadPersistedReaderState: () => Promise<StoredReaderState>;
   initialStoredState: StoredReaderState | null;
 } {
+  const persistence = useReaderPersistenceRuntime();
   const sessionNovelId = useReaderSessionSelector((state) => state.novelId);
   const hasUserInteracted = useReaderSessionSelector((state) => state.hasUserInteracted);
   const canonical = useReaderSessionSelector((state) => state.canonical);
@@ -64,7 +69,7 @@ export function useReaderStatePersistence(novelId: number): {
     hints: {
       chapterProgress: clampChapterProgress(chapterProgress),
       pageIndex: clampPageIndex(locator?.pageIndex),
-      contentMode: mode === 'summary' ? lastContentMode : mode,
+      ...createReaderStateModeHints(mode, lastContentMode),
     },
   }), [
     canonical,
@@ -146,34 +151,45 @@ export function useReaderStatePersistence(novelId: number): {
       hasConfiguredPageTurnMode,
       pageTurnMode: preferences.pageTurnMode,
     });
-    const fallbackContentMode = resolveContentModeFromPageTurnMode(preferences.pageTurnMode);
-    const resolvedStoredState = hydratedStoredState.hints?.contentMode
-      ? hydratedStoredState
-      : mergeStoredReaderState(hydratedStoredState, {
-        hints: {
-          contentMode: fallbackContentMode,
-        },
-      });
+    const resolvedMode = resolvePersistedReaderMode(hydratedStoredState, {
+      pageTurnMode: preferences.pageTurnMode,
+    });
+    const resolvedStoredState = mergeStoredReaderState(hydratedStoredState, {
+      hints: {
+        contentMode: resolvedMode.contentMode,
+        viewMode: resolvedMode.viewMode,
+      },
+    });
     const modeResolutionSnapshot = {
       source: 'useReaderStatePersistence.loadPersistedReaderState',
       novelId,
       hasConfiguredPageTurnMode,
       pageTurnMode: preferences.pageTurnMode,
+      persistedHintViewMode: hydratedStoredState.hints?.viewMode ?? null,
       persistedHintContentMode: hydratedStoredState.hints?.contentMode ?? null,
+      resolvedHintViewMode: resolvedStoredState.hints?.viewMode ?? null,
       resolvedHintContentMode: resolvedStoredState.hints?.contentMode ?? null,
-      resolvedHintContentModeSource: hydratedStoredState.hints?.contentMode
-        ? 'persisted'
-        : 'page-turn-preference-fallback',
+      resolvedMode: resolvedMode.mode,
+      resolvedHintContentModeSource: resolvedMode.usedContentModeFallback
+        ? 'page-turn-preference-fallback'
+        : 'persisted',
+      resolvedHintViewModeSource: resolvedMode.usedViewModeFallback
+        ? 'default-original'
+        : 'persisted',
       persistedCanonicalBlockIndex: resolvedStoredState.canonical?.blockIndex ?? null,
       persistedCanonicalKind: resolvedStoredState.canonical?.kind ?? null,
       persistedCanonicalEdge: resolvedStoredState.canonical?.edge ?? null,
       persistedPageIndex: resolvedStoredState.hints?.pageIndex ?? null,
       persistedChapterProgress: resolvedStoredState.hints?.chapterProgress ?? null,
       persistedChapterIndex: resolvedStoredState.canonical?.chapterIndex ?? null,
-      fallbackReason:
-        hydratedStoredState.hints?.contentMode == null
+      fallbackReason: [
+        resolvedMode.usedViewModeFallback
+          ? 'missing-hints.viewMode -> fallback-to-original'
+          : null,
+        resolvedMode.usedContentModeFallback
           ? 'missing-hints.contentMode -> fallback-to-page-turn-preference'
           : null,
+      ].filter(Boolean).join(', ') || null,
     };
     setDebugSnapshot('reader-mode-resolution', modeResolutionSnapshot);
     debugLog('Reader', 'reader mode resolution snapshot', modeResolutionSnapshot);
@@ -188,8 +204,8 @@ export function useReaderStatePersistence(novelId: number): {
   }, [novelId]);
 
   const flushReaderState = useCallback(async (): Promise<void> => {
-    await flushPersistence();
-  }, []);
+    await flushReaderStateWithCapture(persistence);
+  }, [persistence]);
 
   const handleMarkUserInteracted = useCallback(() => {
     hasUserInteractedRef.current = true;

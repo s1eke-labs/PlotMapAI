@@ -293,10 +293,53 @@ describe('useReaderRestoreFlow', () => {
     expect(persistReaderState).toHaveBeenLastCalledWith(expect.objectContaining({
       hints: expect.objectContaining({
         chapterProgress: 0,
+        viewMode: 'summary',
       }),
-    }), {
-      persistRemote: false,
+    }));
+  });
+
+  it('persists summary scroll progress through the durable pipeline after debounce', () => {
+    vi.useFakeTimers();
+    const persistReaderState = vi.fn();
+    const contentRef = {
+      current: makeContainer({
+        scrollTop: 250,
+        scrollHeight: 1000,
+        clientHeight: 500,
+      }),
+    };
+    const { hookProps, runtime } = createHookHarness({
+      sessionCommands: {
+        latestReaderStateRef: { current: createStoredState() },
+        markUserInteracted: vi.fn(),
+        persistReaderState,
+        setChapterIndex: vi.fn(),
+        setMode: vi.fn(),
+      },
+      sessionSnapshot: {
+        chapterIndex: 5,
+        mode: 'summary',
+        pendingRestoreTarget: null,
+      },
+      runtime: {
+        contentRef,
+      },
     });
+    const { result } = renderHook(() => useReaderRestoreFlow(hookProps), {
+      wrapper: runtime.Wrapper,
+    });
+
+    act(() => {
+      result.current.handleContentScroll();
+      vi.advanceTimersByTime(150);
+    });
+
+    expect(persistReaderState).toHaveBeenLastCalledWith({
+      hints: {
+        chapterProgress: 0.5,
+      },
+    });
+    vi.useRealTimers();
   });
 
   it('reuses captured location when switching between content modes', () => {

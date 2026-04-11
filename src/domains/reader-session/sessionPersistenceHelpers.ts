@@ -1,6 +1,7 @@
 import { reportAppError } from '@shared/debug';
 import { AppErrorCode } from '@shared/errors';
 import type {
+  PersistedReadingProgress,
   ReaderMode,
   ReaderPersistenceFailure,
   ReaderRestoreTarget,
@@ -9,8 +10,9 @@ import type {
 } from '@shared/contracts/reader';
 import {
   readReaderBootstrapSnapshot,
-  writeReaderBootstrapSnapshot,
 } from '@infra/storage/readerStateCache';
+import { getPersistedReadingProgressFingerprint } from '@shared/utils/readerPersistedProgress';
+import { createReaderStateModeHints } from '@shared/utils/readerMode';
 import { shouldKeepReaderRestoreMask } from '@shared/utils/readerPosition';
 
 import {
@@ -22,9 +24,8 @@ import {
   toCanonicalPositionFromLocator,
   toReaderLocatorFromCanonical,
 } from './state';
-import { toReadingProgress, type ReadingProgress } from './repository';
 
-interface ReaderSessionCacheShape {
+export interface ReaderSessionCacheShape {
   novelId: number;
   canonical?: ReaderSessionState['canonical'];
   chapterIndex: number;
@@ -52,7 +53,7 @@ export function readLocalSessionState(novelId: number): StoredReaderState | null
     return null;
   }
 
-  return buildStoredReaderState(snapshot.state);
+  return buildStoredReaderState(snapshot.progress.state);
 }
 
 export function toStoredReaderState(state: ReaderSessionCacheShape): StoredReaderState {
@@ -68,31 +69,17 @@ export function toStoredReaderState(state: ReaderSessionCacheShape): StoredReade
     hints: {
       chapterProgress: clampChapterProgress(state.chapterProgress),
       pageIndex: clampPageIndex(state.locator?.pageIndex),
-      contentMode: state.mode === 'summary' ? state.lastContentMode : state.mode,
+      ...createReaderStateModeHints(state.mode, state.lastContentMode),
     },
   });
 }
 
-export function writeReaderSessionCache(state: ReaderSessionCacheShape): void {
-  if (!isBrowser() || !state.novelId) {
-    return;
-  }
-
-  writeReaderBootstrapSnapshot(state.novelId, toStoredReaderState(state));
-}
-
-export function getRemoteProgressSnapshot(progress: ReadingProgress | null): string {
-  if (!progress) {
-    return 'null';
-  }
-
-  return JSON.stringify({
-    canonical: progress.canonical,
-  });
-}
-
-export function toRemoteProgress(state: ReaderSessionCacheShape): ReadingProgress | null {
-  return toReadingProgress(toStoredReaderState(state));
+export function getReaderSessionProgressFingerprint(
+  state: PersistedReadingProgress | ReaderSessionCacheShape | StoredReaderState,
+): string {
+  return getPersistedReadingProgressFingerprint(
+    'novelId' in state ? toStoredReaderState(state) : state,
+  );
 }
 
 export function createInitialReaderSessionState(): ReaderSessionState {
