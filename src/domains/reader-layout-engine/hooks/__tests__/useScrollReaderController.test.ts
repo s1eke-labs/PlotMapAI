@@ -1,5 +1,5 @@
 import type { Dispatch, ReactNode, RefObject, SetStateAction } from 'react';
-import type { ChapterContent } from '../../readerContentService';
+import type { ChapterContent } from '@shared/contracts/reader';
 import type { ReaderContextValue } from '@test/readerRuntimeTestUtils';
 import type { ChapterChangeSource, ReaderRestoreTarget } from '@shared/contracts/reader';
 
@@ -113,7 +113,7 @@ vi.mock('../useReaderRenderCache', async () => {
 import { SCROLL_READING_ANCHOR_RATIO } from '@shared/utils/readerPosition';
 import {
   ReaderContextProvider,
-} from '@domains/reader-shell/pages/reader-page/ReaderContext';
+} from '@domains/reader-shell';
 import { createDeterministicScrollLayout } from '../../test/deterministicRenderCacheStub';
 import { useScrollReaderController } from '../useScrollReaderController';
 
@@ -422,6 +422,8 @@ function createHookProps(overrides: CreateHookPropsOptions = {}) {
     sessionSnapshot: {
       chapterIndex: harness.chapterIndex,
     },
+    getRestoreAttempt: vi.fn(() => 0),
+    recordRestoreResult: vi.fn(() => ({ scheduledRetry: false })),
     stopRestoreMask: vi.fn(),
     clearPendingRestoreTarget: vi.fn(),
     cache: {

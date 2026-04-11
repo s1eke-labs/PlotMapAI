@@ -1,10 +1,17 @@
 import type {
+  CanonicalPosition,
   ReaderLocatorBoundary,
   ReaderMode,
   ReaderNavigationIntent,
   ReaderRestoreTarget,
   StoredReaderState,
 } from '@shared/contracts/reader';
+import {
+  buildStoredReaderState,
+  getStoredChapterIndex,
+  toCanonicalPositionFromLocator,
+  toReaderLocatorFromCanonical,
+} from './readerStoredState';
 
 export interface ChapterRenderData {
   paragraphs: string[];
@@ -55,20 +62,6 @@ export function resolvePagedTargetPage(
   return Math.max(0, Math.min(totalPages - 1, pageIndex));
 }
 
-function resolveRestoreTargetViewState(
-  state: StoredReaderState | null | undefined,
-): Pick<ReaderRestoreTarget, 'chapterIndex' | 'mode'> {
-  const mode = state?.mode ?? 'scroll';
-
-  return {
-    chapterIndex:
-      mode !== 'summary' && state?.locator
-        ? state.locator.chapterIndex
-        : state?.chapterIndex ?? 0,
-    mode,
-  };
-}
-
 export function hasReaderRestoreTarget(
   target: ReaderRestoreTarget | null | undefined,
 ): boolean {
@@ -105,19 +98,38 @@ export function canSkipReaderRestore(
 
 export function createRestoreTargetFromPersistedState(
   state: StoredReaderState | null | undefined,
+  mode: ReaderMode = 'scroll',
 ): ReaderRestoreTarget | null {
   if (!state) {
     return null;
   }
 
+  const normalizedState = buildStoredReaderState(state);
+  const legacy = state as Record<string, unknown>;
+  const targetMode = legacy.mode === 'scroll' || legacy.mode === 'paged' || legacy.mode === 'summary'
+    ? legacy.mode
+    : mode;
+  const locator = toReaderLocatorFromCanonical(
+    normalizedState.canonical,
+    normalizedState.hints?.pageIndex,
+  );
+  const canonicalEdge = normalizedState.canonical?.edge;
+  const hasCanonicalBoundary =
+    canonicalEdge === 'start'
+    || canonicalEdge === 'end';
+  const locatorBoundary = !locator && hasCanonicalBoundary
+    ? canonicalEdge
+    : undefined;
   const target: ReaderRestoreTarget = {
-    ...resolveRestoreTargetViewState(state),
-    locator: state.locator,
+    chapterIndex: getStoredChapterIndex(normalizedState),
+    mode: targetMode,
+    locator,
+    locatorBoundary,
   };
 
   if (target.mode === 'summary') {
-    target.chapterProgress = typeof state?.chapterProgress === 'number'
-      ? clampProgress(state.chapterProgress)
+    target.chapterProgress = typeof normalizedState.hints?.chapterProgress === 'number'
+      ? clampProgress(normalizedState.hints.chapterProgress)
       : undefined;
   }
 
@@ -135,6 +147,20 @@ export function createRestoreTargetFromNavigationIntent(
     mode,
     locatorBoundary: intent.locator ? undefined : locatorBoundary,
     locator: intent.locator,
+  };
+}
+
+export function createCanonicalPositionFromNavigationIntent(
+  intent: Pick<ReaderNavigationIntent, 'chapterIndex' | 'locator' | 'pageTarget'>,
+): CanonicalPosition {
+  const fromLocator = toCanonicalPositionFromLocator(intent.locator);
+  if (fromLocator) {
+    return fromLocator;
+  }
+
+  return {
+    chapterIndex: intent.chapterIndex,
+    edge: intent.pageTarget,
   };
 }
 

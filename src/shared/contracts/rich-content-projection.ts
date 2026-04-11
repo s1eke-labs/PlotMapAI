@@ -1,6 +1,6 @@
 import type { RichBlock } from './rich-content';
 
-export type RichContentFormat = 'plain' | 'rich';
+export type RichContentFormat = 'rich';
 
 export interface ReaderChapterRichContent {
   contentFormat: RichContentFormat;

@@ -1,4 +1,4 @@
-import type { ChapterContent } from '../readerContentService';
+import type { ChapterContent } from '@shared/contracts/reader';
 import type {
   ReaderBlock,
 } from './readerLayoutTypes';

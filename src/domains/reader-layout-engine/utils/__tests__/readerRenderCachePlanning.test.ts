@@ -6,9 +6,9 @@ const imageCacheMock = vi.hoisted(() => ({
   peekReaderImageDimensions: vi.fn().mockReturnValue(undefined),
 }));
 
-vi.mock('../readerImageResourceCache', () => imageCacheMock);
+vi.mock('@domains/reader-media', () => imageCacheMock);
 
-import type { ChapterContent } from '../../readerContentService';
+import type { ChapterContent } from '@shared/contracts/reader';
 import {
   buildChapterImageLayoutKey,
   buildPreheatTargets,
@@ -176,7 +176,7 @@ describe('readerRenderCachePlanning', () => {
       isPagedMode: false,
       novelId: 7,
       pagedChapters: [],
-      scrollRenderMode: 'legacy-plain',
+      scrollRenderMode: 'plain',
       scrollChapters: [{ chapter, index: 0 }],
       variantSignatures: createVariantSignatures(),
       viewMode: 'original',
@@ -184,7 +184,7 @@ describe('readerRenderCachePlanning', () => {
 
     expect(richTargets[0]?.layoutKey).toBe(legacyTargets[0]?.layoutKey);
     expect(richTargets[0]?.layoutFeatureSet).toBe('scroll-rich-inline');
-    expect(legacyTargets[0]?.layoutFeatureSet).toBe('scroll-legacy-plain');
+    expect(legacyTargets[0]?.layoutFeatureSet).toBe('scroll-plain');
     expect(richTargets[0]?.exactKey).not.toBe(legacyTargets[0]?.exactKey);
   });
 

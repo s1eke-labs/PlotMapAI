@@ -1,4 +1,4 @@
-export type { Chapter, ChapterContent } from './content';
+export type { Chapter, ChapterContent, ReaderChapterCacheApi } from './content';
 export type { ReaderLocator, ScrollModeAnchor } from './layout';
 export type {
   ReaderImageActivationPayload,
@@ -11,12 +11,24 @@ export type {
   ReaderImageViewerViewportSize,
 } from './media';
 export type {
+  CanonicalPosition,
   ChapterChangeSource,
   PageTarget,
   ReaderLocatorBoundary,
+  ReaderLifecycleEvent,
+  ReaderLifecycleEventType,
   ReaderMode,
   ReaderNavigationIntent,
+  ReaderPersistenceFailure,
+  ReaderPersistenceStatus,
+  ReaderRestoreMeasuredError,
+  ReaderRestoreMetric,
+  ReaderRestoreReason,
+  ReaderRestoreResult,
+  ReaderRestoreResultStatus,
+  ReaderStateHints,
   ReaderRestoreTarget,
+  ReaderSessionCommands,
   ReaderSessionSnapshot,
   ReaderSessionState,
   RestoreStatus,
@@ -29,9 +41,11 @@ export {
   type ReaderPageTurnMode,
 } from './preferences';
 export type {
+  ReaderContentRuntimeValue,
   ReaderLayoutQueriesValue,
   ReaderNavigationRuntimeValue,
   ReaderPersistenceRuntimeValue,
+  ReaderTextProcessingOptions,
   ReaderViewportContextValue,
   RestoreSettledResult,
 } from './runtime';

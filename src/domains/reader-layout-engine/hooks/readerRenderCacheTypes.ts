@@ -1,5 +1,5 @@
 import type { RefObject } from 'react';
-import type { Chapter, ChapterContent } from '../readerContentService';
+import type { Chapter, ChapterContent } from '@shared/contracts/reader';
 import type {
   ReaderLayoutSignature,
   ReaderRenderVariant,
@@ -8,7 +8,7 @@ import type {
   StaticPagedChapterTree,
   StaticScrollChapterTree,
   StaticSummaryShellTree,
-} from '../utils/readerLayout';
+} from '../layout-core/internal';
 import type {
   ReaderLayoutFeatureSet,
   ReaderRenderCacheSource,

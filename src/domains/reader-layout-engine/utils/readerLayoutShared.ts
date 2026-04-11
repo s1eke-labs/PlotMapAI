@@ -1,5 +1,5 @@
-import type { ChapterContent } from '../readerContentService';
-import type { ReaderImageDimensions } from './readerImageResourceCache';
+import type { ChapterContent } from '@shared/contracts/reader';
+import type { ReaderImageDimensions } from '@domains/reader-media';
 import type {
   ReaderBlock,
   ReaderImageLayoutConstraints,
@@ -183,9 +183,7 @@ export function createChapterContentHash(
     'contentFormat' | 'contentVersion' | 'index' | 'plainText' | 'richBlocks' | 'title'
   >,
 ): string {
-  const source = chapter.contentFormat === 'rich'
-    ? `${chapter.index}\u0000${chapter.title}\u0000${chapter.plainText}\u0000${chapter.contentFormat}\u0000${chapter.contentVersion}\u0000${JSON.stringify(chapter.richBlocks)}`
-    : `${chapter.index}\u0000${chapter.title}\u0000${chapter.plainText}\u0000${chapter.contentFormat}\u0000${chapter.contentVersion}`;
+  const source = `${chapter.index}\u0000${chapter.title}\u0000${chapter.plainText}\u0000${chapter.contentFormat}\u0000${chapter.contentVersion}\u0000${JSON.stringify(chapter.richBlocks)}`;
   let hashA = 0x811c9dc5;
   let hashB = 0x01000193;
   const UINT32_MOD = 0x1_0000_0000;

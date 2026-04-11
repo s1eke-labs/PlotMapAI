@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import type {
   ChapterChangeSource,
+  ReaderLocator,
   ReaderRestoreTarget,
   RestoreSettledResult,
   StoredReaderState,
@@ -11,7 +12,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createReaderContextWrapper } from '@test/readerRuntimeTestUtils';
-import { getReaderSessionSnapshot, resetReaderSessionStoreForTests } from '../sessionStore';
+import { getReaderSessionSnapshot, resetReaderSessionStoreForTests } from '../readerSessionStore';
 import { useReaderRestoreFlow } from '../useReaderRestoreFlow';
 
 function makeContainer({
@@ -42,11 +43,16 @@ function makeContainer({
 
 function createStoredState(overrides: StoredReaderState = {}): StoredReaderState {
   return {
-    chapterIndex: 5,
-    mode: 'scroll',
-    chapterProgress: 0.4,
-    lastContentMode: 'scroll',
-    locator: undefined,
+    canonical: {
+      chapterIndex: 5,
+      blockIndex: 2,
+      kind: 'text',
+      lineIndex: 0,
+    },
+    hints: {
+      chapterProgress: 0.4,
+      contentMode: 'scroll',
+    },
     ...overrides,
   };
 }
@@ -78,7 +84,7 @@ function createCurrentChapter(index = 5) {
   };
 }
 
-function createLocator(overrides: Partial<NonNullable<StoredReaderState['locator']>> = {}) {
+function createLocator(overrides: Partial<ReaderLocator> = {}): ReaderLocator {
   return {
     chapterIndex: 5,
     blockIndex: 2,
@@ -94,10 +100,10 @@ interface RestoreRuntimeHarness {
   contentRef: { current: HTMLDivElement | null };
   getCurrentAnchorRef: { current: () => ScrollModeAnchor | null };
   getCurrentOriginalLocatorRef: {
-    current: () => NonNullable<StoredReaderState['locator']> | null;
+    current: () => ReaderLocator | null;
   };
   getCurrentPagedLocatorRef: {
-    current: () => NonNullable<StoredReaderState['locator']> | null;
+    current: () => ReaderLocator | null;
   };
   isScrollSyncSuppressedRef: { current: boolean };
   preparePersistenceFlushRef: { current: () => void };
@@ -112,10 +118,7 @@ interface CreateHookPropsOptions extends Partial<Parameters<typeof useReaderRest
 function createHookHarness(overrides: CreateHookPropsOptions = {}) {
   const mode = overrides.sessionSnapshot?.mode ?? 'scroll';
   const chapterIndex = overrides.sessionSnapshot?.chapterIndex ?? 5;
-  const lastContentMode = overrides.sessionSnapshot?.lastContentMode ?? 'scroll';
   const pendingRestoreTarget = overrides.sessionSnapshot?.pendingRestoreTarget ?? null;
-  const viewMode =
-    overrides.sessionSnapshot?.viewMode ?? (mode === 'summary' ? 'summary' : 'original');
   const runtimeOverrides = overrides.runtime ?? {};
   const chapterChangeSourceRef = runtimeOverrides.chapterChangeSourceRef ?? {
     current: null as ChapterChangeSource,
@@ -173,10 +176,8 @@ function createHookHarness(overrides: CreateHookPropsOptions = {}) {
     },
     sessionSnapshot: {
       chapterIndex,
-      lastContentMode,
       mode,
       pendingRestoreTarget,
-      viewMode,
       ...overrides.sessionSnapshot,
     },
     summaryRestoreSignal: null,
@@ -253,6 +254,98 @@ describe('useReaderRestoreFlow', () => {
     });
   });
 
+  it('forces summary restores to chapter-start progress without locator hints', () => {
+    const persistReaderState = vi.fn();
+    const { hookProps, runtime } = createHookHarness({
+      sessionCommands: {
+        latestReaderStateRef: { current: createStoredState() },
+        markUserInteracted: vi.fn(),
+        persistReaderState,
+        setChapterIndex: vi.fn(),
+        setMode: vi.fn(),
+      },
+      sessionSnapshot: {
+        chapterIndex: 5,
+        mode: 'scroll',
+        pendingRestoreTarget: null,
+      },
+      runtime: {
+        getCurrentOriginalLocatorRef: {
+          current: () => createLocator(),
+        },
+      },
+    });
+    const { result } = renderHook(() => useReaderRestoreFlow(hookProps), {
+      wrapper: runtime.Wrapper,
+    });
+
+    act(() => {
+      result.current.switchMode('summary');
+    });
+
+    expect(result.current.pendingRestoreTargetRef.current).toMatchObject({
+      chapterIndex: 5,
+      chapterProgress: 0,
+      mode: 'summary',
+    });
+    expect(result.current.pendingRestoreTargetRef.current?.locator).toBeUndefined();
+    expect(result.current.pendingRestoreTargetRef.current?.locatorBoundary).toBeUndefined();
+    expect(persistReaderState).toHaveBeenLastCalledWith(expect.objectContaining({
+      hints: expect.objectContaining({
+        chapterProgress: 0,
+      }),
+    }), {
+      persistRemote: false,
+    });
+  });
+
+  it('reuses captured location when switching between content modes', () => {
+    const setChapterIndex = vi.fn();
+    const setMode = vi.fn();
+    const { hookProps, runtime } = createHookHarness({
+      sessionCommands: {
+        latestReaderStateRef: {
+          current: createStoredState({
+            canonical: createLocator({
+              chapterIndex: 7,
+            }),
+          }),
+        },
+        markUserInteracted: vi.fn(),
+        persistReaderState: vi.fn(),
+        setChapterIndex,
+        setMode,
+      },
+      sessionSnapshot: {
+        chapterIndex: 7,
+        mode: 'scroll',
+        pendingRestoreTarget: null,
+      },
+      runtime: {
+        getCurrentOriginalLocatorRef: {
+          current: () => createLocator({
+            chapterIndex: 7,
+          }),
+        },
+      },
+    });
+    const { result } = renderHook(() => useReaderRestoreFlow(hookProps), {
+      wrapper: runtime.Wrapper,
+    });
+
+    act(() => {
+      result.current.switchMode('paged');
+    });
+
+    expect(result.current.pendingRestoreTargetRef.current).toMatchObject({
+      chapterIndex: 7,
+      mode: 'paged',
+    });
+    expect(result.current.pendingRestoreTargetRef.current?.locatorBoundary).toBeUndefined();
+    expect(setChapterIndex).toHaveBeenCalledWith(7);
+    expect(setMode).toHaveBeenCalledWith('paged');
+  });
+
   it('restores the last content reading position when switching back from summary', () => {
     const persistReaderState = vi.fn();
     const markUserInteracted = vi.fn();
@@ -274,10 +367,8 @@ describe('useReaderRestoreFlow', () => {
       },
       sessionSnapshot: {
         chapterIndex: 5,
-        lastContentMode: 'scroll',
         mode: 'scroll',
         pendingRestoreTarget: null,
-        viewMode: 'original',
       },
       runtime: {
         contentRef,
@@ -296,7 +387,7 @@ describe('useReaderRestoreFlow', () => {
     );
 
     act(() => {
-      result.current.handleSetViewMode('summary');
+      result.current.switchMode('summary');
     });
 
     contentRef.current = makeContainer({
@@ -314,10 +405,8 @@ describe('useReaderRestoreFlow', () => {
       },
       sessionSnapshot: {
         chapterIndex: 5,
-        lastContentMode: 'scroll',
         mode: 'summary',
         pendingRestoreTarget: null,
-        viewMode: 'summary',
       },
       summaryRestoreSignal: 1,
       runtime: {
@@ -328,13 +417,12 @@ describe('useReaderRestoreFlow', () => {
     rerender(hookProps);
 
     act(() => {
-      result.current.handleSetViewMode('original');
+      result.current.switchMode('scroll');
     });
 
     expect(result.current.pendingRestoreTargetRef.current).toMatchObject({
       chapterIndex: 5,
       mode: 'scroll',
-      locator,
     });
     expect(markUserInteracted).toHaveBeenCalledTimes(2);
     expect(setChapterIndex).toHaveBeenLastCalledWith(5);
@@ -345,8 +433,7 @@ describe('useReaderRestoreFlow', () => {
     const persistReaderState = vi.fn();
     const latestReaderStateRef = {
       current: createStoredState({
-        chapterIndex: 8,
-        locator: createLocator({
+        canonical: createLocator({
           chapterIndex: 8,
         }),
       }),
@@ -383,16 +470,12 @@ describe('useReaderRestoreFlow', () => {
     });
 
     expect(persistReaderState).toHaveBeenCalledWith(expect.objectContaining({
-      chapterIndex: 8,
-      locator: latestReaderStateRef.current.locator,
-      mode: 'scroll',
+      canonical: latestReaderStateRef.current.canonical,
     }), {
       flush: undefined,
     });
     expect(capturedState).toMatchObject({
-      chapterIndex: 8,
-      locator: latestReaderStateRef.current.locator,
-      mode: 'scroll',
+      canonical: latestReaderStateRef.current.canonical,
     });
   });
 
@@ -429,9 +512,12 @@ describe('useReaderRestoreFlow', () => {
     });
 
     expect(persistReaderState).toHaveBeenCalledWith(expect.objectContaining({
-      chapterIndex: 5,
-      locator,
-      mode: 'scroll',
+      canonical: {
+        chapterIndex: 5,
+        blockIndex: 2,
+        kind: 'text',
+        lineIndex: 0,
+      },
     }), {
       flush: undefined,
     });
@@ -466,9 +552,12 @@ describe('useReaderRestoreFlow', () => {
     unmount();
 
     expect(persistReaderState).toHaveBeenCalledWith(expect.objectContaining({
-      chapterIndex: 5,
-      locator,
-      mode: 'scroll',
+      canonical: {
+        chapterIndex: 5,
+        blockIndex: 2,
+        kind: 'text',
+        lineIndex: 0,
+      },
     }), {
       flush: undefined,
     });
@@ -479,10 +568,8 @@ describe('useReaderRestoreFlow', () => {
     const { hookProps, runtime } = createHookHarness({
       sessionSnapshot: {
         chapterIndex: 5,
-        lastContentMode: 'scroll',
         mode: 'summary',
         pendingRestoreTarget: null,
-        viewMode: 'summary',
       },
       runtime: {
         contentRef: { current: makeContainer() },

@@ -1,38 +1,60 @@
-import type { ReadingProgressRecord, ReaderLocatorRecord } from '@infra/db/reader';
-import type { ReaderLocator, StoredReaderState } from '@shared/contracts/reader';
+import type {
+  CanonicalPositionRecord,
+  ReadingProgressRecord,
+} from '@infra/db/reader';
+import type {
+  CanonicalPosition,
+  ReaderLocator,
+  StoredReaderState,
+} from '@shared/contracts/reader';
 
 import {
   buildStoredReaderState,
-  clampChapterProgress,
   sanitizeStoredReaderState,
-  shouldUseLocatorAsPrimaryPosition,
 } from './state';
 
 export interface ReadingProgress {
-  chapterIndex: number;
-  mode: 'scroll' | 'paged' | 'summary';
-  chapterProgress?: number;
-  locator?: ReaderLocator;
+  canonical: CanonicalPosition;
 }
 
-export function toReaderLocator(record?: ReaderLocatorRecord | null): ReaderLocator | undefined {
-  if (!record) {
+function isValidLocatorKind(value: unknown): value is NonNullable<CanonicalPosition['kind']> {
+  return value === 'heading' || value === 'text' || value === 'image';
+}
+
+function toCanonicalPositionFromRecord(
+  record?: CanonicalPositionRecord | null,
+): CanonicalPosition | undefined {
+  if (!record || typeof record.chapterIndex !== 'number') {
     return undefined;
   }
 
-  return {
+  const canonical: CanonicalPosition = {
     chapterIndex: record.chapterIndex,
-    blockIndex: record.blockIndex,
-    pageIndex: record.pageIndex,
-    kind: record.kind,
-    lineIndex: record.lineIndex,
-    startCursor: record.startCursor ? { ...record.startCursor } : undefined,
-    endCursor: record.endCursor ? { ...record.endCursor } : undefined,
-    edge: record.edge,
   };
+
+  if (typeof record.blockIndex === 'number') {
+    canonical.blockIndex = record.blockIndex;
+  }
+  if (isValidLocatorKind(record.kind)) {
+    canonical.kind = record.kind;
+  }
+  if (typeof record.lineIndex === 'number') {
+    canonical.lineIndex = record.lineIndex;
+  }
+  if (record.startCursor) {
+    canonical.startCursor = { ...record.startCursor };
+  }
+  if (record.endCursor) {
+    canonical.endCursor = { ...record.endCursor };
+  }
+  if (record.edge === 'start' || record.edge === 'end') {
+    canonical.edge = record.edge;
+  }
+
+  return canonical;
 }
 
-export function toReaderLocatorRecord(locator?: ReaderLocator): ReaderLocatorRecord | undefined {
+export function toCanonicalPosition(locator?: ReaderLocator | null): CanonicalPosition | undefined {
   if (!locator) {
     return undefined;
   }
@@ -40,7 +62,6 @@ export function toReaderLocatorRecord(locator?: ReaderLocator): ReaderLocatorRec
   return {
     chapterIndex: locator.chapterIndex,
     blockIndex: locator.blockIndex,
-    pageIndex: locator.pageIndex,
     kind: locator.kind,
     lineIndex: locator.lineIndex,
     startCursor: locator.startCursor ? { ...locator.startCursor } : undefined,
@@ -49,33 +70,63 @@ export function toReaderLocatorRecord(locator?: ReaderLocator): ReaderLocatorRec
   };
 }
 
-export function toStoredReaderState(record: ReadingProgressRecord): StoredReaderState {
+export function toCanonicalPositionRecord(
+  canonical?: CanonicalPosition,
+): CanonicalPositionRecord | undefined {
+  if (!canonical) {
+    return undefined;
+  }
+
+  return {
+    chapterIndex: canonical.chapterIndex,
+    blockIndex: canonical.blockIndex,
+    kind: canonical.kind,
+    lineIndex: canonical.lineIndex,
+    startCursor: canonical.startCursor ? { ...canonical.startCursor } : undefined,
+    endCursor: canonical.endCursor ? { ...canonical.endCursor } : undefined,
+    edge: canonical.edge,
+  };
+}
+
+export function toReaderLocator(
+  canonical?: CanonicalPosition,
+  pageIndexHint?: number,
+): ReaderLocator | undefined {
+  if (!canonical || typeof canonical.blockIndex !== 'number' || !canonical.kind) {
+    return undefined;
+  }
+
+  return {
+    chapterIndex: canonical.chapterIndex,
+    blockIndex: canonical.blockIndex,
+    kind: canonical.kind,
+    lineIndex: canonical.lineIndex,
+    startCursor: canonical.startCursor ? { ...canonical.startCursor } : undefined,
+    endCursor: canonical.endCursor ? { ...canonical.endCursor } : undefined,
+    edge: canonical.edge,
+    pageIndex: typeof pageIndexHint === 'number' ? pageIndexHint : undefined,
+  };
+}
+
+export function toStoredReaderState(record: ReadingProgressRecord): StoredReaderState | null {
+  const canonical = toCanonicalPositionFromRecord(record.canonical);
+  if (!canonical) {
+    return null;
+  }
+
   return sanitizeStoredReaderState({
-    chapterIndex: record.chapterIndex,
-    mode:
-      record.mode === 'scroll' || record.mode === 'paged' || record.mode === 'summary'
-        ? record.mode
-        : 'scroll',
-    chapterProgress: record.chapterProgress,
-    locator: toReaderLocator(record.locator),
+    canonical,
   }) ?? buildStoredReaderState(undefined);
 }
 
-export function toReadingProgress(state: StoredReaderState): ReadingProgress {
+export function toReadingProgress(state: StoredReaderState): ReadingProgress | null {
   const canonicalState = buildStoredReaderState(state);
-  const durableMode = canonicalState.mode ?? 'scroll';
-  const usesLocator = shouldUseLocatorAsPrimaryPosition(
-    durableMode,
-    canonicalState.locator,
-  );
+  if (!canonicalState.canonical) {
+    return null;
+  }
 
   return {
-    chapterIndex: canonicalState.chapterIndex ?? 0,
-    mode: durableMode,
-    chapterProgress: durableMode === 'summary'
-      ? clampChapterProgress(canonicalState.chapterProgress)
-      : undefined,
-    locator: usesLocator ? canonicalState.locator : undefined,
+    canonical: canonicalState.canonical,
   };
 }
 
@@ -84,16 +135,16 @@ export function toReadingProgressRecord(params: {
   novelId: number;
   state: StoredReaderState;
   updatedAt: string;
-}): ReadingProgressRecord {
+}): ReadingProgressRecord | null {
   const progress = toReadingProgress(params.state);
+  if (!progress) {
+    return null;
+  }
 
   return {
     id: params.existingId ?? 0,
     novelId: params.novelId,
-    chapterIndex: progress.chapterIndex,
-    mode: progress.mode,
-    chapterProgress: progress.chapterProgress,
-    locator: toReaderLocatorRecord(progress.locator),
+    canonical: toCanonicalPositionRecord(progress.canonical),
     updatedAt: params.updatedAt,
   };
 }

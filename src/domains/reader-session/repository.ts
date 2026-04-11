@@ -16,7 +16,13 @@ export async function readReadingProgress(
     return null;
   }
 
-  return toStoredReaderState(progress);
+  const storedState = toStoredReaderState(progress);
+  if (storedState) {
+    return storedState;
+  }
+
+  await db.readingProgress.where('novelId').equals(novelId).delete();
+  return null;
 }
 
 export async function replaceReadingProgress(
@@ -31,6 +37,13 @@ export async function replaceReadingProgress(
     state,
     updatedAt: now,
   });
+  if (!progressRecord) {
+    if (existing?.id) {
+      await db.readingProgress.delete(existing.id);
+    }
+    return;
+  }
+
   const { id: _unusedId, ...record } = progressRecord;
 
   await db.readingProgress.put(existing ? progressRecord : record);

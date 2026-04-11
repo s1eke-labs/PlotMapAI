@@ -1,4 +1,4 @@
-import type { Chapter } from '../../readerContentService';
+import type { Chapter } from '@shared/contracts/reader';
 
 import { Menu, X } from 'lucide-react';
 import { motion } from 'motion/react';

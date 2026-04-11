@@ -5,7 +5,8 @@ import ChapterParagraph from '../ChapterParagraph';
 
 const useReaderImageResourceMock = vi.hoisted(() => vi.fn());
 
-vi.mock('../../hooks/useReaderImageResource', () => ({
+vi.mock('@domains/reader-media', async (importOriginal) => ({
+  ...await importOriginal<typeof import('@domains/reader-media')>(),
   useReaderImageResource: useReaderImageResourceMock,
 }));
 

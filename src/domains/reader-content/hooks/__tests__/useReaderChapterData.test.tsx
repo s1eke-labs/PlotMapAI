@@ -4,15 +4,7 @@ import { act, renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createReaderContextWrapper } from '@test/readerRuntimeTestUtils';
 
-import { readerContentService } from '../../readerContentService';
 import { useReaderChapterData } from '../useReaderChapterData';
-
-vi.mock('../../readerContentService', () => ({
-  readerContentService: {
-    getChapterContent: vi.fn(),
-    getChapters: vi.fn(),
-  },
-}));
 
 function makeContainer(): HTMLDivElement {
   const element = document.createElement('div');
@@ -57,9 +49,10 @@ describe('useReaderChapterData', () => {
 
   it('caches fetched chapter content with rich metadata intact', async () => {
     const chapter = createChapter(0, 2);
-    const { Wrapper } = createReaderContextWrapper();
-
-    vi.mocked(readerContentService.getChapterContent).mockResolvedValue(chapter);
+    const getChapterContent = vi.fn().mockResolvedValue(chapter);
+    const { Wrapper } = createReaderContextWrapper({
+      getChapterContent,
+    });
 
     const { result } = renderHook(() => useReaderChapterData({
       novelId: 1,
@@ -100,8 +93,8 @@ describe('useReaderChapterData', () => {
         }],
       }],
     });
-    expect(readerContentService.getChapterContent).toHaveBeenCalledTimes(1);
-    expect(readerContentService.getChapterContent).toHaveBeenCalledWith(1, 0, {
+    expect(getChapterContent).toHaveBeenCalledTimes(1);
+    expect(getChapterContent).toHaveBeenCalledWith(1, 0, {
       onProgress: expect.any(Function),
       signal: undefined,
     });
@@ -118,8 +111,12 @@ describe('useReaderChapterData', () => {
     let chapterChangeSource: ChapterChangeSource = null;
     let pendingPageTarget: PageTarget | null = 'start';
     const suppressScrollSyncTemporarily = vi.fn();
+    const getChapters = vi.fn().mockResolvedValue(chapters);
+    const getChapterContent = vi.fn().mockResolvedValue(targetChapter);
     const { Wrapper } = createReaderContextWrapper({
       contentRef,
+      getChapterContent,
+      getChapters,
       getChapterChangeSource: () => chapterChangeSource,
       getPendingPageTarget: () => pendingPageTarget,
       setChapterChangeSource: (nextSource) => {
@@ -130,9 +127,6 @@ describe('useReaderChapterData', () => {
       },
       suppressScrollSyncTemporarily,
     });
-
-    vi.mocked(readerContentService.getChapters).mockResolvedValue(chapters);
-    vi.mocked(readerContentService.getChapterContent).mockResolvedValue(targetChapter);
 
     const { result } = renderHook(() => useReaderChapterData({
       novelId: 1,
@@ -165,6 +159,9 @@ describe('useReaderChapterData', () => {
       loadResult = await result.current.loadActiveChapter({
         chapterIndex: 2,
         mode: 'scroll',
+      }, {
+        navigationSource: chapterChangeSource,
+        pendingPageTarget,
       });
     });
 
@@ -174,10 +171,20 @@ describe('useReaderChapterData', () => {
         locatorBoundary: 'start',
         mode: 'scroll',
       },
+      shouldClearNavigationSource: false,
+      shouldResetViewport: true,
     });
     expect(chapterChangeSource).toBe('navigation');
-    expect(suppressScrollSyncTemporarily).toHaveBeenCalledTimes(1);
-    expect(contentRef.current.scrollTop).toBe(0);
-    expect(contentRef.current.scrollLeft).toBe(0);
+    expect(suppressScrollSyncTemporarily).not.toHaveBeenCalled();
+    expect(contentRef.current.scrollTop).toBe(240);
+    expect(contentRef.current.scrollLeft).toBe(36);
+    expect(getChapters).toHaveBeenCalledWith(1, {
+      onProgress: expect.any(Function),
+      signal: expect.any(AbortSignal),
+    });
+    expect(getChapterContent).toHaveBeenCalledWith(1, 2, {
+      onProgress: expect.any(Function),
+      signal: expect.any(AbortSignal),
+    });
   });
 });

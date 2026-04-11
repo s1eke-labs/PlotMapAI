@@ -1,5 +1,5 @@
 import type { RefObject } from 'react';
-import type { ChapterContent } from '../readerContentService';
+import type { ChapterContent } from '@shared/contracts/reader';
 import type {
   ReaderLocator,
   ReaderMeasuredLine,
@@ -147,7 +147,7 @@ export function createDeterministicScrollLayout(
     blockCount: metrics.length,
     chapterIndex: chapter.index,
     metrics,
-    renderMode: 'legacy-plain',
+    renderMode: 'plain',
     textWidth: 640,
     totalHeight: Math.max(top, DEFAULT_SCROLL_VIEWPORT_HEIGHT),
   };

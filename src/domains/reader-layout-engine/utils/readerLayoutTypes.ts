@@ -119,7 +119,7 @@ export interface MeasuredChapterLayout {
   blockCount: number;
   chapterIndex: number;
   metrics: VirtualBlockMetrics[];
-  renderMode: 'legacy-plain' | 'rich';
+  renderMode: 'plain' | 'rich';
   textWidth: number;
   totalHeight: number;
 }

@@ -1,9 +1,7 @@
 import { useStore } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
 import { createStore, type StoreApi } from 'zustand/vanilla';
-
 import type { ReaderPageTurnMode } from '@shared/contracts/reader/preferences';
-import { isPagedPageTurnMode } from '@shared/contracts/reader/preferences';
 import {
   createPersistedRuntime,
 } from '@shared/stores/persistence/createPersistedRuntime';
@@ -12,40 +10,54 @@ import {
 } from '@shared/stores/readerPreferenceStore';
 import {
   createRestoreTargetFromPersistedState,
-  shouldKeepReaderRestoreMask,
 } from '@shared/utils/readerPosition';
 import {
   resolveContentModeFromPageTurnMode,
   resolveLastContentMode,
 } from '@shared/utils/readerMode';
 import type {
+  ReaderLifecycleEvent,
   ReaderMode,
+  ReaderRestoreResult,
   ReaderRestoreTarget,
   ReaderSessionSnapshot,
   ReaderSessionState,
-  RestoreStatus,
   StoredReaderState,
 } from '@shared/contracts/reader';
 import {
-  readReaderBootstrapSnapshot,
-  writeReaderBootstrapSnapshot,
+  clearReaderBootstrapSnapshot,
 } from '@infra/storage/readerStateCache';
 import {
   buildStoredReaderState,
   clampChapterProgress,
+  createDefaultStoredReaderState,
+  getStoredChapterIndex,
   mergeStoredReaderState,
-  resolveModeFromStoredState,
+  toReaderLocatorFromCanonical,
 } from './state';
 import {
   readReadingProgress,
   replaceReadingProgress,
   toReadingProgress,
-  type ReadingProgress,
 } from './repository';
+import { reduceReaderLifecycleState } from './lifecycleStateMachine';
+import { writeReaderLifecycleDebugSnapshot } from './readerLifecycleDebugSnapshot';
+import { debugLog, setDebugSnapshot } from '@shared/debug';
+import {
+  createInitialReaderSessionState,
+  getRemoteProgressSnapshot,
+  readLocalSessionState,
+  shouldMaskRestore,
+  toPersistenceFailure,
+  toRemoteProgress,
+  toStoredReaderState,
+  writeReaderSessionCache,
+} from './sessionPersistenceHelpers';
 
 interface ReaderSessionInternalState extends ReaderSessionState {}
 
 export interface ReaderSessionActions {
+  dispatchLifecycleEvent: (event: ReaderLifecycleEvent) => void;
   hydrateSession: (
     novelId: number,
     options?: ReaderSessionHydrationOptions,
@@ -56,6 +68,7 @@ export interface ReaderSessionActions {
   beginRestore: (target: ReaderRestoreTarget | null | undefined) => void;
   completeRestore: () => void;
   failRestore: () => void;
+  setLastRestoreResult: (result: ReaderRestoreResult | null) => void;
   flushPersistence: () => Promise<void>;
 }
 
@@ -85,69 +98,6 @@ function setLastSyncedRemoteSnapshot(snapshot: string): void {
   lastSyncedRemoteSnapshot = snapshot;
 }
 
-function readLocalSessionState(novelId: number): StoredReaderState | null {
-  if (!isBrowser() || !novelId) {
-    return null;
-  }
-
-  const snapshot = readReaderBootstrapSnapshot(novelId);
-  if (!snapshot) {
-    return null;
-  }
-
-  return buildStoredReaderState(snapshot.state);
-}
-
-function shouldMaskRestore(target: ReaderRestoreTarget | null | undefined): boolean {
-  return shouldKeepReaderRestoreMask(target);
-}
-
-function toStoredReaderState(state: ReaderSessionInternalState): StoredReaderState {
-  return buildStoredReaderState({
-    chapterIndex: state.chapterIndex,
-    mode: state.mode,
-    chapterProgress: state.chapterProgress,
-    lastContentMode: state.lastContentMode,
-    locator: state.locator,
-  });
-}
-
-function getRemoteProgressSnapshot(progress: ReadingProgress): string {
-  return JSON.stringify({
-    chapterIndex: progress.chapterIndex,
-    mode: progress.mode,
-    chapterProgress: clampChapterProgress(progress.chapterProgress) ?? null,
-    locator: progress.locator ?? null,
-  });
-}
-
-function toRemoteProgress(state: ReaderSessionInternalState): ReadingProgress {
-  return toReadingProgress(toStoredReaderState(state));
-}
-
-function inferPageTurnModeFromPersistedState(
-  state: StoredReaderState | null | undefined,
-): ReaderPageTurnMode {
-  return state?.mode === 'paged' || state?.lastContentMode === 'paged'
-    ? 'cover'
-    : 'scroll';
-}
-
-function createInitialReaderSessionState(): ReaderSessionInternalState {
-  const mode: ReaderMode = 'scroll';
-  return {
-    novelId: 0,
-    mode,
-    chapterIndex: 0,
-    chapterProgress: undefined,
-    locator: undefined,
-    restoreStatus: 'hydrating',
-    lastContentMode: 'scroll',
-    pendingRestoreTarget: null,
-    hasUserInteracted: false,
-  };
-}
-
 export function createReaderSessionStore(): ReaderSessionStore {
   return createStore<ReaderSessionInternalState>()(
     subscribeWithSelector(() => createInitialReaderSessionState()),
@@ -156,12 +106,37 @@ export function createReaderSessionStore(): ReaderSessionStore {
 
 export const readerSessionStore = createReaderSessionStore();
 
-function writeReaderSessionCache(state: ReaderSessionInternalState): void {
-  if (!isBrowser() || !state.novelId) {
-    return;
-  }
+function patchReaderSessionState(
+  partial: Partial<ReaderSessionInternalState>,
+  options?: {
+    flush?: boolean;
+    persist?: boolean;
+    bumpRevision?: boolean;
+    writeCache?: boolean;
+  },
+): void {
+  readerSessionRuntime.patch(partial, options);
+}
 
-  writeReaderBootstrapSnapshot(state.novelId, toStoredReaderState(state));
+function applyReaderLifecycleEvent(
+  event: ReaderLifecycleEvent,
+  partial: Partial<ReaderSessionInternalState> = {},
+): void {
+  const currentState = readerSessionStore.getState();
+  const nextLifecycle = reduceReaderLifecycleState({
+    lifecycleLoadKey: currentState.lifecycleLoadKey,
+    restoreStatus: currentState.restoreStatus,
+  }, event);
+
+  patchReaderSessionState({
+    ...partial,
+    restoreStatus: nextLifecycle.restoreStatus,
+    lifecycleLastEvent: event.type,
+    lifecycleLoadKey: nextLifecycle.lifecycleLoadKey,
+  }, {
+    persist: false,
+    writeCache: false,
+  });
 }
 
 async function persistRemoteReaderSession(state: ReaderSessionInternalState): Promise<void> {
@@ -171,27 +146,57 @@ async function persistRemoteReaderSession(state: ReaderSessionInternalState): Pr
   }
 
   const progress = toRemoteProgress(state);
+  if (!progress) {
+    return;
+  }
+
   const snapshot = getRemoteProgressSnapshot(progress);
   if (snapshot === lastSyncedRemoteSnapshot) {
     return;
   }
 
   await replaceReadingProgress(novelId, {
-    chapterIndex: progress.chapterIndex,
-    mode: progress.mode,
-    chapterProgress: progress.chapterProgress,
-    locator: progress.locator,
+    canonical: progress.canonical,
   });
   setLastSyncedRemoteSnapshot(snapshot);
 }
 
 const readerSessionRuntime = createPersistedRuntime<ReaderSessionInternalState>({
+  cacheWritePolicy: 'afterPersist',
   createInitialState: createInitialReaderSessionState,
   isEnabled: isBrowser,
+  onPersistError: (error) => {
+    patchReaderSessionState({
+      persistenceStatus: 'degraded',
+      lastPersistenceFailure: toPersistenceFailure(error, {
+        message: 'failed to persist reader progress',
+      }),
+    }, {
+      persist: false,
+      writeCache: false,
+    });
+  },
+  onPersistSuccess: () => {
+    const currentState = readerSessionStore.getState();
+    if (currentState.persistenceStatus === 'healthy' && !currentState.lastPersistenceFailure) {
+      return;
+    }
+
+    patchReaderSessionState({
+      persistenceStatus: 'healthy',
+      lastPersistenceFailure: null,
+    }, {
+      persist: false,
+      writeCache: false,
+    });
+  },
   onReset: () => {
     sessionHydrationEpoch += 1;
     lastSyncedRemoteSnapshot = '';
     resetReaderPreferenceStoreForTests();
+  },
+  onStateChange: (state) => {
+    writeReaderLifecycleDebugSnapshot(state);
   },
   persist: persistRemoteReaderSession,
   persistDelayMs: READER_STATE_SYNC_DELAY_MS,
@@ -205,21 +210,21 @@ function updateStoredReaderState(
 ): StoredReaderState {
   const currentState = readerSessionStore.getState();
   const merged = mergeStoredReaderState(toStoredReaderState(currentState), nextState);
-  const mode = resolveModeFromStoredState(merged);
-  const nextLastContentMode = merged.lastContentMode
-    ?? resolveLastContentMode(mode, currentState.lastContentMode);
+  const nextCanonical = merged.canonical;
+  const nextChapterIndex = getStoredChapterIndex(merged);
+  const nextLocator = toReaderLocatorFromCanonical(nextCanonical, merged.hints?.pageIndex);
+  const shouldPersistRemote = options.persistRemote ?? true;
 
   readerSessionRuntime.patch({
-    mode,
-    chapterIndex: merged.chapterIndex ?? 0,
-    chapterProgress: clampChapterProgress(merged.chapterProgress),
-    locator: merged.locator,
-    lastContentMode: resolveLastContentMode(mode, nextLastContentMode),
+    canonical: nextCanonical,
+    chapterIndex: nextChapterIndex,
+    chapterProgress: clampChapterProgress(merged.hints?.chapterProgress),
+    locator: nextLocator,
     hasUserInteracted: options.markUserInteracted ?? currentState.hasUserInteracted,
   }, {
-    bumpRevision: options.persistRemote,
+    bumpRevision: shouldPersistRemote,
     flush: options.flush,
-    persist: options.persistRemote,
+    persist: shouldPersistRemote,
   });
 
   return merged;
@@ -232,85 +237,140 @@ export async function hydrateSession(
   await readerSessionRuntime.flush();
   sessionHydrationEpoch += 1;
   const epochAtStart = sessionHydrationEpoch;
-  const localState = readLocalSessionState(novelId);
+  const initialStoredState = createDefaultStoredReaderState();
 
-  readerSessionRuntime.patch({
+  applyReaderLifecycleEvent({ type: 'NOVEL_OPEN_STARTED' }, {
     novelId,
-    restoreStatus: 'hydrating',
+    lastRestoreResult: null,
     pendingRestoreTarget: null,
     hasUserInteracted: false,
-    chapterIndex: 0,
+    canonical: initialStoredState.canonical,
+    chapterIndex: getStoredChapterIndex(initialStoredState),
     chapterProgress: undefined,
-    locator: undefined,
+    locator: toReaderLocatorFromCanonical(initialStoredState.canonical),
     mode: 'scroll',
     lastContentMode: 'scroll',
-  }, { writeCache: false });
+    persistenceStatus: 'healthy',
+    lastPersistenceFailure: null,
+  });
 
   let remoteState: StoredReaderState | null = null;
   try {
     remoteState = await readReadingProgress(novelId);
     if (remoteState) {
       setLastSyncedRemoteSnapshot(getRemoteProgressSnapshot(toReadingProgress(remoteState)));
+    } else {
+      setLastSyncedRemoteSnapshot('null');
     }
-  } catch {
-    remoteState = null;
+  } catch (error) {
+    if (epochAtStart !== sessionHydrationEpoch) {
+      return buildStoredReaderState(initialStoredState);
+    }
+
+    patchReaderSessionState({
+      persistenceStatus: 'degraded',
+      lastPersistenceFailure: toPersistenceFailure(error, {
+        message: 'failed to read reader progress',
+      }),
+    }, {
+      persist: false,
+      writeCache: false,
+    });
+    applyReaderLifecycleEvent({ type: 'HYDRATE_FAILED' });
+    throw error;
   }
 
   if (epochAtStart !== sessionHydrationEpoch) {
-    return buildStoredReaderState(remoteState ?? localState);
+    return buildStoredReaderState(remoteState ?? initialStoredState);
   }
 
-  const baseState = remoteState ?? localState;
-  const resolvedPageTurnMode = options.hasConfiguredPageTurnMode && options.pageTurnMode
-    ? options.pageTurnMode
-    : inferPageTurnModeFromPersistedState(baseState);
-  const resolvedContentMode = resolveContentModeFromPageTurnMode(resolvedPageTurnMode);
-  const mode = baseState?.mode === 'summary'
-    ? 'summary'
-    : resolvedContentMode;
+  if (!remoteState) {
+    clearReaderBootstrapSnapshot(novelId);
+  }
+
+  const baseState = buildStoredReaderState(remoteState ?? initialStoredState);
+  const resolvedPageTurnMode = options.pageTurnMode ?? 'scroll';
+  const mode = resolveContentModeFromPageTurnMode(resolvedPageTurnMode);
   const nextLastContentMode = resolveLastContentMode(
     mode,
-    isPagedPageTurnMode(resolvedPageTurnMode) ? 'paged' : 'scroll',
+    mode === 'paged' ? 'paged' : 'scroll',
   );
-  const hydratedState = buildStoredReaderState({
-    ...baseState,
-    mode,
-    lastContentMode: nextLastContentMode,
-  });
-  const pendingRestoreTarget = createRestoreTargetFromPersistedState(hydratedState);
-
+  const pendingRestoreTarget = createRestoreTargetFromPersistedState(baseState, mode);
+  const modeHydrationSnapshot = {
+    source: 'readerSessionStore.hydrateSession',
+    novelId,
+    hasConfiguredPageTurnMode: options.hasConfiguredPageTurnMode ?? false,
+    resolvedPageTurnMode,
+    modeFromPageTurnPreference: mode,
+    hasRemoteProgress: Boolean(remoteState),
+    persistedHintContentMode: baseState.hints?.contentMode ?? null,
+    pendingRestoreTargetMode: pendingRestoreTarget?.mode ?? null,
+  };
+  setDebugSnapshot('reader-mode-hydration', modeHydrationSnapshot);
+  debugLog('Reader', 'reader session hydration mode snapshot', modeHydrationSnapshot);
+  const positionHydrationSnapshot = {
+    source: 'readerSessionStore.hydrateSession',
+    novelId,
+    hasRemoteProgress: Boolean(remoteState),
+    canonical: baseState.canonical ?? null,
+    hints: baseState.hints ?? null,
+    pendingRestoreTarget: pendingRestoreTarget
+      ? {
+        mode: pendingRestoreTarget.mode,
+        chapterIndex: pendingRestoreTarget.chapterIndex,
+        hasLocator: Boolean(pendingRestoreTarget.locator),
+        locatorBoundary: pendingRestoreTarget.locatorBoundary ?? null,
+        chapterProgress: pendingRestoreTarget.chapterProgress ?? null,
+      }
+      : null,
+  };
+  setDebugSnapshot('reader-position-hydration', positionHydrationSnapshot);
+  debugLog('Reader', 'reader session hydration position snapshot', positionHydrationSnapshot);
   readerSessionRuntime.patch({
     novelId,
+    canonical: baseState.canonical,
     mode,
-    chapterIndex: hydratedState.chapterIndex ?? 0,
-    chapterProgress: clampChapterProgress(hydratedState.chapterProgress),
-    locator: hydratedState.locator,
+    chapterIndex: getStoredChapterIndex(baseState),
+    chapterProgress: clampChapterProgress(baseState.hints?.chapterProgress),
+    locator: toReaderLocatorFromCanonical(baseState.canonical, baseState.hints?.pageIndex),
     lastContentMode: nextLastContentMode,
     pendingRestoreTarget,
-    restoreStatus: shouldMaskRestore(pendingRestoreTarget) ? 'restoring' : 'ready',
+    lastRestoreResult: null,
+  }, {
+    persist: false,
   });
 
-  return hydratedState;
+  return baseState;
 }
 
 export function setMode(mode: ReaderMode, options: SessionUpdateOptions = {}): void {
   const currentState = readerSessionStore.getState();
-  updateStoredReaderState(
-    {
-      chapterIndex: currentState.chapterIndex,
-      chapterProgress: currentState.chapterProgress,
-      mode,
-      lastContentMode: resolveLastContentMode(mode, currentState.lastContentMode),
-    },
-    { persistRemote: true, markUserInteracted: options.markUserInteracted, flush: options.flush },
-  );
+  readerSessionRuntime.patch({
+    mode,
+    lastContentMode: resolveLastContentMode(mode, currentState.lastContentMode),
+    hasUserInteracted: options.markUserInteracted ?? currentState.hasUserInteracted,
+  }, {
+    flush: options.flush,
+    persist: false,
+  });
 }
 
 export function setChapterIndex(chapterIndex: number, options: SessionUpdateOptions = {}): void {
-  updateStoredReaderState(
-    { chapterIndex },
-    { persistRemote: true, markUserInteracted: options.markUserInteracted, flush: options.flush },
-  );
+  const currentState = readerSessionStore.getState();
+  const shouldPersistRemote = options.persistRemote ?? false;
+
+  readerSessionRuntime.patch({
+    chapterIndex,
+    chapterProgress:
+      currentState.chapterIndex === chapterIndex ? currentState.chapterProgress : undefined,
+    locator:
+      currentState.locator?.chapterIndex === chapterIndex ? currentState.locator : undefined,
+    hasUserInteracted: options.markUserInteracted ?? currentState.hasUserInteracted,
+  }, {
+    bumpRevision: shouldPersistRemote,
+    flush: options.flush,
+    persist: shouldPersistRemote,
+  });
 }
 
 export function setReadingPosition(
@@ -325,11 +385,23 @@ export function setReadingPosition(
 }
 
 export function setPendingRestoreTarget(nextTarget: ReaderRestoreTarget | null): void {
-  readerSessionRuntime.patch({ pendingRestoreTarget: nextTarget }, { writeCache: false });
+  patchReaderSessionState({ pendingRestoreTarget: nextTarget }, {
+    persist: false,
+    writeCache: false,
+  });
 }
 
-export function setRestoreStatus(restoreStatus: RestoreStatus): void {
-  readerSessionRuntime.patch({ restoreStatus }, { writeCache: false });
+export function setLastRestoreResult(
+  lastRestoreResult: ReaderRestoreResult | null,
+): void {
+  patchReaderSessionState({ lastRestoreResult }, {
+    persist: false,
+    writeCache: false,
+  });
+}
+
+export function dispatchReaderLifecycleEvent(event: ReaderLifecycleEvent): void {
+  applyReaderLifecycleEvent(event);
 }
 
 export function setSessionNovelId(novelId: number): void {
@@ -337,29 +409,41 @@ export function setSessionNovelId(novelId: number): void {
     return;
   }
 
-  readerSessionRuntime.patch({ novelId }, { writeCache: false });
+  patchReaderSessionState({ novelId }, {
+    persist: false,
+    writeCache: false,
+  });
 }
 
 export function beginRestore(nextTarget: ReaderRestoreTarget | null | undefined): void {
-  readerSessionRuntime.patch({
+  const nextEvent: ReaderLifecycleEvent = shouldMaskRestore(nextTarget)
+    ? { type: 'RESTORE_STARTED' }
+    : { type: 'RESTORE_CLEARED' };
+  applyReaderLifecycleEvent(nextEvent, {
     pendingRestoreTarget: nextTarget ?? null,
-    restoreStatus: shouldMaskRestore(nextTarget) ? 'restoring' : 'ready',
-  }, { writeCache: false });
+    lastRestoreResult: null,
+  });
 }
 
 export function completeRestore(): void {
-  readerSessionRuntime.patch({
+  applyReaderLifecycleEvent({ type: 'RESTORE_CLEARED' }, {
     pendingRestoreTarget: null,
-    restoreStatus: 'ready',
-  }, { writeCache: false });
+  });
 }
 
 export function failRestore(): void {
-  readerSessionRuntime.patch({ restoreStatus: 'error' }, { writeCache: false });
+  applyReaderLifecycleEvent({
+    type: 'RESTORE_SETTLED',
+    result: 'failed',
+    awaitingPagedLayout: false,
+  });
 }
 
 export function markUserInteracted(): void {
-  readerSessionRuntime.patch({ hasUserInteracted: true }, { writeCache: false });
+  patchReaderSessionState({ hasUserInteracted: true }, {
+    persist: false,
+    writeCache: false,
+  });
 }
 
 export function getReaderSessionSnapshot(): ReaderSessionSnapshot {
@@ -377,10 +461,10 @@ export function readInitialStoredReaderState(novelId: number): StoredReaderState
 
 export function persistStoredReaderState(
   nextState: StoredReaderState,
-  options?: { flush?: boolean },
+  options?: { flush?: boolean; persistRemote?: boolean },
 ): void {
   updateStoredReaderState(nextState, {
-    persistRemote: true,
+    persistRemote: options?.persistRemote ?? true,
     flush: options?.flush,
   });
 }
@@ -397,6 +481,7 @@ export function useReaderSessionSelector<T>(
 
 export function useReaderSessionActions(): ReaderSessionActions {
   return {
+    dispatchLifecycleEvent: dispatchReaderLifecycleEvent,
     hydrateSession,
     setMode,
     setChapterIndex,
@@ -404,6 +489,7 @@ export function useReaderSessionActions(): ReaderSessionActions {
     beginRestore,
     completeRestore,
     failRestore,
+    setLastRestoreResult,
     flushPersistence,
   };
 }

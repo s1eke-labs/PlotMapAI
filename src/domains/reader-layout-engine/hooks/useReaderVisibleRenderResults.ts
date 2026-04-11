@@ -5,7 +5,7 @@ import type {
   StaticPagedChapterTree,
   StaticScrollChapterTree,
   StaticSummaryShellTree,
-} from '../utils/readerLayout';
+} from '../layout-core/internal';
 import type { ReaderRenderCacheSource } from '../utils/readerRenderCache';
 import type { ReaderVisibleRenderTarget } from '../utils/readerRenderCachePlanning';
 import type { ReaderVisibleRenderResultsResult } from './readerRenderCacheTypes';
@@ -252,7 +252,7 @@ export function useReaderVisibleRenderResults({
       ?? null;
     const activeRichBlocks = activeTarget?.chapter.richBlocks ?? [];
     const pagedDowngradeCount =
-      activeTarget?.variantFamily === 'original-paged' && activeTarget.contentFormat === 'rich'
+      activeTarget?.variantFamily === 'original-paged'
         ? countUnsupportedBlocks(activeRichBlocks)
         : 0;
 
@@ -272,10 +272,10 @@ export function useReaderVisibleRenderResults({
       pagedDowngradeCount,
       pagedFallbackCount: pagedDowngradeCount,
       rendererVersion: activeTarget?.rendererVersion ?? null,
-      richBlockCount: activeTarget?.contentFormat === 'rich' ? countRichBlocks(activeRichBlocks) : 0,
+      richBlockCount: activeTarget ? countRichBlocks(activeRichBlocks) : 0,
       scrollBlockCount: layoutMetrics.scrollBlockCount,
       scrollChapterCount,
-      unsupportedBlockCount: activeTarget?.contentFormat === 'rich'
+      unsupportedBlockCount: activeTarget
         ? countUnsupportedBlocks(activeRichBlocks)
         : 0,
       visibleCacheSources: {

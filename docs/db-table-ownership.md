@@ -22,20 +22,20 @@
 | `readingProgress` | `@domains/reader-session` | `reader-session`, `application` orchestration | `readReadingProgress/replaceReadingProgress/deleteReadingProgress` |
 | `readerRenderCache` | `@domains/reader-layout-engine` | `reader-layout-engine`, `application` orchestration | render cache utils, `deletePersistedReaderRenderCache` |
 
-旧书如果没有 `chapterRichContents` 行，表示它们仍处于 plain-only 兼容状态；调用方必须允许 rich 读取结果为空，而不是把“无 rich row”当作损坏数据。
+当前版本要求每个章节都存在 `chapterRichContents` 行，并以结构化 `richBlocks + plainText projection` 作为唯一规范模型。缺失 structured content 或仍携带已退场的 plain-only 数据，都应视为异常数据并引导 reparse / recovery，而不是继续按兼容状态读取。
 
 ## Rules
 
 - 其他领域不能因为表在 `@infra/db` 中可见，就直接把该表当作自己的读模型或协调接口。
 - 跨域读组合放在 `application`，例如 reader 内容净化读模型与整本书导入/删除生命周期。
 - `book-import` 是 parse-only 领域，不直接写 Dexie。
-- `reader-content` 不直接读 Dexie；它只消费 application 注册的 `ReaderContentController`。
+- `reader-content` 不直接读 Dexie；它只消费 application 提供的 `ReaderContentRuntimeValue`。
 - 预占位表不代表当前可访问，也不构成跨域直连许可；只有在 schema、owner API 和文档都落地后，才视为正式表能力。
 
 ## Current Cross-Domain Exits
 
 - 阅读器内容：
-  `@application/services/readerContentController`
+  `@application/services/readerContentRuntime`
 - 章节分析与人物图谱输入：
   `loadPurifiedBookChapters`
 - 整本书导入 / 删除：

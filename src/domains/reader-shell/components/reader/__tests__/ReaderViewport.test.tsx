@@ -3,7 +3,7 @@ import { render, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
-import type { ChapterContent } from '../../../readerContentService';
+import type { ChapterContent } from '@shared/contracts/reader';
 import ReaderViewport from '../ReaderViewport';
 
 vi.mock('@domains/reader-layout-engine', () => ({

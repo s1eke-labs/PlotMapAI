@@ -5,7 +5,7 @@ import { db } from '@infra/db';
 import { APP_SETTING_KEYS, CACHE_KEYS, storage } from '@infra/storage';
 
 import { READER_THEMES } from '../../constants/readerThemes';
-import { resetReaderSessionStoreForTests } from '../sessionStore';
+import { resetReaderSessionStoreForTests } from '@domains/reader-session';
 import { useReaderPreferences } from '../useReaderPreferences';
 
 const LEGACY_READER_THEME_CACHE_KEY = 'readerTheme';

@@ -8,21 +8,25 @@ export {
 export {
   createReaderTypographyMetrics,
   getReaderLayoutPretextCacheSizeForTests,
+  resetReaderLayoutPretextCacheForTests,
+} from './readerTextMeasurement';
+export {
   measurePagedReaderChapterLayout,
   measureScrollReaderChapterLayout,
   measureReaderChapterLayout,
-  resetReaderLayoutPretextCacheForTests,
-} from './readerMeasurement';
+} from './readerChapterMeasurement';
 export {
   buildStaticPagedChapterTree,
   buildStaticScrollChapterTree,
   buildStaticSummaryShellTree,
   composePaginatedChapterLayout,
-  createReaderRenderQueryManifest,
   createScrollImageLayoutConstraints,
-  estimateReaderRenderQueryManifest,
   getPagedContentHeight,
-} from './readerPagination';
+} from './readerStaticTree';
+export {
+  createReaderRenderQueryManifest,
+  estimateReaderRenderQueryManifest,
+} from './readerRenderManifest';
 export {
   getChapterBoundaryLocator,
   getChapterEndLocator,
@@ -69,4 +73,4 @@ export type {
 export type {
   ReaderRichTextLayoutResult,
   ReaderTextLayoutEngine,
-} from './readerMeasurement';
+} from './readerTextMeasurement';

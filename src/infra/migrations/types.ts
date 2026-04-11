@@ -1,6 +1,6 @@
 import type { Transaction } from 'dexie';
 
-export type MigrationScope = 'db-schema' | 'storage-key' | 'cleanup';
+export type MigrationScope = 'db-schema';
 
 export interface MigrationRetireWhen {
   date?: string;
@@ -18,22 +18,4 @@ export interface DbSchemaMigration extends MigrationMetadata {
   scope: 'db-schema';
   stores: Record<string, string>;
   upgrade?: (transaction: Transaction) => Promise<void>;
-}
-
-export interface StorageKeyMigration extends MigrationMetadata {
-  scope: 'storage-key';
-  run: () => Promise<void>;
-}
-
-export interface CleanupMigration extends MigrationMetadata {
-  scope: 'cleanup';
-  run: () => Promise<void>;
-}
-
-export interface MigrationLedger {
-  completedVersions: {
-    storageKey: number[];
-    cleanup: number[];
-  };
-  updatedAt: string;
 }

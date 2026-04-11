@@ -1,19 +1,20 @@
 import type { CSSProperties } from 'react';
-import type { ChapterContent } from '../../readerContentService';
+import type { ChapterContent } from '@shared/contracts/reader';
 import type {
   StaticScrollChapterTree,
   VisibleBlockRange,
-} from '../../utils/readerLayout';
+} from '../../layout-core/internal';
 import type {
   ReaderImageActivationPayload,
   ReaderImageGalleryEntry,
-} from '../../utils/readerImageGallery';
+} from '../../layout-core/internal';
 
-import { READER_CONTENT_CLASS_NAMES } from '@domains/reader-shell/constants/readerContentContract';
+import { READER_CONTENT_CLASS_NAMES } from '@shared/reader-content';
 import { cn } from '@shared/utils/cn';
 
-import RichBlockRenderer from './RichBlockRenderer';
-import ReaderFlowBlock from './ReaderFlowBlock';
+import {
+  ReaderFlowBlock,
+} from '../../layout-core/internal';
 
 interface ScrollReaderChapter {
   chapter: ChapterContent;
@@ -101,38 +102,21 @@ export default function ScrollReaderContent({
                 style={{ height: layout.totalHeight, position: 'relative' }}
               >
                 {visibleMetrics.map((metric) => (
-                  layout.renderMode === 'rich' ? (
-                    <RichBlockRenderer
-                      chapterTitle={chapter.title}
-                      key={metric.block.key}
-                      item={metric}
-                      novelId={novelId}
-                      onImageActivate={onImageActivate}
-                      onRegisterImageElement={onRegisterImageElement}
-                      positionStyle={{
-                        left: 0,
-                        position: 'absolute',
-                        right: 0,
-                        top: metric.top,
-                      }}
-                    />
-                  ) : (
-                    <ReaderFlowBlock
-                      chapterTitle={chapter.title}
-                      key={metric.block.key}
-                      imageRenderMode="scroll"
-                      item={metric}
-                      novelId={novelId}
-                      onImageActivate={onImageActivate}
-                      onRegisterImageElement={onRegisterImageElement}
-                      positionStyle={{
-                        left: 0,
-                        position: 'absolute',
-                        right: 0,
-                        top: metric.top,
-                      }}
-                    />
-                  )
+                  <ReaderFlowBlock
+                    chapterTitle={chapter.title}
+                    key={metric.block.key}
+                    imageRenderMode="scroll"
+                    item={metric}
+                    novelId={novelId}
+                    onImageActivate={onImageActivate}
+                    onRegisterImageElement={onRegisterImageElement}
+                    positionStyle={{
+                      left: 0,
+                      position: 'absolute',
+                      right: 0,
+                      top: metric.top,
+                    }}
+                  />
                 ))}
               </div>
             </div>

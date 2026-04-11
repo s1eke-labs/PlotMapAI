@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { READER_CONTENT_CLASS_NAMES } from '@domains/reader-shell/constants/readerContentContract';
+import { READER_CONTENT_CLASS_NAMES } from '@shared/reader-content';
 
 const useReaderImageResourceMock = vi.hoisted(() => vi.fn());
 
@@ -11,7 +11,8 @@ vi.mock('react-i18next', () => ({
   }),
 }));
 
-vi.mock('../../../hooks/useReaderImageResource', () => ({
+vi.mock('@domains/reader-media', async (importOriginal) => ({
+  ...await importOriginal<typeof import('@domains/reader-media')>(),
   useReaderImageResource: useReaderImageResourceMock,
 }));
 

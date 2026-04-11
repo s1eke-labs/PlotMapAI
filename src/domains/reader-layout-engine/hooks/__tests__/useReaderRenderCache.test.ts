@@ -1,29 +1,27 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createReaderContextWrapper } from '@test/readerRuntimeTestUtils';
 
 const debugLogMock = vi.hoisted(() => vi.fn());
 const setDebugSnapshotMock = vi.hoisted(() => vi.fn());
 const debugFeatureState = vi.hoisted(() => {
   const listeners = new Set<(featureFlags: {
-    readerLegacyPlainScroll: boolean;
     readerTelemetry: boolean;
   }) => void>();
   let featureFlags = {
-    readerLegacyPlainScroll: false,
     readerTelemetry: false,
   };
 
   return {
     getFlags: vi.fn(() => ({ ...featureFlags })),
-    isEnabled: vi.fn((flag: 'readerLegacyPlainScroll' | 'readerTelemetry') => featureFlags[flag]),
+    isEnabled: vi.fn((flag: 'readerTelemetry') => featureFlags[flag]),
     reset() {
       featureFlags = {
-        readerLegacyPlainScroll: false,
         readerTelemetry: false,
       };
       listeners.clear();
     },
-    set(flag: 'readerLegacyPlainScroll' | 'readerTelemetry', enabled: boolean) {
+    set(flag: 'readerTelemetry', enabled: boolean) {
       featureFlags = {
         ...featureFlags,
         [flag]: enabled,
@@ -33,7 +31,6 @@ const debugFeatureState = vi.hoisted(() => {
       }
     },
     subscribe: vi.fn((listener: (featureFlags: {
-      readerLegacyPlainScroll: boolean;
       readerTelemetry: boolean;
     }) => void) => {
       listeners.add(listener);
@@ -110,7 +107,7 @@ const renderCacheMock = vi.hoisted(() => {
       && params.chapter.richBlocks.length > 0
       && params.preferRichScrollRendering !== false
       ? 'scroll-rich-inline'
-      : 'scroll-legacy-plain';
+      : 'scroll-plain';
   };
   const buildKey = (params: {
     chapterIndex: number;
@@ -168,7 +165,7 @@ const renderCacheMock = vi.hoisted(() => {
           blockCount: 0,
           chapterIndex: params.chapter.index,
           metrics: [],
-          renderMode: params.preferRichScrollRendering === false ? 'legacy-plain' : 'rich',
+          renderMode: params.preferRichScrollRendering === false ? 'plain' : 'rich',
           textWidth: 400,
           totalHeight: 0,
         };
@@ -298,11 +295,11 @@ vi.mock('@shared/debug', () => ({
   setDebugSnapshot: setDebugSnapshotMock,
 }));
 
-vi.mock('../../utils/readerImageResourceCache', () => imageCacheMock);
+vi.mock('@domains/reader-media', () => imageCacheMock);
 
 vi.mock('../../utils/readerRenderCache', () => renderCacheMock);
 
-import type { Chapter, ChapterContent } from '../../readerContentService';
+import type { Chapter, ChapterContent } from '@shared/contracts/reader';
 import {
   createReaderLayoutSignature,
   createReaderViewportMetrics,
@@ -311,12 +308,19 @@ import {
 import { useReaderRenderCache } from '../useReaderRenderCache';
 
 function createChapter(index: number, totalChapters: number): ChapterContent {
+  const plainText = `Content for chapter ${index + 1}`;
   return {
     index,
     title: `Chapter ${index + 1}`,
-    plainText: `Content for chapter ${index + 1}`,
-    richBlocks: [],
-    contentFormat: 'plain',
+    plainText,
+    richBlocks: [{
+      type: 'paragraph',
+      children: [{
+        type: 'text',
+        text: plainText,
+      }],
+    }],
+    contentFormat: 'rich',
     contentVersion: 1,
     wordCount: 120,
     totalChapters,
@@ -384,6 +388,7 @@ function renderReaderRenderCacheHook(options?: {
   const contentRef = { current: viewport };
   const fetchChapterContent = options?.fetchChapterContent
     ?? (async (index: number) => createChapter(index, chapters.length));
+  const { Wrapper } = createReaderContextWrapper();
 
   return renderHook(() => useReaderRenderCache({
     chapters,
@@ -399,7 +404,9 @@ function renderReaderRenderCacheHook(options?: {
     paragraphSpacing: 16,
     scrollChapters: options?.scrollChapters ?? [],
     viewMode: options?.viewMode ?? 'original',
-  }));
+  }), {
+    wrapper: Wrapper,
+  });
 }
 
 describe('useReaderRenderCache', () => {
@@ -505,6 +512,26 @@ describe('useReaderRenderCache', () => {
     const currentChapter = {
       ...createChapter(0, 1),
       plainText: 'Before image\n[IMG:cover]\nAfter image',
+      richBlocks: [
+        {
+          type: 'paragraph' as const,
+          children: [{
+            type: 'text' as const,
+            text: 'Before image',
+          }],
+        },
+        {
+          type: 'image' as const,
+          key: 'cover',
+        },
+        {
+          type: 'paragraph' as const,
+          children: [{
+            type: 'text' as const,
+            text: 'After image',
+          }],
+        },
+      ],
     };
     const preload = createDeferred<undefined>();
 
@@ -569,9 +596,30 @@ describe('useReaderRenderCache', () => {
     const currentChapter = {
       ...createChapter(0, 1),
       plainText: 'Before image\n[IMG:cover]\nAfter image',
+      richBlocks: [
+        {
+          type: 'paragraph' as const,
+          children: [{
+            type: 'text' as const,
+            text: 'Before image',
+          }],
+        },
+        {
+          type: 'image' as const,
+          key: 'cover',
+        },
+        {
+          type: 'paragraph' as const,
+          children: [{
+            type: 'text' as const,
+            text: 'After image',
+          }],
+        },
+      ],
     };
     const viewport = createViewport();
     const contentRef = { current: viewport };
+    const { Wrapper } = createReaderContextWrapper();
 
     renderHook(() => useReaderRenderCache({
       chapters: [{ index: 0, title: 'Chapter 1', wordCount: 120 }],
@@ -587,7 +635,9 @@ describe('useReaderRenderCache', () => {
       paragraphSpacing: 16,
       scrollChapters: [{ chapter: currentChapter, index: currentChapter.index }],
       viewMode: 'original',
-    }));
+    }), {
+      wrapper: Wrapper,
+    });
 
     await waitFor(() => {
       expect(imageCacheMock.preloadReaderImageResources).toHaveBeenCalledTimes(1);
@@ -600,6 +650,7 @@ describe('useReaderRenderCache', () => {
     const contentRef = { current: viewport };
     const chapters = [{ index: 0, title: 'Chapter 1', wordCount: 120 }];
     const fetchChapterContent = async (index: number) => createChapter(index, 1);
+    const { Wrapper } = createReaderContextWrapper();
 
     const { result, rerender } = renderHook(
       ({ nextCurrentChapter }: { nextCurrentChapter: ChapterContent }) => useReaderRenderCache({
@@ -619,6 +670,7 @@ describe('useReaderRenderCache', () => {
       }),
       {
         initialProps: { nextCurrentChapter: currentChapter },
+        wrapper: Wrapper,
       },
     );
 
@@ -652,6 +704,7 @@ describe('useReaderRenderCache', () => {
     const contentRef = { current: viewport };
     const chapters = [{ index: 0, title: 'Chapter 1', wordCount: 120 }];
     const createFetchChapterContent = () => async (index: number) => createChapter(index, 1);
+    const { Wrapper } = createReaderContextWrapper();
 
     const { result, rerender } = renderHook(
       ({ nextFetchChapterContent }: {
@@ -675,6 +728,7 @@ describe('useReaderRenderCache', () => {
         initialProps: {
           nextFetchChapterContent: createFetchChapterContent(),
         },
+        wrapper: Wrapper,
       },
     );
 
@@ -714,11 +768,11 @@ describe('useReaderRenderCache', () => {
       expect(setDebugSnapshotMock).toHaveBeenCalledWith(
         'reader-layout',
         expect.objectContaining({
-          contentFormat: 'plain',
-          layoutFeatureSet: 'scroll-legacy-plain',
+          contentFormat: 'rich',
+          layoutFeatureSet: 'scroll-rich-inline',
           novelId: 1,
           pendingPreheatCount: expect.any(Number),
-          richBlockCount: 0,
+          richBlockCount: 1,
           unsupportedBlockCount: 0,
         }),
       );
@@ -728,14 +782,14 @@ describe('useReaderRenderCache', () => {
         expect.objectContaining({
           activeVariant: 'original-scroll',
           cacheModel: 'layered-render-cache',
-          contentFormat: 'plain',
+          contentFormat: 'rich',
           currentPagedPageCount: 0,
           currentPagedPageItemCount: 0,
-          layoutFeatureSet: 'scroll-legacy-plain',
+          layoutFeatureSet: 'scroll-rich-inline',
           novelId: 1,
           pagedDowngradeCount: 0,
           pagedFallbackCount: 0,
-          richBlockCount: 0,
+          richBlockCount: 1,
           scrollBlockCount: 0,
           scrollChapterCount: 1,
           unsupportedBlockCount: 0,
@@ -902,7 +956,7 @@ describe('useReaderRenderCache', () => {
       if (params.chapterIndex === 0 && params.variantFamily === 'original-paged') {
         return {
           chapterIndex: 0,
-          contentFormat: 'plain' as const,
+          contentFormat: 'rich' as const,
           contentHash: '30d34e7ff4bcc85d',
           contentVersion: 1,
           layoutFeatureSet: 'paged-pagination-block' as const,
@@ -998,38 +1052,5 @@ describe('useReaderRenderCache', () => {
 
     expect(result.current.isPreheating).toBe(false);
     expect(result.current.pendingPreheatCount).toBe(0);
-  });
-
-  it('switches scroll layouts back to legacy plain mode when the debug rollback flag is enabled', async () => {
-    const currentChapter = {
-      ...createChapter(0, 1),
-      contentFormat: 'rich' as const,
-      richBlocks: [{
-        type: 'paragraph' as const,
-        children: [{
-          type: 'text' as const,
-          text: 'Rich content',
-        }],
-      }],
-    };
-
-    const { result } = renderReaderRenderCacheHook({
-      chapters: [{ index: 0, title: 'Chapter 1', wordCount: 120 }],
-      currentChapter,
-      scrollChapters: [{ chapter: currentChapter, index: 0 }],
-    });
-
-    await waitFor(() => {
-      expect(result.current.scrollLayouts.get(0)?.renderMode).toBe('rich');
-    });
-
-    await act(async () => {
-      debugFeatureState.set('readerLegacyPlainScroll', true);
-      await Promise.resolve();
-    });
-
-    await waitFor(() => {
-      expect(result.current.scrollLayouts.get(0)?.renderMode).toBe('legacy-plain');
-    });
   });
 });

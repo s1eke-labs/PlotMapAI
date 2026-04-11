@@ -82,7 +82,7 @@ function createInvalidNovelError(): AppError {
 
 function createEmptyContentSummary(): BookDetailContentSummary {
   return {
-    contentFormat: 'plain',
+    contentFormat: 'rich',
     contentVersion: null,
     importFormatVersion: null,
     lastParsedAt: null,

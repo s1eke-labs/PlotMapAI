@@ -1,19 +1,17 @@
-import type { ChapterContent } from '../readerContentService';
+import type { ChapterContent } from '@shared/contracts/reader';
+import type { ReaderImageDimensions } from '@domains/reader-media';
 import type {
   ReaderLayoutSignature,
   ReaderRenderVariant,
   StaticPagedChapterTree,
 } from './readerLayout';
 import type {
-  ReaderImageDimensions,
-} from './readerImageResourceCache';
-import type {
   ReaderLayoutFeatureSet,
   ReaderRenderCacheSource,
   ReaderRenderStorageKind,
 } from './readerRenderCache';
 
-import { extractImageKeysFromChapter } from './chapterImages';
+import { extractImageKeysFromChapter } from '@shared/text-processing';
 import {
   createChapterContentHash,
   serializeReaderLayoutSignature,
@@ -23,7 +21,7 @@ import {
   READER_RENDERER_VERSION,
   resolveReaderLayoutFeatureSet,
 } from './readerRenderCache';
-import { peekReaderImageDimensions } from './readerImageResourceCache';
+import { peekReaderImageDimensions } from '@domains/reader-media';
 
 export interface ReaderVisibleRenderTarget {
   chapter: ChapterContent;
@@ -37,7 +35,7 @@ export interface ReaderVisibleRenderTarget {
   variantFamily: ReaderRenderVariant;
 }
 
-export type ScrollRenderMode = 'legacy-plain' | 'rich';
+export type ScrollRenderMode = 'plain' | 'rich';
 
 export interface ReaderRenderPreheatTarget {
   chapterIndex: number;

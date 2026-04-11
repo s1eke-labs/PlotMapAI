@@ -19,30 +19,47 @@ describe('reader-session repository', () => {
 
   it('writes and reads canonical progress records', async () => {
     await replaceReadingProgress(1, {
-      chapterIndex: 2,
-      mode: 'summary',
-      chapterProgress: 0.6,
-      lastContentMode: 'paged',
+      canonical: {
+        chapterIndex: 2,
+        edge: 'start',
+      },
+      hints: {
+        chapterProgress: 0.6,
+      },
     });
 
     const row = await db.readingProgress.where('novelId').equals(1).first();
 
     expect(row).toMatchObject({
-      chapterIndex: 2,
-      mode: 'summary',
-      chapterProgress: 0.6,
-      locator: undefined,
+      canonical: {
+        chapterIndex: 2,
+        edge: 'start',
+      },
     });
 
     await expect(readReadingProgress(1)).resolves.toMatchObject({
-      chapterIndex: 2,
-      mode: 'summary',
-      chapterProgress: 0.6,
-      locator: undefined,
+      canonical: {
+        chapterIndex: 2,
+        edge: 'start',
+      },
+      hints: undefined,
     });
   });
 
-  it('replaces a summary snapshot when a locator snapshot is persisted', async () => {
+  it('drops legacy mixed rows without canonical payload', async () => {
+    await db.readingProgress.add({
+      novelId: 1,
+      chapterIndex: 3,
+      mode: 'summary',
+      chapterProgress: 0.75,
+      updatedAt: new Date().toISOString(),
+    });
+
+    await expect(readReadingProgress(1)).resolves.toBeNull();
+    await expect(db.readingProgress.where('novelId').equals(1).first()).resolves.toBeUndefined();
+  });
+
+  it('replaces a legacy row with a canonical snapshot on write', async () => {
     await db.readingProgress.add({
       novelId: 1,
       chapterIndex: 3,
@@ -52,24 +69,18 @@ describe('reader-session repository', () => {
     });
 
     await replaceReadingProgress(1, {
-      chapterIndex: 4,
-      mode: 'paged',
-      locator: {
+      canonical: {
         chapterIndex: 4,
         blockIndex: 2,
         kind: 'text',
         lineIndex: 0,
       },
-      lastContentMode: 'paged',
     });
 
     const row = await db.readingProgress.where('novelId').equals(1).first();
 
     expect(row).toMatchObject({
-      chapterIndex: 4,
-      mode: 'paged',
-      chapterProgress: undefined,
-      locator: {
+      canonical: {
         chapterIndex: 4,
         blockIndex: 2,
         kind: 'text',
@@ -78,10 +89,7 @@ describe('reader-session repository', () => {
     });
 
     await expect(readReadingProgress(1)).resolves.toMatchObject({
-      chapterIndex: 4,
-      mode: 'paged',
-      chapterProgress: undefined,
-      locator: {
+      canonical: {
         chapterIndex: 4,
         blockIndex: 2,
         kind: 'text',

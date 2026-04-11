@@ -116,22 +116,42 @@ describe('readerPosition', () => {
     expect(createRestoreTargetFromPersistedState({
       chapterIndex: 2,
       mode: 'scroll',
-    })).toBeNull();
+    })).toEqual({
+      chapterIndex: 2,
+      mode: 'scroll',
+      locatorBoundary: 'start',
+      locator: undefined,
+    });
     expect(createRestoreTargetFromPersistedState({
       chapterIndex: 2,
       mode: 'scroll',
       chapterProgress: 0,
-    })).toBeNull();
+    })).toEqual({
+      chapterIndex: 2,
+      mode: 'scroll',
+      locatorBoundary: 'start',
+      locator: undefined,
+    });
     expect(createRestoreTargetFromPersistedState({
       chapterIndex: 2,
       mode: 'scroll',
       chapterProgress: 0.4,
-    })).toBeNull();
+    })).toEqual({
+      chapterIndex: 2,
+      mode: 'scroll',
+      locatorBoundary: 'start',
+      locator: undefined,
+    });
     expect(createRestoreTargetFromPersistedState({
       chapterIndex: 2,
       mode: 'paged',
       chapterProgress: 1,
-    })).toBeNull();
+    })).toEqual({
+      chapterIndex: 2,
+      mode: 'paged',
+      locatorBoundary: 'start',
+      locator: undefined,
+    });
     expect(createRestoreTargetFromPersistedState({
       chapterIndex: 2,
       mode: 'summary',
@@ -140,6 +160,7 @@ describe('readerPosition', () => {
       chapterIndex: 2,
       mode: 'summary',
       chapterProgress: 1,
+      locatorBoundary: 'start',
       locator: undefined,
     });
   });

@@ -1,4 +1,4 @@
-import type { ChapterContent } from '../readerContentService';
+import type { ChapterContent } from '@shared/contracts/reader';
 import type {
   ReaderLayoutSnapshot,
   UseReaderRenderCacheParams,
@@ -12,6 +12,7 @@ import {
   isDebugFeatureEnabled,
   setDebugSnapshot,
 } from '@shared/debug';
+import { useReaderContentRuntime } from '@shared/reader-runtime';
 
 import { clearReaderRenderCacheMemoryForNovel } from '../utils/readerRenderCache';
 import {
@@ -19,9 +20,8 @@ import {
   buildVisibleRenderTargets,
   collectLoadedImageKeys,
   getActiveVariant,
-  type ScrollRenderMode,
 } from '../utils/readerRenderCachePlanning';
-import { preloadReaderImageResources } from '../utils/readerImageResourceCache';
+import { preloadReaderImageResources } from '../layout-core/internal';
 import { useReaderRenderPreheater } from './useReaderRenderPreheater';
 import { useReaderRenderViewport } from './useReaderRenderViewport';
 import { useReaderVisibleRenderResults } from './useReaderVisibleRenderResults';
@@ -41,12 +41,10 @@ export function useReaderRenderCache({
   scrollChapters,
   viewMode,
 }: UseReaderRenderCacheParams): UseReaderRenderCacheResult {
+  const readerContentRuntime = useReaderContentRuntime();
   const [imageRevision, setImageRevision] = useState(0);
   const [cacheRevision, setCacheRevision] = useState(0);
   const [readerTelemetryEnabled, setReaderTelemetryEnabled] = useState(() => isDebugFeatureEnabled('readerTelemetry'));
-  const [readerLegacyPlainScrollEnabled, setReaderLegacyPlainScrollEnabled] = useState(
-    () => isDebugFeatureEnabled('readerLegacyPlainScroll'),
-  );
   const pendingPreheatCountRef = useRef(0);
   const loadedChaptersRef = useRef<Map<number, ChapterContent>>(new Map());
   const currentChapterIndex = currentChapter?.index ?? null;
@@ -57,7 +55,6 @@ export function useReaderRenderCache({
   useEffect(() => {
     return debugFeatureSubscribe((featureFlags) => {
       setReaderTelemetryEnabled(featureFlags.readerTelemetry);
-      setReaderLegacyPlainScrollEnabled(featureFlags.readerLegacyPlainScroll);
     });
   }, []);
 
@@ -88,9 +85,7 @@ export function useReaderRenderCache({
     paragraphSpacing,
   });
   const activeVariant = getActiveVariant(isPagedMode, viewMode);
-  const scrollRenderMode: ScrollRenderMode = readerLegacyPlainScrollEnabled
-    ? 'legacy-plain'
-    : 'rich';
+  const scrollRenderMode = 'rich' as const;
 
   const loadedImageKeys = useMemo(() => collectLoadedImageKeys({
     currentChapter,
@@ -113,7 +108,7 @@ export function useReaderRenderCache({
     }
 
     let cancelled = false;
-    preloadReaderImageResources(novelId, imageKeys)
+    preloadReaderImageResources(readerContentRuntime, novelId, imageKeys)
       .finally(() => {
         if (!cancelled) {
           setImageRevision((previous) => previous + 1);
@@ -123,7 +118,7 @@ export function useReaderRenderCache({
     return () => {
       cancelled = true;
     };
-  }, [loadedImageKeySignature, novelId]);
+  }, [loadedImageKeySignature, novelId, readerContentRuntime]);
 
   const visibleTargets = useMemo(() => buildVisibleRenderTargets({
     currentChapter,
@@ -175,7 +170,7 @@ export function useReaderRenderCache({
     novelId,
     onMaterializedEntry: handleMaterializedEntry,
     preheatTargets,
-    preferRichScrollRendering: !readerLegacyPlainScrollEnabled,
+    preferRichScrollRendering: true,
     readerTelemetryEnabled,
     typography,
     variantSignatures,
@@ -197,7 +192,7 @@ export function useReaderRenderCache({
     novelId,
     revisionKey: `${cacheRevision}:${imageRevision}:${scrollRenderMode}`,
     scrollChapterCount: scrollChapters.length,
-    preferRichScrollRendering: !readerLegacyPlainScrollEnabled,
+    preferRichScrollRendering: true,
     typography,
     variantSignatures,
     visibleTargets,

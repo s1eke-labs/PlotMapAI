@@ -2,13 +2,12 @@ import type { StoredReaderState } from '@shared/contracts/reader';
 
 import {
   buildStoredReaderState,
-  clampChapterProgress,
-  sanitizeLocator,
+  sanitizeStoredReaderState,
 } from '@shared/utils/readerStoredState';
 
 import { CACHE_KEYS, storage } from './index';
 
-const READER_BOOTSTRAP_SNAPSHOT_VERSION = 1 as const;
+const READER_BOOTSTRAP_SNAPSHOT_VERSION = 2 as const;
 
 export interface ReaderBootstrapSnapshot {
   version: typeof READER_BOOTSTRAP_SNAPSHOT_VERSION;
@@ -16,44 +15,7 @@ export interface ReaderBootstrapSnapshot {
 }
 
 function parseStoredReaderBootstrapState(raw: unknown): StoredReaderState | null {
-  if (!raw || typeof raw !== 'object') {
-    return null;
-  }
-
-  const parsed = raw as Record<string, unknown>;
-  if (
-    typeof parsed.chapterIndex !== 'number'
-    || (parsed.mode !== 'scroll' && parsed.mode !== 'paged' && parsed.mode !== 'summary')
-    || (parsed.lastContentMode !== 'scroll' && parsed.lastContentMode !== 'paged')
-  ) {
-    return null;
-  }
-
-  if (
-    parsed.chapterProgress !== undefined
-    && (typeof parsed.chapterProgress !== 'number' || Number.isNaN(parsed.chapterProgress))
-  ) {
-    return null;
-  }
-
-  if (parsed.mode !== 'summary' && parsed.chapterProgress !== undefined) {
-    return null;
-  }
-
-  const locator = parsed.locator === undefined
-    ? undefined
-    : sanitizeLocator(parsed.locator);
-  if (parsed.locator !== undefined && !locator) {
-    return null;
-  }
-
-  return buildStoredReaderState({
-    chapterIndex: parsed.chapterIndex,
-    mode: parsed.mode,
-    chapterProgress: clampChapterProgress(parsed.chapterProgress),
-    lastContentMode: parsed.lastContentMode,
-    locator,
-  });
+  return sanitizeStoredReaderState(raw);
 }
 
 function parseReaderBootstrapSnapshot(raw: unknown): ReaderBootstrapSnapshot | null {

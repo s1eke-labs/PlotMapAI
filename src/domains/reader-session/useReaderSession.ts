@@ -1,8 +1,10 @@
+import type { ReaderSessionSnapshot as SessionStoreSnapshot } from '@shared/contracts/reader';
 import type {
   ReaderMode,
+  ReaderRestoreResult,
   ReaderRestoreTarget,
   RestoreStatus,
-  StoredReaderState,
+  ReaderSessionCommands,
 } from '@shared/contracts/reader';
 
 import { useCallback, useMemo } from 'react';
@@ -12,8 +14,7 @@ import {
   setChapterIndex as setSessionChapterIndex,
   setMode as setSessionMode,
   useReaderSessionSelector,
-  type ReaderSessionSnapshot as SessionStoreSnapshot,
-} from './sessionStore';
+} from './readerSessionStore';
 import { useReaderStatePersistence } from './useReaderStatePersistence';
 import { getReaderViewMode, isPagedReaderMode } from '@shared/utils/readerMode';
 
@@ -25,23 +26,11 @@ export interface ReaderSessionSnapshot {
   contentMode: 'scroll' | 'paged';
   isPagedMode: boolean;
   restoreStatus: RestoreStatus;
+  lastRestoreResult: ReaderRestoreResult | null;
   pendingRestoreTarget: ReaderRestoreTarget | null;
   lastContentMode: 'scroll' | 'paged';
 }
 
-export interface ReaderSessionCommands {
-  setChapterIndex: React.Dispatch<React.SetStateAction<number>>;
-  setMode: React.Dispatch<React.SetStateAction<ReaderMode>>;
-  latestReaderStateRef: React.MutableRefObject<StoredReaderState>;
-  hasUserInteractedRef: React.MutableRefObject<boolean>;
-  markUserInteracted: () => void;
-  persistReaderState: (
-    nextState: StoredReaderState,
-    options?: { flush?: boolean },
-  ) => void;
-  flushReaderState: () => Promise<void>;
-  loadPersistedReaderState: () => Promise<StoredReaderState>;
-}
 
 export interface UseReaderSessionResult {
   snapshot: ReaderSessionSnapshot;
@@ -53,6 +42,7 @@ export function useReaderSession(novelId: number): UseReaderSessionResult {
   const chapterIndex = useReaderSessionSelector((state) => state.chapterIndex);
   const mode = useReaderSessionSelector((state) => state.mode);
   const restoreStatus = useReaderSessionSelector((state) => state.restoreStatus);
+  const lastRestoreResult = useReaderSessionSelector((state) => state.lastRestoreResult);
   const pendingRestoreTarget = useReaderSessionSelector((state) => state.pendingRestoreTarget);
   const lastContentMode = useReaderSessionSelector((state) => state.lastContentMode);
   const storeNovelId = useReaderSessionSelector((state) => state.novelId);
@@ -85,12 +75,14 @@ export function useReaderSession(novelId: number): UseReaderSessionResult {
     contentMode,
     isPagedMode,
     restoreStatus,
+    lastRestoreResult,
     pendingRestoreTarget,
     lastContentMode,
   }), [
     chapterIndex,
     contentMode,
     isPagedMode,
+    lastRestoreResult,
     lastContentMode,
     mode,
     novelId,

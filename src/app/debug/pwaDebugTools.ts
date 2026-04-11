@@ -4,12 +4,14 @@ export const DEBUG_SHOW_INSTALL_PROMPT_EVENT = 'plotmapai:debug:show-install-pro
 export const DEBUG_SHOW_IOS_INSTALL_HINT_EVENT = 'plotmapai:debug:show-ios-install-hint';
 export const DEBUG_SHOW_UPDATE_TOAST_EVENT = 'plotmapai:debug:show-update-toast';
 export const DEBUG_RESET_PWA_PROMPTS_EVENT = 'plotmapai:debug:reset-pwa-prompts';
+export const DEBUG_RETRY_READER_RESTORE_EVENT = 'plotmapai:debug:retry-reader-restore';
 
 export interface DebugPwaTools {
   showInstallPrompt: () => void;
   showIosInstallHint: () => void;
   showUpdateToast: () => void;
   resetPwaPrompts: () => void;
+  retryReaderRestore: () => void;
 }
 
 function dispatchDebugEvent(eventName: string, message: string): void {
@@ -37,6 +39,10 @@ export function triggerDebugResetPwaPrompts(): void {
   dispatchDebugEvent(DEBUG_RESET_PWA_PROMPTS_EVENT, 'manual PWA prompt reset triggered');
 }
 
+export function triggerDebugRetryReaderRestore(): void {
+  dispatchDebugEvent(DEBUG_RETRY_READER_RESTORE_EVENT, 'manual reader restore retry triggered');
+}
+
 export function registerPwaDebugTools(): () => void {
   if (!isDebugMode() || typeof window === 'undefined') {
     return () => undefined;
@@ -47,6 +53,7 @@ export function registerPwaDebugTools(): () => void {
     showIosInstallHint: triggerDebugIosInstallHint,
     showUpdateToast: triggerDebugUpdateToast,
     resetPwaPrompts: triggerDebugResetPwaPrompts,
+    retryReaderRestore: triggerDebugRetryReaderRestore,
   };
 
   window.PlotMapAIDebug = tools;

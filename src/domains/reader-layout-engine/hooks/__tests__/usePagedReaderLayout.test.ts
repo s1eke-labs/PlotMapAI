@@ -1,4 +1,5 @@
 import type { Dispatch, SetStateAction } from 'react';
+import type { ReaderRestoreResult, ReaderRestoreTarget } from '@shared/contracts/reader';
 import type { PaginatedChapterLayout } from '../../utils/readerLayout';
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -105,6 +106,12 @@ function createHookProps(overrides?: {
   } | null;
   pagedViewportElement?: HTMLDivElement | null;
   pagedContentElement?: HTMLDivElement | null;
+  getRestoreAttempt?: (target: ReaderRestoreTarget | null | undefined) => number;
+  recordRestoreResult?: (
+    result: ReaderRestoreResult,
+    target: ReaderRestoreTarget | null | undefined,
+  ) => { scheduledRetry: boolean };
+  notifyRestoreSettled?: (status: 'completed' | 'failed' | 'skipped') => void;
   setPageCount?: Dispatch<SetStateAction<number>>;
   setPageIndex?: Dispatch<SetStateAction<number>>;
 }) {
@@ -118,9 +125,13 @@ function createHookProps(overrides?: {
     pagedContentElement: overrides?.pagedContentElement ?? null,
     pageIndex: overrides?.pageIndex ?? 0,
     pendingPageTarget: overrides?.pageTarget ?? null,
+    pendingRestoreTarget: overrides?.pendingRestoreTarget ?? null,
     pendingRestoreTargetRef: { current: overrides?.pendingRestoreTarget ?? null },
+    getRestoreAttempt: overrides?.getRestoreAttempt ?? (() => 0),
+    recordRestoreResult: overrides?.recordRestoreResult ?? (() => ({ scheduledRetry: false })),
     clearPendingRestoreTarget: vi.fn(),
     clearPendingPageTarget: vi.fn(),
+    notifyRestoreSettled: overrides?.notifyRestoreSettled ?? vi.fn(),
     stopRestoreMask: vi.fn(),
     setPageCount: overrides?.setPageCount ?? vi.fn(),
     setPageIndex: overrides?.setPageIndex ?? vi.fn(),

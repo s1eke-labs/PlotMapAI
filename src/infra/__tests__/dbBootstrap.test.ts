@@ -191,33 +191,29 @@ describe('prepareDatabase', () => {
     expect(db.tables.some((table) => table.name === 'novels')).toBe(true);
   });
 
-  it('upgrades v1 novels by backfilling chapterCount from chapters', async () => {
+  it('requires explicit recovery for legacy v1 databases', async () => {
     await createVersionOneDatabaseWithLegacyNovel();
 
-    await prepareDatabase();
-
-    const novel = await db.novels.get(1);
-
-    expect(db.verno).toBe(5);
-    expect(novel).toMatchObject({
-      chapterCount: 2,
-      title: 'Legacy DB Novel',
+    await expect(prepareDatabase()).rejects.toMatchObject({
+      code: AppErrorCode.DATABASE_RECOVERY_REQUIRED,
+      details: expect.objectContaining({
+        installedNativeVersion: 10,
+        recognizedNativeVersion: false,
+        targetVersion: 5,
+      }),
     });
-    await expect(db.chapterRichContents.count()).resolves.toBe(0);
   });
 
-  it('upgrades v2 plain-only databases without creating rich content rows', async () => {
+  it('requires explicit recovery for legacy v2 plain-only databases', async () => {
     await createVersionTwoDatabaseWithPlainNovel();
 
-    await prepareDatabase();
-
-    const novel = await db.novels.get(1);
-
-    expect(db.verno).toBe(5);
-    expect(novel).toMatchObject({
-      chapterCount: 1,
-      title: 'Legacy V2 Novel',
+    await expect(prepareDatabase()).rejects.toMatchObject({
+      code: AppErrorCode.DATABASE_RECOVERY_REQUIRED,
+      details: expect.objectContaining({
+        installedNativeVersion: 20,
+        recognizedNativeVersion: false,
+        targetVersion: 5,
+      }),
     });
-    await expect(db.chapterRichContents.count()).resolves.toBe(0);
   });
 });

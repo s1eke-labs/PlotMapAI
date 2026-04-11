@@ -1,12 +1,35 @@
-import type { PageTarget, ReaderRestoreTarget } from '@shared/contracts/reader';
-import type { PaginatedChapterLayout } from '../utils/readerLayout';
+import type {
+  PageTarget,
+  ReaderRestoreResult,
+  ReaderRestoreTarget,
+} from '@shared/contracts/reader';
+import type { PaginatedChapterLayout } from '../layout-core/internal';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { findPageIndexForLocator, getChapterBoundaryLocator } from '../utils/readerLayout';
-import { resolvePagedTargetPage } from '@shared/utils/readerPosition';
+import {
+  findPageIndexForLocator,
+  getChapterBoundaryLocator,
+} from '../layout-core/internal';
+import {
+  canSkipReaderRestore,
+  resolvePagedTargetPage,
+} from '@shared/utils/readerPosition';
+import { debugLog, setDebugSnapshot } from '@shared/debug';
+import {
+  restoreStepFailure,
+  restoreStepPending,
+  restoreStepSuccess,
+  runRestoreSolver,
+} from '@shared/utils/readerRestoreSolver';
+import {
+  getPagedMeasuredPageTurnStep,
+  getPagedPageCount,
+  getPagedScrollLeft,
+  getPagedViewportSize,
+  parseCssLength,
+} from './pagedLayoutMath';
 
 const TWO_COLUMN_GAP = 48;
 const MIN_COLUMN_WIDTH = 260;
-const PAGE_COUNT_EPSILON = 1;
 
 interface UsePagedReaderLayoutParams {
   chapterIndex: number;
@@ -18,9 +41,16 @@ interface UsePagedReaderLayoutParams {
   pagedContentElement: HTMLDivElement | null;
   pageIndex: number;
   pendingPageTarget: PageTarget | null;
+  pendingRestoreTarget: ReaderRestoreTarget | null;
   pendingRestoreTargetRef: React.MutableRefObject<ReaderRestoreTarget | null>;
+  getRestoreAttempt: (target: ReaderRestoreTarget | null | undefined) => number;
+  recordRestoreResult: (
+    result: ReaderRestoreResult,
+    target: ReaderRestoreTarget | null | undefined,
+  ) => { scheduledRetry: boolean };
   clearPendingRestoreTarget: () => void;
   clearPendingPageTarget: () => void;
+  notifyRestoreSettled: (status: 'completed' | 'failed' | 'skipped') => void;
   stopRestoreMask: () => void;
   setPageCount: React.Dispatch<React.SetStateAction<number>>;
   setPageIndex: React.Dispatch<React.SetStateAction<number>>;
@@ -37,86 +67,27 @@ interface UsePagedReaderLayoutResult {
   readyChapterIndex: number | null;
 }
 
-interface PagedViewportSize {
-  width: number;
-  height: number;
-}
-
-function parseCssLength(value: string): number | null {
-  const parsed = Number.parseFloat(value);
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
-export function getPagedViewportSize(viewport: HTMLDivElement): PagedViewportSize {
-  const rect = viewport.getBoundingClientRect();
-
+function buildSkippedNoTargetResult(
+  chapterIndex: number,
+  attempts: number,
+): ReaderRestoreResult {
   return {
-    width: rect.width || viewport.clientWidth,
-    height: rect.height || viewport.clientHeight,
+    status: 'skipped',
+    reason: 'no_target',
+    retryable: false,
+    attempts,
+    mode: 'paged',
+    chapterIndex,
   };
 }
 
-export function getPagedPageCount(
-  scrollWidth: number,
-  viewportWidth: number,
-  pageTurnStep: number,
-): number {
-  if (viewportWidth <= 0 || pageTurnStep <= 0) {
-    return 1;
-  }
+export {
+  getPagedMeasuredPageTurnStep,
+  getPagedPageCount,
+  getPagedScrollLeft,
+  getPagedViewportSize,
+};
 
-  const overflowWidth = Math.max(0, scrollWidth - viewportWidth);
-  if (overflowWidth <= PAGE_COUNT_EPSILON) {
-    return 1;
-  }
-
-  return Math.max(
-    2,
-    Math.floor(Math.max(0, overflowWidth - PAGE_COUNT_EPSILON) / pageTurnStep) + 2,
-  );
-}
-
-export function getPagedScrollLeft(
-  pageIndex: number,
-  pageTurnStep: number,
-  maxScrollLeft: number,
-): number {
-  if (pageTurnStep <= 0 || maxScrollLeft <= 0) {
-    return 0;
-  }
-
-  return Math.min(pageIndex * pageTurnStep, maxScrollLeft);
-}
-
-export function getPagedMeasuredPageTurnStep(
-  viewportWidth: number,
-  fallbackPageTurnStep: number,
-  fitsTwoColumns: boolean,
-  measuredColumnWidth: number | null,
-  measuredColumnGap: number | null,
-): number {
-  if (viewportWidth <= 0 || fallbackPageTurnStep <= 0) {
-    return 0;
-  }
-
-  if (measuredColumnWidth === null || measuredColumnWidth <= 0) {
-    return fallbackPageTurnStep;
-  }
-
-  const resolvedColumnGap = measuredColumnGap !== null && measuredColumnGap >= 0
-    ? measuredColumnGap
-    : 0;
-  const columnsPerPage = fitsTwoColumns ? 2 : 1;
-  const visiblePageWidth = measuredColumnWidth * columnsPerPage
-    + resolvedColumnGap * Math.max(0, columnsPerPage - 1);
-  const measuredPageTurnStep = visiblePageWidth + resolvedColumnGap;
-
-  if (!Number.isFinite(measuredPageTurnStep) || measuredPageTurnStep <= 0) {
-    return fallbackPageTurnStep;
-  }
-
-  return measuredPageTurnStep;
-}
 
 export function usePagedReaderLayout({
   chapterIndex,
@@ -128,9 +99,13 @@ export function usePagedReaderLayout({
   pagedContentElement,
   pageIndex,
   pendingPageTarget,
+  pendingRestoreTarget: pendingRestoreTargetValue,
   pendingRestoreTargetRef,
+  getRestoreAttempt,
+  recordRestoreResult,
   clearPendingRestoreTarget,
   clearPendingPageTarget,
+  notifyRestoreSettled,
   stopRestoreMask,
   setPageCount,
   setPageIndex,
@@ -217,7 +192,8 @@ export function usePagedReaderLayout({
         parseCssLength(contentStyles.columnGap),
       );
 
-      const pendingRestoreTarget = pendingRestoreTargetRef.current;
+      const pendingRestoreTarget =
+        pendingRestoreTargetRef.current ?? pendingRestoreTargetValue;
       const currentPageIndex = latestPageIndexRef.current;
       const nextPageCount = currentPagedLayout
         ? Math.max(1, currentPagedLayout.pageSlices.length)
@@ -228,31 +204,7 @@ export function usePagedReaderLayout({
         );
       const hasRestorableTarget = pendingRestoreTarget?.mode === 'paged'
         && pendingRestoreTarget.chapterIndex === chapterIndex;
-      const resolvedPendingLocator = hasRestorableTarget
-        ? pendingRestoreTarget?.locator
-          ?? getChapterBoundaryLocator(
-            currentPagedLayout,
-            pendingRestoreTarget?.locatorBoundary ?? 'start',
-          )
-        : null;
-      const restoredPageIndex =
-        hasRestorableTarget && resolvedPendingLocator && currentPagedLayout
-          ? findPageIndexForLocator(currentPagedLayout, resolvedPendingLocator)
-          : null;
-      const locatorPageIndex = hasRestorableTarget
-        ? pendingRestoreTarget?.locator?.pageIndex
-        : null;
-      let resolvedTargetPage: number | null = restoredPageIndex;
-      if (resolvedTargetPage === null && typeof locatorPageIndex === 'number') {
-        resolvedTargetPage = Math.max(0, Math.min(nextPageCount - 1, locatorPageIndex));
-      }
-      if (resolvedTargetPage === null && pendingPageTarget) {
-        resolvedTargetPage = resolvePagedTargetPage(
-          pendingPageTarget,
-          currentPageIndex,
-          nextPageCount,
-        );
-      }
+
       const clampedPageIndex = Math.max(0, Math.min(nextPageCount - 1, currentPageIndex));
 
       setPageCount(nextPageCount);
@@ -265,10 +217,19 @@ export function usePagedReaderLayout({
           step: nextPageTurnStep,
           viewportWidth: pagedViewportSize.width,
         }));
-      if (resolvedTargetPage !== null && resolvedTargetPage !== currentPageIndex) {
-        setPageIndex(resolvedTargetPage);
-      } else if (resolvedTargetPage === null && clampedPageIndex !== currentPageIndex) {
-        setPageIndex(clampedPageIndex);
+      if (!hasRestorableTarget) {
+        const resolvedTargetPage = pendingPageTarget
+          ? resolvePagedTargetPage(
+            pendingPageTarget,
+            currentPageIndex,
+            nextPageCount,
+          )
+          : null;
+        if (resolvedTargetPage !== null && resolvedTargetPage !== currentPageIndex) {
+          setPageIndex(resolvedTargetPage);
+        } else if (resolvedTargetPage === null && clampedPageIndex !== currentPageIndex) {
+          setPageIndex(clampedPageIndex);
+        }
       }
       if (pendingPageTarget !== null) {
         clearPendingPageTarget();
@@ -276,9 +237,176 @@ export function usePagedReaderLayout({
       setResolvedLayoutChapterIndex((previousChapterIndex) => (
         previousChapterIndex === chapterIndex ? previousChapterIndex : chapterIndex
       ));
-      if (hasRestorableTarget) {
+
+      if (hasRestorableTarget && canSkipReaderRestore(pendingRestoreTarget)) {
+        const skippedSnapshot = {
+          source: 'usePagedReaderLayout',
+          mode: 'paged',
+          status: 'skipped',
+          chapterIndex,
+          reason: 'no_target',
+          target: pendingRestoreTarget,
+        };
+        setDebugSnapshot('reader-position-restore', skippedSnapshot);
+        debugLog('Reader', 'paged restore skipped because target is missing', skippedSnapshot);
+        recordRestoreResult(
+          buildSkippedNoTargetResult(
+            chapterIndex,
+            getRestoreAttempt(pendingRestoreTarget) + 1,
+          ),
+          pendingRestoreTarget,
+        );
         clearPendingRestoreTarget();
         stopRestoreMask();
+        notifyRestoreSettled('skipped');
+        return;
+      }
+
+      if (hasRestorableTarget && pendingRestoreTarget) {
+        const solverOutcome = runRestoreSolver({
+          attempts: getRestoreAttempt(pendingRestoreTarget) + 1,
+          chapterIndex,
+          hasTarget: true,
+          mode: 'paged',
+          modeMatchesTarget: pendingRestoreTarget.mode === 'paged',
+          parse: () => {
+            return restoreStepSuccess({
+              target: pendingRestoreTarget,
+              layout: currentPagedLayout,
+              currentPageIndex,
+              nextPageCount,
+            });
+          },
+          project: ({
+            target,
+            layout,
+            currentPageIndex: nextCurrentPageIndex,
+            nextPageCount: totalPages,
+          }) => {
+            let resolvedTargetPage: number | null = null;
+            if (target.locator) {
+              resolvedTargetPage = layout
+                ? findPageIndexForLocator(layout, target.locator)
+                : null;
+              if (
+                resolvedTargetPage === null
+                && typeof target.locator.pageIndex === 'number'
+              ) {
+                resolvedTargetPage = Math.max(
+                  0,
+                  Math.min(totalPages - 1, target.locator.pageIndex),
+                );
+              }
+              if (resolvedTargetPage === null && !layout) {
+                return restoreStepPending('layout_missing');
+              }
+            }
+            if (resolvedTargetPage === null && target.locatorBoundary !== undefined) {
+              if (!layout) {
+                return restoreStepPending('layout_missing');
+              }
+              const boundaryLocator = getChapterBoundaryLocator(
+                layout,
+                target.locatorBoundary,
+              );
+              if (!boundaryLocator) {
+                return restoreStepFailure('target_unresolvable', {
+                  retryable: false,
+                });
+              }
+              resolvedTargetPage = findPageIndexForLocator(layout, boundaryLocator);
+            }
+            if (resolvedTargetPage === null && pendingPageTarget) {
+              resolvedTargetPage = resolvePagedTargetPage(
+                pendingPageTarget,
+                nextCurrentPageIndex,
+                totalPages,
+              );
+            }
+
+            if (resolvedTargetPage === null) {
+              return restoreStepFailure('target_unresolvable', {
+                retryable: false,
+              });
+            }
+
+            return restoreStepSuccess({
+              targetPageIndex: resolvedTargetPage,
+            });
+          },
+          execute: ({ targetPageIndex }) => {
+            if (targetPageIndex !== currentPageIndex) {
+              setPageIndex(targetPageIndex);
+            }
+
+            return restoreStepSuccess({
+              expectedPageIndex: targetPageIndex,
+              actualPageIndex: targetPageIndex,
+            });
+          },
+          validate: (_projected, executed) => {
+            const measuredError = {
+              metric: 'page_delta' as const,
+              delta: Math.abs(executed.actualPageIndex - executed.expectedPageIndex),
+              tolerance: 0,
+              expected: executed.expectedPageIndex,
+              actual: executed.actualPageIndex,
+            };
+
+            if (measuredError.delta > measuredError.tolerance) {
+              return restoreStepFailure('validation_exceeded_tolerance', {
+                retryable: true,
+                measuredError,
+              });
+            }
+
+            return restoreStepSuccess(measuredError);
+          },
+          buildContext: ({ executed }) => ({
+            pageIndex: executed.actualPageIndex,
+          }),
+        });
+
+        if (solverOutcome.kind === 'pending') {
+          return;
+        }
+
+        if (solverOutcome.result.status === 'failed') {
+          const failureRecord = recordRestoreResult(solverOutcome.result, pendingRestoreTarget);
+          if (failureRecord.scheduledRetry) {
+            return;
+          }
+
+          const failedSnapshot = {
+            source: 'usePagedReaderLayout',
+            mode: 'paged',
+            status: 'failed',
+            chapterIndex,
+            reason: solverOutcome.result.reason,
+            retryable: solverOutcome.result.retryable,
+            attempts: solverOutcome.result.attempts,
+            target: pendingRestoreTarget,
+          };
+          setDebugSnapshot('reader-position-restore', failedSnapshot);
+          debugLog('Reader', 'paged restore failed', failedSnapshot);
+          clearPendingRestoreTarget();
+          stopRestoreMask();
+          notifyRestoreSettled('failed');
+          return;
+        }
+
+        recordRestoreResult(solverOutcome.result, pendingRestoreTarget);
+        setDebugSnapshot('reader-position-restore', {
+          source: 'usePagedReaderLayout',
+          mode: 'paged',
+          status: solverOutcome.result.status,
+          chapterIndex,
+          resolvedPageIndex: solverOutcome.context?.pageIndex ?? null,
+          target: pendingRestoreTarget,
+        });
+        clearPendingRestoreTarget();
+        stopRestoreMask();
+        notifyRestoreSettled(solverOutcome.result.status);
       }
     });
 
@@ -299,10 +427,14 @@ export function usePagedReaderLayout({
     pagedViewportSize.width,
     pagedViewportSize.height,
     pendingPageTarget,
+    pendingRestoreTargetValue,
     pendingRestoreTargetRef,
+    getRestoreAttempt,
+    recordRestoreResult,
     clearPendingPageTarget,
     setPageCount,
     setPageIndex,
+    notifyRestoreSettled,
     stopRestoreMask,
   ]);
 

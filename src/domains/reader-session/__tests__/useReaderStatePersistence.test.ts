@@ -11,7 +11,7 @@ import {
   writeReaderBootstrapSnapshot,
 } from '@infra/storage/readerStateCache';
 
-import { resetReaderSessionStoreForTests } from '../sessionStore';
+import { resetReaderSessionStoreForTests } from '../readerSessionStore';
 import { useReaderStatePersistence } from '../useReaderStatePersistence';
 
 function seedReaderBootstrapSnapshot(
@@ -34,102 +34,139 @@ describe('useReaderStatePersistence', () => {
 
     expect(result.current.initialStoredState).toBeNull();
     expect(result.current.latestReaderStateRef.current).toEqual({
-      chapterIndex: 0,
-      mode: 'scroll',
-      chapterProgress: undefined,
-      lastContentMode: 'scroll',
-      locator: undefined,
+      canonical: {
+        chapterIndex: 0,
+        edge: 'start',
+      },
+      hints: undefined,
     });
     expect(result.current.hasUserInteractedRef.current).toBe(false);
   });
 
   it('reads stored state from localStorage', () => {
     seedReaderBootstrapSnapshot(42, {
-      chapterIndex: 5,
-      mode: 'summary',
-      lastContentMode: 'paged',
+      canonical: {
+        chapterIndex: 5,
+        edge: 'start',
+      },
+      hints: {
+        contentMode: 'paged',
+      },
     });
 
     const { result } = renderHook(() => useReaderStatePersistence(42));
 
     expect(result.current.initialStoredState).toEqual({
-      chapterIndex: 5,
-      mode: 'summary',
-      chapterProgress: undefined,
-      lastContentMode: 'paged',
-      locator: undefined,
+      canonical: {
+        chapterIndex: 5,
+        edge: 'start',
+      },
+      hints: {
+        contentMode: 'paged',
+      },
     });
     expect(result.current.latestReaderStateRef.current).toEqual({
-      chapterIndex: 5,
-      mode: 'summary',
-      chapterProgress: undefined,
-      lastContentMode: 'paged',
-      locator: undefined,
+      canonical: {
+        chapterIndex: 5,
+        edge: 'start',
+      },
+      hints: {
+        contentMode: 'paged',
+      },
     });
   });
 
-  it('ignores an invalid bootstrap snapshot', () => {
+  it('sanitizes an invalid bootstrap snapshot to defaults', () => {
     storage.cache.set(CACHE_KEYS.readerBootstrap(1), {
-      version: 1,
+      version: 2,
       state: {
-        chapterIndex: 'not-a-number',
-        mode: 'invalid',
-        lastContentMode: 'summary',
+        canonical: {
+          chapterIndex: 'not-a-number',
+        },
       },
     });
 
     const { result } = renderHook(() => useReaderStatePersistence(1));
 
-    expect(result.current.initialStoredState).toBeNull();
+    expect(result.current.initialStoredState).toEqual({
+      canonical: {
+        chapterIndex: 0,
+        edge: 'start',
+      },
+      hints: undefined,
+    });
     expect(result.current.latestReaderStateRef.current).toEqual({
-      chapterIndex: 0,
-      mode: 'scroll',
-      chapterProgress: undefined,
-      lastContentMode: 'scroll',
-      locator: undefined,
+      canonical: {
+        chapterIndex: 0,
+        edge: 'start',
+      },
+      hints: undefined,
     });
   });
 
-  it('persists state and merges partial updates', () => {
+  it('persists state and merges partial updates', async () => {
     const { result } = renderHook(() => useReaderStatePersistence(1));
 
     act(() => {
       result.current.persistReaderState({
-        chapterIndex: 3,
-        mode: 'summary',
-        chapterProgress: 0.4,
+        canonical: {
+          chapterIndex: 3,
+          edge: 'start',
+        },
+        hints: {
+          chapterProgress: 0.4,
+        },
       });
     });
 
     act(() => {
       result.current.persistReaderState({
-        chapterIndex: 7,
+        canonical: {
+          chapterIndex: 7,
+          edge: 'start',
+        },
       });
     });
 
     expect(result.current.latestReaderStateRef.current).toEqual({
-      chapterIndex: 7,
-      mode: 'summary',
-      chapterProgress: undefined,
-      lastContentMode: 'scroll',
-      locator: undefined,
+      canonical: {
+        chapterIndex: 7,
+        edge: 'start',
+      },
+      hints: {
+        chapterProgress: undefined,
+        contentMode: 'scroll',
+        pageIndex: undefined,
+      },
+    });
+
+    await act(async () => {
+      await result.current.flushReaderState();
     });
 
     expect(readReaderBootstrapSnapshot(1)?.state).toEqual({
-      chapterIndex: 7,
-      mode: 'summary',
-      lastContentMode: 'scroll',
-      locator: undefined,
-      chapterProgress: undefined,
+      canonical: {
+        chapterIndex: 7,
+        edge: 'start',
+      },
+      hints: {
+        chapterProgress: undefined,
+        contentMode: 'scroll',
+        pageIndex: undefined,
+      },
     });
   });
 
-  it('prefers Dexie progress over the cache snapshot during hydration', async () => {
+  it('drops legacy Dexie rows and falls back to default state during hydration', async () => {
     seedReaderBootstrapSnapshot(1, {
-      chapterIndex: 4,
-      mode: 'summary',
-      lastContentMode: 'paged',
-      chapterProgress: 0.75,
+      canonical: {
+        chapterIndex: 4,
+        edge: 'start',
+      },
+      hints: {
+        chapterProgress: 0.75,
+        contentMode: 'paged',
+      },
     });
     await db.readingProgress.add({
       novelId: 1,
@@ -147,19 +184,23 @@ describe('useReaderStatePersistence', () => {
     });
 
     expect(state).toEqual({
-      chapterIndex: 2,
-      mode: 'summary',
-      chapterProgress: 0.2,
-      lastContentMode: 'scroll',
-      locator: undefined,
+      canonical: {
+        chapterIndex: 0,
+        edge: 'start',
+      },
+      hints: {
+        chapterProgress: undefined,
+        contentMode: 'scroll',
+        pageIndex: undefined,
+      },
     });
+    await expect(db.readingProgress.where('novelId').equals(1).first()).resolves.toBeUndefined();
+    expect(readReaderBootstrapSnapshot(1)).toBeNull();
   });
 
-  it('treats the locator chapter as authoritative for initial stored state', () => {
+  it('treats the canonical chapter as authoritative for initial stored state', () => {
     seedReaderBootstrapSnapshot(1, {
-      chapterIndex: 10,
-      mode: 'scroll',
-      locator: {
+      canonical: {
         chapterIndex: 8,
         blockIndex: 3,
         kind: 'text',
@@ -170,24 +211,19 @@ describe('useReaderStatePersistence', () => {
     const { result } = renderHook(() => useReaderStatePersistence(1));
 
     expect(result.current.initialStoredState).toEqual({
-      chapterIndex: 8,
-      mode: 'scroll',
-      chapterProgress: undefined,
-      lastContentMode: 'scroll',
-      locator: {
+      canonical: {
         chapterIndex: 8,
         blockIndex: 3,
         kind: 'text',
         lineIndex: 1,
       },
+      hints: undefined,
     });
   });
 
-  it('clears a stale locator when a chapter jump persists a new chapter index', () => {
+  it('replaces a detailed canonical locator when a chapter boundary is persisted', async () => {
     seedReaderBootstrapSnapshot(1, {
-      chapterIndex: 0,
-      mode: 'scroll',
-      locator: {
+      canonical: {
         chapterIndex: 0,
         blockIndex: 3,
         kind: 'text',
@@ -199,25 +235,39 @@ describe('useReaderStatePersistence', () => {
 
     act(() => {
       result.current.persistReaderState({
-        chapterIndex: 1,
-        mode: 'scroll',
+        canonical: {
+          chapterIndex: 1,
+          edge: 'start',
+        },
       });
     });
 
     expect(result.current.latestReaderStateRef.current).toEqual({
-      chapterIndex: 1,
-      mode: 'scroll',
-      chapterProgress: undefined,
-      lastContentMode: 'scroll',
-      locator: undefined,
+      canonical: {
+        chapterIndex: 1,
+        edge: 'start',
+      },
+      hints: {
+        chapterProgress: undefined,
+        contentMode: 'scroll',
+        pageIndex: undefined,
+      },
+    });
+
+    await act(async () => {
+      await result.current.flushReaderState();
     });
 
     expect(readReaderBootstrapSnapshot(1)?.state).toEqual({
-      chapterIndex: 1,
-      mode: 'scroll',
-      chapterProgress: undefined,
-      lastContentMode: 'scroll',
-      locator: undefined,
+      canonical: {
+        chapterIndex: 1,
+        edge: 'start',
+      },
+      hints: {
+        chapterProgress: undefined,
+        contentMode: 'scroll',
+        pageIndex: undefined,
+      },
     });
   });
 
@@ -237,13 +287,18 @@ describe('useReaderStatePersistence', () => {
     const { result } = renderHook(() => useReaderStatePersistence(0));
 
     act(() => {
-      result.current.persistReaderState({ chapterIndex: 1 });
+      result.current.persistReaderState({
+        canonical: {
+          chapterIndex: 1,
+          edge: 'start',
+        },
+      });
     });
 
     expect(readReaderBootstrapSnapshot(0)).toBeNull();
   });
 
-  it('does not carry the previous novel state into a new novel before hydration', () => {
+  it('does not carry the previous novel state into a new novel before hydration', async () => {
     const { result, rerender } = renderHook(
       ({ novelId }: { novelId: number }) => useReaderStatePersistence(novelId),
       { initialProps: { novelId: 1 } },
@@ -251,18 +306,30 @@ describe('useReaderStatePersistence', () => {
 
     act(() => {
       result.current.persistReaderState({
-        chapterIndex: 3,
-        mode: 'summary',
-        chapterProgress: 0.65,
+        canonical: {
+          chapterIndex: 3,
+          edge: 'start',
+        },
+        hints: {
+          chapterProgress: 0.65,
+        },
       });
     });
 
+    await act(async () => {
+      await result.current.flushReaderState();
+    });
+
     expect(readReaderBootstrapSnapshot(1)?.state).toEqual({
-      chapterIndex: 3,
-      mode: 'summary',
-      chapterProgress: 0.65,
-      lastContentMode: 'scroll',
-      locator: undefined,
+      canonical: {
+        chapterIndex: 3,
+        edge: 'start',
+      },
+      hints: {
+        chapterProgress: 0.65,
+        contentMode: 'scroll',
+        pageIndex: undefined,
+      },
     });
 
     act(() => {
@@ -270,18 +337,20 @@ describe('useReaderStatePersistence', () => {
     });
 
     expect(result.current.latestReaderStateRef.current).toEqual({
-      chapterIndex: 0,
-      mode: 'scroll',
-      chapterProgress: undefined,
-      lastContentMode: 'scroll',
-      locator: undefined,
+      canonical: {
+        chapterIndex: 0,
+        edge: 'start',
+      },
+      hints: undefined,
     });
     expect(result.current.hasUserInteractedRef.current).toBe(false);
 
     act(() => {
       result.current.persistReaderState({
-        chapterIndex: 0,
-        mode: 'scroll',
+        canonical: {
+          chapterIndex: 0,
+          edge: 'start',
+        },
       });
     });
 

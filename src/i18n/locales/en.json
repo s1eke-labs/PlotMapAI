@@ -278,10 +278,6 @@
       "readerTelemetry": {
         "label": "Reader Telemetry",
         "description": "Verbose reader layout snapshots and preheat source logs"
-      },
-      "readerLegacyPlainScroll": {
-        "label": "Legacy Plain Scroll",
-        "description": "Temporarily force scroll mode back to the plain-text block renderer"
       }
     },
     "actions": {
@@ -289,7 +285,8 @@
       "installPrompt": "Install Prompt",
       "iosHint": "iOS Hint",
       "updateToast": "Update Toast",
-      "resetPwa": "Reset PWA"
+      "resetPwa": "Reset PWA",
+      "retryReaderRestore": "Retry Reader Restore"
     },
     "diagnostics": {
       "title": "Diagnostics",
@@ -297,6 +294,8 @@
       "labels": {
         "bookImport": "Import Diagnostics",
         "readerLayout": "Reader Diagnostics",
+        "readerRestore": "Restore Diagnostics",
+        "readerLifecycle": "Lifecycle Diagnostics",
         "storage": "Storage Diagnostics"
       },
       "preview": {
@@ -306,6 +305,13 @@
         "readerFormat": "Format {{format}}",
         "readerLayout": "Layout {{layout}}",
         "readerPendingPreheat": "Pending preheat {{count}}",
+        "restoreStatus": "Status {{status}}",
+        "restoreReason": "Reason {{reason}}",
+        "restoreError": "Error {{metric}} Δ{{delta}} (tol {{tolerance}})",
+        "restoreAttempts": "Attempts {{attempts}} · retryable {{retryable}}",
+        "lifecycleState": "State {{state}}",
+        "lifecycleEvent": "Event {{event}}",
+        "lifecyclePersistence": "Persistence {{status}} · load {{loadKey}}",
         "importOperation": "Operation {{operation}}",
         "importFile": "File {{file}}",
         "importStage": "Stage {{stage}}"

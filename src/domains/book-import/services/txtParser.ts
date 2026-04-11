@@ -4,7 +4,10 @@ import type { ChapterDetectionRule, ParsedTextDocument } from '@shared/text-proc
 import type { BookImportProgress } from './progress';
 
 import { debugLog } from '@shared/debug';
-import { runParseTxtTask } from '@shared/text-processing';
+import {
+  projectTxtPlainTextToRichBlocks,
+  runParseTxtTask,
+} from '@shared/text-processing';
 
 function mapParsedDocument(document: ParsedTextDocument): ParsedBook {
   return {
@@ -15,8 +18,8 @@ function mapParsedDocument(document: ParsedTextDocument): ParsedBook {
     chapters: document.chapters.map((chapter) => ({
       title: chapter.title,
       content: chapter.content,
-      contentFormat: 'plain',
-      richBlocks: [],
+      contentFormat: 'rich',
+      richBlocks: projectTxtPlainTextToRichBlocks(chapter.content),
     })),
     rawText: document.rawText,
     encoding: document.encoding,

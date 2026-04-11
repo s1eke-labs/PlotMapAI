@@ -1,7 +1,7 @@
 import { useEffect, useCallback, useRef } from 'react';
 import type { PageTarget } from '@shared/contracts/reader';
 
-import type { ChapterContent } from '../readerContentService';
+import type { ChapterContent } from '@shared/contracts/reader';
 
 const PAGE_TURN_LOCK_MS = 280;
 const PAGE_TURN_THRESHOLD = 48;

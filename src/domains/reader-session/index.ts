@@ -1,15 +1,24 @@
 export type {
   PageTarget,
+  ReaderLifecycleEvent,
+  ReaderLifecycleEventType,
   ReaderMode,
   ReaderNavigationIntent,
+  ReaderPersistenceFailure,
+  ReaderPersistenceStatus,
+  ReaderRestoreMeasuredError,
+  ReaderRestoreMetric,
+  ReaderRestoreReason,
+  ReaderRestoreResult,
+  ReaderRestoreResultStatus,
   ReaderRestoreTarget,
+  ReaderSessionCommands,
   ReaderSessionSnapshot as ReaderSessionStoreSnapshot,
   ReaderSessionState,
   RestoreStatus,
   StoredReaderState,
 } from '@shared/contracts/reader';
 export type {
-  ReaderSessionCommands,
   ReaderSessionSnapshot,
   UseReaderSessionResult,
 } from './useReaderSession';
@@ -17,11 +26,14 @@ export type { ReadingProgress } from './repository';
 export {
   buildStoredReaderState,
   clampChapterProgress,
+  clampPageIndex,
   createDefaultStoredReaderState,
+  getStoredChapterIndex,
   mergeStoredReaderState,
-  resolveModeFromStoredState,
+  sanitizeCanonicalPosition,
   sanitizeStoredReaderState,
-  shouldUseLocatorAsPrimaryPosition,
+  toCanonicalPositionFromLocator,
+  toReaderLocatorFromCanonical,
 } from './state';
 export {
   deleteReadingProgress,
@@ -30,9 +42,11 @@ export {
   toReadingProgress,
 } from './repository';
 export {
+  dispatchReaderLifecycleEvent,
   flushPersistence,
   resetReaderSessionStoreForTests,
-} from './sessionStore';
+  useReaderSessionSelector,
+} from './readerSessionStore';
 export {
   useReaderRestoreController,
   useReaderRestoreFlow,

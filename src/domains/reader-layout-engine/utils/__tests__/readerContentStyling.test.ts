@@ -4,12 +4,10 @@ import {
   READER_CONTENT_CLASS_NAMES,
   READER_CONTENT_MODE_CLASSES,
   READER_CONTENT_THEME_CLASSES,
-} from '@domains/reader-shell/constants/readerContentContract';
-import {
   READER_CONTENT_MEASURED_TOKEN_NAMES,
   READER_CONTENT_VISUAL_TOKEN_NAMES,
 } from '@shared/reader-content';
-import { READER_THEMES } from '@domains/reader-shell/constants/readerThemes';
+import { READER_THEMES } from '@domains/reader-shell';
 
 import { resolveReaderContentRootProps } from '../readerContentStyling';
 

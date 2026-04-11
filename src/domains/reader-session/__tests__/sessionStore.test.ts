@@ -2,12 +2,12 @@ import { act, renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import {
+  dispatchReaderLifecycleEvent,
   markUserInteracted,
   resetReaderSessionStoreForTests,
   setChapterIndex,
-  setRestoreStatus,
   useReaderSessionSelector,
-} from '../sessionStore';
+} from '../readerSessionStore';
 
 describe('sessionStore selectors', () => {
   beforeEach(() => {
@@ -63,7 +63,7 @@ describe('sessionStore selectors', () => {
     expect(restoreStatusSelectorRenderCount).toBe(1);
 
     act(() => {
-      setRestoreStatus('ready');
+      dispatchReaderLifecycleEvent({ type: 'HYDRATE_SUCCEEDED_NO_CHAPTERS' });
     });
 
     expect(restoreStatusHook.result.current).toBe('ready');

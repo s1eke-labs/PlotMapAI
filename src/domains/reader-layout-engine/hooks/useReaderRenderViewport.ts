@@ -1,5 +1,5 @@
 import type { RefObject } from 'react';
-import type { ReaderLayoutSignature, ReaderRenderVariant } from '../utils/readerLayout';
+import type { ReaderLayoutSignature, ReaderRenderVariant } from '../layout-core/internal';
 import type { ReaderRenderViewportResult } from './readerRenderCacheTypes';
 
 import { useEffect, useMemo, useState } from 'react';
@@ -9,7 +9,7 @@ import {
   createReaderTypographyMetrics,
   createReaderViewportMetrics,
   getPagedContentHeight,
-} from '../utils/readerLayout';
+} from '../layout-core/internal';
 
 interface ViewportSize {
   height: number;

@@ -2,8 +2,8 @@ import type { CSSProperties } from 'react';
 
 import { useMemo } from 'react';
 
-import { useReaderImageResource } from '../hooks/useReaderImageResource';
-import { parseParagraphSegments } from '../utils/chapterImages';
+import { useReaderImageResource } from '@domains/reader-media';
+import { parseParagraphSegments } from '@shared/text-processing';
 
 function InlineImage({
   novelId,

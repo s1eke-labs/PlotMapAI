@@ -1,5 +1,10 @@
 export { detectChapters, splitByChapters } from './chapterDetection';
 export {
+  extractImageKeysFromChapter,
+  extractImageKeysFromRichBlocks,
+  extractImageKeysFromText,
+} from './chapterImages';
+export {
   buildChapterBlockSequence,
   parseParagraphSegments,
 } from './chapterBlocks';
@@ -20,6 +25,8 @@ export {
   sortChapterImageGalleryEntries,
 } from './imageGallery';
 export type { ChapterImageGalleryEntry } from './imageGallery';
+export { projectPlainTextToRichBlocks } from './plainTextProjection';
+export { projectTxtPlainTextToRichBlocks } from './txtPlainTextProjection';
 export { purifyRichBlocks } from './richPurify';
 export {
   buildRichPaginationBlockSequence,

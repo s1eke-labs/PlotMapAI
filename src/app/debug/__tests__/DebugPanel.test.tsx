@@ -15,17 +15,18 @@ vi.mock('react-i18next', () => ({
         'debug.filters.logs': 'Logs',
         'debug.features.readerTelemetry.label': 'Reader Telemetry',
         'debug.features.readerTelemetry.description': 'Verbose reader layout snapshots and preheat source logs',
-        'debug.features.readerLegacyPlainScroll.label': 'Legacy Plain Scroll',
-        'debug.features.readerLegacyPlainScroll.description': 'Temporarily force scroll mode back to the plain-text block renderer',
         'debug.actions.goBack': 'Go Back',
         'debug.actions.installPrompt': 'Install Prompt',
         'debug.actions.iosHint': 'iOS Hint',
         'debug.actions.updateToast': 'Update Toast',
         'debug.actions.resetPwa': 'Reset PWA',
+        'debug.actions.retryReaderRestore': 'Retry Reader Restore',
         'debug.diagnostics.title': 'Diagnostics',
         'debug.diagnostics.empty': 'No diagnostics yet',
         'debug.diagnostics.labels.bookImport': 'Import Diagnostics',
         'debug.diagnostics.labels.readerLayout': 'Reader Diagnostics',
+        'debug.diagnostics.labels.readerRestore': 'Restore Diagnostics',
+        'debug.diagnostics.labels.readerLifecycle': 'Lifecycle Diagnostics',
         'debug.diagnostics.labels.storage': 'Storage Diagnostics',
         'debug.diagnostics.preview.storageUsage': 'Usage {{usage}} / {{quota}}',
         'debug.diagnostics.preview.storageCounts': 'Render cache {{renderCacheCount}} · rich {{richCount}} · images {{imageCount}}',
@@ -33,6 +34,13 @@ vi.mock('react-i18next', () => ({
         'debug.diagnostics.preview.readerFormat': 'Format {{format}}',
         'debug.diagnostics.preview.readerLayout': 'Layout {{layout}}',
         'debug.diagnostics.preview.readerPendingPreheat': 'Pending preheat {{count}}',
+        'debug.diagnostics.preview.restoreStatus': 'Status {{status}}',
+        'debug.diagnostics.preview.restoreReason': 'Reason {{reason}}',
+        'debug.diagnostics.preview.restoreError': 'Error {{metric}} Δ{{delta}} (tol {{tolerance}})',
+        'debug.diagnostics.preview.restoreAttempts': 'Attempts {{attempts}} · retryable {{retryable}}',
+        'debug.diagnostics.preview.lifecycleState': 'State {{state}}',
+        'debug.diagnostics.preview.lifecycleEvent': 'Event {{event}}',
+        'debug.diagnostics.preview.lifecyclePersistence': 'Persistence {{status}} · load {{loadKey}}',
         'debug.diagnostics.preview.importOperation': 'Operation {{operation}}',
         'debug.diagnostics.preview.importFile': 'File {{file}}',
         'debug.diagnostics.preview.importStage': 'Stage {{stage}}',
@@ -60,11 +68,9 @@ const debugTest = vi.hoisted(() => {
     | ((entries: Array<{ key: string; time: number; value: unknown }>) => void)
     | null = null;
   let featureFlags = {
-    readerLegacyPlainScroll: false,
     readerTelemetry: false,
   };
   let featureSubscriber: ((flags: {
-    readerLegacyPlainScroll: boolean;
     readerTelemetry: boolean;
   }) => void) | null = null;
 
@@ -78,7 +84,7 @@ const debugTest = vi.hoisted(() => {
     }),
     getFeatureFlags: vi.fn(() => ({ ...featureFlags })),
     getSnapshots: vi.fn(() => [...snapshots]),
-    setDebugFeatureEnabled: vi.fn((flag: 'readerLegacyPlainScroll' | 'readerTelemetry', enabled: boolean) => {
+    setDebugFeatureEnabled: vi.fn((flag: 'readerTelemetry', enabled: boolean) => {
       featureFlags = {
         ...featureFlags,
         [flag]: enabled,
@@ -95,6 +101,7 @@ const debugTest = vi.hoisted(() => {
     }),
     triggerDebugInstallPrompt: vi.fn(),
     triggerDebugIosInstallHint: vi.fn(),
+    triggerDebugRetryReaderRestore: vi.fn(),
     triggerDebugUpdateToast: vi.fn(),
     triggerDebugResetPwaPrompts: vi.fn(),
     getLogs: () => [...logs],
@@ -111,7 +118,6 @@ const debugTest = vi.hoisted(() => {
       };
     },
     subscribeFeatures(callback: (flags: {
-      readerLegacyPlainScroll: boolean;
       readerTelemetry: boolean;
     }) => void) {
       featureSubscriber = callback;
@@ -135,7 +141,6 @@ const debugTest = vi.hoisted(() => {
       logs = [];
       snapshots = [];
       featureFlags = {
-        readerLegacyPlainScroll: false,
         readerTelemetry: false,
       };
       subscriber = null;
@@ -184,6 +189,7 @@ vi.mock('../pwaDebugTools', () => {
   return {
     triggerDebugInstallPrompt: debugTest.triggerDebugInstallPrompt,
     triggerDebugIosInstallHint: debugTest.triggerDebugIosInstallHint,
+    triggerDebugRetryReaderRestore: debugTest.triggerDebugRetryReaderRestore,
     triggerDebugUpdateToast: debugTest.triggerDebugUpdateToast,
     triggerDebugResetPwaPrompts: debugTest.triggerDebugResetPwaPrompts,
   };
@@ -271,11 +277,13 @@ describe('DebugPanel', () => {
     await user.click(screen.getByRole('button', { name: /iOS Hint/i }));
     await user.click(screen.getByRole('button', { name: /Update Toast/i }));
     await user.click(screen.getByRole('button', { name: /Reset PWA/i }));
+    await user.click(screen.getByRole('button', { name: /Retry Reader Restore/i }));
 
     expect(debugTest.triggerDebugInstallPrompt).toHaveBeenCalledTimes(1);
     expect(debugTest.triggerDebugIosInstallHint).toHaveBeenCalledTimes(1);
     expect(debugTest.triggerDebugUpdateToast).toHaveBeenCalledTimes(1);
     expect(debugTest.triggerDebugResetPwaPrompts).toHaveBeenCalledTimes(1);
+    expect(debugTest.triggerDebugRetryReaderRestore).toHaveBeenCalledTimes(1);
   });
 
   it('renders reader telemetry toggle disabled by default and wires it to the debug feature flag', async () => {
@@ -284,18 +292,12 @@ describe('DebugPanel', () => {
     render(<DebugPanel />);
     await user.click(screen.getByTitle('Debug Panel'));
 
-    const toggles = screen.getAllByRole('switch');
-    const telemetryToggle = toggles[0];
-    const legacyToggle = toggles[1];
+    const [telemetryToggle] = screen.getAllByRole('switch');
     expect(telemetryToggle).toHaveAttribute('aria-checked', 'false');
-    expect(legacyToggle).toHaveAttribute('aria-checked', 'false');
 
     await user.click(telemetryToggle);
-    await user.click(legacyToggle);
 
     expect(debugTest.setDebugFeatureEnabled).toHaveBeenCalledWith('readerTelemetry', true);
-    expect(debugTest.setDebugFeatureEnabled).toHaveBeenCalledWith('readerLegacyPlainScroll', true);
     expect(telemetryToggle).toHaveAttribute('aria-checked', 'true');
-    expect(legacyToggle).toHaveAttribute('aria-checked', 'true');
   });
 });

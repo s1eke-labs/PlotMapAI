@@ -23,6 +23,7 @@ import { db } from '@infra/db';
 import {
   triggerDebugInstallPrompt,
   triggerDebugIosInstallHint,
+  triggerDebugRetryReaderRestore,
   triggerDebugUpdateToast,
   triggerDebugResetPwaPrompts,
 } from './pwaDebugTools';
@@ -50,10 +51,46 @@ const CATEGORY_COLORS: Record<string, string> = {
   'character-graph': 'text-cyan-300',
 };
 
-const SNAPSHOT_ORDER = ['reader-layout', 'book-import', 'storage'];
+const SNAPSHOT_ORDER = [
+  'reader-layout',
+  'reader-mode-hydration',
+  'reader-mode-resolution',
+  'reader-mode-switch',
+  'reader-position-hydration',
+  'reader-position-persist',
+  'reader-position-restore',
+  'reader-restore',
+  'reader-lifecycle',
+  'book-import',
+  'storage',
+];
 
 interface ReaderLayoutDiagnosticSnapshot {
   novelId: number | null;
+}
+
+interface ReaderRestoreDiagnosticSnapshot {
+  action?: string;
+  attempts?: number;
+  measuredError?: {
+    metric?: string;
+    delta?: number;
+    tolerance?: number;
+  };
+  reason?: string;
+  retryable?: boolean;
+  status?: string;
+  target?: {
+    chapterIndex?: number;
+    mode?: string;
+  };
+}
+
+interface ReaderLifecycleDiagnosticSnapshot {
+  currentState?: string;
+  lastEvent?: string | null;
+  loadKey?: string | null;
+  persistenceStatus?: string;
 }
 
 interface StorageDiagnosticSnapshot {
@@ -110,6 +147,10 @@ function getSnapshotLabel(
       return t('debug.diagnostics.labels.readerLayout');
     case 'storage':
       return t('debug.diagnostics.labels.storage');
+    case 'reader-restore':
+      return t('debug.diagnostics.labels.readerRestore');
+    case 'reader-lifecycle':
+      return t('debug.diagnostics.labels.readerLifecycle');
     default:
       return key;
   }
@@ -164,6 +205,45 @@ function buildSnapshotPreview(
       }),
       t('debug.diagnostics.preview.importStage', {
         stage: String(progress?.stage ?? '-'),
+      }),
+    ];
+  }
+
+  if (snapshot.key === 'reader-restore') {
+    const value = snapshot.value as ReaderRestoreDiagnosticSnapshot;
+    const { measuredError } = value;
+    return [
+      t('debug.diagnostics.preview.restoreStatus', {
+        status: String(value.status ?? value.action ?? '-'),
+      }),
+      t('debug.diagnostics.preview.restoreReason', {
+        reason: String(value.reason ?? '-'),
+      }),
+      measuredError
+        ? t('debug.diagnostics.preview.restoreError', {
+          metric: String(measuredError.metric ?? '-'),
+          delta: String(measuredError.delta ?? '-'),
+          tolerance: String(measuredError.tolerance ?? '-'),
+        })
+        : t('debug.diagnostics.preview.restoreAttempts', {
+          attempts: value.attempts ?? 0,
+          retryable: String(value.retryable ?? false),
+        }),
+    ];
+  }
+
+  if (snapshot.key === 'reader-lifecycle') {
+    const value = snapshot.value as ReaderLifecycleDiagnosticSnapshot;
+    return [
+      t('debug.diagnostics.preview.lifecycleState', {
+        state: String(value.currentState ?? '-'),
+      }),
+      t('debug.diagnostics.preview.lifecycleEvent', {
+        event: String(value.lastEvent ?? '-'),
+      }),
+      t('debug.diagnostics.preview.lifecyclePersistence', {
+        status: String(value.persistenceStatus ?? '-'),
+        loadKey: String(value.loadKey ?? '-'),
       }),
     ];
   }
@@ -396,19 +476,6 @@ export default function DebugPanel() {
             className="ml-3"
           />
         </div>
-        <div className="col-span-2 flex items-center justify-between rounded-lg border border-border-color/50 px-3 py-2">
-          <div className="min-w-0">
-            <div className="text-xs font-medium text-text-primary">{t('debug.features.readerLegacyPlainScroll.label')}</div>
-            <div className="text-[10px] text-text-secondary">{t('debug.features.readerLegacyPlainScroll.description')}</div>
-          </div>
-          <Toggle
-            checked={featureFlags.readerLegacyPlainScroll}
-            onChange={(checked) => {
-              setDebugFeatureEnabled('readerLegacyPlainScroll', checked);
-            }}
-            className="ml-3"
-          />
-        </div>
         <button
           onClick={() => window.history.back()}
           className="flex items-center justify-center gap-2 rounded-lg border border-border-color/50 px-3 py-2 text-xs font-medium text-text-primary transition-colors hover:bg-white/10"
@@ -444,6 +511,13 @@ export default function DebugPanel() {
           <RotateCcw className="h-3.5 w-3.5" />
           {t('debug.actions.resetPwa')}
         </button>
+        <button
+          onClick={triggerDebugRetryReaderRestore}
+          className="flex items-center justify-center gap-2 rounded-lg border border-border-color/50 px-3 py-2 text-xs font-medium text-text-primary transition-colors hover:bg-white/10"
+        >
+          <RotateCcw className="h-3.5 w-3.5" />
+          {t('debug.actions.retryReaderRestore')}
+        </button>
       </div>
       <div className="border-b border-border-color/50 p-2">
         <div className="mb-2 flex items-center justify-between">
@@ -454,37 +528,39 @@ export default function DebugPanel() {
             {orderedSnapshots.length}
           </span>
         </div>
-        <div className="space-y-2">
-          {orderedSnapshots.length === 0 && (
-            <div className="rounded-lg border border-white/5 bg-black/10 px-3 py-2 text-[11px] text-text-secondary">
-              {t('debug.diagnostics.empty')}
-            </div>
-          )}
-          {orderedSnapshots.map((snapshot) => (
-            <section
-              key={getDebugSnapshotKey(snapshot)}
-              className="rounded-lg border border-white/5 bg-black/10 px-3 py-2"
-            >
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-[11px] font-semibold text-text-primary">
-                  {getSnapshotLabel(snapshot.key, t)}
-                </span>
-                <span className="shrink-0 text-[10px] text-text-secondary/60">
-                  {formatDiagnosticTime(snapshot.time)}
-                </span>
+        <div className="max-h-48 overflow-y-auto pr-1 custom-scrollbar sm:max-h-64">
+          <div className="space-y-2">
+            {orderedSnapshots.length === 0 && (
+              <div className="rounded-lg border border-white/5 bg-black/10 px-3 py-2 text-[11px] text-text-secondary">
+                {t('debug.diagnostics.empty')}
               </div>
-              <div className="mt-2 space-y-1">
-                {buildSnapshotPreview(snapshot, t).map((line) => (
-                  <div key={line} className="text-[10px] text-text-secondary/90">
-                    {line}
-                  </div>
-                ))}
-              </div>
-              <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap break-all rounded bg-black/15 p-2 text-[10px] text-text-secondary/90">
-                {JSON.stringify(snapshot.value, null, 2)}
-              </pre>
-            </section>
-          ))}
+            )}
+            {orderedSnapshots.map((snapshot) => (
+              <section
+                key={getDebugSnapshotKey(snapshot)}
+                className="rounded-lg border border-white/5 bg-black/10 px-3 py-2"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-[11px] font-semibold text-text-primary">
+                    {getSnapshotLabel(snapshot.key, t)}
+                  </span>
+                  <span className="shrink-0 text-[10px] text-text-secondary/60">
+                    {formatDiagnosticTime(snapshot.time)}
+                  </span>
+                </div>
+                <div className="mt-2 space-y-1">
+                  {buildSnapshotPreview(snapshot, t).map((line) => (
+                    <div key={line} className="text-[10px] text-text-secondary/90">
+                      {line}
+                    </div>
+                  ))}
+                </div>
+                <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap break-all rounded bg-black/15 p-2 text-[10px] text-text-secondary/90">
+                  {JSON.stringify(snapshot.value, null, 2)}
+                </pre>
+              </section>
+            ))}
+          </div>
         </div>
       </div>
       <div ref={listRef} onScroll={handleScroll} className="flex-1 overflow-y-auto p-2 space-y-0.5 text-[11px] font-mono leading-relaxed custom-scrollbar">

@@ -1,8 +1,14 @@
 import { useCallback, useEffect, useRef } from 'react';
 
-import type { ChapterContent } from './readerContentService';
-import type { ReaderSessionCommands, ReaderSessionSnapshot } from './useReaderSession';
-import type { ReaderMode, ReaderRestoreTarget, StoredReaderState } from '@shared/contracts/reader';
+import type { ChapterContent } from '@shared/contracts/reader';
+import type { ReaderSessionSnapshot } from './useReaderSession';
+import type {
+  ReaderMode,
+  ReaderRestoreResult,
+  ReaderRestoreTarget,
+  ReaderSessionCommands,
+  StoredReaderState,
+} from '@shared/contracts/reader';
 
 import {
   useReaderLayoutQueries,
@@ -11,22 +17,31 @@ import {
   useReaderViewportContext,
 } from '@shared/reader-runtime';
 import {
-  canSkipReaderRestore,
   clampProgress,
   getContainerProgress,
   shouldKeepReaderRestoreMask,
 } from '@shared/utils/readerPosition';
 import {
+  buildStoredReaderState,
+  getStoredChapterIndex,
+  mergeStoredReaderState,
+  toCanonicalPositionFromLocator,
+  toReaderLocatorFromCanonical,
+} from './state';
+import {
   beginRestore,
   completeRestore,
   getStoredReaderStateSnapshot,
   setPendingRestoreTarget as setStorePendingRestoreTarget,
-} from './sessionStore';
+} from './readerSessionStore';
+import { useReaderRestoreResultTracker } from './readerRestoreResultTracker';
+import { useSummaryRestoreRunner } from './useSummaryRestoreRunner';
+import { debugLog, setDebugSnapshot } from '@shared/debug';
 
 interface UseReaderRestoreControllerParams {
   sessionSnapshot: Pick<
     ReaderSessionSnapshot,
-    'chapterIndex' | 'lastContentMode' | 'mode' | 'pendingRestoreTarget' | 'viewMode'
+    'chapterIndex' | 'mode' | 'pendingRestoreTarget'
   >;
   sessionCommands: Pick<
     ReaderSessionCommands,
@@ -48,8 +63,13 @@ export interface UseReaderRestoreControllerResult {
   clearPendingRestoreTarget: () => void;
   handleBeforeChapterChange: () => void;
   handleContentScroll: () => void;
-  handleSetContentMode: (nextMode: 'scroll' | 'paged') => void;
-  handleSetViewMode: (viewMode: 'original' | 'summary') => void;
+  switchMode: (targetMode: ReaderMode) => void;
+  getRestoreAttempt: (target: ReaderRestoreTarget | null | undefined) => number;
+  recordRestoreResult: (
+    result: ReaderRestoreResult,
+    target: ReaderRestoreTarget | null | undefined,
+  ) => { scheduledRetry: boolean };
+  retryLastFailedRestore: () => boolean;
   setPendingRestoreTarget: (
     nextTarget: ReaderRestoreTarget | null,
     options?: { force?: boolean },
@@ -72,10 +92,8 @@ export function useReaderRestoreController({
   const persistence = useReaderPersistenceRuntime();
   const {
     chapterIndex,
-    lastContentMode,
     mode,
     pendingRestoreTarget,
-    viewMode,
   } = sessionSnapshot;
   const {
     latestReaderStateRef,
@@ -100,15 +118,28 @@ export function useReaderRestoreController({
   }, [pendingRestoreTarget]);
 
   const toRestoreTarget = useCallback((state: StoredReaderState): ReaderRestoreTarget => {
+    const normalizedState = buildStoredReaderState(state);
+    const locator = toReaderLocatorFromCanonical(
+      normalizedState.canonical,
+      normalizedState.hints?.pageIndex,
+    );
+    const canonicalEdge = normalizedState.canonical?.edge;
+    const hasCanonicalBoundary =
+      canonicalEdge === 'start'
+      || canonicalEdge === 'end';
+    const locatorBoundary = !locator && hasCanonicalBoundary
+      ? canonicalEdge
+      : undefined;
     const target: ReaderRestoreTarget = {
-      chapterIndex: state.chapterIndex ?? chapterIndex,
-      mode: state.mode ?? mode,
-      locator: state.locator,
+      chapterIndex: getStoredChapterIndex(normalizedState) || chapterIndex,
+      mode,
+      locator,
+      locatorBoundary,
     };
 
     if (target.mode === 'summary') {
-      target.chapterProgress = typeof state.chapterProgress === 'number'
-        ? clampProgress(state.chapterProgress)
+      target.chapterProgress = typeof normalizedState.hints?.chapterProgress === 'number'
+        ? clampProgress(normalizedState.hints.chapterProgress)
         : undefined;
     }
 
@@ -163,6 +194,14 @@ export function useReaderRestoreController({
   const suppressScrollSyncTemporarily = useCallback(() => {
     persistence.suppressScrollSyncTemporarily();
   }, [persistence]);
+  const {
+    getRestoreAttempt,
+    recordRestoreResult,
+    retryLastFailedRestore,
+  } = useReaderRestoreResultTracker({
+    setPendingRestoreTarget,
+    startRestoreMaskForTarget,
+  });
 
   const rememberModeState = useCallback((target: ReaderRestoreTarget) => {
     modeSnapshotRef.current[target.mode] = target;
@@ -171,60 +210,76 @@ export function useReaderRestoreController({
   const captureCurrentReaderPosition = useCallback(
     (options?: { flush?: boolean }): StoredReaderState => {
       const storedReaderState = getStoredReaderStateSnapshot();
+      const latestChapterIndex = getStoredChapterIndex(latestReaderStateRef.current);
       const shouldPreferLatestReaderState =
         navigation.getChapterChangeSource() === 'navigation'
-        || latestReaderStateRef.current.chapterIndex !== chapterIndex
-        || latestReaderStateRef.current.mode !== mode;
+        || latestChapterIndex !== chapterIndex;
       const preferredReaderState = shouldPreferLatestReaderState
-        ? latestReaderStateRef.current
-        : storedReaderState;
-      let nextState: StoredReaderState = {
-        chapterIndex:
-          preferredReaderState.chapterIndex ?? storedReaderState.chapterIndex ?? chapterIndex,
-        mode,
-      };
+        ? buildStoredReaderState(latestReaderStateRef.current)
+        : buildStoredReaderState(storedReaderState);
+      let nextState: StoredReaderState = buildStoredReaderState(preferredReaderState);
 
       if (mode === 'paged') {
         const locator = layoutQueries.getCurrentPagedLocator();
         if (locator) {
-          nextState.chapterIndex = locator.chapterIndex;
-          nextState.locator = locator;
+          nextState = mergeStoredReaderState(nextState, {
+            canonical: toCanonicalPositionFromLocator(locator),
+            hints: {
+              ...nextState.hints,
+              pageIndex: locator.pageIndex,
+            },
+          });
         }
       } else if (mode === 'summary') {
-        nextState.chapterProgress = getContainerProgress(viewport.contentRef.current);
-        nextState.locator = undefined;
+        nextState = mergeStoredReaderState(nextState, {
+          hints: {
+            ...nextState.hints,
+            chapterProgress: getContainerProgress(viewport.contentRef.current),
+          },
+        });
       } else {
         const anchor = shouldPreferLatestReaderState ? null : layoutQueries.getCurrentAnchor();
         const locator = shouldPreferLatestReaderState
           ? null
           : layoutQueries.getCurrentOriginalLocator();
-        if (anchor) {
-          nextState = {
-            ...nextState,
-            chapterIndex: locator?.chapterIndex ?? anchor.chapterIndex,
-            locator: locator ?? undefined,
-          };
+        if (locator) {
+          nextState = mergeStoredReaderState(nextState, {
+            canonical: toCanonicalPositionFromLocator(locator),
+            hints: {
+              ...nextState.hints,
+              pageIndex: undefined,
+            },
+          });
+        } else if (anchor) {
+          nextState = mergeStoredReaderState(nextState, {
+            canonical: {
+              chapterIndex: anchor.chapterIndex,
+              edge: 'start',
+            },
+            hints: {
+              ...nextState.hints,
+              pageIndex: undefined,
+            },
+          });
         } else if (shouldPreferLatestReaderState) {
-          nextState = {
-            ...nextState,
-            chapterIndex:
-              preferredReaderState.locator?.chapterIndex
-              ?? preferredReaderState.chapterIndex
-              ?? nextState.chapterIndex,
-            locator: preferredReaderState.locator,
-          };
-        } else if (latestReaderStateRef.current.locator) {
-          nextState.chapterIndex = latestReaderStateRef.current.locator.chapterIndex;
-          nextState.locator = latestReaderStateRef.current.locator;
+          nextState = mergeStoredReaderState(nextState, {
+            canonical: preferredReaderState.canonical,
+            hints: preferredReaderState.hints,
+          });
+        } else if (latestReaderStateRef.current.canonical) {
+          nextState = mergeStoredReaderState(nextState, {
+            canonical: latestReaderStateRef.current.canonical,
+            hints: {
+              ...nextState.hints,
+              pageIndex: undefined,
+            },
+          });
         }
       }
 
       rememberModeState(toRestoreTarget(nextState));
       persistReaderState(nextState, { flush: options?.flush });
-      return {
-        ...latestReaderStateRef.current,
-        ...nextState,
-      };
+      return mergeStoredReaderState(latestReaderStateRef.current, nextState);
     },
     [
       chapterIndex,
@@ -249,91 +304,92 @@ export function useReaderRestoreController({
     });
   }, [persistence]);
 
-  const handleSetContentMode = useCallback((nextMode: 'scroll' | 'paged') => {
-    if (nextMode === mode) return;
+  const buildModeRestoreTarget = useCallback((
+    currentReaderState: StoredReaderState,
+    targetMode: ReaderMode,
+  ): ReaderRestoreTarget => ({
+    ...toRestoreTarget(currentReaderState),
+    mode: targetMode,
+  }), [toRestoreTarget]);
 
-    const currentReaderState = captureCurrentReaderPosition();
-    markUserInteracted();
-    if (typeof currentReaderState.chapterIndex === 'number') {
-      setChapterIndex(currentReaderState.chapterIndex);
-    }
-    const targetRestoreTarget: ReaderRestoreTarget = {
-      ...toRestoreTarget(currentReaderState),
-      mode: nextMode,
-    };
-    rememberModeState(targetRestoreTarget);
-    setPendingRestoreTarget(targetRestoreTarget, { force: true });
-    setMode(nextMode);
-    persistReaderState({
-      ...currentReaderState,
-      mode: nextMode,
-      lastContentMode: nextMode,
-    });
-  }, [
-    captureCurrentReaderPosition,
-    markUserInteracted,
-    mode,
-    persistReaderState,
-    rememberModeState,
-    setChapterIndex,
-    setMode,
-    setPendingRestoreTarget,
-    toRestoreTarget,
-  ]);
+  const solveModeRestoreTarget = useCallback((
+    targetMode: ReaderMode,
+    currentReaderState: StoredReaderState,
+    baseTarget: ReaderRestoreTarget,
+  ): ReaderRestoreTarget => {
+    const currentChapterIndex = currentReaderState.canonical?.chapterIndex ?? chapterIndex;
 
-  const handleSetViewMode = useCallback((nextViewMode: 'original' | 'summary') => {
-    if (nextViewMode === viewMode) return;
-
-    const currentReaderState = captureCurrentReaderPosition();
-    const nextMode: ReaderMode = nextViewMode === 'summary' ? 'summary' : lastContentMode;
-    const matchingSnapshot = modeSnapshotRef.current[nextMode];
-    const canReuseSnapshot =
-      matchingSnapshot && matchingSnapshot.chapterIndex === currentReaderState.chapterIndex;
-    let nextLastContentMode: 'scroll' | 'paged' = nextMode === 'summary'
-      ? lastContentMode
-      : nextMode;
-    if (nextMode === 'summary') {
-      nextLastContentMode = mode === 'summary' ? lastContentMode : mode;
-    }
-    let targetRestoreTarget: ReaderRestoreTarget;
-    if (canReuseSnapshot) {
-      targetRestoreTarget = {
-        ...toRestoreTarget(currentReaderState),
-        ...matchingSnapshot,
-        mode: nextMode,
-      };
-    } else if (nextMode === 'summary') {
-      targetRestoreTarget = {
-        ...toRestoreTarget(currentReaderState),
-        mode: nextMode,
+    if (targetMode === 'summary') {
+      return {
+        ...baseTarget,
         chapterProgress: 0,
         locatorBoundary: undefined,
         locator: undefined,
       };
-    } else {
-      targetRestoreTarget = {
-        chapterIndex: currentReaderState.chapterIndex ?? chapterIndex,
-        mode: nextMode,
-        locatorBoundary: 'start',
+    }
+
+    if (mode !== 'summary') {
+      return baseTarget;
+    }
+
+    const matchingSnapshot = modeSnapshotRef.current[targetMode];
+    const canReuseSnapshot =
+      matchingSnapshot && matchingSnapshot.chapterIndex === currentChapterIndex;
+    if (canReuseSnapshot) {
+      return {
+        ...baseTarget,
+        ...matchingSnapshot,
+        mode: targetMode,
       };
     }
+
+    return {
+      chapterIndex: currentChapterIndex || chapterIndex,
+      mode: targetMode,
+      locatorBoundary: 'start',
+    };
+  }, [chapterIndex, mode]);
+
+  const switchMode = useCallback((targetMode: ReaderMode) => {
+    if (targetMode === mode) return;
+
+    const currentReaderState = captureCurrentReaderPosition();
+    const baseTarget = buildModeRestoreTarget(currentReaderState, targetMode);
+    const targetRestoreTarget = solveModeRestoreTarget(
+      targetMode,
+      currentReaderState,
+      baseTarget,
+    );
+    const nextPersistedState = targetMode === 'summary'
+      ? mergeStoredReaderState(currentReaderState, {
+        hints: {
+          ...currentReaderState.hints,
+          chapterProgress: targetRestoreTarget.chapterProgress ?? 0,
+        },
+      })
+      : currentReaderState;
 
     markUserInteracted();
     setChapterIndex(targetRestoreTarget.chapterIndex);
     rememberModeState(targetRestoreTarget);
     setPendingRestoreTarget(targetRestoreTarget, { force: true });
-    setMode(nextMode);
-    persistReaderState({
+    setMode(targetMode);
+    persistReaderState(nextPersistedState, { persistRemote: false });
+    const modeSwitchSnapshot = {
+      source: 'useReaderRestoreController.switchMode',
+      previousMode: mode,
+      targetMode,
       chapterIndex: targetRestoreTarget.chapterIndex,
-      mode: targetRestoreTarget.mode,
-      chapterProgress: targetRestoreTarget.chapterProgress,
-      locator: targetRestoreTarget.locator,
-      lastContentMode: nextLastContentMode,
-    });
+      locatorBoundary: targetRestoreTarget.locatorBoundary ?? null,
+      hasLocator: Boolean(targetRestoreTarget.locator),
+      chapterProgress: targetRestoreTarget.chapterProgress ?? null,
+      persistedHintContentMode: nextPersistedState.hints?.contentMode ?? null,
+    };
+    setDebugSnapshot('reader-mode-switch', modeSwitchSnapshot);
+    debugLog('Reader', 'reader mode switched', modeSwitchSnapshot);
   }, [
+    buildModeRestoreTarget,
     captureCurrentReaderPosition,
-    chapterIndex,
-    lastContentMode,
     markUserInteracted,
     mode,
     persistReaderState,
@@ -341,60 +397,26 @@ export function useReaderRestoreController({
     setChapterIndex,
     setMode,
     setPendingRestoreTarget,
-    toRestoreTarget,
-    viewMode,
+    solveModeRestoreTarget,
   ]);
 
-  useEffect(() => {
-    if (!isActiveChapterResolved || mode !== 'summary') {
-      return;
-    }
-
-    const pendingTarget = pendingRestoreTargetRef.current;
-    const container = viewport.contentRef.current;
-    if (!pendingTarget || pendingTarget.mode !== 'summary' || !container) {
-      return;
-    }
-
-    if (canSkipReaderRestore(pendingTarget)) {
-      clearPendingRestoreTarget();
-      stopRestoreMask();
-      persistence.notifyRestoreSettled('skipped');
-      return;
-    }
-
-    const frameId = requestAnimationFrame(() => {
-      navigation.setChapterChangeSource('restore');
-      suppressScrollSyncTemporarily();
-      if (typeof pendingTarget.chapterProgress === 'number') {
-        const maxScroll = container.scrollHeight - container.clientHeight;
-        if (maxScroll > 0) {
-          container.scrollTop = Math.round(
-            maxScroll * clampProgress(pendingTarget.chapterProgress),
-          );
-        }
-      }
-      navigation.setChapterChangeSource(null);
-      clearPendingRestoreTarget();
-      stopRestoreMask();
-      persistence.notifyRestoreSettled('completed');
-    });
-
-    return () => cancelAnimationFrame(frameId);
-  }, [
+  useSummaryRestoreRunner({
+    chapterIndex,
     clearPendingRestoreTarget,
-    currentChapter,
-    isActiveChapterResolved,
-    isChapterAnalysisLoading,
+    currentChapterIndex: currentChapter?.index,
+    enabled: isActiveChapterResolved && !isChapterAnalysisLoading,
+    getRestoreAttempt,
     mode,
-    navigation,
+    notifyRestoreSettled: persistence.notifyRestoreSettled,
     pendingRestoreTarget,
-    persistence,
+    pendingRestoreTargetRef,
+    recordRestoreResult,
+    setChapterChangeSource: navigation.setChapterChangeSource,
     stopRestoreMask,
     summaryRestoreSignal,
     suppressScrollSyncTemporarily,
-    viewport.contentRef,
-  ]);
+    viewportContentRef: viewport.contentRef,
+  });
 
   useEffect(() => {
     return () => {
@@ -438,11 +460,14 @@ export function useReaderRestoreController({
 
     summaryProgressTimerRef.current = setTimeout(() => {
       persistReaderState({
-        chapterIndex,
-        chapterProgress: getContainerProgress(viewport.contentRef.current),
+        hints: {
+          chapterProgress: getContainerProgress(viewport.contentRef.current),
+        },
+      }, {
+        persistRemote: false,
       });
     }, 150);
-  }, [chapterIndex, mode, persistReaderState, persistence, viewport.contentRef]);
+  }, [mode, persistReaderState, persistence, viewport.contentRef]);
 
   return {
     pendingRestoreTarget,
@@ -451,12 +476,14 @@ export function useReaderRestoreController({
     clearPendingRestoreTarget,
     handleBeforeChapterChange,
     handleContentScroll,
-    handleSetContentMode,
-    handleSetViewMode,
+    getRestoreAttempt,
+    recordRestoreResult,
+    retryLastFailedRestore,
     setPendingRestoreTarget,
     startRestoreMaskForTarget,
     stopRestoreMask,
     suppressScrollSyncTemporarily,
+    switchMode,
   };
 }
 
