@@ -19,6 +19,7 @@ import {
   useReaderRestoreController,
   useReaderSession,
 } from '@domains/reader-session';
+import { DEBUG_RETRY_READER_RESTORE_EVENT } from '@app/debug/pwaDebugTools';
 import { useReaderPersistenceRuntime } from '@shared/reader-runtime';
 
 import type {
@@ -185,6 +186,7 @@ export function useReaderReadingSurfaceController({
     sessionSnapshot,
     summaryRestoreSignal: analysis.summaryRestoreSignal,
   });
+  const { retryLastFailedRestore } = restoreFlow;
   const scrollController = useScrollReaderViewportController({
     enabled: mode === 'scroll',
     novelId,
@@ -203,6 +205,8 @@ export function useReaderReadingSurfaceController({
     },
     pendingRestoreTarget: restoreFlow.pendingRestoreTarget,
     pendingRestoreTargetRef: restoreFlow.pendingRestoreTargetRef,
+    getRestoreAttempt: restoreFlow.getRestoreAttempt,
+    recordRestoreResult: restoreFlow.recordRestoreResult,
     clearPendingRestoreTarget: restoreFlow.clearPendingRestoreTarget,
     stopRestoreMask: restoreFlow.stopRestoreMask,
   });
@@ -221,7 +225,10 @@ export function useReaderReadingSurfaceController({
       lineSpacing: preferences.lineSpacing,
       paragraphSpacing: preferences.paragraphSpacing,
     },
+    pendingRestoreTarget: restoreFlow.pendingRestoreTarget,
     pendingRestoreTargetRef: restoreFlow.pendingRestoreTargetRef,
+    getRestoreAttempt: restoreFlow.getRestoreAttempt,
+    recordRestoreResult: restoreFlow.recordRestoreResult,
     clearPendingRestoreTarget: restoreFlow.clearPendingRestoreTarget,
     stopRestoreMask: restoreFlow.stopRestoreMask,
     beforeChapterChange: restoreFlow.handleBeforeChapterChange,
@@ -238,6 +245,23 @@ export function useReaderReadingSurfaceController({
   useEffect(() => {
     return persistence.registerRestoreSettledHandler(lifecycle.handleRestoreSettled);
   }, [lifecycle.handleRestoreSettled, persistence]);
+
+  useEffect(() => {
+    const handleDebugRetryReaderRestore = () => {
+      retryLastFailedRestore();
+    };
+
+    window.addEventListener(
+      DEBUG_RETRY_READER_RESTORE_EVENT,
+      handleDebugRetryReaderRestore,
+    );
+    return () => {
+      window.removeEventListener(
+        DEBUG_RETRY_READER_RESTORE_EVENT,
+        handleDebugRetryReaderRestore,
+      );
+    };
+  }, [retryLastFailedRestore]);
 
   const navigation = useReaderNavigation({
     beforeChapterChange: restoreFlow.handleBeforeChapterChange,

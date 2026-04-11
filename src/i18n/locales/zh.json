@@ -285,7 +285,8 @@
       "installPrompt": "安装提示",
       "iosHint": "iOS 提示",
       "updateToast": "更新提示",
-      "resetPwa": "重置 PWA"
+      "resetPwa": "重置 PWA",
+      "retryReaderRestore": "重试阅读恢复"
     },
     "diagnostics": {
       "title": "诊断",
@@ -293,6 +294,7 @@
       "labels": {
         "bookImport": "导入诊断",
         "readerLayout": "Reader 诊断",
+        "readerRestore": "恢复诊断",
         "storage": "存储诊断"
       },
       "preview": {
@@ -302,6 +304,10 @@
         "readerFormat": "格式 {{format}}",
         "readerLayout": "布局 {{layout}}",
         "readerPendingPreheat": "待预热 {{count}}",
+        "restoreStatus": "状态 {{status}}",
+        "restoreReason": "原因 {{reason}}",
+        "restoreError": "误差 {{metric}} Δ{{delta}}（阈值 {{tolerance}}）",
+        "restoreAttempts": "尝试 {{attempts}} · 可重试 {{retryable}}",
         "importOperation": "操作 {{operation}}",
         "importFile": "文件 {{file}}",
         "importStage": "阶段 {{stage}}"

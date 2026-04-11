@@ -2,7 +2,13 @@ import { useCallback, useEffect, useRef } from 'react';
 
 import type { ChapterContent } from '@shared/contracts/reader';
 import type { ReaderSessionSnapshot } from './useReaderSession';
-import type { ReaderMode, ReaderRestoreTarget, ReaderSessionCommands, StoredReaderState } from '@shared/contracts/reader';
+import type {
+  ReaderMode,
+  ReaderRestoreResult,
+  ReaderRestoreTarget,
+  ReaderSessionCommands,
+  StoredReaderState,
+} from '@shared/contracts/reader';
 
 import {
   useReaderLayoutQueries,
@@ -11,7 +17,6 @@ import {
   useReaderViewportContext,
 } from '@shared/reader-runtime';
 import {
-  canSkipReaderRestore,
   clampProgress,
   getContainerProgress,
   shouldKeepReaderRestoreMask,
@@ -29,6 +34,8 @@ import {
   getStoredReaderStateSnapshot,
   setPendingRestoreTarget as setStorePendingRestoreTarget,
 } from './readerSessionStore';
+import { useReaderRestoreResultTracker } from './readerRestoreResultTracker';
+import { useSummaryRestoreRunner } from './useSummaryRestoreRunner';
 
 interface UseReaderRestoreControllerParams {
   sessionSnapshot: Pick<
@@ -57,6 +64,12 @@ export interface UseReaderRestoreControllerResult {
   handleContentScroll: () => void;
   handleSetContentMode: (nextMode: 'scroll' | 'paged') => void;
   handleSetViewMode: (viewMode: 'original' | 'summary') => void;
+  getRestoreAttempt: (target: ReaderRestoreTarget | null | undefined) => number;
+  recordRestoreResult: (
+    result: ReaderRestoreResult,
+    target: ReaderRestoreTarget | null | undefined,
+  ) => { scheduledRetry: boolean };
+  retryLastFailedRestore: () => boolean;
   setPendingRestoreTarget: (
     nextTarget: ReaderRestoreTarget | null,
     options?: { force?: boolean },
@@ -183,6 +196,14 @@ export function useReaderRestoreController({
   const suppressScrollSyncTemporarily = useCallback(() => {
     persistence.suppressScrollSyncTemporarily();
   }, [persistence]);
+  const {
+    getRestoreAttempt,
+    recordRestoreResult,
+    retryLastFailedRestore,
+  } = useReaderRestoreResultTracker({
+    setPendingRestoreTarget,
+    startRestoreMaskForTarget,
+  });
 
   const rememberModeState = useCallback((target: ReaderRestoreTarget) => {
     modeSnapshotRef.current[target.mode] = target;
@@ -374,56 +395,23 @@ export function useReaderRestoreController({
     viewMode,
   ]);
 
-  useEffect(() => {
-    if (!isActiveChapterResolved || mode !== 'summary') {
-      return;
-    }
-
-    const pendingTarget = pendingRestoreTargetRef.current;
-    const container = viewport.contentRef.current;
-    if (!pendingTarget || pendingTarget.mode !== 'summary' || !container) {
-      return;
-    }
-
-    if (canSkipReaderRestore(pendingTarget)) {
-      clearPendingRestoreTarget();
-      stopRestoreMask();
-      persistence.notifyRestoreSettled('skipped');
-      return;
-    }
-
-    const frameId = requestAnimationFrame(() => {
-      navigation.setChapterChangeSource('restore');
-      suppressScrollSyncTemporarily();
-      if (typeof pendingTarget.chapterProgress === 'number') {
-        const maxScroll = container.scrollHeight - container.clientHeight;
-        if (maxScroll > 0) {
-          container.scrollTop = Math.round(
-            maxScroll * clampProgress(pendingTarget.chapterProgress),
-          );
-        }
-      }
-      navigation.setChapterChangeSource(null);
-      clearPendingRestoreTarget();
-      stopRestoreMask();
-      persistence.notifyRestoreSettled('completed');
-    });
-
-    return () => cancelAnimationFrame(frameId);
-  }, [
+  useSummaryRestoreRunner({
+    chapterIndex,
     clearPendingRestoreTarget,
-    currentChapter,
-    isActiveChapterResolved,
-    isChapterAnalysisLoading,
+    currentChapterIndex: currentChapter?.index,
+    enabled: isActiveChapterResolved && !isChapterAnalysisLoading,
+    getRestoreAttempt,
     mode,
-    navigation,
+    notifyRestoreSettled: persistence.notifyRestoreSettled,
     pendingRestoreTarget,
-    persistence,
+    pendingRestoreTargetRef,
+    recordRestoreResult,
+    setChapterChangeSource: navigation.setChapterChangeSource,
     stopRestoreMask,
     summaryRestoreSignal,
     suppressScrollSyncTemporarily,
-    viewport.contentRef,
-  ]);
+    viewportContentRef: viewport.contentRef,
+  });
 
   useEffect(() => {
     return () => {
@@ -485,6 +473,9 @@ export function useReaderRestoreController({
     handleContentScroll,
     handleSetContentMode,
     handleSetViewMode,
+    getRestoreAttempt,
+    recordRestoreResult,
+    retryLastFailedRestore,
     setPendingRestoreTarget,
     startRestoreMaskForTarget,
     stopRestoreMask,

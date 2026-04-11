@@ -45,6 +45,8 @@ export function useScrollReaderController({
   preferences,
   pendingRestoreTarget,
   pendingRestoreTargetRef,
+  getRestoreAttempt,
+  recordRestoreResult,
   clearPendingRestoreTarget,
   stopRestoreMask,
 }: UseScrollReaderControllerParams): UseScrollReaderControllerResult {
@@ -197,6 +199,8 @@ export function useScrollReaderController({
     navigation,
     pendingRestoreTarget,
     pendingRestoreTargetRef,
+    getRestoreAttempt,
+    recordRestoreResult,
     persistReaderState,
     persistence,
     scrollChapterBodyElementsRef,

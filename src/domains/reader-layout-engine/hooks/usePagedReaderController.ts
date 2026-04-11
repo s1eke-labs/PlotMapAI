@@ -4,6 +4,7 @@ import type {
   ChapterContent,
   PageTarget,
   ReaderChapterCacheApi,
+  ReaderRestoreResult,
   ReaderRestoreTarget,
   ReaderSessionCommands,
   ReaderSessionSnapshot,
@@ -12,6 +13,7 @@ import type {
 import {
   useReaderLayoutQueries,
   useReaderNavigationRuntime,
+  useReaderPersistenceRuntime,
   useReaderViewportContext,
 } from '@shared/reader-runtime';
 import { createCanonicalPositionFromNavigationIntent } from '@shared/utils/readerPosition';
@@ -63,7 +65,13 @@ interface UsePagedReaderControllerParams {
     },
   ) => Promise<ChapterContent>;
   preferences: PagedReaderControllerPreferences;
+  pendingRestoreTarget: ReaderRestoreTarget | null;
   pendingRestoreTargetRef: React.MutableRefObject<ReaderRestoreTarget | null>;
+  getRestoreAttempt: (target: ReaderRestoreTarget | null | undefined) => number;
+  recordRestoreResult: (
+    result: ReaderRestoreResult,
+    target: ReaderRestoreTarget | null | undefined,
+  ) => { scheduledRetry: boolean };
   clearPendingRestoreTarget: () => void;
   stopRestoreMask: () => void;
   beforeChapterChange?: () => void;
@@ -105,13 +113,17 @@ export function usePagedReaderController({
   cache,
   fetchChapterContent,
   preferences,
+  pendingRestoreTarget,
   pendingRestoreTargetRef,
+  getRestoreAttempt,
+  recordRestoreResult,
   clearPendingRestoreTarget,
   stopRestoreMask,
   beforeChapterChange,
 }: UsePagedReaderControllerParams): UsePagedReaderControllerResult {
   const viewport = useReaderViewportContext();
   const navigation = useReaderNavigationRuntime();
+  const persistence = useReaderPersistenceRuntime();
   const layoutQueries = useReaderLayoutQueries();
   const { chapterIndex } = sessionSnapshot;
   const {
@@ -232,9 +244,13 @@ export function usePagedReaderController({
     pagedViewportElement,
     pageIndex,
     pendingPageTarget,
+    pendingRestoreTarget,
     pendingRestoreTargetRef,
+    getRestoreAttempt,
+    recordRestoreResult,
     clearPendingRestoreTarget,
     clearPendingPageTarget,
+    notifyRestoreSettled: persistence.notifyRestoreSettled,
     stopRestoreMask,
     setPageCount,
     setPageIndex,

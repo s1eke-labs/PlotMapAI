@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createReaderContextWrapper } from '@test/readerRuntimeTestUtils';
+import { DEBUG_RETRY_READER_RESTORE_EVENT } from '@app/debug/pwaDebugTools';
 
 import { useReaderReadingSurfaceController } from '../useReaderReadingSurfaceController';
 
@@ -98,12 +99,15 @@ const surfaceMocks = vi.hoisted(() => {
     registerRestoreSettledHandler: vi.fn(() => vi.fn()),
     restoreFlow: {
       clearPendingRestoreTarget: vi.fn(),
+      getRestoreAttempt: vi.fn(() => 0),
       handleBeforeChapterChange: vi.fn(),
       handleContentScroll: vi.fn(),
       handleSetContentMode: vi.fn(),
       handleSetViewMode: vi.fn(),
       pendingRestoreTarget: null,
       pendingRestoreTargetRef: { current: null },
+      recordRestoreResult: vi.fn(() => ({ scheduledRetry: false })),
+      retryLastFailedRestore: vi.fn(() => false),
       setPendingRestoreTarget: vi.fn(),
       startRestoreMaskForTarget: vi.fn(),
       stopRestoreMask: vi.fn(),
@@ -287,5 +291,26 @@ describe('useReaderReadingSurfaceController', () => {
     result.current.viewport.handleViewportScroll();
     expect(surfaceMocks.scrollController.handleContentScroll).toHaveBeenCalledTimes(1);
     expect(surfaceMocks.restoreFlow.handleContentScroll).not.toHaveBeenCalled();
+  });
+
+  it('retries reader restore when debug retry event is dispatched', () => {
+    const { Wrapper } = createReaderContextWrapper();
+
+    renderHook(() => useReaderReadingSurfaceController({
+      analysisController: {
+        analyzeChapter: vi.fn(),
+        getChapterAnalysis: vi.fn(),
+        getStatus: vi.fn(),
+        renderSummaryPanel: vi.fn(() => 'summary-panel'),
+      },
+      novelId: 1,
+      preferences: surfaceMocks.preferences,
+    }), {
+      wrapper: Wrapper,
+    });
+
+    window.dispatchEvent(new CustomEvent(DEBUG_RETRY_READER_RESTORE_EVENT));
+
+    expect(surfaceMocks.restoreFlow.retryLastFailedRestore).toHaveBeenCalledTimes(1);
   });
 });

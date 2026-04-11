@@ -144,6 +144,7 @@ describe('debug', () => {
     expect(window.PlotMapAIDebug).toBeDefined();
     expect(typeof window.PlotMapAIDebug?.showInstallPrompt).toBe('function');
     expect(typeof window.PlotMapAIDebug?.showUpdateToast).toBe('function');
+    expect(typeof window.PlotMapAIDebug?.retryReaderRestore).toBe('function');
 
     cleanup();
 

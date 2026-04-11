@@ -2,6 +2,7 @@ import type { Dispatch, MutableRefObject, RefObject, SetStateAction } from 'reac
 import type {
   ChapterContent,
   ReaderLocator,
+  ReaderRestoreResult,
   ReaderRestoreTarget,
   StoredReaderState,
 } from '@shared/contracts/reader';
@@ -14,6 +15,12 @@ import {
   canSkipReaderRestore,
   SCROLL_READING_ANCHOR_RATIO,
 } from '@shared/utils/readerPosition';
+import {
+  restoreStepFailure,
+  restoreStepPending,
+  restoreStepSuccess,
+  runRestoreSolver,
+} from '@shared/utils/readerRestoreSolver';
 import { toCanonicalPositionFromLocator } from '@shared/utils/readerStoredState';
 import { buildFocusedScrollWindow } from '../scroll-runtime/internal';
 
@@ -27,6 +34,20 @@ function setStableRestoreWindow(
       ? previousWindow
       : nextWindow
   ));
+}
+
+function buildSkippedNoTargetResult(
+  chapterIndex: number,
+  attempts: number,
+): ReaderRestoreResult {
+  return {
+    status: 'skipped',
+    reason: 'no_target',
+    retryable: false,
+    attempts,
+    mode: 'scroll',
+    chapterIndex,
+  };
 }
 
 export function useScrollReaderRestore(params: {
@@ -43,9 +64,14 @@ export function useScrollReaderRestore(params: {
   };
   pendingRestoreTarget: ReaderRestoreTarget | null;
   pendingRestoreTargetRef: MutableRefObject<ReaderRestoreTarget | null>;
+  getRestoreAttempt: (target: ReaderRestoreTarget | null | undefined) => number;
+  recordRestoreResult: (
+    result: ReaderRestoreResult,
+    target: ReaderRestoreTarget | null | undefined,
+  ) => { scheduledRetry: boolean };
   persistReaderState: (state: StoredReaderState) => void;
   persistence: {
-    notifyRestoreSettled: (status: 'completed' | 'skipped') => void;
+    notifyRestoreSettled: (status: 'completed' | 'failed' | 'skipped') => void;
     suppressScrollSyncTemporarily: () => void;
   };
   scrollChapterBodyElementsRef: MutableRefObject<Map<number, HTMLDivElement>>;
@@ -65,6 +91,8 @@ export function useScrollReaderRestore(params: {
     navigation,
     pendingRestoreTarget,
     pendingRestoreTargetRef,
+    getRestoreAttempt,
+    recordRestoreResult,
     persistReaderState,
     persistence,
     scrollChapterBodyElementsRef,
@@ -100,12 +128,10 @@ export function useScrollReaderRestore(params: {
     return getChapterBoundaryLocator(chapterLayout, target.locatorBoundary);
   }, [scrollLayouts]);
 
-  const resolvePendingScrollTarget = useCallback((target: ReaderRestoreTarget) => {
-    const container = viewportContentRef.current;
-    if (!container) {
-      return { status: 'pending' as const };
-    }
-
+  const resolvePendingScrollTarget = useCallback((
+    target: ReaderRestoreTarget,
+    container: HTMLDivElement,
+  ) => {
     const targetChapterIndex = target.locator?.chapterIndex ?? target.chapterIndex;
     const targetElement = scrollChapterElementsRef.current.get(targetChapterIndex) ?? null;
     const resolvedLocator = resolvePendingRestoreLocator(target);
@@ -114,54 +140,54 @@ export function useScrollReaderRestore(params: {
       const hasResolvedBoundaryLayout = scrollLayouts.has(target.chapterIndex)
         && scrollChapterBodyElementsRef.current.has(target.chapterIndex);
       if (!hasResolvedBoundaryLayout) {
-        return { status: 'pending' as const };
+        return restoreStepPending<{
+          locator: ReaderLocator;
+          scrollTop: number;
+        }>('layout_missing');
       }
     }
 
     if (resolvedLocator) {
       if (target.locatorBoundary === 'start' && targetElement) {
-        return {
-          status: 'resolved' as const,
+        return restoreStepSuccess({
           locator: resolvedLocator,
           scrollTop: Math.max(0, Math.round(targetElement.offsetTop)),
-        };
+        });
       }
 
       const nextScrollTop = layoutQueries.resolveScrollLocatorOffset(resolvedLocator);
       if (nextScrollTop !== null) {
-        return {
-          status: 'resolved' as const,
+        return restoreStepSuccess({
           locator: resolvedLocator,
           scrollTop: Math.max(
             0,
             Math.round(nextScrollTop - container.clientHeight * SCROLL_READING_ANCHOR_RATIO),
           ),
-        };
+        });
       }
 
       const hasResolvedChapterLayout = scrollLayouts.has(resolvedLocator.chapterIndex)
         && scrollChapterBodyElementsRef.current.has(resolvedLocator.chapterIndex);
       if (!hasResolvedChapterLayout) {
-        return { status: 'pending' as const };
+        return restoreStepPending<{
+          locator: ReaderLocator;
+          scrollTop: number;
+        }>('layout_missing');
       }
     }
 
-    if (resolvedLocator || target.locatorBoundary !== undefined) {
-      return { status: 'invalid' as const };
-    }
-
-    if (!targetElement) {
-      return { status: 'pending' as const };
-    }
-
-    return { status: 'invalid' as const };
+    return restoreStepFailure<{
+      locator: ReaderLocator;
+      scrollTop: number;
+    }>('target_unresolvable', {
+      retryable: false,
+    });
   }, [
     layoutQueries,
     resolvePendingRestoreLocator,
     scrollChapterBodyElementsRef,
     scrollChapterElementsRef,
     scrollLayouts,
-    viewportContentRef,
   ]);
 
   useEffect(() => {
@@ -174,7 +200,12 @@ export function useScrollReaderRestore(params: {
       return;
     }
 
+    const currentRetryAttempt = getRestoreAttempt(pendingTarget);
     if (canSkipReaderRestore(pendingTarget)) {
+      recordRestoreResult(
+        buildSkippedNoTargetResult(chapterIndex, currentRetryAttempt + 1),
+        pendingTarget,
+      );
       navigation.setChapterChangeSource(null);
       clearPendingRestoreTarget();
       stopRestoreMask();
@@ -190,43 +221,109 @@ export function useScrollReaderRestore(params: {
         return;
       }
 
-      const container = viewportContentRef.current;
-      if (!container) {
+      const activeTarget = pendingRestoreTargetRef.current;
+      const solverOutcome = runRestoreSolver({
+        attempts: getRestoreAttempt(activeTarget) + 1,
+        chapterIndex,
+        hasTarget: Boolean(activeTarget),
+        mode: 'scroll',
+        modeMatchesTarget: activeTarget?.mode === 'scroll',
+        parse: () => {
+          if (!activeTarget) {
+            return restoreStepFailure('target_unresolvable', { retryable: false });
+          }
+
+          const container = viewportContentRef.current;
+          if (!container) {
+            return restoreStepPending('container_missing');
+          }
+
+          return restoreStepSuccess({
+            target: activeTarget,
+            container,
+          });
+        },
+        project: ({ target, container }) => {
+          const projected = resolvePendingScrollTarget(target, container);
+          if (projected.state !== 'success') {
+            return projected;
+          }
+
+          return restoreStepSuccess({
+            ...projected.value,
+            container,
+          });
+        },
+        execute: ({ locator, scrollTop, container }) => {
+          navigation.setChapterChangeSource('restore');
+          persistence.suppressScrollSyncTemporarily();
+          const nextContainer = container;
+          nextContainer.scrollTop = scrollTop;
+          return restoreStepSuccess({
+            locator,
+            expectedScrollTop: scrollTop,
+            actualScrollTop: nextContainer.scrollTop,
+          });
+        },
+        validate: (_projected, executed) => {
+          const measuredError = {
+            metric: 'scroll_px' as const,
+            delta: Math.abs(executed.actualScrollTop - executed.expectedScrollTop),
+            tolerance: 2,
+            expected: executed.expectedScrollTop,
+            actual: executed.actualScrollTop,
+          };
+          if (measuredError.delta > measuredError.tolerance) {
+            return restoreStepFailure('validation_exceeded_tolerance', {
+              retryable: true,
+              measuredError,
+            });
+          }
+          return restoreStepSuccess(measuredError);
+        },
+        buildContext: ({ executed }) => ({
+          locator: executed.locator,
+        }),
+      });
+
+      if (solverOutcome.kind === 'pending') {
+        if (activeTarget) {
+          ensureScrollRestoreWindow(activeTarget);
+        }
         frameId = requestAnimationFrame(restoreScrollPosition);
         return;
       }
 
-      const resolvedTarget = resolvePendingScrollTarget(pendingTarget);
-      if (resolvedTarget.status === 'pending') {
-        ensureScrollRestoreWindow(pendingTarget);
-        frameId = requestAnimationFrame(restoreScrollPosition);
-        return;
-      }
+      navigation.setChapterChangeSource(null);
+      if (solverOutcome.result.status === 'failed') {
+        const failureRecord = recordRestoreResult(solverOutcome.result, activeTarget);
+        if (failureRecord.scheduledRetry) {
+          if (activeTarget) {
+            ensureScrollRestoreWindow(activeTarget);
+          }
+          frameId = requestAnimationFrame(restoreScrollPosition);
+          return;
+        }
 
-      if (resolvedTarget.status === 'invalid') {
-        navigation.setChapterChangeSource(null);
         clearPendingRestoreTarget();
         stopRestoreMask();
-        persistence.notifyRestoreSettled('skipped');
+        persistence.notifyRestoreSettled('failed');
         return;
       }
 
-      navigation.setChapterChangeSource('restore');
-      persistence.suppressScrollSyncTemporarily();
-      container.scrollTop = resolvedTarget.scrollTop;
-      if (resolvedTarget.locator) {
+      recordRestoreResult(solverOutcome.result, activeTarget);
+      if (solverOutcome.context?.locator) {
         persistReaderState({
-          canonical: toCanonicalPositionFromLocator(resolvedTarget.locator),
+          canonical: toCanonicalPositionFromLocator(solverOutcome.context.locator),
           hints: {
             pageIndex: undefined,
             contentMode: 'scroll',
           },
         });
       }
-      navigation.setChapterChangeSource(null);
       clearPendingRestoreTarget();
       stopRestoreMask();
-      persistence.notifyRestoreSettled('completed');
+      persistence.notifyRestoreSettled(solverOutcome.result.status);
     };
 
     frameId = requestAnimationFrame(restoreScrollPosition);
@@ -244,6 +341,8 @@ export function useScrollReaderRestore(params: {
     navigation,
     pendingRestoreTarget,
     pendingRestoreTargetRef,
+    getRestoreAttempt,
+    recordRestoreResult,
     persistReaderState,
     persistence,
     resolvePendingScrollTarget,

@@ -154,7 +154,7 @@ function samplePageItemLocator(
   }
 
   if (item.kind === 'image') {
-    const imageHeight = Math.max(item.displayHeight ?? item.contentHeight, 1);
+    const imageHeight = Math.max(item.displayHeight, 1);
     const contentOffset = offsetWithinItem - item.marginBefore;
 
     return {

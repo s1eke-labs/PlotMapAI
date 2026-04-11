@@ -23,6 +23,7 @@ import { db } from '@infra/db';
 import {
   triggerDebugInstallPrompt,
   triggerDebugIosInstallHint,
+  triggerDebugRetryReaderRestore,
   triggerDebugUpdateToast,
   triggerDebugResetPwaPrompts,
 } from './pwaDebugTools';
@@ -50,10 +51,27 @@ const CATEGORY_COLORS: Record<string, string> = {
   'character-graph': 'text-cyan-300',
 };
 
-const SNAPSHOT_ORDER = ['reader-layout', 'book-import', 'storage'];
+const SNAPSHOT_ORDER = ['reader-layout', 'reader-restore', 'book-import', 'storage'];
 
 interface ReaderLayoutDiagnosticSnapshot {
   novelId: number | null;
+}
+
+interface ReaderRestoreDiagnosticSnapshot {
+  action?: string;
+  attempts?: number;
+  measuredError?: {
+    metric?: string;
+    delta?: number;
+    tolerance?: number;
+  };
+  reason?: string;
+  retryable?: boolean;
+  status?: string;
+  target?: {
+    chapterIndex?: number;
+    mode?: string;
+  };
 }
 
 interface StorageDiagnosticSnapshot {
@@ -110,6 +128,8 @@ function getSnapshotLabel(
       return t('debug.diagnostics.labels.readerLayout');
     case 'storage':
       return t('debug.diagnostics.labels.storage');
+    case 'reader-restore':
+      return t('debug.diagnostics.labels.readerRestore');
     default:
       return key;
   }
@@ -165,6 +185,29 @@ function buildSnapshotPreview(
       t('debug.diagnostics.preview.importStage', {
         stage: String(progress?.stage ?? '-'),
       }),
+    ];
+  }
+
+  if (snapshot.key === 'reader-restore') {
+    const value = snapshot.value as ReaderRestoreDiagnosticSnapshot;
+    const { measuredError } = value;
+    return [
+      t('debug.diagnostics.preview.restoreStatus', {
+        status: String(value.status ?? value.action ?? '-'),
+      }),
+      t('debug.diagnostics.preview.restoreReason', {
+        reason: String(value.reason ?? '-'),
+      }),
+      measuredError
+        ? t('debug.diagnostics.preview.restoreError', {
+          metric: String(measuredError.metric ?? '-'),
+          delta: String(measuredError.delta ?? '-'),
+          tolerance: String(measuredError.tolerance ?? '-'),
+        })
+        : t('debug.diagnostics.preview.restoreAttempts', {
+          attempts: value.attempts ?? 0,
+          retryable: String(value.retryable ?? false),
+        }),
     ];
   }
 
@@ -430,6 +473,13 @@ export default function DebugPanel() {
         >
           <RotateCcw className="h-3.5 w-3.5" />
           {t('debug.actions.resetPwa')}
+        </button>
+        <button
+          onClick={triggerDebugRetryReaderRestore}
+          className="flex items-center justify-center gap-2 rounded-lg border border-border-color/50 px-3 py-2 text-xs font-medium text-text-primary transition-colors hover:bg-white/10"
+        >
+          <RotateCcw className="h-3.5 w-3.5" />
+          {t('debug.actions.retryReaderRestore')}
         </button>
       </div>
       <div className="border-b border-border-color/50 p-2">

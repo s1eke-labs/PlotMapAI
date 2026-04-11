@@ -3,6 +3,7 @@ import type {
   Chapter,
   ChapterContent,
   ReaderChapterCacheApi,
+  ReaderRestoreResult,
   ReaderRestoreTarget,
   ReaderSessionCommands,
   ReaderSessionSnapshot,
@@ -44,6 +45,11 @@ export interface UseScrollReaderControllerParams {
   preferences: ScrollReaderControllerPreferences;
   pendingRestoreTarget: ReaderRestoreTarget | null;
   pendingRestoreTargetRef: MutableRefObject<ReaderRestoreTarget | null>;
+  getRestoreAttempt: (target: ReaderRestoreTarget | null | undefined) => number;
+  recordRestoreResult: (
+    result: ReaderRestoreResult,
+    target: ReaderRestoreTarget | null | undefined,
+  ) => { scheduledRetry: boolean };
   clearPendingRestoreTarget: () => void;
   stopRestoreMask: () => void;
 }

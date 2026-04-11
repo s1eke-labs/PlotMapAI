@@ -422,6 +422,8 @@ function createHookProps(overrides: CreateHookPropsOptions = {}) {
     sessionSnapshot: {
       chapterIndex: harness.chapterIndex,
     },
+    getRestoreAttempt: vi.fn(() => 0),
+    recordRestoreResult: vi.fn(() => ({ scheduledRetry: false })),
     stopRestoreMask: vi.fn(),
     clearPendingRestoreTarget: vi.fn(),
     cache: {

@@ -115,7 +115,11 @@ function createHookProps(
       lineSpacing: 1.8,
       paragraphSpacing: 20,
     },
+    pendingRestoreTarget: overrides.pendingRestoreTarget ?? null,
     pendingRestoreTargetRef: overrides.pendingRestoreTargetRef ?? { current: null },
+    getRestoreAttempt: overrides.getRestoreAttempt ?? (() => 0),
+    recordRestoreResult: overrides.recordRestoreResult
+      ?? (() => ({ scheduledRetry: false })),
     clearPendingRestoreTarget: overrides.clearPendingRestoreTarget ?? vi.fn(),
     stopRestoreMask: overrides.stopRestoreMask ?? vi.fn(),
     beforeChapterChange: overrides.beforeChapterChange,

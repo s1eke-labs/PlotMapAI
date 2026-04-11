@@ -20,10 +20,12 @@ vi.mock('react-i18next', () => ({
         'debug.actions.iosHint': 'iOS Hint',
         'debug.actions.updateToast': 'Update Toast',
         'debug.actions.resetPwa': 'Reset PWA',
+        'debug.actions.retryReaderRestore': 'Retry Reader Restore',
         'debug.diagnostics.title': 'Diagnostics',
         'debug.diagnostics.empty': 'No diagnostics yet',
         'debug.diagnostics.labels.bookImport': 'Import Diagnostics',
         'debug.diagnostics.labels.readerLayout': 'Reader Diagnostics',
+        'debug.diagnostics.labels.readerRestore': 'Restore Diagnostics',
         'debug.diagnostics.labels.storage': 'Storage Diagnostics',
         'debug.diagnostics.preview.storageUsage': 'Usage {{usage}} / {{quota}}',
         'debug.diagnostics.preview.storageCounts': 'Render cache {{renderCacheCount}} · rich {{richCount}} · images {{imageCount}}',
@@ -31,6 +33,10 @@ vi.mock('react-i18next', () => ({
         'debug.diagnostics.preview.readerFormat': 'Format {{format}}',
         'debug.diagnostics.preview.readerLayout': 'Layout {{layout}}',
         'debug.diagnostics.preview.readerPendingPreheat': 'Pending preheat {{count}}',
+        'debug.diagnostics.preview.restoreStatus': 'Status {{status}}',
+        'debug.diagnostics.preview.restoreReason': 'Reason {{reason}}',
+        'debug.diagnostics.preview.restoreError': 'Error {{metric}} Δ{{delta}} (tol {{tolerance}})',
+        'debug.diagnostics.preview.restoreAttempts': 'Attempts {{attempts}} · retryable {{retryable}}',
         'debug.diagnostics.preview.importOperation': 'Operation {{operation}}',
         'debug.diagnostics.preview.importFile': 'File {{file}}',
         'debug.diagnostics.preview.importStage': 'Stage {{stage}}',
@@ -91,6 +97,7 @@ const debugTest = vi.hoisted(() => {
     }),
     triggerDebugInstallPrompt: vi.fn(),
     triggerDebugIosInstallHint: vi.fn(),
+    triggerDebugRetryReaderRestore: vi.fn(),
     triggerDebugUpdateToast: vi.fn(),
     triggerDebugResetPwaPrompts: vi.fn(),
     getLogs: () => [...logs],
@@ -178,6 +185,7 @@ vi.mock('../pwaDebugTools', () => {
   return {
     triggerDebugInstallPrompt: debugTest.triggerDebugInstallPrompt,
     triggerDebugIosInstallHint: debugTest.triggerDebugIosInstallHint,
+    triggerDebugRetryReaderRestore: debugTest.triggerDebugRetryReaderRestore,
     triggerDebugUpdateToast: debugTest.triggerDebugUpdateToast,
     triggerDebugResetPwaPrompts: debugTest.triggerDebugResetPwaPrompts,
   };
@@ -265,11 +273,13 @@ describe('DebugPanel', () => {
     await user.click(screen.getByRole('button', { name: /iOS Hint/i }));
     await user.click(screen.getByRole('button', { name: /Update Toast/i }));
     await user.click(screen.getByRole('button', { name: /Reset PWA/i }));
+    await user.click(screen.getByRole('button', { name: /Retry Reader Restore/i }));
 
     expect(debugTest.triggerDebugInstallPrompt).toHaveBeenCalledTimes(1);
     expect(debugTest.triggerDebugIosInstallHint).toHaveBeenCalledTimes(1);
     expect(debugTest.triggerDebugUpdateToast).toHaveBeenCalledTimes(1);
     expect(debugTest.triggerDebugResetPwaPrompts).toHaveBeenCalledTimes(1);
+    expect(debugTest.triggerDebugRetryReaderRestore).toHaveBeenCalledTimes(1);
   });
 
   it('renders reader telemetry toggle disabled by default and wires it to the debug feature flag', async () => {

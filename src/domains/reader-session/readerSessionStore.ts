@@ -19,6 +19,7 @@ import {
 } from '@shared/utils/readerMode';
 import type {
   ReaderMode,
+  ReaderRestoreResult,
   ReaderRestoreTarget,
   ReaderSessionSnapshot,
   ReaderSessionState,
@@ -59,6 +60,7 @@ export interface ReaderSessionActions {
   beginRestore: (target: ReaderRestoreTarget | null | undefined) => void;
   completeRestore: () => void;
   failRestore: () => void;
+  setLastRestoreResult: (result: ReaderRestoreResult | null) => void;
   flushPersistence: () => Promise<void>;
 }
 
@@ -153,6 +155,7 @@ function createInitialReaderSessionState(): ReaderSessionInternalState {
       initialStoredState.hints?.pageIndex,
     ),
     restoreStatus: 'hydrating',
+    lastRestoreResult: null,
     lastContentMode: 'scroll',
     pendingRestoreTarget: null,
     hasUserInteracted: false,
@@ -250,6 +253,7 @@ export async function hydrateSession(
   readerSessionRuntime.patch({
     novelId,
     restoreStatus: 'hydrating',
+    lastRestoreResult: null,
     pendingRestoreTarget: null,
     hasUserInteracted: false,
     canonical: initialStoredState.canonical,
@@ -293,6 +297,7 @@ export async function hydrateSession(
     lastContentMode: nextLastContentMode,
     pendingRestoreTarget,
     restoreStatus: shouldMaskRestore(pendingRestoreTarget) ? 'restoring' : 'ready',
+    lastRestoreResult: null,
   });
 
   return baseState;
@@ -347,6 +352,12 @@ export function setRestoreStatus(restoreStatus: RestoreStatus): void {
   readerSessionRuntime.patch({ restoreStatus }, { writeCache: false });
 }
 
+export function setLastRestoreResult(
+  lastRestoreResult: ReaderRestoreResult | null,
+): void {
+  readerSessionRuntime.patch({ lastRestoreResult }, { writeCache: false });
+}
+
 export function setSessionNovelId(novelId: number): void {
   if (readerSessionStore.getState().novelId === novelId) {
     return;
@@ -359,6 +370,7 @@ export function beginRestore(nextTarget: ReaderRestoreTarget | null | undefined)
   readerSessionRuntime.patch({
     pendingRestoreTarget: nextTarget ?? null,
     restoreStatus: shouldMaskRestore(nextTarget) ? 'restoring' : 'ready',
+    lastRestoreResult: null,
   }, { writeCache: false });
 }
 
@@ -419,6 +431,7 @@ export function useReaderSessionActions(): ReaderSessionActions {
     beginRestore,
     completeRestore,
     failRestore,
+    setLastRestoreResult,
     flushPersistence,
   };
 }

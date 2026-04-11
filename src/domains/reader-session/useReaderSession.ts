@@ -1,6 +1,7 @@
 import type { ReaderSessionSnapshot as SessionStoreSnapshot } from '@shared/contracts/reader';
 import type {
   ReaderMode,
+  ReaderRestoreResult,
   ReaderRestoreTarget,
   RestoreStatus,
   ReaderSessionCommands,
@@ -25,6 +26,7 @@ export interface ReaderSessionSnapshot {
   contentMode: 'scroll' | 'paged';
   isPagedMode: boolean;
   restoreStatus: RestoreStatus;
+  lastRestoreResult: ReaderRestoreResult | null;
   pendingRestoreTarget: ReaderRestoreTarget | null;
   lastContentMode: 'scroll' | 'paged';
 }
@@ -40,6 +42,7 @@ export function useReaderSession(novelId: number): UseReaderSessionResult {
   const chapterIndex = useReaderSessionSelector((state) => state.chapterIndex);
   const mode = useReaderSessionSelector((state) => state.mode);
   const restoreStatus = useReaderSessionSelector((state) => state.restoreStatus);
+  const lastRestoreResult = useReaderSessionSelector((state) => state.lastRestoreResult);
   const pendingRestoreTarget = useReaderSessionSelector((state) => state.pendingRestoreTarget);
   const lastContentMode = useReaderSessionSelector((state) => state.lastContentMode);
   const storeNovelId = useReaderSessionSelector((state) => state.novelId);
@@ -72,12 +75,14 @@ export function useReaderSession(novelId: number): UseReaderSessionResult {
     contentMode,
     isPagedMode,
     restoreStatus,
+    lastRestoreResult,
     pendingRestoreTarget,
     lastContentMode,
   }), [
     chapterIndex,
     contentMode,
     isPagedMode,
+    lastRestoreResult,
     lastContentMode,
     mode,
     novelId,
