@@ -269,6 +269,49 @@
     "panelTitle": "Debug Panel",
     "titleWithCount": "Debug ({{count}})",
     "clearLogs": "Clear logs",
+    "copyEntry": "Copy",
+    "copied": "Copied",
+    "workspace": {
+      "subtitle": "A full-screen control room for live debug flags, diagnostics snapshots, and log streams.",
+      "close": "Close debug workspace",
+      "sectionsLabel": "Debug workspace sections",
+      "pages": {
+        "logs": "Logs",
+        "errors": "Errors",
+        "diagnostics": "Diagnostics",
+        "tools": "Tools"
+      },
+      "errorsEmpty": "No errors yet",
+      "diagnostics": {
+        "count": "{{count}} snapshots",
+        "viewJson": "View JSON",
+        "hideJson": "Hide JSON"
+      },
+      "tools": {
+        "featuresTitle": "Feature Flags",
+        "actionsTitle": "Quick Actions"
+      },
+      "sections": {
+        "controls": "Controls",
+        "diagnostics": "Diagnostics",
+        "logs": "Logs"
+      },
+      "summary": {
+        "logs": "Log Entries",
+        "errors": "Errors",
+        "snapshots": "Snapshots",
+        "activeFlags": "Active Flags",
+        "noActiveFlags": "All feature flags are currently disabled."
+      },
+      "controls": {
+        "featuresTitle": "Feature Flags",
+        "featuresDescription": "Enable debug-only behavior switches without changing persisted application settings.",
+        "actionsTitle": "Quick Actions",
+        "actionsDescription": "Manual triggers for navigation, PWA prompts, and reader recovery tooling."
+      },
+      "diagnosticsDescription": "Latest structured snapshots from reader, import, and storage flows.",
+      "logsDescription": "Live event stream with structured error details and filter controls."
+    },
     "filters": {
       "all": "All",
       "errors": "Errors",

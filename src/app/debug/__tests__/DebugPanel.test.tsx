@@ -1,7 +1,69 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import DebugPanel from '../DebugPanel';
+
+interface TestDebugLogEntry {
+  kind: 'log';
+  time: number;
+  category: string;
+  message: string;
+}
+
+interface TestDebugErrorEntry {
+  kind: 'error';
+  time: number;
+  category: string;
+  message: string;
+  error: {
+    cause?: { message: string };
+    code: string;
+    debugVisible: boolean;
+    details?: unknown;
+    kind: string;
+    retryable: boolean;
+    source: string;
+    stack?: string;
+    userMessageKey?: string;
+    userVisible: boolean;
+  };
+}
+
+type TestDebugEntry = TestDebugLogEntry | TestDebugErrorEntry;
+
+function createLogEntry(
+  time: number,
+  category: string,
+  message: string,
+): TestDebugLogEntry {
+  return {
+    category,
+    kind: 'log',
+    message,
+    time,
+  };
+}
+
+function createErrorEntry(
+  time: number,
+  category: string,
+  message: string,
+): TestDebugErrorEntry {
+  return {
+    category,
+    kind: 'error',
+    message,
+    time,
+    error: {
+      code: 'TEST_ERROR',
+      debugVisible: true,
+      kind: 'execution',
+      retryable: false,
+      source: category,
+      userVisible: true,
+    },
+  };
+}
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -10,9 +72,20 @@ vi.mock('react-i18next', () => ({
         'debug.panelTitle': 'Debug Panel',
         'debug.titleWithCount': 'Debug ({{count}})',
         'debug.clearLogs': 'Clear logs',
-        'debug.filters.all': 'All',
-        'debug.filters.errors': 'Errors',
-        'debug.filters.logs': 'Logs',
+        'debug.copyEntry': 'Copy',
+        'debug.copied': 'Copied',
+        'debug.workspace.close': 'Close debug workspace',
+        'debug.workspace.sectionsLabel': 'Debug workspace sections',
+        'debug.workspace.pages.logs': 'Logs',
+        'debug.workspace.pages.errors': 'Errors',
+        'debug.workspace.pages.diagnostics': 'Diagnostics',
+        'debug.workspace.pages.tools': 'Tools',
+        'debug.workspace.errorsEmpty': 'No errors yet',
+        'debug.workspace.diagnostics.count': '{{count}} snapshots',
+        'debug.workspace.diagnostics.viewJson': 'View JSON',
+        'debug.workspace.diagnostics.hideJson': 'Hide JSON',
+        'debug.workspace.tools.featuresTitle': 'Feature Flags',
+        'debug.workspace.tools.actionsTitle': 'Quick Actions',
         'debug.features.readerStrictModeSwitch.label': 'Strict Mode Switch',
         'debug.features.readerStrictModeSwitch.description': 'Disable paged/scroll mode-switch fallbacks and stop on failure',
         'debug.features.readerTelemetry.label': 'Reader Telemetry',
@@ -61,10 +134,10 @@ vi.mock('react-i18next', () => ({
 }));
 
 const debugTest = vi.hoisted(() => {
-  let logs: Array<{ time: number; category: string; message: string }> = [];
+  let logs: TestDebugEntry[] = [];
   let snapshots: Array<{ key: string; time: number; value: unknown }> = [];
   let subscriber:
-    | ((entry: { time: number; category: string; message: string }) => void)
+    | ((entry: TestDebugEntry) => void)
     | null = null;
   let snapshotSubscriber:
     | ((entries: Array<{ key: string; time: number; value: unknown }>) => void)
@@ -109,13 +182,13 @@ const debugTest = vi.hoisted(() => {
     triggerDebugUpdateToast: vi.fn(),
     triggerDebugResetPwaPrompts: vi.fn(),
     getLogs: () => [...logs],
-    setLogs(nextLogs: Array<{ time: number; category: string; message: string }>) {
+    setLogs(nextLogs: TestDebugEntry[]) {
       logs = [...nextLogs];
     },
     setSnapshots(nextSnapshots: Array<{ key: string; time: number; value: unknown }>) {
       snapshots = [...nextSnapshots];
     },
-    subscribe(callback: (entry: { time: number; category: string; message: string }) => void) {
+    subscribe(callback: (entry: TestDebugEntry) => void) {
       subscriber = callback;
       return () => {
         if (subscriber === callback) subscriber = null;
@@ -138,7 +211,7 @@ const debugTest = vi.hoisted(() => {
         if (snapshotSubscriber === callback) snapshotSubscriber = null;
       };
     },
-    emit(entry: { time: number; category: string; message: string }) {
+    emit(entry: TestDebugEntry) {
       logs = [...logs, entry];
       subscriber?.(entry);
     },
@@ -155,6 +228,8 @@ const debugTest = vi.hoisted(() => {
     },
   };
 });
+
+const clipboardWriteTextMock = vi.fn().mockResolvedValue(undefined);
 
 vi.mock('@shared/debug', () => {
   return {
@@ -205,10 +280,16 @@ describe('DebugPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     debugTest.reset();
+    Object.defineProperty(globalThis.navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: clipboardWriteTextMock,
+      },
+    });
   });
 
   it('renders existing logs and appends live log entries from the subscription', async () => {
-    debugTest.setLogs([{ time: 1, category: 'Reader', message: 'initial log' }]);
+    debugTest.setLogs([createLogEntry(1, 'Reader', 'initial log')]);
     const user = userEvent.setup();
 
     render(<DebugPanel />);
@@ -216,12 +297,53 @@ describe('DebugPanel', () => {
 
     expect(screen.getByText('initial log')).toBeInTheDocument();
 
-    debugTest.emit({ time: 2, category: 'AI', message: 'live log' });
+    debugTest.emit(createLogEntry(2, 'AI', 'live log'));
     expect(await screen.findByText('live log')).toBeInTheDocument();
   });
 
+  it('copies log, error, and diagnostics entries', async () => {
+    debugTest.setLogs([
+      createLogEntry(1, 'Reader', 'initial log'),
+      createErrorEntry(2, 'reader', 'reader failed'),
+    ]);
+    debugTest.setSnapshots([
+      {
+        key: 'reader-layout',
+        time: 1,
+        value: {
+          contentFormat: 'rich',
+          novelId: 7,
+        },
+      },
+    ]);
+    const user = userEvent.setup();
+    const clipboardSpy = vi.spyOn(navigator.clipboard, 'writeText');
+
+    render(<DebugPanel />);
+    await user.click(screen.getByTitle('Debug Panel'));
+
+    const logCopyButtons = screen.getAllByRole('button', { name: 'Copy' });
+    await user.click(logCopyButtons[0]);
+    await waitFor(() => {
+      expect(clipboardSpy).toHaveBeenLastCalledWith(expect.stringContaining('initial log'));
+    });
+
+    await user.click(screen.getByRole('tab', { name: /Errors/i }));
+    await user.click(screen.getByRole('button', { name: 'Copy' }));
+    await waitFor(() => {
+      expect(clipboardSpy).toHaveBeenLastCalledWith(expect.stringContaining('reader failed'));
+    });
+
+    await user.click(screen.getByRole('tab', { name: 'Diagnostics' }));
+    const diagnosticCopyButtons = screen.getAllByRole('button', { name: 'Copy' });
+    await user.click(diagnosticCopyButtons[0]);
+    await waitFor(() => {
+      expect(clipboardSpy).toHaveBeenLastCalledWith(expect.stringContaining('"key": "reader-layout"'));
+    });
+  });
+
   it('clears logs through the panel action', async () => {
-    debugTest.setLogs([{ time: 1, category: 'Reader', message: 'stale log' }]);
+    debugTest.setLogs([createLogEntry(1, 'Reader', 'stale log')]);
     debugTest.setSnapshots([{ key: 'reader-layout', time: 1, value: { novelId: 1 } }]);
     const user = userEvent.setup();
 
@@ -233,6 +355,26 @@ describe('DebugPanel', () => {
 
     expect(screen.getByText('No logs yet')).toBeInTheDocument();
     expect(debugTest.clearSnapshotMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('opens a full-screen workspace and closes via button, backdrop, and Escape', async () => {
+    const user = userEvent.setup();
+
+    render(<DebugPanel />);
+    await user.click(screen.getByTitle('Debug Panel'));
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+
+    await user.click(screen.getByTitle('Close debug workspace'));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+    await user.click(screen.getByTitle('Debug Panel'));
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+    await user.click(screen.getByTitle('Debug Panel'));
+    await user.click(screen.getByTestId('debug-workspace-backdrop'));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
   it('renders structured diagnostics snapshots above the log stream', async () => {
@@ -265,6 +407,7 @@ describe('DebugPanel', () => {
 
     render(<DebugPanel />);
     await user.click(screen.getByTitle('Debug Panel'));
+    await user.click(screen.getByRole('tab', { name: 'Diagnostics' }));
 
     expect(screen.getByText('Reader Diagnostics')).toBeInTheDocument();
     expect(screen.getByText('Import Diagnostics')).toBeInTheDocument();
@@ -273,11 +416,37 @@ describe('DebugPanel', () => {
     expect(screen.getByText(/pending preheat 2/i)).toBeInTheDocument();
   });
 
+  it('keeps snapshot json collapsed until requested', async () => {
+    debugTest.setSnapshots([
+      {
+        key: 'reader-layout',
+        time: 1,
+        value: {
+          contentFormat: 'rich',
+          hiddenPayload: 'secret-json-value',
+          novelId: 7,
+        },
+      },
+    ]);
+    const user = userEvent.setup();
+
+    render(<DebugPanel />);
+    await user.click(screen.getByTitle('Debug Panel'));
+    await user.click(screen.getByRole('tab', { name: 'Diagnostics' }));
+
+    expect(screen.queryByText(/secret-json-value/i)).not.toBeInTheDocument();
+
+    const [viewJsonButton] = screen.getAllByRole('button', { name: 'View JSON' });
+    await user.click(viewJsonButton);
+    expect(screen.getByText(/secret-json-value/i)).toBeInTheDocument();
+  });
+
   it('exposes manual PWA trigger buttons', async () => {
     const user = userEvent.setup();
 
     render(<DebugPanel />);
     await user.click(screen.getByTitle('Debug Panel'));
+    await user.click(screen.getByRole('tab', { name: 'Tools' }));
 
     await user.click(screen.getByRole('button', { name: /Install Prompt/i }));
     await user.click(screen.getByRole('button', { name: /iOS Hint/i }));
@@ -292,11 +461,51 @@ describe('DebugPanel', () => {
     expect(debugTest.triggerDebugRetryReaderRestore).toHaveBeenCalledTimes(1);
   });
 
+  it('defaults to the log page and switches between pages without losing state', async () => {
+    debugTest.setLogs([
+      createLogEntry(1, 'Reader', 'live log'),
+      createErrorEntry(2, 'reader', 'reader failed'),
+    ]);
+    debugTest.setSnapshots([{ key: 'reader-layout', time: 1, value: { novelId: 7 } }]);
+    const user = userEvent.setup();
+
+    render(<DebugPanel />);
+    await user.click(screen.getByTitle('Debug Panel'));
+
+    expect(screen.getByText('live log')).toBeInTheDocument();
+    expect(screen.queryByText('Reader Diagnostics')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('tab', { name: /Errors/i }));
+    expect(screen.getByText('reader failed')).toBeInTheDocument();
+    expect(screen.queryByText('live log')).not.toBeInTheDocument();
+
+    debugTest.emit(createErrorEntry(3, 'reader', 'boom'));
+
+    expect(await screen.findByText('boom')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('tab', { name: 'Diagnostics' }));
+    expect(screen.getByText('Reader Diagnostics')).toBeInTheDocument();
+    expect(screen.queryByText('live log')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('tab', { name: 'Tools' }));
+    expect(screen.getByText('Feature Flags')).toBeInTheDocument();
+
+    const [strictModeToggle] = screen.getAllByRole('switch');
+    expect(strictModeToggle).toHaveAttribute('aria-checked', 'false');
+    await user.click(strictModeToggle);
+
+    expect(debugTest.setDebugFeatureEnabled).toHaveBeenCalledWith('readerStrictModeSwitch', true);
+
+    await user.click(screen.getByRole('tab', { name: 'Logs' }));
+    expect(screen.getByText('live log')).toBeInTheDocument();
+  });
+
   it('renders reader telemetry toggle disabled by default and wires it to the debug feature flag', async () => {
     const user = userEvent.setup();
 
     render(<DebugPanel />);
     await user.click(screen.getByTitle('Debug Panel'));
+    await user.click(screen.getByRole('tab', { name: 'Tools' }));
 
     const [, telemetryToggle] = screen.getAllByRole('switch');
     expect(telemetryToggle).toHaveAttribute('aria-checked', 'false');
@@ -312,6 +521,7 @@ describe('DebugPanel', () => {
 
     render(<DebugPanel />);
     await user.click(screen.getByTitle('Debug Panel'));
+    await user.click(screen.getByRole('tab', { name: 'Tools' }));
 
     const [strictModeToggle] = screen.getAllByRole('switch');
     expect(strictModeToggle).toHaveAttribute('aria-checked', 'false');
