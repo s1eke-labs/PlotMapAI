@@ -3,7 +3,7 @@ import type { ChapterContent } from '@shared/contracts/reader';
 import type { ReaderAnalysisBridgeController, UseReaderPreferencesResult } from '@domains/reader-shell';
 import type { UseReaderSessionResult } from '@domains/reader-session';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import {
   PagedReaderContent,
@@ -163,12 +163,13 @@ export function useReaderReadingSurfaceController({
   const { snapshot: sessionSnapshot, commands: sessionCommands } = session;
   const { chapterIndex, isPagedMode, lastContentMode, mode, viewMode } = sessionSnapshot;
   const [chapterDataRevision, setChapterDataRevision] = useState(0);
+  const handleChapterContentResolved = useCallback(() => {
+    setChapterDataRevision((previousVersion) => previousVersion + 1);
+  }, []);
 
   const chapterData = useReaderChapterData({
     novelId,
-    onChapterContentResolved: () => {
-      setChapterDataRevision((previousVersion) => previousVersion + 1);
-    },
+    onChapterContentResolved: handleChapterContentResolved,
     resetInteractionState,
     sessionCommands,
     sessionSnapshot,

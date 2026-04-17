@@ -5,15 +5,13 @@ import type {
 } from '@shared/contracts/reader';
 import type { UseScrollReaderRestoreParams } from './scrollReaderRestoreTypes';
 
-import { useCallback, useEffect } from 'react';
+import { useEffect } from 'react';
 
-import { getChapterBoundaryLocator } from '../layout-core/internal';
 import { debugLog, setDebugSnapshot } from '@shared/debug';
 import {
   canSkipReaderRestore,
   clampContainerScrollTop,
   getContainerMaxScrollTop,
-  SCROLL_READING_ANCHOR_RATIO,
 } from '@shared/utils/readerPosition';
 import {
   restoreStepFailure,
@@ -22,19 +20,18 @@ import {
   runRestoreSolver,
 } from '@shared/utils/readerRestoreSolver';
 import { toCanonicalPositionFromLocator } from '@shared/utils/readerStoredState';
-import { buildFocusedScrollWindow } from '../scroll-runtime/internal';
 import {
   areRestoreLocatorsEquivalent,
   areRestoreLocatorsInSameBlock,
   buildSkippedNoTargetResult,
-  setStableRestoreWindow,
+  ensureScrollRestoreWindow,
+  resolvePendingScrollTarget,
 } from './scrollReaderRestoreHelpers';
 
 const SCROLL_RESTORE_LOCATOR_SETTLE_FRAMES = 6;
 const SCROLL_RESTORE_LOCATOR_SETTLE_OFFSET_TOLERANCE_PX = 2;
 const SCROLL_RESTORE_SAME_BLOCK_SETTLE_OFFSET_TOLERANCE_PX = 64;
 const SCROLL_RESTORE_SCROLL_TOP_SETTLE_TOLERANCE_PX = 2;
-const SCROLL_RESTORE_PROGRESS_FALLBACK_TOLERANCE = 0.03;
 
 export function useScrollReaderRestore(params: UseScrollReaderRestoreParams): void {
   const {
@@ -59,117 +56,6 @@ export function useScrollReaderRestore(params: UseScrollReaderRestoreParams): vo
     stopRestoreMask,
     viewportContentRef,
   } = params;
-
-  const ensureScrollRestoreWindow = useCallback((target: ReaderRestoreTarget) => {
-    const targetChapterIndex = target.locator?.chapterIndex ?? target.chapterIndex;
-    if (targetChapterIndex < 0 || targetChapterIndex >= chaptersLength) {
-      return;
-    }
-
-    setStableRestoreWindow(
-      setScrollModeChapters,
-      buildFocusedScrollWindow(targetChapterIndex, chaptersLength),
-    );
-  }, [chaptersLength, setScrollModeChapters]);
-
-  const resolvePendingRestoreLocator = useCallback((target: ReaderRestoreTarget) => {
-    if (target.locator) {
-      return target.locator;
-    }
-
-    if (target.locatorBoundary === undefined) {
-      return null;
-    }
-
-    const chapterLayout = scrollLayouts.get(target.chapterIndex) ?? null;
-    return getChapterBoundaryLocator(chapterLayout, target.locatorBoundary);
-  }, [scrollLayouts]);
-
-  const resolvePendingScrollTarget = useCallback((
-    target: ReaderRestoreTarget,
-    container: HTMLDivElement,
-  ) => {
-    const targetChapterIndex = target.locator?.chapterIndex ?? target.chapterIndex;
-    const targetElement = scrollChapterElementsRef.current.get(targetChapterIndex) ?? null;
-    const resolvedLocator = resolvePendingRestoreLocator(target);
-    const progressScrollTop = typeof target.chapterProgress === 'number'
-      ? clampContainerScrollTop(
-        container,
-        getContainerMaxScrollTop(container) * target.chapterProgress,
-      )
-      : null;
-    const resolvePreferredScrollTop = (candidateScrollTop: number): number => {
-      if (progressScrollTop === null || typeof target.chapterProgress !== 'number') {
-        return candidateScrollTop;
-      }
-
-      const maxScrollTop = getContainerMaxScrollTop(container);
-      const candidateProgress = maxScrollTop > 0 ? candidateScrollTop / maxScrollTop : 0;
-      if (
-        Math.abs(candidateProgress - target.chapterProgress)
-        > SCROLL_RESTORE_PROGRESS_FALLBACK_TOLERANCE
-      ) {
-        return progressScrollTop;
-      }
-
-      return candidateScrollTop;
-    };
-
-    if (target.locatorBoundary !== undefined && resolvedLocator === null) {
-      const hasResolvedBoundaryLayout = scrollLayouts.has(target.chapterIndex)
-        && scrollChapterBodyElementsRef.current.has(target.chapterIndex);
-      if (!hasResolvedBoundaryLayout) {
-        return restoreStepPending<{
-          locator: ReaderLocator;
-          scrollTop: number;
-        }>('layout_missing');
-      }
-    }
-
-    if (resolvedLocator) {
-      if (target.locatorBoundary === 'start' && targetElement) {
-        const resolvedScrollTop = clampContainerScrollTop(container, targetElement.offsetTop);
-        return restoreStepSuccess({
-          locator: resolvedLocator,
-          scrollTop: resolvePreferredScrollTop(resolvedScrollTop),
-        });
-      }
-
-      const nextScrollTop = layoutQueries.resolveScrollLocatorOffset(resolvedLocator);
-      if (nextScrollTop !== null) {
-        const resolvedScrollTop = clampContainerScrollTop(
-          container,
-          nextScrollTop - container.clientHeight * SCROLL_READING_ANCHOR_RATIO,
-        );
-        return restoreStepSuccess({
-          locator: resolvedLocator,
-          scrollTop: resolvePreferredScrollTop(resolvedScrollTop),
-        });
-      }
-
-      const hasResolvedChapterLayout = scrollLayouts.has(resolvedLocator.chapterIndex)
-        && scrollChapterBodyElementsRef.current.has(resolvedLocator.chapterIndex);
-      if (!hasResolvedChapterLayout) {
-        return restoreStepPending<{
-          locator: ReaderLocator;
-          scrollTop: number;
-        }>('layout_missing');
-      }
-    }
-
-    return restoreStepFailure<{
-      locator: ReaderLocator;
-      scrollTop: number;
-    }>('target_unresolvable', {
-      retryable: false,
-    });
-  }, [
-    layoutQueries,
-    resolvePendingRestoreLocator,
-    scrollChapterBodyElementsRef,
-    scrollChapterElementsRef,
-    scrollLayouts,
-  ]);
 
   useEffect(() => {
     if (!enabled || currentChapter?.index !== chapterIndex) {
@@ -269,7 +155,11 @@ export function useScrollReaderRestore(params: UseScrollReaderRestoreParams): vo
       const failureRecord = recordRestoreResult(failedResult, activeTarget);
       if (failureRecord.scheduledRetry) {
         if (activeTarget) {
-          ensureScrollRestoreWindow(activeTarget);
+          ensureScrollRestoreWindow({
+            chaptersLength,
+            setScrollModeChapters,
+            target: activeTarget,
+          });
         }
         restoreSettledFrameCount = 0;
         frameId = requestAnimationFrame(restoreScrollPosition);
@@ -419,7 +309,14 @@ export function useScrollReaderRestore(params: UseScrollReaderRestoreParams): vo
           });
         },
         project: ({ target, container }) => {
-          const projected = resolvePendingScrollTarget(target, container);
+          const projected = resolvePendingScrollTarget({
+            container,
+            layoutQueries,
+            scrollChapterBodyElementsRef,
+            scrollChapterElementsRef,
+            scrollLayouts,
+            target,
+          });
           if (projected.state !== 'success') {
             return projected;
           }
@@ -464,7 +361,11 @@ export function useScrollReaderRestore(params: UseScrollReaderRestoreParams): vo
 
       if (solverOutcome.kind === 'pending') {
         if (activeTarget) {
-          ensureScrollRestoreWindow(activeTarget);
+          ensureScrollRestoreWindow({
+            chaptersLength,
+            setScrollModeChapters,
+            target: activeTarget,
+          });
         }
         frameId = requestAnimationFrame(restoreScrollPosition);
         return;
@@ -475,7 +376,11 @@ export function useScrollReaderRestore(params: UseScrollReaderRestoreParams): vo
         const failureRecord = recordRestoreResult(solverOutcome.result, activeTarget);
         if (failureRecord.scheduledRetry) {
           if (activeTarget) {
-            ensureScrollRestoreWindow(activeTarget);
+            ensureScrollRestoreWindow({
+              chaptersLength,
+              setScrollModeChapters,
+              target: activeTarget,
+            });
           }
           frameId = requestAnimationFrame(restoreScrollPosition);
           return;
@@ -518,10 +423,10 @@ export function useScrollReaderRestore(params: UseScrollReaderRestoreParams): vo
     };
   }, [
     chapterIndex,
+    chaptersLength,
     clearPendingRestoreTarget,
     currentChapter,
     enabled,
-    ensureScrollRestoreWindow,
     layoutQueries,
     navigation,
     pendingRestoreTarget,
@@ -531,7 +436,10 @@ export function useScrollReaderRestore(params: UseScrollReaderRestoreParams): vo
     retainFocusedWindowAfterRestore,
     persistReaderState,
     persistence,
-    resolvePendingScrollTarget,
+    scrollChapterBodyElementsRef,
+    scrollChapterElementsRef,
+    scrollLayouts,
+    setScrollModeChapters,
     stopRestoreMask,
     viewportContentRef,
   ]);

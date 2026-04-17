@@ -275,11 +275,14 @@ export async function readReaderViewportSnapshot(page: Page): Promise<ReaderView
     const pagedInteractive = document.querySelector('[data-testid="paged-reader-interactive"]');
     const viewport = document.querySelector('[data-testid="reader-viewport"]');
     const style = viewport instanceof HTMLElement ? window.getComputedStyle(viewport) : null;
-    const branch: ReaderBranch = pagedInteractive
-      ? 'paged'
-      : style?.overflowY === 'auto'
-        ? 'scroll'
-        : 'unknown';
+    let branch: ReaderBranch = 'unknown';
+
+    if (pagedInteractive) {
+      branch = 'paged';
+    } else if (style?.overflowY === 'auto') {
+      branch = 'scroll';
+    }
+
     const scrollTop = viewport instanceof HTMLElement ? viewport.scrollTop : null;
     const scrollHeight = viewport instanceof HTMLElement ? viewport.scrollHeight : null;
     const clientHeight = viewport instanceof HTMLElement ? viewport.clientHeight : null;

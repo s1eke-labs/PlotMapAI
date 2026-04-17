@@ -8,6 +8,7 @@ import { DEBUG_RETRY_READER_RESTORE_EVENT } from '@app/debug/pwaDebugTools';
 import { useReaderReadingSurfaceController } from '../useReaderReadingSurfaceController';
 
 const surfaceMocks = vi.hoisted(() => {
+  const useReaderChapterData = vi.fn();
   const chapter = {
     index: 0,
     title: 'Chapter 1',
@@ -132,11 +133,15 @@ const surfaceMocks = vi.hoisted(() => {
       mode: 'summary' as const,
       viewMode: 'summary' as const,
     },
+    useReaderChapterData,
   };
 });
 
 vi.mock('@domains/reader-content', () => ({
-  useReaderChapterData: () => surfaceMocks.chapterData,
+  useReaderChapterData: (params: unknown) => {
+    surfaceMocks.useReaderChapterData(params);
+    return surfaceMocks.chapterData;
+  },
 }));
 
 vi.mock('@domains/reader-layout-engine', () => ({
@@ -205,6 +210,7 @@ vi.mock('../useReaderNavigation', () => ({
 describe('useReaderReadingSurfaceController', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    surfaceMocks.useReaderChapterData.mockClear();
     surfaceMocks.sessionSnapshot.mode = 'summary';
     surfaceMocks.sessionSnapshot.viewMode = 'summary';
     surfaceMocks.sessionSnapshot.isPagedMode = false;
@@ -301,6 +307,38 @@ describe('useReaderReadingSurfaceController', () => {
 
     expect(nextRestoreFlowHandler).toHaveBeenCalledWith('completed');
     expect(nextLifecycleHandler).toHaveBeenCalledWith('completed');
+  });
+
+  it('keeps the chapter content resolved callback stable across rerenders', () => {
+    const { Wrapper } = createReaderContextWrapper();
+
+    const { rerender } = renderHook(() => useReaderReadingSurfaceController({
+      analysisController: {
+        analyzeChapter: vi.fn(),
+        getChapterAnalysis: vi.fn(),
+        getStatus: vi.fn(),
+        renderSummaryPanel: vi.fn(() => 'summary-panel'),
+      },
+      novelId: 1,
+      preferences: surfaceMocks.preferences,
+    }), {
+      wrapper: Wrapper,
+    });
+
+    expect(surfaceMocks.useReaderChapterData).toHaveBeenCalledTimes(1);
+    const firstCall = surfaceMocks.useReaderChapterData.mock.calls[0]?.[0] as {
+      onChapterContentResolved?: () => void;
+    };
+
+    rerender();
+
+    expect(surfaceMocks.useReaderChapterData).toHaveBeenCalledTimes(2);
+    const secondCall = surfaceMocks.useReaderChapterData.mock.calls[1]?.[0] as {
+      onChapterContentResolved?: () => void;
+    };
+
+    expect(firstCall.onChapterContentResolved).toBeTypeOf('function');
+    expect(secondCall.onChapterContentResolved).toBe(firstCall.onChapterContentResolved);
   });
 
   it('builds scroll content props and dispatches viewport scroll to the scroll controller', () => {

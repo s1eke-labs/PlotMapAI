@@ -1,7 +1,7 @@
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import type { ChapterContent, ReaderRestoreTarget } from '@shared/contracts/reader';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
 import type { ScrollAnchorSnapshot, VisibleScrollBlockRange } from './scrollReaderControllerTypes';
 
@@ -84,6 +84,16 @@ export function useScrollReaderWindowing(params: {
     setScrollModeChapters,
     setVisibleScrollBlockRangeByChapter,
   } = params;
+  const cacheRef = useRef(cache);
+  const fetchChapterContentRef = useRef(fetchChapterContent);
+  const layoutQueriesRef = useRef(layoutQueries);
+  const currentChapterIndex = currentChapter?.index ?? null;
+
+  useEffect(() => {
+    cacheRef.current = cache;
+    fetchChapterContentRef.current = fetchChapterContent;
+    layoutQueriesRef.current = layoutQueries;
+  }, [cache, fetchChapterContent, layoutQueries]);
 
   useEffect(() => {
     if (!enabled) {
@@ -100,12 +110,11 @@ export function useScrollReaderWindowing(params: {
         scrollTop: 0,
       };
       scrollChapterBodyElementsRef.current.clear();
-      layoutQueries.clearScrollChapterElements();
-      layoutQueries.clearScrollChapterBodyElements();
+      layoutQueriesRef.current.clearScrollChapterElements();
+      layoutQueriesRef.current.clearScrollChapterBodyElements();
     }
   }, [
     enabled,
-    layoutQueries,
     scrollAnchorSnapshotRef,
     scrollChapterBodyElementsRef,
     setScrollModeChapters,
@@ -113,7 +122,7 @@ export function useScrollReaderWindowing(params: {
   ]);
 
   useEffect(() => {
-    if (!enabled || !currentChapter || currentChapter.index !== chapterIndex) {
+    if (!enabled || currentChapterIndex !== chapterIndex) {
       return;
     }
 
@@ -131,21 +140,19 @@ export function useScrollReaderWindowing(params: {
     setStableScrollWindow(setScrollModeChapters, nextWindow);
 
     nextWindow.forEach((windowIndex) => {
-      if (!cache.hasCachedChapter(windowIndex)) {
-        fetchChapterContent(windowIndex)
+      if (!cacheRef.current.hasCachedChapter(windowIndex)) {
+        fetchChapterContentRef.current(windowIndex)
           .then((chapter) => {
-            cache.setCachedChapter(chapter);
+            cacheRef.current.setCachedChapter(chapter);
           })
           .catch(() => {});
       }
     });
   }, [
-    cache,
     chapterIndex,
     chaptersLength,
-    currentChapter,
+    currentChapterIndex,
     enabled,
-    fetchChapterContent,
     pendingRestoreTargetRef,
     retainedFocusedWindowChapterIndex,
     setScrollModeChapters,

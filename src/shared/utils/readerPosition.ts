@@ -75,7 +75,11 @@ export function resolvePagedRestoreTargetPageIndex(params: {
   }
 
   if (typeof params.resolvedLocatorPageIndex === 'number') {
-    if (params.resolvedLocatorPageIndex === 0 && progressPageIndex !== null && progressPageIndex > 0) {
+    if (
+      params.resolvedLocatorPageIndex === 0
+      && progressPageIndex !== null
+      && progressPageIndex > 0
+    ) {
       return progressPageIndex;
     }
 
