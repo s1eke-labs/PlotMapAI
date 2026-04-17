@@ -7,7 +7,7 @@ import { useFileHandling } from '@app/providers/FileHandlingContext';
 import BookshelfScreen from './BookshelfScreen';
 import { useBookshelfPageViewModel } from './useBookshelfPageViewModel';
 
-const LazyUploadModal = lazy(() => import('../../components/UploadModal'));
+const LazyUploadModal = lazy(() => import('./UploadModal'));
 
 export default function BookshelfPage(): ReactElement {
   const { pendingLaunchFiles, consumePendingLaunchFiles } = useFileHandling();
