@@ -36,41 +36,6 @@ test.describe('reader visual regression', () => {
     await expect(page).toHaveScreenshot('03-image-viewer-overlay.png');
   });
 
-  test('renders image captions with stable spacing', async ({ page }) => {
-    await importFixtureToDetailPage(page, 'imageCaption');
-    await openReaderFromDetailPage(page);
-    await waitForReaderViewportImages(page);
-
-    await expect(page.getByTestId('reader-viewport')).toHaveScreenshot('04-image-caption.png');
-  });
-
-  test('renders imported simple tables with stable spacing', async ({ page }) => {
-    await importFixtureToDetailPage(page, 'simpleTable');
-    await openReaderFromDetailPage(page);
-    await expect(
-      page.locator('[data-testid="reader-rich-table"], [data-testid="reader-flow-table"]').first(),
-    ).toHaveScreenshot('05-simple-table.png');
-  });
-
-  test('renders sanitized dirty-style chapters consistently', async ({ page }) => {
-    await importFixtureToDetailPage(page, 'dirtyStyle');
-    await openReaderFromDetailPage(page);
-
-    await expect(page.getByTestId('reader-viewport')).toHaveScreenshot('06-dirty-style-viewport.png');
-  });
-
-  test('renders long chapters after deep scrolling', async ({ page }) => {
-    await importFixtureToDetailPage(page, 'longChapter');
-    await openReaderFromDetailPage(page);
-
-    await page.getByTestId('reader-viewport').evaluate((element) => {
-      const viewport = element;
-      viewport.scrollTop = 1800;
-    });
-
-    await expect(page.getByTestId('reader-viewport')).toHaveScreenshot('07-long-chapter-deep-scroll.png');
-  });
-
   test('renders summary-shell with seeded chapter analysis', async ({ page }) => {
     const { novelId } = await importFixtureToDetailPage(page, 'analysisLinked');
     await openReaderFromDetailPage(page);
@@ -116,47 +81,6 @@ test.describe('reader visual regression', () => {
     await openReaderFromDetailPage(page);
 
     await expect(page.getByTestId('reader-viewport')).toHaveScreenshot('11-scroll-paper-semantic-top.png');
-  });
-
-  test('renders the lower semantic showcase blocks in paper theme with stable structure spacing', async ({ page }) => {
-    await importFixtureToDetailPage(page, 'semanticShowcase');
-    await setReaderPreferences(page, {
-      fontSize: 16,
-      lineSpacing: 1.6,
-      paragraphSpacing: 12,
-      readerTheme: 'paper',
-    }, {
-      reload: true,
-    });
-    await openReaderFromDetailPage(page);
-
-    const viewport = page.getByTestId('reader-viewport');
-    const targetTable = page.locator(
-      '[data-testid="reader-rich-table"], [data-testid="reader-flow-table"]',
-    ).first();
-
-    const scrollTop = await viewport.evaluate((element) => {
-      const viewportElement = element;
-      const target = viewportElement.querySelector(
-        '[data-testid="reader-rich-table"], [data-testid="reader-flow-table"]',
-      );
-      if (!(target instanceof HTMLElement)) {
-        return viewportElement.scrollTop;
-      }
-
-      const viewportRect = viewportElement.getBoundingClientRect();
-      const targetRect = target.getBoundingClientRect();
-      viewportElement.scrollTop += targetRect.top - viewportRect.top - 120;
-      return viewportElement.scrollTop;
-    });
-    expect(scrollTop).toBeGreaterThan(0);
-
-    await expect(targetTable).toBeVisible();
-    await waitForReaderViewportImages(page);
-    await expect(viewport).toHaveScreenshot('12-scroll-paper-semantic-lower.png', {
-      maxDiffPixels: 20_000,
-      maxDiffPixelRatio: 0.03,
-    });
   });
 
   test('renders poem blocks in paged night theme through the standard rich-content pipeline', async ({ page }) => {

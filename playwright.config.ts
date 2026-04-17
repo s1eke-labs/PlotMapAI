@@ -8,6 +8,7 @@ const SHOULD_REUSE_EXISTING_SERVER =
 
 export default defineConfig({
   testDir: './tests/playwright',
+  testIgnore: ['**/*.manual.spec.ts'],
   fullyParallel: false,
   workers: process.env.CI ? 1 : undefined,
   timeout: 60_000,

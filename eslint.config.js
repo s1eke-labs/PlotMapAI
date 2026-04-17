@@ -22,6 +22,20 @@ export default defineConfig([
     },
   },
   {
+    files: [
+      'playwright.config.ts',
+      'playwright.manual.config.ts',
+      'tests/playwright/**/*.ts',
+    ],
+    languageOptions: {
+      parserOptions: {
+        project: ['./tsconfig.playwright.json'],
+        projectService: false,
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+  },
+  {
     files: ['scripts/**/*.{mjs,js}'],
     rules: {
       'no-console': 'off',
