@@ -8,7 +8,7 @@ import {
   applicationReaderContentRuntime,
   loadPurifiedBookChapters,
 } from '../readerContentRuntime';
-import { resetNovelTextProjectionCacheForTests } from '../novelTextProjectionService';
+import { resetNovelTextProjectionCacheForTests } from '@application/read-models/novel-text-projection';
 
 describe('applicationReaderContentRuntime', () => {
   beforeEach(async () => {

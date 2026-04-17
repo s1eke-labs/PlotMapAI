@@ -10,7 +10,7 @@ import { novelRepository } from '@domains/library';
 import { db } from '@infra/db';
 import { CACHE_KEYS, storage } from '@infra/storage';
 
-import { invalidateNovelTextProjectionCache } from '../novelTextProjectionService';
+import { invalidateNovelTextProjectionCache } from '@application/read-models/novel-text-projection';
 
 vi.mock('@domains/book-import', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@domains/book-import')>();
@@ -23,7 +23,7 @@ vi.mock('@domains/book-import', async (importOriginal) => {
   };
 });
 
-vi.mock('../novelTextProjectionService', () => ({
+vi.mock('@application/read-models/novel-text-projection', () => ({
   invalidateNovelTextProjectionCache: vi.fn(),
 }));
 

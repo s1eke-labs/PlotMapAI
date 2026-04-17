@@ -13,7 +13,7 @@ import {
   projectNovelChapter,
   projectNovelText,
   projectNovelTitles,
-} from './novelTextProjectionService';
+} from '@application/read-models/novel-text-projection';
 
 export const applicationReaderContentRuntime: ReaderContentRuntimeValue = {
   async loadPurifiedBookChapters(

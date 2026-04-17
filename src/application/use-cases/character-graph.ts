@@ -4,7 +4,7 @@ import type { NovelView } from '@domains/library';
 import { analysisService } from '@domains/analysis';
 import { novelRepository } from '@domains/library';
 
-import { projectNovelText } from '@application/services/novelTextProjectionService';
+import { projectNovelText } from '@application/read-models/novel-text-projection';
 
 export interface CharacterGraphPageData {
   graph: CharacterGraphResponse;

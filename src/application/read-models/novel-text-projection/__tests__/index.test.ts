@@ -14,9 +14,9 @@ import {
   projectNovelText,
   projectNovelTitles,
   resetNovelTextProjectionCacheForTests,
-} from '../novelTextProjectionService';
+} from '..';
 
-describe('novelTextProjectionService', () => {
+describe('novel-text-projection read model', () => {
   beforeEach(async () => {
     vi.restoreAllMocks();
     vi.clearAllMocks();

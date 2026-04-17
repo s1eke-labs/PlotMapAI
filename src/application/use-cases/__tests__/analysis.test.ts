@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { projectNovelText } from '@application/services/novelTextProjectionService';
+import { projectNovelText } from '@application/read-models/novel-text-projection';
 import { analysisService, buildRuntimeAnalysisConfig } from '@domains/analysis';
 import { novelRepository } from '@domains/library';
 import { getAiConfig } from '@domains/settings';
@@ -20,7 +20,7 @@ vi.mock('@domains/library', () => ({
   },
 }));
 
-vi.mock('@application/services/novelTextProjectionService', () => ({
+vi.mock('@application/read-models/novel-text-projection', () => ({
   projectNovelText: vi.fn(),
 }));
 

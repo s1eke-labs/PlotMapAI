@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { analysisService } from '@domains/analysis';
 import { novelRepository } from '@domains/library';
 
-import { projectNovelText } from '@application/services/novelTextProjectionService';
+import { projectNovelText } from '@application/read-models/novel-text-projection';
 
 import { loadCharacterGraphPageData } from '../character-graph';
 
@@ -19,7 +19,7 @@ vi.mock('@domains/library', () => ({
   },
 }));
 
-vi.mock('@application/services/novelTextProjectionService', () => ({
+vi.mock('@application/read-models/novel-text-projection', () => ({
   projectNovelText: vi.fn(),
 }));
 

@@ -22,7 +22,7 @@ import { AppErrorCode, createAppError } from '@shared/errors';
 import { db } from '@infra/db';
 import { clearReaderBootstrapSnapshot } from '@infra/storage/readerStateCache';
 
-import { invalidateNovelTextProjectionCache } from './novelTextProjectionService';
+import { invalidateNovelTextProjectionCache } from '@application/read-models/novel-text-projection';
 
 function getRequiredTransaction(): Transaction {
   const transaction = Dexie.currentTransaction;
