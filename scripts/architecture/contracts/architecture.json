@@ -299,12 +299,6 @@
         ]
       },
       {
-        "from": "reader-session",
-        "to": [
-          "reader-shell"
-        ]
-      },
-      {
         "from": "reader-shell",
         "to": [
           "reader-layout-engine",
@@ -313,69 +307,7 @@
         ]
       }
     ],
-    "cycleBaseline": [
-      {
-        "files": [
-          "src/domains/book-import/services/bookParser.ts",
-          "src/domains/book-import/services/epub/core.ts",
-          "src/domains/book-import/services/epub/parser.ts",
-          "src/domains/book-import/services/txtParser.ts",
-          "src/domains/book-import/workers/epubClient.ts"
-        ],
-        "reason": "Book-import parser entrypoints still share ParsedBook types and worker handoff through a single parser hub."
-      },
-      {
-        "files": [
-          "src/domains/library/mappers.ts",
-          "src/domains/library/novelRepository.ts"
-        ],
-        "reason": "Library view mapping still feeds back into repository-owned NovelView typing."
-      },
-      {
-        "files": [
-          "src/domains/reader-layout-engine/hooks/scrollReaderRestore.ts",
-          "src/domains/reader-layout-engine/hooks/scrollReaderRestoreHelpers.ts",
-          "src/domains/reader-layout-engine/scroll-runtime/internal.ts"
-        ],
-        "reason": "Scroll restore orchestration still loops through the scroll-runtime internal barrel while restore helpers remain shared."
-      },
-      {
-        "files": [
-          "src/domains/reader-layout-engine/utils/render-cache/readerRenderCache.ts",
-          "src/domains/reader-layout-engine/utils/render-cache/readerRenderCacheMapper.ts",
-          "src/domains/reader-layout-engine/utils/render-cache/readerRenderCacheStorage.ts"
-        ],
-        "reason": "Reader render cache public API, storage, and record mapper are still mutually recursive during cache persistence stabilization."
-      },
-      {
-        "files": [
-          "src/domains/reader-session/index.ts",
-          "src/domains/reader-session/readerRestoreControllerTypes.ts",
-          "src/domains/reader-session/useReaderRestoreController.ts",
-          "src/domains/reader-session/useReaderSession.ts",
-          "src/domains/reader-session/useReaderStatePersistence.ts",
-          "src/domains/reader-shell/index.ts",
-          "src/domains/reader-shell/pages/reader-page/ReaderContext.tsx"
-        ],
-        "reason": "Reader session hooks and shell context still cross through root barrels while the session-shell split settles."
-      },
-      {
-        "files": [
-          "src/shared/contracts/index.ts",
-          "src/shared/contracts/reader/index.ts",
-          "src/shared/contracts/reader/media.ts",
-          "src/shared/contracts/reader/runtime.ts",
-          "src/shared/text-processing/chapterImages.ts",
-          "src/shared/text-processing/index.ts",
-          "src/shared/text-processing/plainTextProjection.ts",
-          "src/shared/text-processing/richPagination.ts",
-          "src/shared/text-processing/richPurify.ts",
-          "src/shared/text-processing/richTextPlain.ts",
-          "src/shared/text-processing/txtPlainTextProjection.ts"
-        ],
-        "reason": "Shared rich-content contracts and text-processing projections still feed each other through broad index barrels."
-      }
-    ],
+    "cycleBaseline": [],
     "reports": {
       "json": "dist/analysis/dependency-graph-report.json",
       "html": "dist/analysis/dependency-graph-report.html"

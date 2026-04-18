@@ -1,5 +1,5 @@
 import type { MutableRefObject } from 'react';
-import type { TextProcessingProgress } from '@shared/text-processing';
+import type { TextProcessingProgress } from '@shared/text-processing/workerTypes';
 
 import type { BookChapter } from '../book';
 import type { Chapter, ChapterContent } from './content';

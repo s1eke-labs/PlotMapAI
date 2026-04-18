@@ -183,6 +183,12 @@ describe('architecture contracts', () => {
 
   it('rejects dependency graph cycle baseline files outside the configured scope', () => {
     const contract = structuredClone(loadArchitectureContract());
+    contract.dependencyGraph.cycleBaseline = [
+      {
+        files: ['src/domains/library/mappers.ts', 'src/domains/library/novelRepository.ts'],
+        reason: 'test baseline entry',
+      },
+    ];
     contract.dependencyGraph.cycleBaseline[0].files[0] = 'src/test/mockWorker.ts';
 
     expect(() => validateArchitectureContract(contract)).toThrow(

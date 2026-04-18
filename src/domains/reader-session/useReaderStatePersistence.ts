@@ -2,10 +2,10 @@ import { useCallback, useEffect, useMemo, useRef } from 'react';
 
 import { debugLog, setDebugSnapshot } from '@shared/debug';
 import {
-  ensureReaderPreferencesHydrated,
-  getReaderPreferencesSnapshot,
-  hasConfiguredReaderPageTurnMode,
-} from '@domains/reader-shell';
+  ensureReaderPreferenceStoreHydrated,
+  getReaderPreferenceStoreSnapshot,
+  hasConfiguredReaderPageTurnModePreference,
+} from '@shared/stores/readerPreferenceStore';
 import { useReaderPersistenceRuntime } from '@shared/reader-runtime';
 import {
   createReaderStateModeHints,
@@ -144,9 +144,9 @@ export function useReaderStatePersistence(novelId: number): {
   );
 
   const loadPersistedReaderState = useCallback(async (): Promise<StoredReaderState> => {
-    await ensureReaderPreferencesHydrated();
-    const preferences = getReaderPreferencesSnapshot();
-    const hasConfiguredPageTurnMode = hasConfiguredReaderPageTurnMode();
+    await ensureReaderPreferenceStoreHydrated();
+    const preferences = getReaderPreferenceStoreSnapshot();
+    const hasConfiguredPageTurnMode = hasConfiguredReaderPageTurnModePreference();
     const hydratedStoredState = await hydrateSession(novelId, {
       hasConfiguredPageTurnMode,
       pageTurnMode: preferences.pageTurnMode,

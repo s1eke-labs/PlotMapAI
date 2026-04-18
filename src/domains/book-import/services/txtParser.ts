@@ -1,4 +1,4 @@
-import type { ParsedBook } from './bookParser';
+import type { ParsedBook } from './types';
 import type { WorkerTaskOptions } from '@infra/workers';
 import type { ChapterDetectionRule } from '@shared/text-processing';
 import type { BookImportProgress } from './progress';

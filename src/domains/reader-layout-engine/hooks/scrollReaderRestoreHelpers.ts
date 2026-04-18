@@ -17,7 +17,7 @@ import {
   restoreStepPending,
   restoreStepSuccess,
 } from '@shared/utils/readerRestoreSolver';
-import { buildFocusedScrollWindow } from '../scroll-runtime/internal';
+import { buildFocusedScrollWindow } from './scrollReaderWindowing';
 
 const SCROLL_RESTORE_PROGRESS_FALLBACK_TOLERANCE = 0.03;
 

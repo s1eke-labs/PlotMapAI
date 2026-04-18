@@ -12,7 +12,7 @@ import type {
 } from '../layout/readerLayout';
 import type {
   ReaderRenderCacheRecord as DomainReaderRenderCacheRecord,
-} from './readerRenderCache';
+} from './readerRenderCacheCore';
 
 function toReaderLocator(record?: import('@infra/db/reader').ReaderLocatorRecord | null): ReaderLocator | null | undefined {
   if (record === null) {
