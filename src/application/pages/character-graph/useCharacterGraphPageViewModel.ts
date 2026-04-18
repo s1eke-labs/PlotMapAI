@@ -8,7 +8,7 @@ import { useTranslation } from 'react-i18next';
 
 import { refreshAnalysisOverview } from '@application/use-cases/analysis';
 import { loadCharacterGraphPageData } from '@application/use-cases/character-graph';
-import { appPaths } from '@app/router/paths';
+import { appPaths } from '@shared/routing/appPaths';
 import { useCharacterGraphCanvasController } from '@domains/character-graph';
 import { reportAppError } from '@shared/debug';
 import {

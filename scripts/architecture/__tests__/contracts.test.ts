@@ -33,6 +33,18 @@ describe('architecture contracts', () => {
           }),
         ]),
       }),
+      dependencyGraph: expect.objectContaining({
+        allowedDomainDependencies: expect.arrayContaining([
+          expect.objectContaining({
+            from: 'reader-shell',
+            to: expect.arrayContaining(['reader-layout-engine', 'reader-media', 'reader-session']),
+          }),
+        ]),
+        reports: expect.objectContaining({
+          html: 'dist/analysis/dependency-graph-report.html',
+          json: 'dist/analysis/dependency-graph-report.json',
+        }),
+      }),
       readerArchitecture: expect.objectContaining({
         metricBudgets: expect.objectContaining({
           crossLayerImports: 10,
@@ -97,6 +109,15 @@ describe('architecture contracts', () => {
     );
   });
 
+  it('rejects missing required dependency graph fields', () => {
+    const contract = structuredClone(loadArchitectureContract());
+    delete contract.dependencyGraph.reports;
+
+    expect(() => validateArchitectureContract(contract)).toThrow(
+      'architecture contract.dependencyGraph.reports must be an object.',
+    );
+  });
+
   it('rejects module health allowlist entries without reasons', () => {
     const contract = structuredClone(loadArchitectureContract());
     delete contract.moduleHealth.scopes[0].metricAllowlist[0].reason;
@@ -148,6 +169,33 @@ describe('architecture contracts', () => {
 
     expect(() => validateArchitectureContract(contract)).toThrow(
       'architecture contract.readerArchitecture.metricAllowlist[0].path must resolve to a file covered by this scope: src/domains/book-import/bookImportService.ts',
+    );
+  });
+
+  it('rejects unknown dependency graph domains', () => {
+    const contract = structuredClone(loadArchitectureContract());
+    contract.dependencyGraph.allowedDomainDependencies[0].to = ['missing-domain'];
+
+    expect(() => validateArchitectureContract(contract)).toThrow(
+      'architecture contract.dependencyGraph.allowedDomainDependencies[0].to[0] references an unknown domain: missing-domain',
+    );
+  });
+
+  it('rejects dependency graph cycle baseline files outside the configured scope', () => {
+    const contract = structuredClone(loadArchitectureContract());
+    contract.dependencyGraph.cycleBaseline[0].files[0] = 'src/test/mockWorker.ts';
+
+    expect(() => validateArchitectureContract(contract)).toThrow(
+      'architecture contract.dependencyGraph.cycleBaseline[0].files[0] must resolve to a production source file covered by the dependency graph scope: src/test/mockWorker.ts',
+    );
+  });
+
+  it('rejects blank dependency graph report output paths', () => {
+    const contract = structuredClone(loadArchitectureContract());
+    contract.dependencyGraph.reports.json = '';
+
+    expect(() => validateArchitectureContract(contract)).toThrow(
+      'architecture contract.dependencyGraph.reports.json must be a non-empty string.',
     );
   });
 });

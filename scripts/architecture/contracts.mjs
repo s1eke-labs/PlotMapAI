@@ -1,5 +1,5 @@
 import { readFileSync } from 'fs';
-import { resolve } from 'path';
+import { extname, resolve } from 'path';
 
 import { MODULE_HEALTH_METRIC_KEYS, matchesAnyPattern } from './moduleHealth.mjs';
 import { createRepositoryFacts, REPOSITORY_ROOT } from './repositoryFacts.mjs';
@@ -173,6 +173,151 @@ function assertMetricAllowlist(
     });
     assertNonEmptyString(entry.reason, `${entryLabel}.reason`);
   });
+}
+
+function isDependencyGraphScopeFile(filePath, dependencyGraph) {
+  const normalizedPath = filePath.replaceAll('\\', '/');
+  return (
+    dependencyGraph.sourceDirectories.some((directory) => (
+      normalizedPath === directory || normalizedPath.startsWith(`${directory}/`)
+    ))
+    && dependencyGraph.fileExtensions.includes(extname(normalizedPath))
+    && !(new RegExp(dependencyGraph.excludePathPattern).test(normalizedPath))
+  );
+}
+
+function createCycleBaselineKey(files) {
+  return [...new Set(files)].sort().join('|');
+}
+
+function validateDependencyGraph(dependencyGraph, facts) {
+  assertObject(dependencyGraph, 'architecture contract.dependencyGraph');
+  assertPatternArray(
+    dependencyGraph.sourceDirectories,
+    'architecture contract.dependencyGraph.sourceDirectories',
+    facts,
+  );
+  assertStringArray(
+    dependencyGraph.fileExtensions,
+    'architecture contract.dependencyGraph.fileExtensions',
+  );
+  dependencyGraph.fileExtensions.forEach((extension, index) => {
+    if (!extension.startsWith('.')) {
+      fail(`architecture contract.dependencyGraph.fileExtensions[${index}] must start with a dot.`);
+    }
+  });
+  assertRegexPattern(
+    dependencyGraph.includeOnly,
+    'architecture contract.dependencyGraph.includeOnly',
+  );
+  assertRegexPattern(
+    dependencyGraph.excludePathPattern,
+    'architecture contract.dependencyGraph.excludePathPattern',
+  );
+  assertNonEmptyString(
+    dependencyGraph.tsConfig,
+    'architecture contract.dependencyGraph.tsConfig',
+  );
+  assertExistingPath(
+    dependencyGraph.tsConfig,
+    'architecture contract.dependencyGraph.tsConfig',
+    facts,
+  );
+
+  if (!Array.isArray(dependencyGraph.allowedDomainDependencies)) {
+    fail('architecture contract.dependencyGraph.allowedDomainDependencies must be an array.');
+  }
+  const seenAllowedDomains = new Set();
+  dependencyGraph.allowedDomainDependencies.forEach((entry, index) => {
+    assertObject(entry, `architecture contract.dependencyGraph.allowedDomainDependencies[${index}]`);
+    assertNonEmptyString(
+      entry.from,
+      `architecture contract.dependencyGraph.allowedDomainDependencies[${index}].from`,
+    );
+    if (!facts.domainNames.includes(entry.from)) {
+      fail(
+        `architecture contract.dependencyGraph.allowedDomainDependencies[${index}].from references an unknown domain: ${entry.from}`,
+      );
+    }
+    if (seenAllowedDomains.has(entry.from)) {
+      fail(
+        `architecture contract.dependencyGraph.allowedDomainDependencies contains a duplicate source domain: ${entry.from}`,
+      );
+    }
+    seenAllowedDomains.add(entry.from);
+    assertStringArray(
+      entry.to,
+      `architecture contract.dependencyGraph.allowedDomainDependencies[${index}].to`,
+    );
+    const seenTargetDomains = new Set();
+    entry.to.forEach((targetDomain, targetIndex) => {
+      if (!facts.domainNames.includes(targetDomain)) {
+        fail(
+          `architecture contract.dependencyGraph.allowedDomainDependencies[${index}].to[${targetIndex}] references an unknown domain: ${targetDomain}`,
+        );
+      }
+      if (targetDomain === entry.from) {
+        fail(
+          `architecture contract.dependencyGraph.allowedDomainDependencies[${index}].to[${targetIndex}] must not repeat the source domain: ${targetDomain}`,
+        );
+      }
+      if (seenTargetDomains.has(targetDomain)) {
+        fail(
+          `architecture contract.dependencyGraph.allowedDomainDependencies[${index}].to contains a duplicate target domain: ${targetDomain}`,
+        );
+      }
+      seenTargetDomains.add(targetDomain);
+    });
+  });
+
+  if (!Array.isArray(dependencyGraph.cycleBaseline)) {
+    fail('architecture contract.dependencyGraph.cycleBaseline must be an array.');
+  }
+  const baselineKeys = new Set();
+  dependencyGraph.cycleBaseline.forEach((entry, index) => {
+    assertObject(entry, `architecture contract.dependencyGraph.cycleBaseline[${index}]`);
+    assertStringArray(
+      entry.files,
+      `architecture contract.dependencyGraph.cycleBaseline[${index}].files`,
+    );
+    if (entry.files.length < 2) {
+      fail(`architecture contract.dependencyGraph.cycleBaseline[${index}].files must contain at least two files.`);
+    }
+    entry.files.forEach((filePath, fileIndex) => {
+      assertExistingPath(
+        filePath,
+        `architecture contract.dependencyGraph.cycleBaseline[${index}].files[${fileIndex}]`,
+        facts,
+      );
+      if (!isDependencyGraphScopeFile(filePath, dependencyGraph)) {
+        fail(
+          `architecture contract.dependencyGraph.cycleBaseline[${index}].files[${fileIndex}] must resolve to a production source file covered by the dependency graph scope: ${filePath}`,
+        );
+      }
+    });
+    const baselineKey = createCycleBaselineKey(entry.files);
+    if (baselineKeys.has(baselineKey)) {
+      fail(`architecture contract.dependencyGraph.cycleBaseline contains a duplicate SCC baseline: ${baselineKey}`);
+    }
+    baselineKeys.add(baselineKey);
+    assertNonEmptyString(
+      entry.reason,
+      `architecture contract.dependencyGraph.cycleBaseline[${index}].reason`,
+    );
+  });
+
+  assertObject(
+    dependencyGraph.reports,
+    'architecture contract.dependencyGraph.reports',
+  );
+  assertNonEmptyString(
+    dependencyGraph.reports.json,
+    'architecture contract.dependencyGraph.reports.json',
+  );
+  assertNonEmptyString(
+    dependencyGraph.reports.html,
+    'architecture contract.dependencyGraph.reports.html',
+  );
 }
 
 function validateReaderArchitecture(readerArchitecture, metricDefaults, facts) {
@@ -382,6 +527,7 @@ export function validateArchitectureContract(contract, facts = createRepositoryF
   }
   validateReaderArchitecture(contract.readerArchitecture, contract.metricDefaults, facts);
   validateModuleHealth(contract.moduleHealth, contract.metricDefaults, facts);
+  validateDependencyGraph(contract.dependencyGraph, facts);
   assertObject(contract.rules, 'architecture contract.rules');
 
   const layerNames = new Set();

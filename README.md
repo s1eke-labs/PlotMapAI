@@ -112,9 +112,11 @@ npm run dev:debug
 | `npm run dev` | 启动开发服务器 |
 | `npm run dev:debug` | 启动开发服务器（含调试日志） |
 | `npm run build` | `tsc -b` + `vite build` + bundle budget 校验 |
-| `npm run analyze` | 输出 bundle 可视化分析报告 |
+| `npm run analyze` | 输出 bundle 可视化分析报告 + architecture dependency graph report |
+| `npm run analyze:deps` | 输出 architecture dependency graph report 到 `dist/analysis` |
 | `npm run preview` | 预览生产构建 |
-| `npm run lint` | ESLint + 表权属校验 + 模块健康门禁 + capability drift gate + Reader 架构门禁 |
+| `npm run lint` | ESLint + dependency graph gate + 表权属校验 + 模块健康门禁 + capability drift gate + Reader 架构门禁 |
+| `npm run lint:deps` | 执行 dependency graph / file-level cycle 门禁 |
 | `npm run lint:capabilities` | 校验 rich-content capability registry 与 support matrix 文档同步 |
 | `npm run lint:ownership` | 执行 Dexie 表 ownership 静态校验 |
 | `npm run lint:module-health` | 执行热点目录模块健康门禁 |
@@ -187,6 +189,7 @@ README 只保留高层说明；精确规则、allowlist 和阈值统一收敛到
 - 分层与 Reader 规则 contract: [`scripts/architecture/contracts/architecture.json`](scripts/architecture/contracts/architecture.json)
 - Dexie 表 ownership contract: [`scripts/architecture/contracts/table-ownership.json`](scripts/architecture/contracts/table-ownership.json)
 - rich-content capability registry: [`src/shared/contracts/rich-content-capabilities.ts`](src/shared/contracts/rich-content-capabilities.ts)
+- dependency graph gate: [`scripts/checkDependencyGraph.mjs`](scripts/checkDependencyGraph.mjs)
 - rich-content support matrix gate: [`scripts/checkRichContentCapabilities.mjs`](scripts/checkRichContentCapabilities.mjs)
 - Reader 专项门禁: [`scripts/checkReaderArchitecture.mjs`](scripts/checkReaderArchitecture.mjs)
 - 表 ownership 门禁: [`scripts/checkTableOwnership.mjs`](scripts/checkTableOwnership.mjs)
@@ -195,6 +198,7 @@ README 只保留高层说明；精确规则、allowlist 和阈值统一收敛到
 当前自动化门禁覆盖的重点包括：
 
 - `app / application / domains / shared / infra` 之间的导入边界
+- layer 依赖方向、domain 间未声明关系，以及 file-level cycle baseline / new cycle 检查
 - Reader 家族的逻辑行数硬上限、函数长度、导入耦合、deep import、稳定 barrel 暴露面和 pass-through re-export
 - Dexie 表 ownership 与 application 层跨域编排白名单
 - `book-import`、`application/services`、`shared/text-processing`、`app/debug` 的热点模块逻辑行数硬上限、函数长度与导入耦合

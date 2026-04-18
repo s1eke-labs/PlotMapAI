@@ -7,7 +7,7 @@ import { useTranslation } from 'react-i18next';
 
 import { analyzeChapter } from '@application/use-cases/analysis';
 import { loadReaderSession } from '@application/use-cases/reader';
-import { appPaths } from '@app/router/paths';
+import { appPaths } from '@shared/routing/appPaths';
 import { ChapterAnalysisPanel, analysisService } from '@domains/analysis';
 import {
   useContentClick,

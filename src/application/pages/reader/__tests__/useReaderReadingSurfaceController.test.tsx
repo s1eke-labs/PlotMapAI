@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createReaderContextWrapper } from '@test/readerRuntimeTestUtils';
-import { DEBUG_RETRY_READER_RESTORE_EVENT } from '@app/debug/pwaDebugTools';
+import { DEBUG_RETRY_READER_RESTORE_EVENT } from '@shared/pwa/pwaDebugTools';
 
 import { useReaderReadingSurfaceController } from '../useReaderReadingSurfaceController';
 

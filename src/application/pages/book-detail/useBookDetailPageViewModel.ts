@@ -11,7 +11,7 @@ import {
   loadBookDetailAnalysisStatus,
   loadBookDetailPageData,
 } from '@application/use-cases/book-detail';
-import { appPaths } from '@app/router/paths';
+import { appPaths } from '@shared/routing/appPaths';
 import { useNovelCoverResource } from '@domains/library';
 import { reportAppError } from '@shared/debug';
 import { AppErrorCode, toAppError } from '@shared/errors';

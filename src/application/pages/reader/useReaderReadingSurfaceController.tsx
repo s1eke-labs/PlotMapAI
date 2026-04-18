@@ -19,7 +19,7 @@ import {
   useReaderRestoreController,
   useReaderSession,
 } from '@domains/reader-session';
-import { DEBUG_RETRY_READER_RESTORE_EVENT } from '@app/debug/pwaDebugTools';
+import { DEBUG_RETRY_READER_RESTORE_EVENT } from '@shared/pwa/pwaDebugTools';
 import { useReaderPersistenceRuntime } from '@shared/reader-runtime';
 
 import type {
