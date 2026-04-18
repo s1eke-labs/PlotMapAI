@@ -26,6 +26,202 @@
       "canDependOn": []
     }
   ],
+  "readerArchitecture": {
+    "sourceDirectories": [
+      "src/application/pages/reader",
+      "src/domains"
+    ],
+    "fileExtensions": [
+      ".ts",
+      ".tsx"
+    ],
+    "includeFiles": [
+      "src/application/pages/reader/**/*.{ts,tsx}",
+      "src/domains/reader-*/**/*.{ts,tsx}"
+    ],
+    "ignoreFiles": [
+      "src/application/pages/reader/**/__tests__/**",
+      "src/domains/reader-*/**/__tests__/**"
+    ],
+    "maxFileLines": 500,
+    "restrictedImports": {
+      "files": [
+        "src/domains/reader-layout-engine/**/*.{ts,tsx}"
+      ],
+      "pattern": "from\\s+['\\\"](@domains\\/reader-(?:content|session|shell)(?:\\/[^'\\\"]*)?)['\\\"]",
+      "message": "reader-layout-engine importing reader-shell / reader-content / reader-session"
+    },
+    "deepImports": {
+      "pattern": "from\\s+['\\\"](@domains\\/reader-[^/'\\\"]+\\/[^'\\\"]+)['\\\"]",
+      "message": "reader-family code importing reader-domain internals instead of barrels/relative paths"
+    },
+    "passThrough": {
+      "files": [
+        "src/domains/reader-*/**/*.{ts,tsx}"
+      ],
+      "ignoreIndexFiles": true,
+      "exportLinePattern": "^export\\s+(type\\s+)?\\{[^}]+\\}\\s+from\\s+['\\\"][^'\\\"]+['\\\"];?$",
+      "exportStarLinePattern": "^export\\s+\\*\\s+from\\s+['\\\"][^'\\\"]+['\\\"];?$",
+      "message": "pass-through re-export files in the Reader family"
+    },
+    "stableBarrels": [
+      {
+        "path": "src/domains/reader-layout-engine/index.ts",
+        "message": "reader-layout-engine root barrel exporting non-stable symbols",
+        "allowedLines": [
+          "export { PagedReaderContent } from './paged-runtime';",
+          "export { usePagedReaderController as usePagedReaderViewportController } from './paged-runtime';",
+          "export type { UsePagedReaderControllerResult as UsePagedReaderViewportControllerResult } from './paged-runtime';",
+          "export { ScrollReaderContent } from './scroll-runtime';",
+          "export { useScrollReaderController as useScrollReaderViewportController } from './scroll-runtime';",
+          "export type { UseScrollReaderControllerResult as UseScrollReaderViewportControllerResult } from './scroll-runtime';",
+          "export { SummaryReaderContent } from './layout-core';",
+          "export { resolveReaderContentRootProps } from './layout-core';",
+          "export type { ReaderContentRootProps, ReaderContentRootTheme } from './layout-core';",
+          "export { clearReaderRenderCacheMemoryForNovel, deletePersistedReaderRenderCache } from './render-cache';"
+        ]
+      },
+      {
+        "path": "src/domains/reader-content/index.ts",
+        "message": "reader-content root barrel exporting non-stable symbols",
+        "allowedLines": [
+          "export type { Chapter, ChapterContent, ReaderChapterCacheApi } from '@shared/contracts/reader';",
+          "export { useReaderChapterData } from './hooks/useReaderChapterData';",
+          "export type {",
+          "ReaderHydrateDataResult,",
+          "ReaderLoadActiveChapterParams,",
+          "ReaderLoadActiveChapterResult,",
+          "ReaderLoadActiveChapterRuntime,",
+          "UseReaderChapterDataResult,",
+          "} from './hooks/useReaderChapterData';"
+        ]
+      }
+    ]
+  },
+  "moduleHealth": {
+    "fileExtensions": [
+      ".ts",
+      ".tsx"
+    ],
+    "passThrough": {
+      "exportLinePattern": "^export\\s+(type\\s+)?\\{[^}]+\\}\\s+from\\s+['\\\"][^'\\\"]+['\\\"];?$",
+      "exportStarLinePattern": "^export\\s+\\*\\s+from\\s+['\\\"][^'\\\"]+['\\\"];?$"
+    },
+    "scopes": [
+      {
+        "name": "book-import",
+        "files": [
+          "src/domains/book-import/**/*.{ts,tsx}"
+        ],
+        "ignores": [
+          "src/domains/book-import/**/__tests__/**"
+        ],
+        "maxLines": 240,
+        "checkPassThroughReExports": false,
+        "passThroughFiles": [],
+        "checkStableBarrels": false,
+        "stableBarrels": [],
+        "allowlist": [
+          {
+            "path": "src/domains/book-import/bookImportService.ts",
+            "reason": "Import orchestration still centralizes parse result shaping and progress coordination."
+          },
+          {
+            "path": "src/domains/book-import/services/epub/core.ts",
+            "reason": "EPUB archive loading and manifest traversal remain co-located during parser stabilization."
+          },
+          {
+            "path": "src/domains/book-import/services/epub/epubDomToRichBlocks.ts",
+            "reason": "Rich-content block conversion is still one state machine until the capability registry lands."
+          },
+          {
+            "path": "src/domains/book-import/services/epub/markup.ts",
+            "reason": "Markup scanning stays centralized while EPUB parsing avoids DOMParser in workers."
+          },
+          {
+            "path": "src/domains/book-import/services/txt/chapterDetection.ts",
+            "reason": "TXT chapter heuristics remain consolidated until rule decomposition is planned."
+          }
+        ]
+      },
+      {
+        "name": "application-services",
+        "files": [
+          "src/application/services/**/*.{ts,tsx}"
+        ],
+        "ignores": [
+          "src/application/services/**/__tests__/**"
+        ],
+        "maxLines": 200,
+        "checkPassThroughReExports": false,
+        "passThroughFiles": [],
+        "checkStableBarrels": false,
+        "stableBarrels": [],
+        "allowlist": [
+          {
+            "path": "src/application/services/bookLifecycleService.ts",
+            "reason": "Import transaction orchestration and asset persistence are still coordinated in one service."
+          }
+        ]
+      },
+      {
+        "name": "shared-text-processing",
+        "files": [
+          "src/shared/text-processing/**/*.{ts,tsx}"
+        ],
+        "ignores": [
+          "src/shared/text-processing/**/__tests__/**"
+        ],
+        "maxLines": 200,
+        "checkPassThroughReExports": false,
+        "passThroughFiles": [],
+        "checkStableBarrels": false,
+        "stableBarrels": [],
+        "allowlist": [
+          {
+            "path": "src/shared/text-processing/purify.ts",
+            "reason": "Purification rule execution remains centralized to keep stage ordering consistent."
+          },
+          {
+            "path": "src/shared/text-processing/richPagination.ts",
+            "reason": "Pagination projection logic stays consolidated until renderer-specific splits are introduced."
+          },
+          {
+            "path": "src/shared/text-processing/richPurify.ts",
+            "reason": "Rich block sanitization still shares one traversal pipeline for deterministic output."
+          }
+        ]
+      },
+      {
+        "name": "app-debug",
+        "files": [
+          "src/app/debug/**/*.{ts,tsx}"
+        ],
+        "ignores": [
+          "src/app/debug/**/__tests__/**"
+        ],
+        "maxLines": 220,
+        "checkPassThroughReExports": false,
+        "passThroughFiles": [],
+        "checkStableBarrels": false,
+        "stableBarrels": [],
+        "allowlist": [
+          {
+            "path": "src/app/debug/debugPanelShared.ts",
+            "reason": "Shared debug snapshot formatting and labels stay together for operator workflows."
+          },
+          {
+            "path": "src/app/debug/useDebugPanelState.ts",
+            "reason": "Debug panel state orchestration remains centralized while the panel surface evolves."
+          },
+          {
+            "path": "src/app/debug/DebugWorkspaceSections.tsx",
+            "reason": "The debug workspace keeps page sections together until the tools surface stabilizes."
+          }
+        ]
+      }
+    ]
+  },
   "rules": {
     "domainEntryConsumers": {
       "files": ["src/app/**/*.{ts,tsx}", "src/application/**/*.{ts,tsx}"],

@@ -16,6 +16,19 @@ describe('architecture contracts', () => {
         expect.objectContaining({ name: 'app', root: 'src/app' }),
         expect.objectContaining({ name: 'domains', root: 'src/domains' }),
       ]),
+      moduleHealth: expect.objectContaining({
+        scopes: expect.arrayContaining([
+          expect.objectContaining({ name: 'book-import', maxLines: 240 }),
+          expect.objectContaining({ name: 'app-debug', maxLines: 220 }),
+        ]),
+      }),
+      readerArchitecture: expect.objectContaining({
+        maxFileLines: 500,
+        stableBarrels: expect.arrayContaining([
+          expect.objectContaining({ path: 'src/domains/reader-layout-engine/index.ts' }),
+          expect.objectContaining({ path: 'src/domains/reader-content/index.ts' }),
+        ]),
+      }),
       rules: expect.objectContaining({
         domainEntryConsumers: expect.objectContaining({
           restrictedSubpathPattern: '@domains/*/*',
@@ -48,6 +61,42 @@ describe('architecture contracts', () => {
 
     expect(() => validateArchitectureContract(contract)).toThrow(
       'architecture contract.layers contains a duplicate layer name: app',
+    );
+  });
+
+  it('rejects missing required reader architecture fields', () => {
+    const contract = structuredClone(loadArchitectureContract());
+    delete contract.readerArchitecture.passThrough.message;
+
+    expect(() => validateArchitectureContract(contract)).toThrow(
+      'architecture contract.readerArchitecture.passThrough.message must be a non-empty string.',
+    );
+  });
+
+  it('rejects missing required module health scope fields', () => {
+    const contract = structuredClone(loadArchitectureContract());
+    delete contract.moduleHealth.scopes[0].maxLines;
+
+    expect(() => validateArchitectureContract(contract)).toThrow(
+      'architecture contract.moduleHealth.scopes[0].maxLines must be a positive integer.',
+    );
+  });
+
+  it('rejects module health allowlist entries without reasons', () => {
+    const contract = structuredClone(loadArchitectureContract());
+    delete contract.moduleHealth.scopes[0].allowlist[0].reason;
+
+    expect(() => validateArchitectureContract(contract)).toThrow(
+      'architecture contract.moduleHealth.scopes[0].allowlist[0].reason must be a non-empty string.',
+    );
+  });
+
+  it('rejects module health paths that do not exist', () => {
+    const contract = structuredClone(loadArchitectureContract());
+    contract.moduleHealth.scopes[0].allowlist[0].path = 'src/domains/book-import/missing.ts';
+
+    expect(() => validateArchitectureContract(contract)).toThrow(
+      'architecture contract.moduleHealth.scopes[0].allowlist[0].path references a missing path: src/domains/book-import/missing.ts',
     );
   });
 });

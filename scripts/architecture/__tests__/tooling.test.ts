@@ -1,0 +1,27 @@
+// @vitest-environment node
+
+import { readFileSync } from 'fs';
+
+import { describe, expect, it } from 'vitest';
+
+import { REPOSITORY_ROOT } from '../repositoryFacts.mjs';
+
+describe('tooling integration', () => {
+  it('keeps npm run lint wired in the expected gate order', () => {
+    const packageJson = JSON.parse(readFileSync(`${REPOSITORY_ROOT}/package.json`, 'utf8'));
+
+    expect(packageJson.scripts.lint).toBe(
+      'eslint . && npm run lint:ownership && npm run lint:module-health && node scripts/checkReaderArchitecture.mjs --strict',
+    );
+  });
+
+  it('documents contract-backed architecture gates in README', () => {
+    const readme = readFileSync(`${REPOSITORY_ROOT}/README.md`, 'utf8');
+
+    expect(readme).toContain('scripts/architecture/contracts/architecture.json');
+    expect(readme).toContain('scripts/architecture/contracts/table-ownership.json');
+    expect(readme).toContain('scripts/checkReaderArchitecture.mjs');
+    expect(readme).toContain('scripts/checkTableOwnership.mjs');
+    expect(readme).toContain('scripts/checkModuleHealth.mjs');
+  });
+});

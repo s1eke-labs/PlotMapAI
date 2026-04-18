@@ -2,6 +2,7 @@
 
 import { describe, expect, it } from 'vitest';
 
+import { loadArchitectureContract } from '../architecture/contracts.mjs';
 import {
   READER_FILE_LINE_LIMIT,
   evaluateReaderArchitecture,
@@ -13,6 +14,18 @@ import {
 } from '../checkReaderArchitecture.mjs';
 
 describe('checkReaderArchitecture', () => {
+  const { readerArchitecture } = loadArchitectureContract();
+  const readerLayoutEngineBarrel = readerArchitecture.stableBarrels.find(
+    (entry) => entry.path === 'src/domains/reader-layout-engine/index.ts',
+  );
+  const readerContentBarrel = readerArchitecture.stableBarrels.find(
+    (entry) => entry.path === 'src/domains/reader-content/index.ts',
+  );
+
+  it('keeps the exported line limit in sync with contract data', () => {
+    expect(READER_FILE_LINE_LIMIT).toBe(readerArchitecture.maxFileLines);
+  });
+
   it('flags oversized reader files over the configured threshold', () => {
     const result = evaluateReaderArchitecture({
       'src/application/pages/reader/useReaderReadingSurfaceController.tsx':
@@ -55,7 +68,7 @@ describe('checkReaderArchitecture', () => {
 
   it('flags reader-layout-engine root barrel exports outside the stable public surface', () => {
     expect(findInvalidReaderLayoutEngineRootExports(
-      'src/domains/reader-layout-engine/index.ts',
+      readerLayoutEngineBarrel?.path ?? 'src/domains/reader-layout-engine/index.ts',
       [
         'export { PagedReaderContent } from \'./paged-runtime\';',
         'export { buildStaticPagedChapterTree } from \'./layout-core\';',
@@ -67,7 +80,7 @@ describe('checkReaderArchitecture', () => {
 
   it('flags reader-content root barrel exports outside the stable public surface', () => {
     expect(findInvalidReaderContentRootExports(
-      'src/domains/reader-content/index.ts',
+      readerContentBarrel?.path ?? 'src/domains/reader-content/index.ts',
       [
         'export type { Chapter, ChapterContent, ReaderChapterCacheApi } from \'@shared/contracts/reader\';',
         'export { readerContentService } from \'./readerContentService\';',
@@ -91,7 +104,7 @@ describe('checkReaderArchitecture', () => {
 
   it('includes invalid reader-layout-engine root barrel exports in the aggregated result', () => {
     const result = evaluateReaderArchitecture({
-      'src/domains/reader-layout-engine/index.ts': [
+      [readerLayoutEngineBarrel?.path ?? 'src/domains/reader-layout-engine/index.ts']: [
         'export { PagedReaderContent } from \'./paged-runtime\';',
         'export { resolveReaderContentRootProps } from \'./layout-core\';',
         'export { buildStaticPagedChapterTree } from \'./layout-core\';',
@@ -100,7 +113,7 @@ describe('checkReaderArchitecture', () => {
 
     expect(result.invalidRootBarrelExports).toEqual([
       expect.objectContaining({
-        filePath: 'src/domains/reader-layout-engine/index.ts',
+        filePath: readerLayoutEngineBarrel?.path ?? 'src/domains/reader-layout-engine/index.ts',
         line: 'export { buildStaticPagedChapterTree } from \'./layout-core\';',
       }),
     ]);
@@ -110,7 +123,7 @@ describe('checkReaderArchitecture', () => {
     const result = evaluateReaderArchitecture({
       'src/domains/reader-layout-engine/hooks/useScrollReaderController.ts':
         'import { ReaderContextProvider } from \'@domains/reader-shell/pages/reader-page/ReaderContext\';\n',
-      'src/domains/reader-content/index.ts': [
+      [readerContentBarrel?.path ?? 'src/domains/reader-content/index.ts']: [
         'export type { Chapter, ChapterContent, ReaderChapterCacheApi } from \'@shared/contracts/reader\';',
         'export { readerContentService } from \'./readerContentService\';',
       ].join('\n'),
@@ -124,7 +137,7 @@ describe('checkReaderArchitecture', () => {
     ]);
     expect(result.invalidReaderContentRootExports).toEqual([
       expect.objectContaining({
-        filePath: 'src/domains/reader-content/index.ts',
+        filePath: readerContentBarrel?.path ?? 'src/domains/reader-content/index.ts',
         line: 'export { readerContentService } from \'./readerContentService\';',
       }),
     ]);

@@ -31,6 +31,28 @@ function assertStringArray(value, label, { allowEmpty = false } = {}) {
   }
 }
 
+function assertBoolean(value, label) {
+  if (typeof value !== 'boolean') {
+    fail(`${label} must be a boolean.`);
+  }
+}
+
+function assertPositiveInteger(value, label) {
+  if (!Number.isInteger(value) || value <= 0) {
+    fail(`${label} must be a positive integer.`);
+  }
+}
+
+function assertRegexPattern(value, label) {
+  assertNonEmptyString(value, label);
+  try {
+    // Validate that contract-supplied regexes compile before any gate consumes them.
+    RegExp(value, 'g');
+  } catch (error) {
+    fail(`${label} must be a valid regular expression: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
 function readContractJson(rootDirectory, relativePath) {
   const absolutePath = resolve(rootDirectory, relativePath);
   try {
@@ -73,11 +95,216 @@ function assertRestrictedImportEntries(value, label) {
   });
 }
 
+function assertPatternArray(value, label, facts, { allowEmpty = false } = {}) {
+  assertStringArray(value, label, { allowEmpty });
+  value.forEach((pattern, index) => {
+    assertExistingPath(pattern, `${label}[${index}]`, facts);
+  });
+}
+
+function assertStableBarrels(value, label, facts, { allowEmpty = false } = {}) {
+  if (!Array.isArray(value) || (!allowEmpty && value.length === 0)) {
+    fail(`${label} must ${allowEmpty ? 'be an array.' : 'be a non-empty array.'}`);
+  }
+
+  value.forEach((barrel, index) => {
+    assertObject(barrel, `${label}[${index}]`);
+    assertNonEmptyString(barrel.path, `${label}[${index}].path`);
+    assertExistingPath(barrel.path, `${label}[${index}].path`, facts);
+    assertNonEmptyString(barrel.message, `${label}[${index}].message`);
+    assertStringArray(barrel.allowedLines, `${label}[${index}].allowedLines`);
+  });
+}
+
+function validateReaderArchitecture(readerArchitecture, facts) {
+  assertObject(readerArchitecture, 'architecture contract.readerArchitecture');
+  assertPatternArray(
+    readerArchitecture.sourceDirectories,
+    'architecture contract.readerArchitecture.sourceDirectories',
+    facts,
+  );
+  assertStringArray(
+    readerArchitecture.fileExtensions,
+    'architecture contract.readerArchitecture.fileExtensions',
+  );
+  assertPatternArray(
+    readerArchitecture.includeFiles,
+    'architecture contract.readerArchitecture.includeFiles',
+    facts,
+  );
+  assertPatternArray(
+    readerArchitecture.ignoreFiles,
+    'architecture contract.readerArchitecture.ignoreFiles',
+    facts,
+    { allowEmpty: true },
+  );
+  assertPositiveInteger(
+    readerArchitecture.maxFileLines,
+    'architecture contract.readerArchitecture.maxFileLines',
+  );
+
+  assertObject(
+    readerArchitecture.restrictedImports,
+    'architecture contract.readerArchitecture.restrictedImports',
+  );
+  assertPatternArray(
+    readerArchitecture.restrictedImports.files,
+    'architecture contract.readerArchitecture.restrictedImports.files',
+    facts,
+  );
+  assertRegexPattern(
+    readerArchitecture.restrictedImports.pattern,
+    'architecture contract.readerArchitecture.restrictedImports.pattern',
+  );
+  assertNonEmptyString(
+    readerArchitecture.restrictedImports.message,
+    'architecture contract.readerArchitecture.restrictedImports.message',
+  );
+
+  assertObject(
+    readerArchitecture.deepImports,
+    'architecture contract.readerArchitecture.deepImports',
+  );
+  assertRegexPattern(
+    readerArchitecture.deepImports.pattern,
+    'architecture contract.readerArchitecture.deepImports.pattern',
+  );
+  assertNonEmptyString(
+    readerArchitecture.deepImports.message,
+    'architecture contract.readerArchitecture.deepImports.message',
+  );
+
+  assertObject(
+    readerArchitecture.passThrough,
+    'architecture contract.readerArchitecture.passThrough',
+  );
+  assertPatternArray(
+    readerArchitecture.passThrough.files,
+    'architecture contract.readerArchitecture.passThrough.files',
+    facts,
+  );
+  assertBoolean(
+    readerArchitecture.passThrough.ignoreIndexFiles,
+    'architecture contract.readerArchitecture.passThrough.ignoreIndexFiles',
+  );
+  assertRegexPattern(
+    readerArchitecture.passThrough.exportLinePattern,
+    'architecture contract.readerArchitecture.passThrough.exportLinePattern',
+  );
+  assertRegexPattern(
+    readerArchitecture.passThrough.exportStarLinePattern,
+    'architecture contract.readerArchitecture.passThrough.exportStarLinePattern',
+  );
+  assertNonEmptyString(
+    readerArchitecture.passThrough.message,
+    'architecture contract.readerArchitecture.passThrough.message',
+  );
+
+  assertStableBarrels(
+    readerArchitecture.stableBarrels,
+    'architecture contract.readerArchitecture.stableBarrels',
+    facts,
+  );
+}
+
+function validateModuleHealth(moduleHealth, facts) {
+  assertObject(moduleHealth, 'architecture contract.moduleHealth');
+  assertStringArray(
+    moduleHealth.fileExtensions,
+    'architecture contract.moduleHealth.fileExtensions',
+  );
+
+  assertObject(moduleHealth.passThrough, 'architecture contract.moduleHealth.passThrough');
+  assertRegexPattern(
+    moduleHealth.passThrough.exportLinePattern,
+    'architecture contract.moduleHealth.passThrough.exportLinePattern',
+  );
+  assertRegexPattern(
+    moduleHealth.passThrough.exportStarLinePattern,
+    'architecture contract.moduleHealth.passThrough.exportStarLinePattern',
+  );
+
+  if (!Array.isArray(moduleHealth.scopes) || moduleHealth.scopes.length === 0) {
+    fail('architecture contract.moduleHealth.scopes must be a non-empty array.');
+  }
+
+  const scopeNames = new Set();
+  moduleHealth.scopes.forEach((scope, index) => {
+    assertObject(scope, `architecture contract.moduleHealth.scopes[${index}]`);
+    assertNonEmptyString(scope.name, `architecture contract.moduleHealth.scopes[${index}].name`);
+    if (scopeNames.has(scope.name)) {
+      fail(`architecture contract.moduleHealth.scopes contains a duplicate scope name: ${scope.name}`);
+    }
+    scopeNames.add(scope.name);
+
+    assertPatternArray(
+      scope.files,
+      `architecture contract.moduleHealth.scopes[${index}].files`,
+      facts,
+    );
+    assertPatternArray(
+      scope.ignores,
+      `architecture contract.moduleHealth.scopes[${index}].ignores`,
+      facts,
+      { allowEmpty: true },
+    );
+    assertPositiveInteger(
+      scope.maxLines,
+      `architecture contract.moduleHealth.scopes[${index}].maxLines`,
+    );
+    assertBoolean(
+      scope.checkPassThroughReExports,
+      `architecture contract.moduleHealth.scopes[${index}].checkPassThroughReExports`,
+    );
+    assertPatternArray(
+      scope.passThroughFiles,
+      `architecture contract.moduleHealth.scopes[${index}].passThroughFiles`,
+      facts,
+      { allowEmpty: true },
+    );
+    assertBoolean(
+      scope.checkStableBarrels,
+      `architecture contract.moduleHealth.scopes[${index}].checkStableBarrels`,
+    );
+    assertStableBarrels(
+      scope.stableBarrels,
+      `architecture contract.moduleHealth.scopes[${index}].stableBarrels`,
+      facts,
+      { allowEmpty: !scope.checkStableBarrels },
+    );
+    if (scope.checkPassThroughReExports && scope.passThroughFiles.length === 0) {
+      fail(`architecture contract.moduleHealth.scopes[${index}].passThroughFiles must not be empty when pass-through checks are enabled.`);
+    }
+
+    if (!Array.isArray(scope.allowlist)) {
+      fail(`architecture contract.moduleHealth.scopes[${index}].allowlist must be an array.`);
+    }
+    scope.allowlist.forEach((entry, allowlistIndex) => {
+      assertObject(entry, `architecture contract.moduleHealth.scopes[${index}].allowlist[${allowlistIndex}]`);
+      assertNonEmptyString(
+        entry.path,
+        `architecture contract.moduleHealth.scopes[${index}].allowlist[${allowlistIndex}].path`,
+      );
+      assertExistingPath(
+        entry.path,
+        `architecture contract.moduleHealth.scopes[${index}].allowlist[${allowlistIndex}].path`,
+        facts,
+      );
+      assertNonEmptyString(
+        entry.reason,
+        `architecture contract.moduleHealth.scopes[${index}].allowlist[${allowlistIndex}].reason`,
+      );
+    });
+  });
+}
+
 export function validateArchitectureContract(contract, facts = createRepositoryFacts()) {
   assertObject(contract, 'architecture contract');
   if (!Array.isArray(contract.layers) || contract.layers.length === 0) {
     fail('architecture contract.layers must be a non-empty array.');
   }
+  validateReaderArchitecture(contract.readerArchitecture, facts);
+  validateModuleHealth(contract.moduleHealth, facts);
   assertObject(contract.rules, 'architecture contract.rules');
 
   const layerNames = new Set();
@@ -178,14 +405,11 @@ export function validateArchitectureContract(contract, facts = createRepositoryF
   });
 
   assertObject(readerFamily, 'architecture contract.rules.readerFamily');
-  assertStringArray(readerFamily.files, 'architecture contract.rules.readerFamily.files');
-  readerFamily.files.forEach((pattern, index) => {
-    assertExistingPath(
-      pattern,
-      `architecture contract.rules.readerFamily.files[${index}]`,
-      facts,
-    );
-  });
+  assertPatternArray(
+    readerFamily.files,
+    'architecture contract.rules.readerFamily.files',
+    facts,
+  );
   assertRestrictedImportEntries(
     readerFamily.restrictedImports,
     'architecture contract.rules.readerFamily.restrictedImports',

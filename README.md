@@ -114,7 +114,9 @@ npm run dev:debug
 | `npm run build` | `tsc -b` + `vite build` + bundle budget 校验 |
 | `npm run analyze` | 输出 bundle 可视化分析报告 |
 | `npm run preview` | 预览生产构建 |
-| `npm run lint` | ESLint + 表权属校验 + Reader 架构门禁 |
+| `npm run lint` | ESLint + 表权属校验 + 模块健康门禁 + Reader 架构门禁 |
+| `npm run lint:ownership` | 执行 Dexie 表 ownership 静态校验 |
+| `npm run lint:module-health` | 执行热点目录模块健康门禁 |
 | `npm test` | 运行 Vitest（单次） |
 | `npm run test:watch` | 监听模式运行测试 |
 | `npm run coverage` | 测试覆盖率报告 |
@@ -177,32 +179,22 @@ src/
 └── test/                     # 测试基础设施与 mocks
 ```
 
-### 关键架构规则
+### 架构约束与门禁
 
-- `app` 和 `application` 使用 domain 时只允许从 `@domains/<domain>` 进入
-- domain 不得依赖 `@app/*` 或 `@application/*`
-- `shared` 与 `infra` 不得依赖任何 domain
-- `book-import` 是 parse-only domain，不直接访问 Dexie
-- `reader-content` 不直接读 Dexie，只消费 application 注册的 runtime
-- 页面编排统一采用 `Route Page -> usePageViewModel -> Screen`
+README 只保留高层说明；精确规则、allowlist 和阈值统一收敛到机器可读 contract，由多个 gate 消费。
 
-### Reader 家族现状
+- 分层与 Reader 规则 contract: [`scripts/architecture/contracts/architecture.json`](scripts/architecture/contracts/architecture.json)
+- Dexie 表 ownership contract: [`scripts/architecture/contracts/table-ownership.json`](scripts/architecture/contracts/table-ownership.json)
+- Reader 专项门禁: [`scripts/checkReaderArchitecture.mjs`](scripts/checkReaderArchitecture.mjs)
+- 表 ownership 门禁: [`scripts/checkTableOwnership.mjs`](scripts/checkTableOwnership.mjs)
+- 热点目录模块健康门禁: [`scripts/checkModuleHealth.mjs`](scripts/checkModuleHealth.mjs)
 
-阅读器已经按职责拆分为：
+当前自动化门禁覆盖的重点包括：
 
-- `reader-content`
-- `reader-interaction`
-- `reader-layout-engine`
-- `reader-media`
-- `reader-session`
-- `reader-shell`
-
-仓库内有专门门禁脚本 `scripts/checkReaderArchitecture.mjs`，用于限制：
-
-- Reader 文件体量
-- deep import
-- 根 barrel 暴露面
-- 弱语义转发文件
+- `app / application / domains / shared / infra` 之间的导入边界
+- Reader 家族的文件体量、deep import、稳定 barrel 暴露面和 pass-through re-export
+- Dexie 表 ownership 与 application 层跨域编排白名单
+- `book-import`、`application/services`、`shared/text-processing`、`app/debug` 的热点模块体量
 
 ## 核心数据流
 
