@@ -114,7 +114,7 @@ npm run dev:debug
 | `npm run build` | `tsc -b` + `vite build` + bundle budget 校验 |
 | `npm run analyze` | 输出 bundle 可视化分析报告 |
 | `npm run preview` | 预览生产构建 |
-| `npm run lint` | ESLint + Reader 架构门禁 |
+| `npm run lint` | ESLint + 表权属校验 + Reader 架构门禁 |
 | `npm test` | 运行 Vitest（单次） |
 | `npm run test:watch` | 监听模式运行测试 |
 | `npm run coverage` | 测试覆盖率报告 |

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { projectTxtPlainTextToRichBlocks } from '@shared/text-processing';
-import { runParseTxtTask } from '@domains/book-import/workers/txtClient';
+import { runParseTxtTask } from '../../workers/txtClient';
 
 import { parseTxt } from '../txtParser';
 

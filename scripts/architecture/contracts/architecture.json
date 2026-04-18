@@ -1,0 +1,77 @@
+{
+  "layers": [
+    {
+      "name": "app",
+      "root": "src/app",
+      "canDependOn": ["application", "domains", "shared", "infra"]
+    },
+    {
+      "name": "application",
+      "root": "src/application",
+      "canDependOn": ["domains", "shared", "infra"]
+    },
+    {
+      "name": "domains",
+      "root": "src/domains",
+      "canDependOn": ["shared", "infra"]
+    },
+    {
+      "name": "shared",
+      "root": "src/shared",
+      "canDependOn": []
+    },
+    {
+      "name": "infra",
+      "root": "src/infra",
+      "canDependOn": []
+    }
+  ],
+  "rules": {
+    "domainEntryConsumers": {
+      "files": ["src/app/**/*.{ts,tsx}", "src/application/**/*.{ts,tsx}"],
+      "restrictedSubpathPattern": "@domains/*/*",
+      "message": "Import domains only via @domains/<domain>."
+    },
+    "specialInfraDbRestrictions": [
+      {
+        "domain": "book-import",
+        "files": ["src/domains/book-import/**/*.{ts,tsx}"],
+        "ignores": ["src/domains/book-import/**/__tests__/**"],
+        "restrictedImports": ["@infra/db", "@infra/db/*"],
+        "message": "book-import is parse-only and must not access Dexie directly."
+      },
+      {
+        "domain": "reader-content",
+        "files": ["src/domains/reader-content/**/*.{ts,tsx}"],
+        "ignores": ["src/domains/reader-content/**/__tests__/**"],
+        "restrictedImports": ["@infra/db", "@infra/db/*"],
+        "message": "reader-content must consume application-registered read models instead of Dexie directly."
+      }
+    ],
+    "readerFamily": {
+      "files": ["src/domains/reader-*/**/*.{ts,tsx}"],
+      "restrictedImports": [
+        {
+          "group": ["@app/*", "@app/*/*"],
+          "message": "domain code must not depend on app code."
+        },
+        {
+          "group": ["@application/*", "@application/*/*"],
+          "message": "domain code must not depend on application code."
+        },
+        {
+          "group": ["@domains/*", "!@domains/reader-*", "!@domains/reader-*/*"],
+          "message": "reader-family domain code must not depend on unrelated domains."
+        },
+        {
+          "group": ["@domains/reader-*/*"],
+          "message": "reader-family code must import sibling reader domains via barrels and same-domain modules via relative paths."
+        },
+        {
+          "group": ["@domains/*/*", "!@domains/reader-*/*"],
+          "message": "reader-family domain code must not depend on unrelated domain internals."
+        }
+      ]
+    }
+  }
+}
