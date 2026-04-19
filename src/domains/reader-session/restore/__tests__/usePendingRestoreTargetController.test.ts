@@ -1,7 +1,7 @@
 import { act, renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { resetReaderSessionStoreForTests } from '../readerSessionStore';
+import { resetReaderSessionStoreForTests } from '../../store/readerSessionStore';
 import { usePendingRestoreTargetController } from '../usePendingRestoreTargetController';
 
 function createRestoreTarget(overrides: Partial<{

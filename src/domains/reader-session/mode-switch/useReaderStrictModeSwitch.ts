@@ -18,7 +18,7 @@ import {
   setDebugSnapshot,
 } from '@shared/debug';
 
-import * as readerSessionStore from './readerSessionStore';
+import * as readerSessionStore from '../store/readerSessionStore';
 
 export type StrictModeSwitchContentMode = Exclude<ReaderMode, 'summary'>;
 export type ModeSwitchTransactionStage = 'capture_source' | 'persist_target_state' | 'restore_target';

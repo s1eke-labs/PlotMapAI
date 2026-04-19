@@ -23,7 +23,7 @@ import {
   getStoredChapterIndex,
   toCanonicalPositionFromLocator,
   toReaderLocatorFromCanonical,
-} from './state';
+} from '@shared/utils/readerStoredState';
 
 export interface ReaderSessionCacheShape {
   novelId: number;

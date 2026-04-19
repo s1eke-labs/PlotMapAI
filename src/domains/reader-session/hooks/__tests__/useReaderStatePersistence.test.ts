@@ -13,8 +13,8 @@ import {
 import { createReaderContextWrapper } from '@test/readerRuntimeTestUtils';
 import type { StoredReaderState } from '@shared/contracts/reader';
 
-import { replaceReadingProgress } from '../repository';
-import { resetReaderSessionStoreForTests } from '../readerSessionStore';
+import { replaceReadingProgress } from '../../persistence/repository';
+import { resetReaderSessionStoreForTests } from '../../store/readerSessionStore';
 import { useReaderStatePersistence } from '../useReaderStatePersistence';
 
 function seedReaderBootstrapSnapshot(

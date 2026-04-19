@@ -13,7 +13,7 @@ import {
   mergeStoredReaderState,
   toCanonicalPositionFromLocator,
   toReaderLocatorFromCanonical,
-} from './state';
+} from '@shared/utils/readerStoredState';
 
 export function toRestoreTargetFromState(params: {
   chapterIndex: number;

@@ -6,16 +6,16 @@ import type {
   RestoreSettledResult,
   StoredReaderState,
 } from '@shared/contracts/reader';
-import type { ScrollModeAnchor } from '../useScrollModeChapters';
+import type { ScrollModeAnchor } from '@shared/contracts/reader';
 
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createReaderContextWrapper } from '@test/readerRuntimeTestUtils';
 import { setDebugFeatureEnabled } from '@shared/debug';
-import { getReaderSessionSnapshot, resetReaderSessionStoreForTests } from '../readerSessionStore';
-import * as readerSessionStore from '../readerSessionStore';
-import { useReaderRestoreFlow } from '../useReaderRestoreFlow';
+import { getReaderSessionSnapshot, resetReaderSessionStoreForTests } from '../../store/readerSessionStore';
+import * as readerSessionStore from '../../store/readerSessionStore';
+import { useReaderRestoreController as useReaderRestoreFlow } from '../useReaderRestoreController';
 
 const readerTraceMocks = vi.hoisted(() => ({
   enabled: false,

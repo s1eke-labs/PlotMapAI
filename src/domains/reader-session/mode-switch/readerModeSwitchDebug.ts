@@ -15,7 +15,7 @@ import {
 import {
   mergeStoredReaderState,
   toCanonicalPositionFromLocator,
-} from './state';
+} from '@shared/utils/readerStoredState';
 
 export interface ReaderModeSwitchDebugSnapshot {
   chapterIndex: number;

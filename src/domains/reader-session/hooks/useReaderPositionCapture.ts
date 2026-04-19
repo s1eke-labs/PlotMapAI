@@ -13,12 +13,12 @@ import {
   useReaderPersistenceRuntime,
 } from '@shared/reader-runtime';
 
-import { mergeStoredReaderState } from './state';
+import { mergeStoredReaderState } from '@shared/utils/readerStoredState';
 import {
   captureReaderStateSnapshot,
   toRestoreTargetFromState,
-} from './readerModeState';
-import { getStoredReaderStateSnapshot } from './readerSessionStore';
+} from '../restore/readerModeState';
+import { getStoredReaderStateSnapshot } from '../store/readerSessionStore';
 
 interface UseReaderPositionCaptureParams {
   chapterIndex: number;

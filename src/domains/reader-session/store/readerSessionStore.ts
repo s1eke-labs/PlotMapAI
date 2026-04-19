@@ -24,15 +24,15 @@ import {
   getStoredChapterIndex,
   mergeStoredReaderState,
   toReaderLocatorFromCanonical,
-} from './state';
-import { readPersistedReadingProgress, replaceReadingProgress } from './repository';
+} from '@shared/utils/readerStoredState';
+import { readPersistedReadingProgress, replaceReadingProgress } from '../persistence/repository';
 import { reduceReaderLifecycleState } from './lifecycleStateMachine';
-import { writeReaderLifecycleDebugSnapshot } from './readerLifecycleDebugSnapshot';
+import { writeReaderLifecycleDebugSnapshot } from '../debug/readerLifecycleDebugSnapshot';
 import { debugLog, setDebugSnapshot } from '@shared/debug';
 import {
   createInitialReaderSessionState, getReaderSessionProgressFingerprint, readLocalSessionState,
   shouldMaskRestore, toPersistenceFailure, toStoredReaderState,
-} from './sessionPersistenceHelpers';
+} from '../persistence/sessionPersistenceHelpers';
 
 interface ReaderSessionInternalState extends ReaderSessionState {}
 

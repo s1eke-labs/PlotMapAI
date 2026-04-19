@@ -22,8 +22,8 @@ export type {
 export type {
   ReaderSessionSnapshot,
   UseReaderSessionResult,
-} from './useReaderSession';
-export type { ReadingProgress } from './repository';
+} from './hooks/useReaderSession';
+export type { ReadingProgress } from './persistence/repository';
 export {
   buildStoredReaderState,
   clampChapterProgress,
@@ -35,25 +35,25 @@ export {
   sanitizeStoredReaderState,
   toCanonicalPositionFromLocator,
   toReaderLocatorFromCanonical,
-} from './state';
+} from '@shared/utils/readerStoredState';
 export {
   deleteReadingProgress,
   readReadingProgress,
   replaceReadingProgress,
   toReadingProgress,
-} from './repository';
+} from './persistence/repository';
 export {
   dispatchReaderLifecycleEvent,
   flushPersistence,
   resetReaderSessionStoreForTests,
   useReaderSessionSelector,
-} from './readerSessionStore';
-export { flushReaderStateWithCapture } from './flushReaderState';
+} from './store/readerSessionStore';
+export { flushReaderStateWithCapture } from './persistence/flushReaderState';
 export {
   useReaderRestoreController,
-  useReaderRestoreFlow,
+  useReaderRestoreController as useReaderRestoreFlow,
   type UseReaderRestoreControllerResult,
-  type UseReaderRestoreFlowResult,
-} from './useReaderRestoreController';
-export { useReaderSession } from './useReaderSession';
-export { useReaderStatePersistence } from './useReaderStatePersistence';
+  type UseReaderRestoreControllerResult as UseReaderRestoreFlowResult,
+} from './restore/useReaderRestoreController';
+export { useReaderSession } from './hooks/useReaderSession';
+export { useReaderStatePersistence } from './hooks/useReaderStatePersistence';

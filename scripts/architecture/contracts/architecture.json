@@ -85,7 +85,7 @@
         "reason": "Image viewer pointer gesture handling remains centralized while the reader media surface stabilizes."
       },
       {
-        "path": "src/domains/reader-session/useReaderRestoreController.ts",
+        "path": "src/domains/reader-session/restore/useReaderRestoreController.ts",
         "metrics": ["maxFunctionLines", "importCount"],
         "reason": "Restore orchestration still centralizes session resume branching while the reader session split settles."
       },

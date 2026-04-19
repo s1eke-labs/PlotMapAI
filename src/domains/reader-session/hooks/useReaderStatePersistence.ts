@@ -19,7 +19,7 @@ import {
   readInitialStoredReaderState,
   setSessionNovelId,
   useReaderSessionSelector,
-} from './readerSessionStore';
+} from '../store/readerSessionStore';
 import type { StoredReaderState } from '@shared/contracts/reader';
 import {
   buildStoredReaderState,
@@ -27,8 +27,8 @@ import {
   clampPageIndex,
   createDefaultStoredReaderState,
   mergeStoredReaderState,
-} from './state';
-import { flushReaderStateWithCapture } from './flushReaderState';
+} from '@shared/utils/readerStoredState';
+import { flushReaderStateWithCapture } from '../persistence/flushReaderState';
 
 interface PersistReaderStateOptions {
   flush?: boolean;

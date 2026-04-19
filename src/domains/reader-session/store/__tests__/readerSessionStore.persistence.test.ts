@@ -14,7 +14,7 @@ import {
   persistStoredReaderState,
   resetReaderSessionStoreForTests,
 } from '../readerSessionStore';
-import * as repository from '../repository';
+import * as repository from '../../persistence/repository';
 
 function createStoredCanonical(chapterIndex: number) {
   return {

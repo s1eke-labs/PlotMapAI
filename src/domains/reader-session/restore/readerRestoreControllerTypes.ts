@@ -1,5 +1,5 @@
 import type { ChapterContent } from '@shared/contracts/reader';
-import type { ReaderSessionSnapshot } from './useReaderSession';
+import type { ReaderSessionSnapshot } from '../hooks/useReaderSession';
 import type {
   ReaderMode,
   ReaderRestoreResult,
@@ -8,7 +8,7 @@ import type {
   RestoreSettledResult,
   StoredReaderState,
 } from '@shared/contracts/reader';
-import type { useReaderStrictModeSwitch } from './useReaderStrictModeSwitch';
+import type { useReaderStrictModeSwitch } from '../mode-switch/useReaderStrictModeSwitch';
 
 export interface UseReaderRestoreControllerParams {
   sessionSnapshot: Pick<

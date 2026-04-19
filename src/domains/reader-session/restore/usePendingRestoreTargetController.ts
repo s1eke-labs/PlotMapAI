@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import type { ReaderRestoreTarget } from '@shared/contracts/reader';
 import type { ReaderPersistenceRuntimeValue } from '@shared/contracts/reader';
 
-import { beginRestore, completeRestore, setPendingRestoreTarget } from './readerSessionStore';
+import { beginRestore, completeRestore, setPendingRestoreTarget } from '../store/readerSessionStore';
 import { isReaderTraceEnabled, recordReaderTrace } from '@shared/reader-trace';
 import { shouldKeepReaderRestoreMask } from '@shared/utils/readerPosition';
 

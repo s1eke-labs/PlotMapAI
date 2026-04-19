@@ -13,7 +13,7 @@ import { buildPersistedReadingProgress } from '@shared/utils/readerPersistedProg
 import {
   buildStoredReaderState,
   sanitizeStoredReaderState,
-} from './state';
+} from '@shared/utils/readerStoredState';
 
 export type ReadingProgress = PersistedReadingProgress;
 

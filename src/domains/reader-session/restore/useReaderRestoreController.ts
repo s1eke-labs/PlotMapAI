@@ -11,7 +11,7 @@ import {
   useReaderViewportContext,
 } from '@shared/reader-runtime';
 import { createReaderStateModeHints } from '@shared/utils/readerMode';
-import { mergeStoredReaderState } from './state';
+import { mergeStoredReaderState } from '@shared/utils/readerStoredState';
 import {
   solveModeRestoreTarget,
   toRestoreTargetFromState,
@@ -20,30 +20,30 @@ import {
   buildReaderModeSwitchDebugSnapshot,
   captureStrictModeSwitchState,
   verifyStrictModeRestoreCompletion,
-} from './readerModeSwitchDebug';
-import { setLastRestoreResult } from './readerSessionStore';
+} from '../mode-switch/readerModeSwitchDebug';
+import { setLastRestoreResult } from '../store/readerSessionStore';
 import { useReaderRestoreResultTracker } from './readerRestoreResultTracker';
-import { useReaderModeSwitchRollback } from './useReaderModeSwitchRollback';
+import { useReaderModeSwitchRollback } from '../mode-switch/useReaderModeSwitchRollback';
 import { usePendingRestoreTargetController } from './usePendingRestoreTargetController';
 import {
   type StrictModeSwitchContentMode,
   type ModeSwitchTransactionStage,
   useReaderStrictModeSwitch,
-} from './useReaderStrictModeSwitch';
+} from '../mode-switch/useReaderStrictModeSwitch';
 import {
   type UseReaderRestoreControllerParams,
   type UseReaderRestoreControllerResult,
 } from './readerRestoreControllerTypes';
 import { useSummaryRestoreRunner } from './useSummaryRestoreRunner';
-import { useSummaryProgressPersistence } from './useSummaryProgressPersistence';
+import { useSummaryProgressPersistence } from '../hooks/useSummaryProgressPersistence';
 import { debugLog, setDebugSnapshot } from '@shared/debug';
 import {
   traceModeSwitchError,
   traceModeSwitchFinished,
   traceModeSwitchStarted,
   traceModeSwitchTargetResolved,
-} from './readerModeSwitchTrace';
-import { useReaderPositionCapture } from './useReaderPositionCapture';
+} from '../mode-switch/readerModeSwitchTrace';
+import { useReaderPositionCapture } from '../hooks/useReaderPositionCapture';
 export type { UseReaderRestoreControllerResult } from './readerRestoreControllerTypes';
 export function useReaderRestoreController({
   sessionSnapshot,

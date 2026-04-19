@@ -15,7 +15,7 @@ import {
   setLastContentMode as setSessionLastContentMode,
   setMode as setSessionMode,
   useReaderSessionSelector,
-} from './readerSessionStore';
+} from '../store/readerSessionStore';
 import { useReaderStatePersistence } from './useReaderStatePersistence';
 import { getReaderViewMode, isPagedReaderMode } from '@shared/utils/readerMode';
 

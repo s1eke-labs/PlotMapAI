@@ -4,7 +4,7 @@ import type { ReaderRestoreResult, ReaderRestoreTarget } from '@shared/contracts
 
 import { setDebugSnapshot } from '@shared/debug';
 
-import { setLastRestoreResult } from './readerSessionStore';
+import { setLastRestoreResult } from '../store/readerSessionStore';
 
 const MAX_AUTO_RESTORE_RETRIES = 2;
 

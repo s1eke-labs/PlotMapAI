@@ -6,7 +6,7 @@ import type {
   StoredReaderState,
 } from '@shared/contracts/reader';
 import type { ReaderSessionCommands } from '@shared/contracts/reader';
-import { buildStoredReaderState } from './state';
+import { buildStoredReaderState } from '@shared/utils/readerStoredState';
 import { debugLog, setDebugSnapshot } from '@shared/debug';
 import { isReaderTraceEnabled, recordReaderTrace } from '@shared/reader-trace';
 
