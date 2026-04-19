@@ -40,6 +40,28 @@ interface ReaderScopedProviderProps<T> {
   value: T;
 }
 
+function isPromiseLike(value: unknown): value is PromiseLike<unknown> {
+  if ((typeof value !== 'object' && typeof value !== 'function') || value === null) {
+    return false;
+  }
+
+  return typeof (value as { then?: unknown }).then === 'function';
+}
+
+function assertSynchronousBeforeFlushHandler(result: unknown): void {
+  if (!(import.meta.env.DEV || import.meta.env.MODE === 'test')) {
+    return;
+  }
+
+  if (!isPromiseLike(result)) {
+    return;
+  }
+
+  throw new Error(
+    'registerBeforeFlush handlers must stay synchronous. Capture async state ahead of flush and read it synchronously during runBeforeFlush().',
+  );
+}
+
 export function ReaderViewportContextProvider({
   children,
   value,
@@ -259,7 +281,7 @@ export function ReaderRuntimeProvider({
     },
     runBeforeFlush: () => {
       for (const handler of beforeFlushHandlersRef.current) {
-        handler();
+        assertSynchronousBeforeFlushHandler(handler());
       }
     },
     suppressScrollSyncTemporarily,

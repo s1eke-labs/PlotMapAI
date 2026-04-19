@@ -85,10 +85,17 @@ export interface ReaderLayoutQueriesValue {
 export interface ReaderPersistenceRuntimeValue {
   isScrollSyncSuppressed: () => boolean;
   notifyRestoreSettled: (result: RestoreSettledResult) => void;
+  /**
+   * Registers a synchronous capture hook that must finish before durable flush starts.
+   * Async preparation should happen earlier so flush-time capture can stay immediate.
+   */
   registerBeforeFlush: (handler: () => void) => () => void;
   registerRestoreSettledHandler: (
     handler: (result: RestoreSettledResult) => void,
   ) => () => void;
+  /**
+   * Runs all registered synchronous before-flush capture hooks immediately.
+   */
   runBeforeFlush: () => void;
   suppressScrollSyncTemporarily: () => void;
 }
