@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
+import type { MutableRefObject, RefObject } from 'react';
 
 import type {
   ReaderMode,
@@ -22,14 +23,14 @@ import { getStoredReaderStateSnapshot } from '../store/readerSessionStore';
 
 interface UseReaderPositionCaptureParams {
   chapterIndex: number;
-  latestReaderStateRef: React.MutableRefObject<StoredReaderState>;
+  latestReaderStateRef: MutableRefObject<StoredReaderState>;
   layoutQueries: ReturnType<typeof useReaderLayoutQueries>;
   mode: ReaderMode;
   navigation: ReturnType<typeof useReaderNavigationRuntime>;
   persistence: Pick<ReturnType<typeof useReaderPersistenceRuntime>, 'registerBeforeFlush'>;
   persistReaderState: ReaderSessionCommands['persistReaderState'];
   rememberModeState: (target: ReaderRestoreTarget) => void;
-  viewportContentRef: React.RefObject<HTMLDivElement | null>;
+  viewportContentRef: RefObject<HTMLDivElement | null>;
 }
 
 export function useReaderPositionCapture({

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
+import type { MutableRefObject, RefObject } from 'react';
 import type {
   ReaderMode,
   ReaderRestoreTarget,
@@ -9,10 +10,10 @@ import { getContainerProgress } from '@shared/utils/readerPosition';
 interface UseSummaryProgressPersistenceParams {
   chapterIndex: number;
   mode: ReaderMode;
-  pendingRestoreTargetRef: React.MutableRefObject<ReaderRestoreTarget | null>;
+  pendingRestoreTargetRef: MutableRefObject<ReaderRestoreTarget | null>;
   persistReaderState: (state: StoredReaderState) => void;
   isScrollSyncSuppressed: () => boolean;
-  viewportContentRef: React.RefObject<HTMLDivElement | null>;
+  viewportContentRef: RefObject<HTMLDivElement | null>;
 }
 
 export function useSummaryProgressPersistence({
