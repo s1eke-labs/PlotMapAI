@@ -46,7 +46,7 @@ export default defineConfig({
         ...devices['Pixel 7'],
         browserName: 'chromium',
       },
-      testMatch: ['smoke/**', 'flow/**'],
+      testMatch: ['smoke/**/*.spec.ts', 'flow/**/*.spec.ts'],
     },
   ],
   webServer: {
