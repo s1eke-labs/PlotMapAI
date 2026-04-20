@@ -248,6 +248,6 @@ export async function runRichContentCapabilitiesCheck(argv = process.argv.slice(
   throw new Error(`Rich-content capability checks found ${warningCount} warning(s).`);
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   await runRichContentCapabilitiesCheck();
 }

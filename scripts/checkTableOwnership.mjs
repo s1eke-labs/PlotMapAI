@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync, statSync } from 'fs';
 import { extname, relative, resolve } from 'path';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 
 import { loadTableOwnershipContract } from './architecture/contracts.mjs';
 import { normalizePath } from './architecture/repositoryFacts.mjs';
@@ -335,6 +335,6 @@ export function runTableOwnershipCheck(
   throw new Error(`Table ownership checks found ${warningCount} warning(s).`);
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   runTableOwnershipCheck();
 }

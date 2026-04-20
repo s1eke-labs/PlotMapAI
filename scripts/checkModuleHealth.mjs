@@ -1,4 +1,4 @@
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 import { resolve } from 'path';
 
 import { loadArchitectureContract } from './architecture/contracts.mjs';
@@ -132,6 +132,6 @@ export function runModuleHealthCheck(argv = process.argv.slice(2)) {
   throw new Error(`Module health checks found ${warningCount} warning(s).`);
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   runModuleHealthCheck();
 }
