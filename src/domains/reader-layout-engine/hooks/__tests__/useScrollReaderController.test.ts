@@ -798,6 +798,43 @@ describe('useScrollReaderController', () => {
     expect(setChapterIndex).not.toHaveBeenCalled();
   });
 
+  it('ignores scroll anchors while a pending restore target exists only on props', () => {
+    const persistReaderState = vi.fn();
+    const setChapterIndex = vi.fn();
+    const contextValue = createReaderContextValue({
+      chapterIndex: 1,
+      setChapterIndex,
+      persistReaderState,
+    });
+    const pendingRestoreTarget: ReaderRestoreTarget = {
+      chapterIndex: 1,
+      chapterProgress: 0.4,
+      mode: 'scroll',
+    };
+    const props = createHookProps({
+      pendingRestoreTarget,
+      pendingRestoreTargetRef: { current: null },
+      harness: contextValue,
+    });
+
+    renderHook(() => useScrollReaderController(props), {
+      wrapper: ({ children }: { children: ReactNode }) => ReaderContextProvider({
+        value: contextValue.contextValue,
+        children,
+      }),
+    });
+
+    act(() => {
+      scrollModeState.emitAnchor({
+        chapterIndex: 1,
+        chapterProgress: 0,
+      });
+    });
+
+    expect(persistReaderState).not.toHaveBeenCalled();
+    expect(setChapterIndex).not.toHaveBeenCalled();
+  });
+
   it('skips non-canonical restore targets and settles the restore lifecycle', async () => {
     const animationFrames = createAnimationFrameController();
     const contentRef = { current: makeContainer() };
@@ -1045,6 +1082,90 @@ describe('useScrollReaderController', () => {
         await animationFrames.flushNextAnimationFrame();
       }
 
+      expect(clearPendingRestoreTarget).toHaveBeenCalled();
+      expect(stopRestoreMask).toHaveBeenCalled();
+    } finally {
+      animationFrames.restore();
+    }
+  });
+
+  it('reapplies scroll progress while restore settling is still in flight', async () => {
+    const animationFrames = createAnimationFrameController();
+    const contentRef = {
+      current: makeContainer({
+        clientHeight: 600,
+        scrollHeight: 4000,
+      }),
+    };
+    const clearPendingRestoreTarget = vi.fn();
+    const stopRestoreMask = vi.fn();
+    const onRestoreSettled = vi.fn();
+    const currentChapter = createChapter(
+      1,
+      3,
+      'Paragraph 1\nParagraph 2\nParagraph 3\nParagraph 4',
+    );
+    const progressTarget: ReaderRestoreTarget = {
+      chapterIndex: 1,
+      chapterProgress: 0.5,
+      mode: 'scroll',
+    };
+    const contextValue = createReaderContextValue({
+      chapterIndex: 1,
+      contentRef,
+      chapterCacheRef: {
+        current: new Map([[currentChapter.index, currentChapter]]),
+      },
+      restoreSettledHandlerRef: {
+        current: onRestoreSettled,
+      },
+    });
+    const props = createHookProps({
+      currentChapter,
+      pendingRestoreTarget: progressTarget,
+      pendingRestoreTargetRef: {
+        current: progressTarget,
+      },
+      clearPendingRestoreTarget,
+      stopRestoreMask,
+      harness: contextValue,
+    });
+
+    try {
+      renderHook(
+        () => useScrollReaderController(props),
+        {
+          wrapper: ({ children }: { children: ReactNode }) => ReaderContextProvider({
+            value: contextValue.contextValue,
+            children,
+          }),
+        },
+      );
+
+      const expectedScrollTop = Math.round(
+        (contentRef.current.scrollHeight - contentRef.current.clientHeight) * 0.5,
+      );
+
+      await animationFrames.flushNextAnimationFrame();
+
+      expect(contentRef.current.scrollTop).toBe(expectedScrollTop);
+
+      contextValue.suppressScrollSyncTemporarilyRef.current.mockClear();
+
+      act(() => {
+        contentRef.current.scrollTop = 0;
+      });
+
+      await animationFrames.flushNextAnimationFrame();
+
+      expect(contentRef.current.scrollTop).toBe(expectedScrollTop);
+      expect(contextValue.suppressScrollSyncTemporarilyRef.current).toHaveBeenCalledTimes(1);
+
+      for (let index = 0; index < 4 && onRestoreSettled.mock.calls.length === 0; index += 1) {
+        await animationFrames.flushNextAnimationFrame();
+      }
+
+      expect(onRestoreSettled).toHaveBeenCalledWith('completed');
       expect(clearPendingRestoreTarget).toHaveBeenCalled();
       expect(stopRestoreMask).toHaveBeenCalled();
     } finally {

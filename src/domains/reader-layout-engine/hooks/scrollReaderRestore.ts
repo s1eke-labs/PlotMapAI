@@ -223,8 +223,7 @@ export function useScrollReaderRestore(params: UseScrollReaderRestoreParams): vo
         )
         : expectedScrollTop;
       if (
-        !shouldPreferProgressStability
-        && expectedLocator
+        expectedLocator
         && areRestoreLocatorsEquivalent(currentLocator, expectedLocator)
       ) {
         finalizeSuccessfulRestore(activeTarget, completedResult, expectedLocator);
@@ -242,7 +241,6 @@ export function useScrollReaderRestore(params: UseScrollReaderRestoreParams): vo
         container
         && activeTarget
         && typeof activeTarget.chapterProgress === 'number'
-        && typeof activeTarget.locator?.pageIndex === 'number'
       ) {
         navigation.setChapterChangeSource('restore');
         persistence.suppressScrollSyncTemporarily();

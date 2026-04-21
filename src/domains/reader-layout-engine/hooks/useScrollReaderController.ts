@@ -120,6 +120,7 @@ export function useScrollReaderController({
     if (!enabled) return;
     if (persistence.isScrollSyncSuppressed()) return;
     if (pendingRestoreTargetRef.current) return;
+    if (pendingRestoreTarget && anchor.chapterProgress === 0) return;
     if (
       navigation.getChapterChangeSource() === 'navigation'
       || navigation.getChapterChangeSource() === 'restore'
@@ -163,6 +164,7 @@ export function useScrollReaderController({
     enabled,
     layoutQueries,
     navigation,
+    pendingRestoreTarget,
     pendingRestoreTargetRef,
     persistReaderState,
     persistence,

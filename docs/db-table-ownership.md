@@ -8,21 +8,21 @@ This file is generated from `scripts/architecture/contracts/table-ownership.json
 
 | Table | Owner | Allowed Direct Access | Public API |
 |------|------|------|------|
-| `novels` | `@domains/library` | library, application orchestration | `novelRepository.list/get/getNovelTitle/createImportedNovel/replaceImportedNovel/delete` |
+| `novels` | `@domains/library` | 图书库，应用层编排 | `novelRepository.list/get/getNovelTitle/createImportedNovel/replaceImportedNovel/delete` |
 | `coverImages` | `@domains/library` | library, application orchestration | `novelRepository.createImportedNovel/replaceImportedNovel/delete`, `acquireNovelCoverResource` |
-| `chapters` | `@domains/book-content` | book-content, application orchestration | `bookContentRepository.listNovelChapters/getNovelChapter/countNovelChapters/replaceNovelContent/deleteNovelContent` |
+| `chapters` | `@domains/book-content` | 书籍内容，应用层编排 | `bookContentRepository.listNovelChapters/getNovelChapter/countNovelChapters/replaceNovelContent/deleteNovelContent` |
 | `chapterRichContents` | `@domains/book-content` | book-content, application orchestration, app/debug diagnostics | `chapterRichContentRepository.replaceNovelChapterRichContents/listNovelChapterRichContents/getNovelChapterRichContent/deleteNovelChapterRichContents` |
-| `chapterImages` | `@domains/book-content` | book-content, application orchestration, app/debug diagnostics | `bookContentRepository.getChapterImageBlob/replaceNovelContent/deleteNovelContent` |
+| `chapterImages` | `@domains/book-content` | 书籍内容，应用层编排，调试面板诊断 | `bookContentRepository.getChapterImageBlob/replaceNovelContent/deleteNovelContent` |
 | `novelImageGalleryEntries` | `@domains/book-content` | book-content, application orchestration | `bookContentRepository.listNovelImageGalleryEntries/replaceNovelContent/deleteNovelContent` |
-| `tocRules` | `@domains/settings` | settings | `tocRuleRepository.*` |
+| `tocRules` | `@domains/settings` | 设置 | `tocRuleRepository.*` |
 | `purificationRules` | `@domains/settings` | settings | `purificationRuleRepository.getPurificationRules/getEnabledPurificationRules/*` |
-| `appSettings` | `@domains/settings` | settings, infra/storage | `settings repositories/services`, `primaryStorage.settings.*` |
-| `analysisJobs` | `@domains/analysis` | analysis, application orchestration | `analysisService.getStatus/deleteArtifacts/start/pause/resume/restart/refreshOverview` |
+| `appSettings` | `@domains/settings` | 设置，基础设施/存储 | `设置仓库/服务`, `primaryStorage.settings.*` |
+| `analysisJobs` | `@domains/analysis` | 人工智能分析，应用层编排 | `analysisService.getStatus/deleteArtifacts/start/pause/resume/restart/refreshOverview` |
 | `analysisChunks` | `@domains/analysis` | analysis, application orchestration | `analysisService.*` |
 | `chapterAnalyses` | `@domains/analysis` | analysis, application orchestration | `analysisService.getChapterAnalysis/deleteArtifacts/*` |
 | `analysisOverviews` | `@domains/analysis` | analysis, application orchestration | `analysisService.getOverview/deleteArtifacts/*` |
-| `readingProgress` | `@domains/reader-session` | reader-session, application orchestration | `readReadingProgress/replaceReadingProgress/deleteReadingProgress` |
-| `readerRenderCache` | `@domains/reader-layout-engine` | reader-layout-engine, application orchestration, app/debug diagnostics | `render cache utils`, `deletePersistedReaderRenderCache` |
+| `readingProgress` | `@domains/reader-session` | 阅读器会话，应用层编排 | `readReadingProgress/replaceReadingProgress/deleteReadingProgress` |
+| `readerRenderCache` | `@domains/reader-layout-engine` | 阅读器排版引擎，应用层编排，调试面板诊断 | `排版缓存工具`, `deletePersistedReaderRenderCache` |
 
 ## Data Model Notes
 

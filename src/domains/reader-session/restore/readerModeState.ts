@@ -15,6 +15,25 @@ import {
   toReaderLocatorFromCanonical,
 } from '@shared/utils/readerStoredState';
 
+function areCanonicalPositionsEquivalent(
+  left: StoredReaderState['canonical'],
+  right: StoredReaderState['canonical'],
+): boolean {
+  if (!left || !right) {
+    return false;
+  }
+
+  return left.chapterIndex === right.chapterIndex
+    && left.blockIndex === right.blockIndex
+    && left.kind === right.kind
+    && left.lineIndex === right.lineIndex
+    && left.edge === right.edge
+    && left.startCursor?.segmentIndex === right.startCursor?.segmentIndex
+    && left.startCursor?.graphemeIndex === right.startCursor?.graphemeIndex
+    && left.endCursor?.segmentIndex === right.endCursor?.segmentIndex
+    && left.endCursor?.graphemeIndex === right.endCursor?.graphemeIndex;
+}
+
 export function toRestoreTargetFromState(params: {
   chapterIndex: number;
   mode: ReaderMode;
@@ -79,22 +98,37 @@ export function captureReaderStateSnapshot(params: {
   }
 
   if (params.mode === 'summary') {
+    const nextChapterProgress = params.viewportContentElement
+      ? getContainerProgress(params.viewportContentElement)
+      : nextState.hints?.chapterProgress;
     return mergeStoredReaderState(nextState, {
       hints: {
         ...nextState.hints,
-        chapterProgress: getContainerProgress(params.viewportContentElement),
+        chapterProgress: nextChapterProgress,
       },
     });
   }
 
-  const resolvedScrollProgress = getContainerProgress(params.viewportContentElement);
+  const currentOriginalCanonical = params.currentOriginalLocator
+    ? toCanonicalPositionFromLocator(params.currentOriginalLocator)
+    : undefined;
+  const resolvedScrollProgress = params.viewportContentElement
+    ? getContainerProgress(params.viewportContentElement)
+    : undefined;
+  const shouldPreservePreviousProgress = resolvedScrollProgress === 0
+    && typeof nextState.hints?.chapterProgress === 'number'
+    && nextState.hints.chapterProgress > 0
+    && areCanonicalPositionsEquivalent(nextState.canonical, currentOriginalCanonical);
+  const nextChapterProgress = shouldPreservePreviousProgress
+    ? nextState.hints?.chapterProgress
+    : resolvedScrollProgress ?? nextState.hints?.chapterProgress;
 
   if (params.currentOriginalLocator && !shouldPreferLatestReaderState) {
     return mergeStoredReaderState(nextState, {
       canonical: toCanonicalPositionFromLocator(params.currentOriginalLocator),
       hints: {
         ...nextState.hints,
-        chapterProgress: resolvedScrollProgress,
+        chapterProgress: nextChapterProgress,
         pageIndex: undefined,
       },
     });
@@ -108,7 +142,7 @@ export function captureReaderStateSnapshot(params: {
       },
       hints: {
         ...nextState.hints,
-        chapterProgress: resolvedScrollProgress,
+        chapterProgress: nextChapterProgress,
         pageIndex: undefined,
       },
     });
@@ -126,7 +160,7 @@ export function captureReaderStateSnapshot(params: {
       canonical: params.latestReaderState.canonical,
       hints: {
         ...nextState.hints,
-        chapterProgress: resolvedScrollProgress,
+        chapterProgress: nextChapterProgress,
         pageIndex: undefined,
       },
     });

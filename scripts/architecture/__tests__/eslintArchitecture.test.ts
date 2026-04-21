@@ -82,7 +82,7 @@ describe('buildArchitectureLintConfigs', () => {
                 },
                 {
                   group: ['@domains/*/*', '!@domains/reader-*/*'],
-                  message: '阅读器相关领域不能依赖其他领域内部实现。',
+                  message: '领域层代码不能依赖其他领域的内部实现。',
                 },
               ],
             },
@@ -99,11 +99,11 @@ describe('buildArchitectureLintConfigs', () => {
               patterns: [
                 {
                   group: ['@app/*', '@app/*/*'],
-                  message: 'domain code must not depend on app code.',
+                  message: '领域层代码不能依赖应用层代码。',
                 },
                 {
                   group: ['@application/*', '@application/*/*'],
-                  message: 'domain code must not depend on application code.',
+                  message: '领域层代码不能依赖业务逻辑层代码。',
                 },
                 {
                   group: ['@domains/*'],
