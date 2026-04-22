@@ -20,15 +20,28 @@ import {
   resetDatabaseForRecovery,
 } from '@infra/db';
 import { ANALYSIS_DB_SCHEMA } from '@infra/db/analysis';
-import { LEGACY_LIBRARY_DB_SCHEMA } from '@infra/db/library';
+import { LEGACY_LIBRARY_DB_SCHEMA, LIBRARY_DB_SCHEMA } from '@infra/db/library';
 import { READER_DB_SCHEMA } from '@infra/db/reader';
 import { SETTINGS_DB_SCHEMA } from '@infra/db/settings';
+
+const LEGACY_READER_DB_SCHEMA_V5 = {
+  readingProgress: '++id, novelId',
+  readerRenderCache: READER_DB_SCHEMA.readerRenderCache,
+} as const;
 
 const LEGACY_BASELINE_SCHEMA = {
   ...LEGACY_LIBRARY_DB_SCHEMA,
   ...SETTINGS_DB_SCHEMA,
   ...ANALYSIS_DB_SCHEMA,
-  ...READER_DB_SCHEMA,
+  ...LEGACY_READER_DB_SCHEMA_V5,
+} as const;
+
+const MANAGED_V6_SCHEMA = {
+  ...LIBRARY_DB_SCHEMA,
+  ...SETTINGS_DB_SCHEMA,
+  ...ANALYSIS_DB_SCHEMA,
+  readingProgress: READER_DB_SCHEMA.readingProgress,
+  readerRenderCache: READER_DB_SCHEMA.readerRenderCache,
 } as const;
 
 function createLegacyDatabase(version: number): Promise<void> {
@@ -116,6 +129,42 @@ async function createVersionTwoDatabaseWithPlainNovel(): Promise<void> {
   legacyDb.close();
 }
 
+async function createVersionSixDatabaseWithReaderProgress(): Promise<number> {
+  const legacyDb = new Dexie(PLOTMAPAI_DB_NAME);
+  legacyDb.version(6).stores(MANAGED_V6_SCHEMA);
+  await legacyDb.open();
+
+  const novelId = await legacyDb.table('novels').add({
+    author: '',
+    chapterCount: 1,
+    coverPath: '',
+    createdAt: '2026-04-03T00:00:00.000Z',
+    description: '',
+    fileHash: 'legacy-v5-hash',
+    fileType: 'txt',
+    originalEncoding: 'utf-8',
+    originalFilename: 'legacy-v5.txt',
+    tags: [],
+    title: 'Legacy V5 Novel',
+    totalWords: 100,
+  });
+  await legacyDb.table('readingProgress').add({
+    novelId,
+    canonical: {
+      chapterIndex: 4,
+      edge: 'start',
+    },
+    chapterProgress: 0.55,
+    contentMode: 'paged',
+    viewMode: 'summary',
+    revision: 3,
+    updatedAt: '2026-04-03T00:00:00.000Z',
+  });
+
+  legacyDb.close();
+  return novelId as number;
+}
+
 function readObjectStoreNames(): Promise<string[]> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(PLOTMAPAI_DB_NAME);
@@ -138,10 +187,10 @@ describe('prepareDatabase', () => {
     mockReportAppError.mockReset();
   });
 
-  it('opens the formal v5 baseline schema in a fresh environment', async () => {
+  it('opens the formal v7 baseline schema in a fresh environment', async () => {
     await prepareDatabase();
 
-    expect(db.verno).toBe(5);
+    expect(db.verno).toBe(7);
     expect(db.tables.map((table) => table.name).sort()).toEqual([
       'analysisChunks',
       'analysisJobs',
@@ -155,6 +204,7 @@ describe('prepareDatabase', () => {
       'novelImageGalleryEntries',
       'novels',
       'purificationRules',
+      'readerProgress',
       'readerRenderCache',
       'readingProgress',
       'tocRules',
@@ -171,8 +221,8 @@ describe('prepareDatabase', () => {
     await expect(readObjectStoreNames()).resolves.toContain('legacyStore');
     expect(mockDebugLog).toHaveBeenCalledWith('Storage', 'Database recovery required', expect.objectContaining({
       databaseName: PLOTMAPAI_DB_NAME,
-      expectedNativeVersion: 50,
-      targetVersion: 5,
+      expectedNativeVersion: 70,
+      targetVersion: 7,
     }));
     expect(mockReportAppError).toHaveBeenCalledTimes(1);
   });
@@ -186,9 +236,20 @@ describe('prepareDatabase', () => {
     await resetDatabaseForRecovery();
     await prepareDatabase();
 
-    expect(db.verno).toBe(5);
+    expect(db.verno).toBe(7);
     expect(db.tables.some((table) => table.name === 'legacyStore')).toBe(false);
     expect(db.tables.some((table) => table.name === 'novels')).toBe(true);
+  });
+
+  it('migrates v6 databases to v7 and clears legacy reader progress only', async () => {
+    const novelId = await createVersionSixDatabaseWithReaderProgress();
+
+    await prepareDatabase();
+
+    expect(db.verno).toBe(7);
+    await expect(db.novels.get(novelId)).resolves.toBeDefined();
+    await expect(db.readingProgress.get(novelId)).resolves.toBeUndefined();
+    await expect(db.readerProgress.get(novelId)).resolves.toBeUndefined();
   });
 
   it('requires explicit recovery for legacy v1 databases', async () => {
@@ -199,7 +260,7 @@ describe('prepareDatabase', () => {
       details: expect.objectContaining({
         installedNativeVersion: 10,
         recognizedNativeVersion: false,
-        targetVersion: 5,
+        targetVersion: 7,
       }),
     });
   });
@@ -212,7 +273,7 @@ describe('prepareDatabase', () => {
       details: expect.objectContaining({
         installedNativeVersion: 20,
         recognizedNativeVersion: false,
-        targetVersion: 5,
+        targetVersion: 7,
       }),
     });
   });

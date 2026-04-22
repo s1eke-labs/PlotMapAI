@@ -16,13 +16,11 @@ import {
   hydrateSession,
   markUserInteracted,
   persistStoredReaderState,
-  readInitialStoredReaderState,
   setSessionNovelId,
   useReaderSessionSelector,
 } from '../store/readerSessionStore';
 import type { StoredReaderState } from '@shared/contracts/reader';
 import {
-  buildStoredReaderState,
   clampChapterProgress,
   clampPageIndex,
   createDefaultStoredReaderState,
@@ -36,16 +34,6 @@ interface PersistReaderStateOptions {
 }
 
 export type { PageTarget, ReaderMode, ReaderNavigationIntent, ReaderRestoreTarget, StoredReaderState } from '@shared/contracts/reader';
-
-function buildNovelScopedInitialState(
-  initialStoredState: StoredReaderState | null,
-): StoredReaderState {
-  if (!initialStoredState) {
-    return createDefaultStoredReaderState();
-  }
-
-  return buildStoredReaderState(initialStoredState);
-}
 
 export function useReaderStatePersistence(novelId: number): {
   latestReaderStateRef: React.MutableRefObject<StoredReaderState>;
@@ -84,14 +72,8 @@ export function useReaderStatePersistence(novelId: number): {
     storedState,
   }), [hasUserInteracted, sessionNovelId, storedState]);
 
-  const initialStoredState = useMemo(
-    () => readInitialStoredReaderState(novelId),
-    [novelId],
-  );
-  const novelScopedInitialState = useMemo(
-    () => buildNovelScopedInitialState(initialStoredState),
-    [initialStoredState],
-  );
+  const initialStoredState = null;
+  const novelScopedInitialState = useMemo(() => createDefaultStoredReaderState(), []);
   const isSessionNovelAligned = !novelId || snapshot.novelId === novelId;
   const canPersistForCurrentNovel =
     !novelId || snapshot.novelId === novelId || snapshot.novelId === 0;

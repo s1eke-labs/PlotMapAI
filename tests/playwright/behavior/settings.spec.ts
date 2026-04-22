@@ -3,8 +3,8 @@ import { expect, test } from '@playwright/test';
 import { navigateToSettings } from '../helpers/appHarness';
 import { assertTabPanelVisible, switchTab } from '../helpers/settingsHarness';
 
-test.describe('settings behavior', () => {
-  test('three tabs are present and switchable', async ({ page }) => {
+test.describe('设置页行为', () => {
+  test('三个标签页均存在且可切换', async ({ page }) => {
     await navigateToSettings(page);
 
     await expect(page.getByRole('button', { name: 'Book Parsing Rules' })).toBeVisible();
@@ -12,22 +12,22 @@ test.describe('settings behavior', () => {
     await expect(page.getByRole('button', { name: 'AI Analysis Settings' })).toBeVisible();
   });
 
-  test('TOC tab panel is visible when selected', async ({ page }) => {
+  test('选中目录标签时显示对应面板', async ({ page }) => {
     await navigateToSettings(page);
     await assertTabPanelVisible(page, 'Book Parsing Rules');
   });
 
-  test('Purification tab panel is visible when selected', async ({ page }) => {
+  test('选中文本净化标签时显示对应面板', async ({ page }) => {
     await navigateToSettings(page);
     await assertTabPanelVisible(page, 'Purification Rules');
   });
 
-  test('AI Settings tab panel is visible when selected', async ({ page }) => {
+  test('选中 AI 设置标签时显示对应面板', async ({ page }) => {
     await navigateToSettings(page);
     await assertTabPanelVisible(page, 'AI Analysis Settings');
   });
 
-  test('switching between all tabs works correctly', async ({ page }) => {
+  test('各标签页之间切换正常', async ({ page }) => {
     await navigateToSettings(page);
 
     await switchTab(page, 'Purification Rules');
@@ -40,7 +40,7 @@ test.describe('settings behavior', () => {
     await expect(page.locator('.glass').first()).toBeVisible();
   });
 
-  test('settings page persists across reload', async ({ page }) => {
+  test('刷新后仍保留设置页面状态', async ({ page }) => {
     await navigateToSettings(page);
     await expect(page.getByRole('heading', { level: 1 })).toContainText('Settings');
 

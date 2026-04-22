@@ -7,7 +7,6 @@ import { resetReaderPreferenceStoreForTests } from '@shared/stores/readerPrefere
 import { createRestoreTargetFromPersistedState } from '@shared/utils/readerPosition';
 import { resolvePersistedReaderMode, resolveLastContentMode } from '@shared/utils/readerMode';
 import type {
-  PersistedReadingProgress,
   ReaderLifecycleEvent,
   ReaderMode,
   ReaderRestoreResult,
@@ -16,7 +15,6 @@ import type {
   ReaderSessionState,
   StoredReaderState,
 } from '@shared/contracts/reader';
-import { clearReaderBootstrapSnapshot } from '@infra/storage/readerStateCache';
 import {
   buildStoredReaderState,
   clampChapterProgress,
@@ -25,12 +23,19 @@ import {
   mergeStoredReaderState,
   toReaderLocatorFromCanonical,
 } from '@shared/utils/readerStoredState';
-import { readPersistedReadingProgress, replaceReadingProgress } from '../persistence/repository';
+import {
+  type PersistedReaderProgressSnapshot,
+  createReaderProgressSnapshotFromSessionState,
+  getReaderProgressSnapshotFingerprint,
+  readReaderProgressSnapshot,
+  replaceReaderProgressSnapshot,
+  toStoredReaderStateFromPersistedReaderProgress,
+} from '../progress-core';
 import { reduceReaderLifecycleState } from './lifecycleStateMachine';
 import { writeReaderLifecycleDebugSnapshot } from '../debug/readerLifecycleDebugSnapshot';
 import { debugLog, setDebugSnapshot } from '@shared/debug';
 import {
-  createInitialReaderSessionState, getReaderSessionProgressFingerprint, readLocalSessionState,
+  createInitialReaderSessionState,
   shouldMaskRestore, toPersistenceFailure, toStoredReaderState,
 } from '../persistence/sessionPersistenceHelpers';
 
@@ -122,17 +127,16 @@ async function persistRemoteReaderSession(state: ReaderSessionInternalState): Pr
     return;
   }
 
-  const snapshot = getReaderSessionProgressFingerprint(state);
+  const snapshot = getReaderProgressSnapshotFingerprint(state);
   if (snapshot === lastSyncedRemoteSnapshot) {
     return;
   }
 
-  const persistedProgress = await replaceReadingProgress(novelId, toStoredReaderState(state));
-  setLastSyncedRemoteSnapshot(
-    persistedProgress
-      ? getReaderSessionProgressFingerprint(persistedProgress.state)
-      : 'null',
+  const persistedProgress = await replaceReaderProgressSnapshot(
+    novelId,
+    createReaderProgressSnapshotFromSessionState(state),
   );
+  setLastSyncedRemoteSnapshot(getReaderProgressSnapshotFingerprint(persistedProgress));
 }
 
 const readerSessionRuntime = createPersistedRuntime<ReaderSessionInternalState>({
@@ -226,11 +230,11 @@ export async function hydrateSession(
     lastPersistenceFailure: null,
   });
 
-  let persistedProgress: PersistedReadingProgress | null = null;
+  let persistedProgress: PersistedReaderProgressSnapshot | null = null;
   try {
-    persistedProgress = await readPersistedReadingProgress(novelId);
+    persistedProgress = await readReaderProgressSnapshot(novelId);
     if (persistedProgress) {
-      setLastSyncedRemoteSnapshot(getReaderSessionProgressFingerprint(persistedProgress));
+      setLastSyncedRemoteSnapshot(getReaderProgressSnapshotFingerprint(persistedProgress));
     } else {
       setLastSyncedRemoteSnapshot('null');
     }
@@ -253,14 +257,18 @@ export async function hydrateSession(
   }
 
   if (epochAtStart !== sessionHydrationEpoch) {
-    return buildStoredReaderState(persistedProgress?.state ?? initialStoredState);
+    return buildStoredReaderState(
+      persistedProgress
+        ? toStoredReaderStateFromPersistedReaderProgress(persistedProgress)
+        : initialStoredState,
+    );
   }
 
-  if (!persistedProgress) {
-    clearReaderBootstrapSnapshot(novelId);
-  }
-
-  const baseState = buildStoredReaderState(persistedProgress?.state ?? initialStoredState);
+  const baseState = buildStoredReaderState(
+    persistedProgress
+      ? toStoredReaderStateFromPersistedReaderProgress(persistedProgress)
+      : initialStoredState,
+  );
   const resolvedPageTurnMode = options.pageTurnMode ?? 'scroll';
   const resolvedMode = resolvePersistedReaderMode(baseState, {
     pageTurnMode: resolvedPageTurnMode,
@@ -448,11 +456,6 @@ export function getReaderSessionSnapshot(): ReaderSessionSnapshot {
 
 export function getStoredReaderStateSnapshot(): StoredReaderState {
   return toStoredReaderState(readerSessionStore.getState());
-}
-
-export function readInitialStoredReaderState(novelId: number): StoredReaderState | null {
-  const localState = readLocalSessionState(novelId);
-  return localState ? buildStoredReaderState(localState) : null;
 }
 
 export function persistStoredReaderState(

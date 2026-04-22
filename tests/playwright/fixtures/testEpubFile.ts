@@ -34,6 +34,22 @@ export const MULTI_CHAPTER_BOOK_CHAPTER_TITLES = [
   'Third Passage',
 ] as const;
 
+interface LongTestEpubOptions {
+  chapterTitle?: string;
+  fileName?: string;
+  paragraphCount?: number;
+  paragraphPrefix?: string;
+  title?: string;
+}
+
+interface MultiChapterTestEpubOptions {
+  chapterTitles?: readonly string[];
+  fileName?: string;
+  paragraphCount?: number;
+  paragraphPrefix?: string;
+  title?: string;
+}
+
 export async function buildTestEpubFile(): Promise<TestFilePayload> {
   const title = TEST_BOOK_TITLE;
   const chapterTitle = TEST_BOOK_CHAPTER_TITLE;
@@ -47,29 +63,46 @@ export async function buildTestEpubFile(): Promise<TestFilePayload> {
   return buildEpub(title, [{ id: 'chapter-1', title: chapterTitle, bodyHtml }], 'smoke-test.epub');
 }
 
-export async function buildLongTestEpubFile(): Promise<TestFilePayload> {
-  const title = LONG_BOOK_TITLE;
-  const chapterTitle = LONG_BOOK_CHAPTER_TITLE;
+export async function buildLongTestEpubFile(
+  options: LongTestEpubOptions = {},
+): Promise<TestFilePayload> {
+  const title = options.title ?? LONG_BOOK_TITLE;
+  const chapterTitle = options.chapterTitle ?? LONG_BOOK_CHAPTER_TITLE;
   const bodyHtml = [
     `<h1>${chapterTitle}</h1>`,
-    createParagraphSeries('The corridor stretched further than any map admitted', 60),
+    createParagraphSeries(
+      options.paragraphPrefix ?? 'The corridor stretched further than any map admitted',
+      options.paragraphCount ?? 60,
+    ),
   ].join('\n');
 
-  return buildEpub(title, [{ id: 'chapter-1', title: chapterTitle, bodyHtml }], 'long-scroll.epub');
+  return buildEpub(
+    title,
+    [{ id: 'chapter-1', title: chapterTitle, bodyHtml }],
+    options.fileName ?? 'long-scroll.epub',
+  );
 }
 
-export async function buildMultiChapterTestEpubFile(): Promise<TestFilePayload> {
-  const title = MULTI_CHAPTER_BOOK_TITLE;
-  const chapters = MULTI_CHAPTER_BOOK_CHAPTER_TITLES.map((chapterTitle, index) => ({
+export async function buildMultiChapterTestEpubFile(
+  options: MultiChapterTestEpubOptions = {},
+): Promise<TestFilePayload> {
+  const title = options.title ?? MULTI_CHAPTER_BOOK_TITLE;
+  const chapterTitles = options.chapterTitles ?? MULTI_CHAPTER_BOOK_CHAPTER_TITLES;
+  const chapters = chapterTitles.map((chapterTitle, index) => ({
     id: `chapter-${index + 1}`,
     title: chapterTitle,
     bodyHtml: [
       `<h1>${chapterTitle}</h1>`,
-      createParagraphSeries(`Passage ${index + 1} unfolded across the landscape`, 30),
+      createParagraphSeries(
+        options.paragraphPrefix
+          ? `${options.paragraphPrefix} ${index + 1}`
+          : `Passage ${index + 1} unfolded across the landscape`,
+        options.paragraphCount ?? 30,
+      ),
     ].join('\n'),
   }));
 
-  return buildEpub(title, chapters, 'multi-chapter.epub');
+  return buildEpub(title, chapters, options.fileName ?? 'multi-chapter.epub');
 }
 
 export function buildTestTxtFile(): TestFilePayload {

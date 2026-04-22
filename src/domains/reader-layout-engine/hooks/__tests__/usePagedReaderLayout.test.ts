@@ -518,6 +518,88 @@ describe('usePagedReaderLayout', () => {
     expect(notifyRestoreSettled).toHaveBeenCalledWith('completed');
   });
 
+  it('waits for a stable paged layout before restoring an explicit page index that exceeds the provisional page count', async () => {
+    const animationFrames = createAnimationFrameController();
+    const viewport = createViewport(600, 800);
+    const content = createContent(() => 1896);
+    const setPageCount = vi.fn();
+    const setPageIndex = vi.fn();
+    const notifyRestoreSettled = vi.fn();
+    const stopRestoreMask = vi.fn();
+    const pendingRestoreTarget = {
+      chapterIndex: 0,
+      mode: 'paged' as const,
+      locator: {
+        blockIndex: 6,
+        chapterIndex: 0,
+        kind: 'text' as const,
+        pageIndex: 3,
+      },
+    };
+    const pendingRestoreTargetRef = { current: pendingRestoreTarget as ReaderRestoreTarget | null };
+    const clearPendingRestoreTarget = vi.fn(() => {
+      pendingRestoreTargetRef.current = null;
+    });
+
+    const { rerender } = renderHook(
+      (props: ReturnType<typeof createHookProps>) => usePagedReaderLayout(props),
+      {
+        initialProps: {
+          ...createHookProps({
+            currentPagedLayout: createPagedLayout(1),
+            pagedViewportElement: null,
+            pagedContentElement: null,
+            pendingRestoreTarget: null,
+            setPageCount,
+            setPageIndex,
+            notifyRestoreSettled,
+          }),
+          pendingRestoreTargetRef,
+          clearPendingRestoreTarget,
+          stopRestoreMask,
+        },
+      },
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(setPageCount).toHaveBeenLastCalledWith(1);
+    expect(setPageIndex).not.toHaveBeenCalled();
+    expect(clearPendingRestoreTarget).not.toHaveBeenCalled();
+    expect(stopRestoreMask).not.toHaveBeenCalled();
+    expect(notifyRestoreSettled).not.toHaveBeenCalled();
+
+    act(() => {
+      rerender({
+        ...createHookProps({
+          currentPagedLayout: createPagedLayout(11),
+          pagedViewportElement: viewport,
+          pagedContentElement: content,
+          pendingRestoreTarget: null,
+          setPageCount,
+          setPageIndex,
+          notifyRestoreSettled,
+        }),
+        pendingRestoreTargetRef,
+        clearPendingRestoreTarget,
+        stopRestoreMask,
+      });
+    });
+
+    await animationFrames.flushAnimationFrames();
+
+    await waitFor(() => {
+      expect(setPageIndex).toHaveBeenCalledWith(3);
+    });
+    expect(clearPendingRestoreTarget).toHaveBeenCalledTimes(1);
+    expect(stopRestoreMask).toHaveBeenCalledTimes(1);
+    expect(notifyRestoreSettled).toHaveBeenCalledWith('completed');
+
+    animationFrames.restore();
+  });
+
   it('waits for paged viewport measurement before restoring locator-only targets', async () => {
     const animationFrames = createAnimationFrameController();
     const targetLocator: ReaderLocator = {

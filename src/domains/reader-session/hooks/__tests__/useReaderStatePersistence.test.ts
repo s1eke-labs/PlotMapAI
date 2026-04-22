@@ -2,31 +2,14 @@ import { act, renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { db } from '@infra/db';
-import {
-  CACHE_KEYS,
-  storage,
-} from '@infra/storage';
-import {
-  readReaderBootstrapSnapshot,
-  writeReaderBootstrapSnapshot,
-} from '@infra/storage/readerStateCache';
 import { createReaderContextWrapper } from '@test/readerRuntimeTestUtils';
-import type { StoredReaderState } from '@shared/contracts/reader';
 
-import { replaceReadingProgress } from '../../persistence/repository';
+import {
+  readReaderProgressSnapshot,
+  replaceReaderProgressSnapshot,
+} from '../../progress-core/repository';
 import { resetReaderSessionStoreForTests } from '../../store/readerSessionStore';
 import { useReaderStatePersistence } from '../useReaderStatePersistence';
-
-function seedReaderBootstrapSnapshot(
-  novelId: number,
-  state: StoredReaderState,
-): void {
-  writeReaderBootstrapSnapshot(novelId, {
-    revision: 1,
-    state,
-    updatedAt: '2026-04-12T00:00:00.000Z',
-  });
-}
 
 const { Wrapper } = createReaderContextWrapper();
 
@@ -52,71 +35,6 @@ describe('useReaderStatePersistence', () => {
       hints: undefined,
     });
     expect(result.current.hasUserInteractedRef.current).toBe(false);
-  });
-
-  it('reads stored state from localStorage', () => {
-    seedReaderBootstrapSnapshot(42, {
-      canonical: {
-        chapterIndex: 5,
-        edge: 'start',
-      },
-      hints: {
-        contentMode: 'paged',
-      },
-    });
-
-    const { result } = renderHook(() => useReaderStatePersistence(42), {
-      wrapper: Wrapper,
-    });
-
-    expect(result.current.initialStoredState).toEqual({
-      canonical: {
-        chapterIndex: 5,
-        edge: 'start',
-      },
-      hints: {
-        contentMode: 'paged',
-      },
-    });
-    expect(result.current.latestReaderStateRef.current).toEqual({
-      canonical: {
-        chapterIndex: 5,
-        edge: 'start',
-      },
-      hints: {
-        contentMode: 'paged',
-      },
-    });
-  });
-
-  it('sanitizes an invalid bootstrap snapshot to defaults', () => {
-    storage.cache.set(CACHE_KEYS.readerBootstrap(1), {
-      version: 2,
-      state: {
-        canonical: {
-          chapterIndex: 'not-a-number',
-        },
-      },
-    });
-
-    const { result } = renderHook(() => useReaderStatePersistence(1), {
-      wrapper: Wrapper,
-    });
-
-    expect(result.current.initialStoredState).toEqual({
-      canonical: {
-        chapterIndex: 0,
-        edge: 'start',
-      },
-      hints: undefined,
-    });
-    expect(result.current.latestReaderStateRef.current).toEqual({
-      canonical: {
-        chapterIndex: 0,
-        edge: 'start',
-      },
-      hints: undefined,
-    });
   });
 
   it('persists state and merges partial updates', async () => {
@@ -162,33 +80,46 @@ describe('useReaderStatePersistence', () => {
       await result.current.flushReaderState();
     });
 
-    expect(readReaderBootstrapSnapshot(1)?.progress.state).toEqual({
-      canonical: {
-        chapterIndex: 7,
-        edge: 'start',
+    await expect(readReaderProgressSnapshot(1)).resolves.toEqual({
+      novelId: 1,
+      revision: 1,
+      snapshot: {
+        mode: 'scroll',
+        activeChapterIndex: 7,
+        position: {
+          type: 'chapter-edge',
+          chapterIndex: 7,
+          edge: 'start',
+        },
+        projections: undefined,
+        captureQuality: 'approximate',
       },
-      hints: {
-        chapterProgress: undefined,
-        contentMode: 'scroll',
-        pageIndex: undefined,
-        viewMode: 'original',
-      },
+      updatedAt: expect.any(String),
     });
   });
 
-  it('restores summary view and paged position hints from durable progress', async () => {
-    await replaceReadingProgress(1, {
-      canonical: {
-        chapterIndex: 5,
-        blockIndex: 2,
-        kind: 'text',
+  it('restores paged position hints from durable reader progress', async () => {
+    await replaceReaderProgressSnapshot(1, {
+      mode: 'paged',
+      activeChapterIndex: 5,
+      position: {
+        type: 'locator',
+        locator: {
+          chapterIndex: 5,
+          blockIndex: 2,
+          kind: 'text',
+          pageIndex: 8,
+        },
       },
-      hints: {
-        chapterProgress: 0.55,
-        contentMode: 'paged',
-        pageIndex: 8,
-        viewMode: 'summary',
+      projections: {
+        paged: {
+          pageIndex: 8,
+        },
+        scroll: {
+          chapterProgress: 0.55,
+        },
       },
+      captureQuality: 'precise',
     });
 
     const { result } = renderHook(() => useReaderStatePersistence(1), {
@@ -210,7 +141,7 @@ describe('useReaderStatePersistence', () => {
         chapterProgress: 0.55,
         contentMode: 'paged',
         pageIndex: 8,
-        viewMode: 'summary',
+        viewMode: 'original',
       },
     });
   });
@@ -231,22 +162,13 @@ describe('useReaderStatePersistence', () => {
     expect(runBeforeFlush).toHaveBeenCalledTimes(1);
   });
 
-  it('drops legacy Dexie rows and falls back to default state during hydration', async () => {
-    seedReaderBootstrapSnapshot(1, {
-      canonical: {
-        chapterIndex: 4,
-        edge: 'start',
-      },
-      hints: {
-        chapterProgress: 0.75,
-        contentMode: 'paged',
-      },
-    });
-    await db.readingProgress.add({
+  it('drops malformed Dexie rows and falls back to default state during hydration', async () => {
+    await db.readerProgress.put({
       novelId: 1,
-      chapterIndex: 2,
-      mode: 'summary',
-      chapterProgress: 0.2,
+      mode: 'scroll',
+      activeChapterIndex: 0,
+      position: undefined as never,
+      captureQuality: 'approximate',
       updatedAt: new Date().toISOString(),
     });
 
@@ -271,45 +193,10 @@ describe('useReaderStatePersistence', () => {
         viewMode: 'original',
       },
     });
-    await expect(db.readingProgress.where('novelId').equals(1).first()).resolves.toBeUndefined();
-    expect(readReaderBootstrapSnapshot(1)).toBeNull();
-  });
-
-  it('treats the canonical chapter as authoritative for initial stored state', () => {
-    seedReaderBootstrapSnapshot(1, {
-      canonical: {
-        chapterIndex: 8,
-        blockIndex: 3,
-        kind: 'text',
-        lineIndex: 1,
-      },
-    });
-
-    const { result } = renderHook(() => useReaderStatePersistence(1), {
-      wrapper: Wrapper,
-    });
-
-    expect(result.current.initialStoredState).toEqual({
-      canonical: {
-        chapterIndex: 8,
-        blockIndex: 3,
-        kind: 'text',
-        lineIndex: 1,
-      },
-      hints: undefined,
-    });
+    await expect(db.readerProgress.get(1)).resolves.toBeUndefined();
   });
 
   it('replaces a detailed canonical locator when a chapter boundary is persisted', async () => {
-    seedReaderBootstrapSnapshot(1, {
-      canonical: {
-        chapterIndex: 0,
-        blockIndex: 3,
-        kind: 'text',
-        lineIndex: 1,
-      },
-    });
-
     const { result } = renderHook(() => useReaderStatePersistence(1), {
       wrapper: Wrapper,
     });
@@ -340,17 +227,21 @@ describe('useReaderStatePersistence', () => {
       await result.current.flushReaderState();
     });
 
-    expect(readReaderBootstrapSnapshot(1)?.progress.state).toEqual({
-      canonical: {
-        chapterIndex: 1,
-        edge: 'start',
+    await expect(readReaderProgressSnapshot(1)).resolves.toEqual({
+      novelId: 1,
+      revision: 1,
+      snapshot: {
+        mode: 'scroll',
+        activeChapterIndex: 1,
+        position: {
+          type: 'chapter-edge',
+          chapterIndex: 1,
+          edge: 'start',
+        },
+        projections: undefined,
+        captureQuality: 'approximate',
       },
-      hints: {
-        chapterProgress: undefined,
-        contentMode: 'scroll',
-        pageIndex: undefined,
-        viewMode: 'original',
-      },
+      updatedAt: expect.any(String),
     });
   });
 
@@ -368,7 +259,7 @@ describe('useReaderStatePersistence', () => {
     expect(result.current.hasUserInteractedRef.current).toBe(true);
   });
 
-  it('does not write cache for novelId 0', () => {
+  it('does not write cache for novelId 0', async () => {
     const { result } = renderHook(() => useReaderStatePersistence(0), {
       wrapper: Wrapper,
     });
@@ -382,7 +273,7 @@ describe('useReaderStatePersistence', () => {
       });
     });
 
-    expect(readReaderBootstrapSnapshot(0)).toBeNull();
+    await expect(readReaderProgressSnapshot(0)).resolves.toBeNull();
   });
 
   it('does not carry the previous novel state into a new novel before hydration', async () => {
@@ -407,17 +298,26 @@ describe('useReaderStatePersistence', () => {
       await result.current.flushReaderState();
     });
 
-    expect(readReaderBootstrapSnapshot(1)?.progress.state).toEqual({
-      canonical: {
-        chapterIndex: 3,
-        edge: 'start',
+    await expect(readReaderProgressSnapshot(1)).resolves.toEqual({
+      novelId: 1,
+      revision: 1,
+      snapshot: {
+        mode: 'scroll',
+        activeChapterIndex: 3,
+        position: {
+          type: 'chapter-edge',
+          chapterIndex: 3,
+          edge: 'start',
+        },
+        projections: {
+          paged: undefined,
+          scroll: {
+            chapterProgress: 0.65,
+          },
+        },
+        captureQuality: 'approximate',
       },
-      hints: {
-        chapterProgress: 0.65,
-        contentMode: 'scroll',
-        pageIndex: undefined,
-        viewMode: 'original',
-      },
+      updatedAt: expect.any(String),
     });
 
     act(() => {
@@ -442,6 +342,6 @@ describe('useReaderStatePersistence', () => {
       });
     });
 
-    expect(readReaderBootstrapSnapshot(2)).toBeNull();
+    await expect(readReaderProgressSnapshot(2)).resolves.toBeNull();
   });
 });

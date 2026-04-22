@@ -82,10 +82,10 @@ async function readTraceDump(page: Page) {
   }));
 }
 
-test.describe('reader trace manual repro', () => {
-  test.skip(!MANUAL_TRACE_FLAG, 'Set PLAYWRIGHT_MANUAL_READER_TRACE=1 to run this manual repro.');
+test.describe('阅读追踪手工复现', () => {
+  test.skip(!MANUAL_TRACE_FLAG, '设置 PLAYWRIGHT_MANUAL_READER_TRACE=1 以运行此手工复现。');
 
-  test('captures a trace artifact when paged and scroll branches diverge', async ({ page }, testInfo) => {
+  test('当翻页与滚动分支不一致时捕获追踪产物', async ({ page }, testInfo) => {
     await importFixtureToDetailPage(page, 'pagedRich');
     await openReaderFromDetailPage(page);
     await enableReaderTrace(page);

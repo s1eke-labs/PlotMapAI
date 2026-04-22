@@ -27,6 +27,7 @@ export default defineConfig([
     files: [
       'playwright.config.ts',
       'playwright.manual.config.ts',
+      'playwright.no-server.config.ts',
       'tests/playwright/**/*.ts',
     ],
     languageOptions: {

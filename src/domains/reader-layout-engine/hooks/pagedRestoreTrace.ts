@@ -72,6 +72,16 @@ export function resolveTracePagedRestoreTargetPage(params: {
 
 export function canAttemptPagedRestoreWithoutViewportMeasurement(
   pendingRestoreTarget: ReaderRestoreTarget,
+  nextPageCount?: number,
 ): boolean {
-  return typeof pendingRestoreTarget.locator?.pageIndex === 'number';
+  const targetPageIndex = pendingRestoreTarget.locator?.pageIndex;
+  if (typeof targetPageIndex !== 'number') {
+    return false;
+  }
+
+  if (typeof nextPageCount !== 'number') {
+    return true;
+  }
+
+  return targetPageIndex < nextPageCount;
 }

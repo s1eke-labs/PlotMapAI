@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 
 import type {
   ReaderMode,
@@ -11,10 +11,8 @@ import type { AppError } from '@shared/errors';
 
 import { AppErrorCode, createAppError } from '@shared/errors';
 import {
-  debugFeatureSubscribe,
   getDebugSnapshot,
   debugLog,
-  getDebugFeatureFlags,
   setDebugSnapshot,
 } from '@shared/debug';
 
@@ -142,9 +140,7 @@ export interface UseReaderStrictModeSwitchResult {
 
 export function useReaderStrictModeSwitch(): UseReaderStrictModeSwitchResult {
   const [modeSwitchError, setModeSwitchError] = useState<AppError | null>(null);
-  const [strictModeSwitchEnabled, setStrictModeSwitchEnabled] = useState(
-    () => getDebugFeatureFlags().readerStrictModeSwitch,
-  );
+  const strictModeSwitchEnabled = true;
   const modeSwitchTransactionRef = useRef<ModeSwitchTransaction | null>(null);
   const pendingBufferedRestoreSettledResultRef = useRef<RestoreSettledResult | null>(null);
   const pendingTransactionPromiseRef = useRef<{
@@ -153,12 +149,6 @@ export function useReaderStrictModeSwitch(): UseReaderStrictModeSwitchResult {
     resolve: () => void;
   } | null>(null);
   const restoreTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    return debugFeatureSubscribe((featureFlags) => {
-      setStrictModeSwitchEnabled(featureFlags.readerStrictModeSwitch);
-    });
-  }, []);
 
   const clearModeSwitchError = useCallback(() => {
     setModeSwitchError(null);

@@ -86,8 +86,6 @@ vi.mock('react-i18next', () => ({
         'debug.workspace.diagnostics.hideJson': 'Hide JSON',
         'debug.workspace.tools.featuresTitle': 'Feature Flags',
         'debug.workspace.tools.actionsTitle': 'Quick Actions',
-        'debug.features.readerStrictModeSwitch.label': 'Strict Mode Switch',
-        'debug.features.readerStrictModeSwitch.description': 'Disable paged/scroll mode-switch fallbacks and stop on failure',
         'debug.features.readerTelemetry.label': 'Reader Telemetry',
         'debug.features.readerTelemetry.description': 'Verbose reader layout snapshots and preheat source logs',
         'debug.actions.goBack': 'Go Back',
@@ -143,11 +141,9 @@ const debugTest = vi.hoisted(() => {
     | ((entries: Array<{ key: string; time: number; value: unknown }>) => void)
     | null = null;
   let featureFlags = {
-    readerStrictModeSwitch: false,
     readerTelemetry: false,
   };
   let featureSubscriber: ((flags: {
-    readerStrictModeSwitch: boolean;
     readerTelemetry: boolean;
   }) => void) | null = null;
 
@@ -161,7 +157,7 @@ const debugTest = vi.hoisted(() => {
     }),
     getFeatureFlags: vi.fn(() => ({ ...featureFlags })),
     getSnapshots: vi.fn(() => [...snapshots]),
-    setDebugFeatureEnabled: vi.fn((flag: 'readerStrictModeSwitch' | 'readerTelemetry', enabled: boolean) => {
+    setDebugFeatureEnabled: vi.fn((flag: 'readerTelemetry', enabled: boolean) => {
       featureFlags = {
         ...featureFlags,
         [flag]: enabled,
@@ -195,7 +191,6 @@ const debugTest = vi.hoisted(() => {
       };
     },
     subscribeFeatures(callback: (flags: {
-      readerStrictModeSwitch: boolean;
       readerTelemetry: boolean;
     }) => void) {
       featureSubscriber = callback;
@@ -219,7 +214,6 @@ const debugTest = vi.hoisted(() => {
       logs = [];
       snapshots = [];
       featureFlags = {
-        readerStrictModeSwitch: false,
         readerTelemetry: false,
       };
       subscriber = null;
@@ -490,12 +484,6 @@ describe('DebugPanel', () => {
     await user.click(screen.getByRole('tab', { name: 'Tools' }));
     expect(screen.getByText('Feature Flags')).toBeInTheDocument();
 
-    const [strictModeToggle] = screen.getAllByRole('switch');
-    expect(strictModeToggle).toHaveAttribute('aria-checked', 'false');
-    await user.click(strictModeToggle);
-
-    expect(debugTest.setDebugFeatureEnabled).toHaveBeenCalledWith('readerStrictModeSwitch', true);
-
     await user.click(screen.getByRole('tab', { name: 'Logs' }));
     expect(screen.getByText('live log')).toBeInTheDocument();
   });
@@ -507,28 +495,12 @@ describe('DebugPanel', () => {
     await user.click(screen.getByTitle('Debug Panel'));
     await user.click(screen.getByRole('tab', { name: 'Tools' }));
 
-    const [, telemetryToggle] = screen.getAllByRole('switch');
+    const [telemetryToggle] = screen.getAllByRole('switch');
     expect(telemetryToggle).toHaveAttribute('aria-checked', 'false');
 
     await user.click(telemetryToggle);
 
     expect(debugTest.setDebugFeatureEnabled).toHaveBeenCalledWith('readerTelemetry', true);
     expect(telemetryToggle).toHaveAttribute('aria-checked', 'true');
-  });
-
-  it('renders strict mode-switch toggle disabled by default and wires it to the debug feature flag', async () => {
-    const user = userEvent.setup();
-
-    render(<DebugPanel />);
-    await user.click(screen.getByTitle('Debug Panel'));
-    await user.click(screen.getByRole('tab', { name: 'Tools' }));
-
-    const [strictModeToggle] = screen.getAllByRole('switch');
-    expect(strictModeToggle).toHaveAttribute('aria-checked', 'false');
-
-    await user.click(strictModeToggle);
-
-    expect(debugTest.setDebugFeatureEnabled).toHaveBeenCalledWith('readerStrictModeSwitch', true);
-    expect(strictModeToggle).toHaveAttribute('aria-checked', 'true');
   });
 });

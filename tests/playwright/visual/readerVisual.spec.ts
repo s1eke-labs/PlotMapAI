@@ -10,15 +10,15 @@ import {
   waitForReaderViewportImages,
 } from '../helpers/readerVisualHarness';
 
-test.describe('reader visual regression', () => {
-  test('renders the rich scroll viewport baseline', async ({ page }) => {
+test.describe('阅读器视觉回归', () => {
+  test('富文本滚动视口基线渲染正确', async ({ page }) => {
     await importFixtureToDetailPage(page, 'scrollRich');
     await openReaderFromDetailPage(page);
 
     await expect(page.getByTestId('reader-viewport')).toHaveScreenshot('01-scroll-rich-viewport.png');
   });
 
-  test('renders the paged reader baseline in slide mode', async ({ page }) => {
+  test('滑动翻页模式的阅读器基线渲染正确', async ({ page }) => {
     await importFixtureToDetailPage(page, 'pagedRich');
     await openReaderFromDetailPage(page);
     await setPageTurnMode(page, 'Slide');
@@ -26,7 +26,7 @@ test.describe('reader visual regression', () => {
     await expect(page.getByTestId('paged-reader-interactive')).toHaveScreenshot('02-paged-slide-viewport.png');
   });
 
-  test('renders the image viewer overlay baseline', async ({ page }) => {
+  test('图片查看器遮罩层基线渲染正确', async ({ page }) => {
     await importFixtureToDetailPage(page, 'imageViewer');
     await openReaderFromDetailPage(page);
     await waitForReaderViewportImages(page);
@@ -36,7 +36,7 @@ test.describe('reader visual regression', () => {
     await expect(page).toHaveScreenshot('03-image-viewer-overlay.png');
   });
 
-  test('renders summary-shell with seeded chapter analysis', async ({ page }) => {
+  test('预置章节分析数据时摘要视图基线渲染正确', async ({ page }) => {
     const { novelId } = await importFixtureToDetailPage(page, 'analysisLinked');
     await openReaderFromDetailPage(page);
     await seedChapterAnalysis(page, {
@@ -53,14 +53,14 @@ test.describe('reader visual regression', () => {
     await expect(page.getByTestId('reader-viewport')).toHaveScreenshot('08-summary-shell-analysis.png');
   });
 
-  test('renders imported hr, internal links, and simple tables through the reader flow', async ({ page }) => {
+  test('通过阅读流程正确渲染导入的分隔线、内部链接和简单表格', async ({ page }) => {
     await importFixtureToDetailPage(page, 'linkedStructures');
     await openReaderFromDetailPage(page);
 
     await expect(page.getByTestId('reader-viewport')).toHaveScreenshot('09-structured-rich-viewport.png');
   });
 
-  test('renders multi-image chapters with stable gallery spacing', async ({ page }) => {
+  test('多图片章节的画廊间距渲染稳定', async ({ page }) => {
     await importFixtureToDetailPage(page, 'multiImage');
     await openReaderFromDetailPage(page);
     await waitForReaderViewportImages(page, 2);
@@ -68,7 +68,7 @@ test.describe('reader visual regression', () => {
     await expect(page.getByTestId('reader-viewport')).toHaveScreenshot('10-multi-image-viewport.png');
   });
 
-  test('renders the paper-theme semantic showcase above the fold in scroll mode', async ({ page }) => {
+  test('滚动模式下纸张主题首屏语义展示渲染正确', async ({ page }) => {
     await importFixtureToDetailPage(page, 'semanticShowcase');
     await setReaderPreferences(page, {
       fontSize: 16,
@@ -83,7 +83,7 @@ test.describe('reader visual regression', () => {
     await expect(page.getByTestId('reader-viewport')).toHaveScreenshot('11-scroll-paper-semantic-top.png');
   });
 
-  test('renders poem blocks in paged night theme through the standard rich-content pipeline', async ({ page }) => {
+  test('夜间翻页主题下诗歌块通过标准富文本管线渲染正确', async ({ page }) => {
     const { novelId } = await importFixtureToDetailPage(page, 'analysisLinked');
     await seedChapterRichContent(page, {
       novelId,

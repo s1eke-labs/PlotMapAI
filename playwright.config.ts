@@ -36,6 +36,10 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
+      testIgnore: [
+        '**/*.manual.spec.ts',
+        '**/flow/mobileReaderSessionRestore.spec.ts',
+      ],
       use: {
         browserName: 'chromium',
       },

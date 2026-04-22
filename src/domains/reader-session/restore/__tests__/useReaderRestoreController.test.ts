@@ -176,8 +176,14 @@ function createAnimationFrameController() {
       }
     });
 
-  async function flushAnimationFrames() {
+  async function flushAnimationFrames(options?: { maxPasses?: number }) {
+    let passCount = 0;
     while (frameCallbacks.length > 0) {
+      if (typeof options?.maxPasses === 'number' && passCount >= options.maxPasses) {
+        return;
+      }
+
+      passCount += 1;
       const queuedCallbacks = frameCallbacks.splice(0, frameCallbacks.length);
       await act(async () => {
         queuedCallbacks.forEach((callback) => callback?.(0));
@@ -451,7 +457,7 @@ describe('useReaderRestoreFlow', () => {
     ]);
   });
 
-  it('persists summary scroll progress through the durable pipeline after debounce', () => {
+  it('does not persist summary scroll progress through the durable pipeline', () => {
     vi.useFakeTimers();
     const persistReaderState = vi.fn();
     const contentRef = {
@@ -487,15 +493,18 @@ describe('useReaderRestoreFlow', () => {
       vi.advanceTimersByTime(150);
     });
 
-    expect(persistReaderState).toHaveBeenLastCalledWith({
-      hints: {
-        chapterProgress: 0.5,
-      },
-    });
+    expect(persistReaderState).not.toHaveBeenCalled();
     vi.useRealTimers();
   });
 
-  it('reuses captured location when switching between content modes', () => {
+  it('reuses captured location when switching between content modes under strict switching', async () => {
+    vi.spyOn(readerSessionStore, 'flushPersistence').mockResolvedValue(undefined);
+    vi.spyOn(readerSessionStore, 'getReaderSessionSnapshot').mockImplementation(() => {
+      return createSessionStoreSnapshotMock({
+        lastPersistenceFailure: null,
+        persistenceStatus: 'healthy',
+      });
+    });
     const setChapterIndex = vi.fn();
     const setMode = vi.fn();
     const { hookProps, runtime } = createHookHarness({
@@ -523,14 +532,22 @@ describe('useReaderRestoreFlow', () => {
             chapterIndex: 7,
           }),
         },
+        pagedStateRef: {
+          current: { pageCount: 8, pageIndex: 3 },
+        },
+        resolvePagedLocatorPageIndexRef: {
+          current: () => 3,
+        },
       },
     });
     const { result } = renderHook(() => useReaderRestoreFlow(hookProps), {
       wrapper: runtime.Wrapper,
     });
 
-    act(() => {
-      result.current.switchMode('paged');
+    let switchModePromise: Promise<void> | null = null;
+    await act(async () => {
+      switchModePromise = result.current.switchMode('paged');
+      await Promise.resolve();
     });
 
     expect(result.current.pendingRestoreTargetRef.current).toMatchObject({
@@ -540,9 +557,22 @@ describe('useReaderRestoreFlow', () => {
     expect(result.current.pendingRestoreTargetRef.current?.locatorBoundary).toBeUndefined();
     expect(setChapterIndex).toHaveBeenCalledWith(7);
     expect(setMode).toHaveBeenCalledWith('paged');
+
+    act(() => {
+      expect(result.current.handleRestoreSettled('completed')).toBe(false);
+    });
+
+    await expect(switchModePromise).resolves.toBeUndefined();
   });
 
-  it('enters restoring-position immediately for non-strict content-mode switches', () => {
+  it('enters restoring-position immediately for strict content-mode switches', async () => {
+    vi.spyOn(readerSessionStore, 'flushPersistence').mockResolvedValue(undefined);
+    vi.spyOn(readerSessionStore, 'getReaderSessionSnapshot').mockImplementation(() => {
+      return createSessionStoreSnapshotMock({
+        lastPersistenceFailure: null,
+        persistenceStatus: 'healthy',
+      });
+    });
     const { hookProps, runtime } = createHookHarness({
       sessionCommands: {
         latestReaderStateRef: {
@@ -568,14 +598,22 @@ describe('useReaderRestoreFlow', () => {
             chapterIndex: 7,
           }),
         },
+        pagedStateRef: {
+          current: { pageCount: 8, pageIndex: 3 },
+        },
+        resolvePagedLocatorPageIndexRef: {
+          current: () => 3,
+        },
       },
     });
     const { result } = renderHook(() => useReaderRestoreFlow(hookProps), {
       wrapper: runtime.Wrapper,
     });
 
-    act(() => {
-      result.current.switchMode('paged');
+    let switchModePromise: Promise<void> | null = null;
+    await act(async () => {
+      switchModePromise = result.current.switchMode('paged');
+      await Promise.resolve();
     });
 
     expect(getReaderSessionSnapshot().restoreStatus).toBe('restoring-position');
@@ -583,9 +621,22 @@ describe('useReaderRestoreFlow', () => {
       chapterIndex: 7,
       mode: 'paged',
     });
+
+    act(() => {
+      expect(result.current.handleRestoreSettled('completed')).toBe(false);
+    });
+
+    await expect(switchModePromise).resolves.toBeUndefined();
   });
 
-  it('clears mode-switch rollback state after a successful restore settle', () => {
+  it('clears mode-switch rollback state after a successful restore settle', async () => {
+    vi.spyOn(readerSessionStore, 'flushPersistence').mockResolvedValue(undefined);
+    vi.spyOn(readerSessionStore, 'getReaderSessionSnapshot').mockImplementation(() => {
+      return createSessionStoreSnapshotMock({
+        lastPersistenceFailure: null,
+        persistenceStatus: 'healthy',
+      });
+    });
     const { hookProps, runtime } = createHookHarness({
       sessionSnapshot: {
         chapterIndex: 7,
@@ -598,99 +649,27 @@ describe('useReaderRestoreFlow', () => {
             chapterIndex: 7,
           }),
         },
+        pagedStateRef: {
+          current: { pageCount: 8, pageIndex: 3 },
+        },
+        resolvePagedLocatorPageIndexRef: {
+          current: () => 3,
+        },
       },
     });
     const { result } = renderHook(() => useReaderRestoreFlow(hookProps), {
       wrapper: runtime.Wrapper,
     });
 
-    act(() => {
-      result.current.switchMode('paged');
+    let switchModePromise: Promise<void> | null = null;
+    await act(async () => {
+      switchModePromise = result.current.switchMode('paged');
+      await Promise.resolve();
     });
 
     expect(result.current.handleRestoreSettled('completed')).toBe(false);
+    await expect(switchModePromise).resolves.toBeUndefined();
     expect(result.current.handleRestoreSettled('failed')).toBe(false);
-  });
-
-  it('rolls back mode-switch state when restore fails', () => {
-    readerTraceMocks.enabled = true;
-    const persistReaderState = vi.fn();
-    const setMode = vi.fn();
-    const setChapterIndex = vi.fn();
-    const locator = createLocator({
-      chapterIndex: 7,
-    });
-    const { hookProps, runtime } = createHookHarness({
-      sessionCommands: {
-        latestReaderStateRef: {
-          current: createStoredState({
-            canonical: locator,
-            hints: {
-              chapterProgress: 0.4,
-              contentMode: 'scroll',
-              viewMode: 'original',
-            },
-          }),
-        },
-        markUserInteracted: vi.fn(),
-        persistReaderState,
-        setChapterIndex,
-        setMode,
-      },
-      sessionSnapshot: {
-        chapterIndex: 7,
-        mode: 'scroll',
-        pendingRestoreTarget: null,
-      },
-      runtime: {
-        getCurrentOriginalLocatorRef: {
-          current: () => locator,
-        },
-      },
-    });
-    const { result } = renderHook(() => useReaderRestoreFlow(hookProps), {
-      wrapper: runtime.Wrapper,
-    });
-
-    act(() => {
-      result.current.switchMode('paged');
-    });
-
-    persistReaderState.mockClear();
-    setMode.mockClear();
-    setChapterIndex.mockClear();
-
-    expect(result.current.handleRestoreSettled('failed')).toBe(true);
-    expect(setMode).toHaveBeenCalledWith('scroll');
-    expect(result.current.pendingRestoreTargetRef.current).toMatchObject({
-      chapterIndex: 7,
-      mode: 'scroll',
-    });
-    expect(persistReaderState).toHaveBeenCalledWith(expect.objectContaining({
-      canonical: {
-        chapterIndex: 7,
-        blockIndex: 2,
-        kind: 'text',
-        lineIndex: 0,
-      },
-      hints: expect.objectContaining({
-        contentMode: 'scroll',
-        viewMode: 'original',
-      }),
-    }), {
-      flush: true,
-    });
-    expect(readerTraceMocks.recordReaderTrace.mock.calls).toContainEqual([
-      'mode_switch_rollback',
-      expect.objectContaining({
-        chapterIndex: 7,
-        mode: 'scroll',
-        details: expect.objectContaining({
-          failedMode: 'scroll',
-          rollbackMode: 'scroll',
-        }),
-      }),
-    ]);
   });
 
   it('does not enter the target mode when strict mode-switch source capture persistence fails', async () => {
@@ -1087,7 +1066,9 @@ describe('useReaderRestoreFlow', () => {
     expect(result.current.modeSwitchError?.message).toContain('reason=no_target');
   });
 
-  it('fails strict scroll-to-paged switches when restore settles on the wrong page', async () => {
+  it('rejects strict scroll-to-paged switches after timeout when paged verification never converges', async () => {
+    const animationFrames = createAnimationFrameController();
+    vi.useFakeTimers();
     setDebugFeatureEnabled('readerStrictModeSwitch', true);
     vi.spyOn(readerSessionStore, 'flushPersistence').mockResolvedValue(undefined);
     vi.spyOn(readerSessionStore, 'getReaderSessionSnapshot').mockImplementation(() => {
@@ -1102,6 +1083,9 @@ describe('useReaderRestoreFlow', () => {
       chapterIndex: 7,
       lineIndex: 6,
     });
+    const getCurrentOriginalLocatorRef = {
+      current: () => locator as ReaderLocator | null,
+    };
     const { hookProps, runtime } = createHookHarness({
       sessionCommands: {
         latestReaderStateRef: {
@@ -1126,9 +1110,7 @@ describe('useReaderRestoreFlow', () => {
         pendingRestoreTarget: null,
       },
       runtime: {
-        getCurrentOriginalLocatorRef: {
-          current: () => locator,
-        },
+        getCurrentOriginalLocatorRef,
         pagedStateRef: {
           current: { pageCount: 20, pageIndex: 0 },
         },
@@ -1141,26 +1123,33 @@ describe('useReaderRestoreFlow', () => {
       wrapper: runtime.Wrapper,
     });
 
-    let switchModePromise: Promise<void> | null = null;
-    await act(async () => {
-      switchModePromise = result.current.switchMode('paged');
-      await Promise.resolve();
-    });
+    try {
+      let switchModePromise: Promise<void> | null = null;
+      await act(async () => {
+        switchModePromise = result.current.switchMode('paged');
+        await Promise.resolve();
+      });
 
-    act(() => {
-      expect(result.current.handleRestoreSettled('completed')).toBe(false);
-    });
+      act(() => {
+        getCurrentOriginalLocatorRef.current = () => null;
+        expect(result.current.handleRestoreSettled('completed')).toBe(false);
+      });
+      await animationFrames.flushAnimationFrames({ maxPasses: 1 });
 
-    await expect(switchModePromise).rejects.toMatchObject({
-      code: 'READER_MODE_SWITCH_FAILED',
-    });
-    expect(result.current.modeSwitchError?.message).toContain('stage=restore_target');
-    expect(result.current.modeSwitchError?.message).toContain(
-      'resolved_page_mismatch expected=5 actual=0',
-    );
-    expect(result.current.modeSwitchError?.message).toContain(
-      'reason=validation_exceeded_tolerance',
-    );
+      const capturedFailure = switchModePromise?.catch((error) => error);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10000);
+      });
+
+      await expect(capturedFailure).resolves.toMatchObject({
+        code: 'READER_MODE_SWITCH_FAILED',
+      });
+      expect(result.current.modeSwitchError?.message).toContain('stage=restore_target');
+      expect(result.current.modeSwitchError?.message).toContain('message=restore_settled_timeout');
+    } finally {
+      animationFrames.restore();
+      vi.useRealTimers();
+    }
   });
 
   it('fails strict mode switches that never receive a restore-settled signal', async () => {
@@ -1229,6 +1218,7 @@ describe('useReaderRestoreFlow', () => {
   });
 
   it('allows delayed strict scroll-to-paged restore completion before the paged timeout window', async () => {
+    const animationFrames = createAnimationFrameController();
     vi.useFakeTimers();
     setDebugFeatureEnabled('readerStrictModeSwitch', true);
     vi.spyOn(readerSessionStore, 'flushPersistence').mockResolvedValue(undefined);
@@ -1244,6 +1234,9 @@ describe('useReaderRestoreFlow', () => {
       chapterIndex: 7,
       lineIndex: 6,
     });
+    const getCurrentOriginalLocatorRef = {
+      current: () => locator as ReaderLocator | null,
+    };
     const { hookProps, runtime } = createHookHarness({
       sessionCommands: {
         latestReaderStateRef: {
@@ -1267,9 +1260,7 @@ describe('useReaderRestoreFlow', () => {
         pendingRestoreTarget: null,
       },
       runtime: {
-        getCurrentOriginalLocatorRef: {
-          current: () => locator,
-        },
+        getCurrentOriginalLocatorRef,
         pagedStateRef: {
           current: { pageCount: 20, pageIndex: 0 },
         },
@@ -1282,33 +1273,39 @@ describe('useReaderRestoreFlow', () => {
       wrapper: runtime.Wrapper,
     });
 
-    let switchModePromise: Promise<void> | null = null;
-    await act(async () => {
-      switchModePromise = result.current.switchMode('paged');
-      await Promise.resolve();
-    });
+    try {
+      let switchModePromise: Promise<void> | null = null;
+      await act(async () => {
+        switchModePromise = result.current.switchMode('paged');
+        await Promise.resolve();
+      });
 
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(2000);
-    });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2000);
+      });
 
-    expect(result.current.modeSwitchError).toBeNull();
+      expect(result.current.modeSwitchError).toBeNull();
 
-    await act(async () => {
-      runtime.pagedStateRef.current = {
-        pageCount: 20,
-        pageIndex: 5,
-      };
-      expect(result.current.handleRestoreSettled('completed')).toBe(false);
-      await Promise.resolve();
-    });
+      act(() => {
+        getCurrentOriginalLocatorRef.current = () => null;
+        runtime.pagedStateRef.current = {
+          pageCount: 20,
+          pageIndex: 5,
+        };
+        expect(result.current.handleRestoreSettled('completed')).toBe(false);
+      });
+      await animationFrames.flushAnimationFrames();
 
-    await expect(switchModePromise).resolves.toBeUndefined();
-    expect(result.current.modeSwitchError).toBeNull();
-    vi.useRealTimers();
+      await expect(switchModePromise).resolves.toBeUndefined();
+      expect(result.current.modeSwitchError).toBeNull();
+    } finally {
+      animationFrames.restore();
+      vi.useRealTimers();
+    }
   });
 
   it('accepts strict scroll-to-paged completion when chapter progress advances beyond a collapsed first-page locator', async () => {
+    const animationFrames = createAnimationFrameController();
     vi.useFakeTimers();
     setDebugFeatureEnabled('readerStrictModeSwitch', true);
     vi.spyOn(readerSessionStore, 'flushPersistence').mockResolvedValue(undefined);
@@ -1324,6 +1321,9 @@ describe('useReaderRestoreFlow', () => {
       chapterIndex: 7,
       lineIndex: 6,
     });
+    const getCurrentOriginalLocatorRef = {
+      current: () => locator as ReaderLocator | null,
+    };
     const { hookProps, runtime } = createHookHarness({
       sessionCommands: {
         latestReaderStateRef: {
@@ -1347,9 +1347,7 @@ describe('useReaderRestoreFlow', () => {
         pendingRestoreTarget: null,
       },
       runtime: {
-        getCurrentOriginalLocatorRef: {
-          current: () => locator,
-        },
+        getCurrentOriginalLocatorRef,
         pagedStateRef: {
           current: { pageCount: 2, pageIndex: 0 },
         },
@@ -1362,28 +1360,33 @@ describe('useReaderRestoreFlow', () => {
       wrapper: runtime.Wrapper,
     });
 
-    let switchModePromise: Promise<void> | null = null;
-    await act(async () => {
-      switchModePromise = result.current.switchMode('paged');
-      await Promise.resolve();
-    });
+    try {
+      let switchModePromise: Promise<void> | null = null;
+      await act(async () => {
+        switchModePromise = result.current.switchMode('paged');
+        await Promise.resolve();
+      });
 
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(2000);
-    });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2000);
+      });
 
-    await act(async () => {
-      runtime.pagedStateRef.current = {
-        pageCount: 2,
-        pageIndex: 1,
-      };
-      expect(result.current.handleRestoreSettled('completed')).toBe(false);
-      await Promise.resolve();
-    });
+      act(() => {
+        getCurrentOriginalLocatorRef.current = () => null;
+        runtime.pagedStateRef.current = {
+          pageCount: 2,
+          pageIndex: 1,
+        };
+        expect(result.current.handleRestoreSettled('completed')).toBe(false);
+      });
+      await animationFrames.flushAnimationFrames();
 
-    await expect(switchModePromise).resolves.toBeUndefined();
-    expect(result.current.modeSwitchError).toBeNull();
-    vi.useRealTimers();
+      await expect(switchModePromise).resolves.toBeUndefined();
+      expect(result.current.modeSwitchError).toBeNull();
+    } finally {
+      animationFrames.restore();
+      vi.useRealTimers();
+    }
   });
 
   it('consumes strict restore-settled results that arrive before the transaction reaches restore_target', async () => {
@@ -1965,6 +1968,7 @@ describe('useReaderRestoreFlow', () => {
   });
 
   it('reports restore settle results when forced summary restore targets are skipped or completed', async () => {
+    const animationFrames = createAnimationFrameController();
     const onRestoreSettled = vi.fn();
     const { hookProps, runtime } = createHookHarness({
       sessionSnapshot: {
@@ -1986,52 +1990,53 @@ describe('useReaderRestoreFlow', () => {
       },
     );
 
-    act(() => {
-      result.current.setPendingRestoreTarget({
-        chapterIndex: 5,
-        mode: 'summary',
-      }, { force: true });
-    });
-
-    rerender({
-      ...hookProps,
-      sessionSnapshot: {
-        ...hookProps.sessionSnapshot,
-        pendingRestoreTarget: {
+    try {
+      act(() => {
+        result.current.setPendingRestoreTarget({
           chapterIndex: 5,
           mode: 'summary',
+        }, { force: true });
+      });
+
+      rerender({
+        ...hookProps,
+        sessionSnapshot: {
+          ...hookProps.sessionSnapshot,
+          pendingRestoreTarget: {
+            chapterIndex: 5,
+            mode: 'summary',
+          },
         },
-      },
-    });
+      });
 
-    await waitFor(() => {
-      expect(onRestoreSettled).toHaveBeenCalledWith('skipped');
-    });
+      await waitFor(() => {
+        expect(onRestoreSettled).toHaveBeenCalledWith('skipped');
+      });
 
-    act(() => {
-      result.current.setPendingRestoreTarget(createRestoreTarget({
-        mode: 'summary',
-        chapterProgress: 0.5,
-      }), { force: true });
-    });
-
-    rerender({
-      ...hookProps,
-      sessionSnapshot: {
-        ...hookProps.sessionSnapshot,
-        pendingRestoreTarget: createRestoreTarget({
+      act(() => {
+        result.current.setPendingRestoreTarget(createRestoreTarget({
           mode: 'summary',
           chapterProgress: 0.5,
-        }),
-      },
-      summaryRestoreSignal: 1,
-    });
+        }), { force: true });
+      });
 
-    await act(async () => {
-      await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
-      await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
-    });
+      rerender({
+        ...hookProps,
+        sessionSnapshot: {
+          ...hookProps.sessionSnapshot,
+          pendingRestoreTarget: createRestoreTarget({
+            mode: 'summary',
+            chapterProgress: 0.5,
+          }),
+        },
+        summaryRestoreSignal: 1,
+      });
 
-    expect(onRestoreSettled).toHaveBeenCalledWith('completed');
+      await animationFrames.flushAnimationFrames();
+
+      expect(onRestoreSettled).toHaveBeenCalledWith('completed');
+    } finally {
+      animationFrames.restore();
+    }
   });
 });

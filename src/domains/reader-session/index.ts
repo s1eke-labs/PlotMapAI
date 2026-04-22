@@ -1,6 +1,5 @@
 export type {
   PageTarget,
-  PersistedReadingProgress,
   ReaderLifecycleEvent,
   ReaderLifecycleEventType,
   ReaderMode,
@@ -20,10 +19,21 @@ export type {
   StoredReaderState,
 } from '@shared/contracts/reader';
 export type {
+  PersistedReaderProgressSnapshot,
+  ReaderProgressCaptureQuality,
+  ReaderProgressMode,
+  ReaderProgressPosition,
+  ReaderProgressProjection,
+  ReaderProgressRestoreReason,
+  ReaderProgressRestoreRequest,
+  ReaderProgressRestoreResult,
+  ReaderProgressRestoreStatus,
+  ReaderProgressSnapshot,
+} from './progress-core/contracts';
+export type {
   ReaderSessionSnapshot,
   UseReaderSessionResult,
 } from './hooks/useReaderSession';
-export type { ReadingProgress } from './persistence/repository';
 export {
   buildStoredReaderState,
   clampChapterProgress,
@@ -37,10 +47,12 @@ export {
   toReaderLocatorFromCanonical,
 } from '@shared/utils/readerStoredState';
 export {
-  deleteReadingProgress,
-  readReadingProgress,
-  replaceReadingProgress,
-  toReadingProgress,
+  deleteReaderProgressSnapshot,
+  readReaderProgressSnapshot,
+  replaceReaderProgressSnapshot,
+} from './progress-core/repository';
+export {
+  deleteLegacyReadingProgress,
 } from './persistence/repository';
 export {
   dispatchReaderLifecycleEvent,
@@ -57,3 +69,4 @@ export {
 } from './restore/useReaderRestoreController';
 export { useReaderSession } from './hooks/useReaderSession';
 export { useReaderStatePersistence } from './hooks/useReaderStatePersistence';
+

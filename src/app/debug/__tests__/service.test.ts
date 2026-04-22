@@ -126,25 +126,17 @@ describe('debug', () => {
     const listener = vi.fn();
     const unsubscribe = mod.debugFeatureSubscribe(listener);
 
-    mod.setDebugFeatureEnabled('readerStrictModeSwitch', true);
-
-    expect(mod.isDebugFeatureEnabled('readerStrictModeSwitch')).toBe(true);
-    expect(listener).toHaveBeenCalledWith({
-      readerStrictModeSwitch: true,
-      readerTelemetry: false,
-    });
-
     mod.setDebugFeatureEnabled('readerTelemetry', true);
 
     expect(mod.isDebugFeatureEnabled('readerTelemetry')).toBe(true);
     expect(listener).toHaveBeenLastCalledWith({
-      readerStrictModeSwitch: true,
+      readerStrictModeSwitch: false,
       readerTelemetry: true,
     });
 
     unsubscribe();
     mod.setDebugFeatureEnabled('readerTelemetry', false);
-    expect(listener).toHaveBeenCalledTimes(2);
+    expect(listener).toHaveBeenCalledTimes(1);
   });
 
   it('registerPwaDebugTools exposes window debug methods in debug mode', async () => {

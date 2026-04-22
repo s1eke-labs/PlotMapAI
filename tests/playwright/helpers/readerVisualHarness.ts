@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
 
 import { expect } from '@playwright/test';
 
@@ -13,6 +13,17 @@ type ReaderPageTurnModeLabel = 'Cover' | 'No Animation' | 'Slide' | 'Vertical';
 type ReaderPageTurnModeId = 'cover' | 'none' | 'slide' | 'scroll';
 type ReaderThemeId = 'auto' | 'paper' | 'parchment' | 'green' | 'night';
 type ReaderBranch = 'paged' | 'scroll' | 'unknown';
+
+interface RelativeViewportPosition {
+  xRatio: number;
+  yRatio: number;
+}
+
+const RESPONSIVE_CHROME_TOGGLE_CANDIDATES: RelativeViewportPosition[] = [
+  { xRatio: 0.5, yRatio: 0.35 },
+  { xRatio: 0.5, yRatio: 0.5 },
+  { xRatio: 0.5, yRatio: 0.22 },
+];
 
 interface ReaderTraceWindow extends Window {
   PlotMapAIReaderTrace?: {
@@ -278,12 +289,19 @@ export async function readReaderViewportSnapshot(page: Page): Promise<ReaderView
     const pagedInteractive = document.querySelector('[data-testid="paged-reader-interactive"]');
     const viewport = document.querySelector('[data-testid="reader-viewport"]');
     const style = viewport instanceof HTMLElement ? window.getComputedStyle(viewport) : null;
+    const reportedBranch = viewport instanceof HTMLElement
+      ? viewport.dataset.readerBranch ?? null
+      : null;
     let branch: ReaderBranch = 'unknown';
 
-    if (pagedInteractive) {
-      branch = 'paged';
-    } else if (style?.overflowY === 'auto') {
-      branch = 'scroll';
+    if (reportedBranch === 'paged' || reportedBranch === 'scroll') {
+      branch = reportedBranch;
+    } else if (reportedBranch !== 'summary') {
+      if (pagedInteractive) {
+        branch = 'paged';
+      } else if (style?.overflowY === 'auto') {
+        branch = 'scroll';
+      }
     }
 
     const scrollTop = viewport instanceof HTMLElement ? viewport.scrollTop : null;
@@ -335,6 +353,35 @@ export async function readReaderViewportSnapshot(page: Page): Promise<ReaderView
   });
 }
 
+export async function waitForPagedViewportPageIndex(
+  page: Page,
+  expectedPageIndex: number,
+  options?: {
+    description?: string;
+    timeout?: number;
+    tolerance?: number;
+  },
+): Promise<ReaderViewportSnapshot> {
+  let snapshot: ReaderViewportSnapshot | null = null;
+  const tolerance = options?.tolerance ?? 0;
+
+  await expect.poll(async () => {
+    snapshot = await readReaderViewportSnapshot(page);
+    return snapshot.branch === 'paged'
+      && snapshot.currentPageIndex !== null
+      && Math.abs(snapshot.currentPageIndex - expectedPageIndex) <= tolerance;
+  }, {
+    message: options?.description,
+    timeout: options?.timeout ?? 10_000,
+  }).toBe(true);
+
+  if (!snapshot) {
+    throw new Error('Paged viewport snapshot did not settle at the expected page index.');
+  }
+
+  return snapshot;
+}
+
 export async function waitForReaderBranch(
   page: Page,
   branch: Exclude<ReaderBranch, 'unknown'>,
@@ -370,10 +417,10 @@ export async function readPersistedReadingProgress(
 
     try {
       const record = await new Promise<Record<string, unknown> | undefined>((resolve, reject) => {
-        const transaction = db.transaction(['readingProgress'], 'readonly');
+        const transaction = db.transaction(['readerProgress'], 'readonly');
         transaction.onerror = () => reject(transaction.error);
-        const store = transaction.objectStore('readingProgress');
-        const request = store.index('novelId').get(targetNovelId);
+        const store = transaction.objectStore('readerProgress');
+        const request = store.get(targetNovelId);
         request.onerror = () => reject(request.error);
         request.onsuccess = () => resolve(request.result as Record<string, unknown> | undefined);
       });
@@ -382,32 +429,67 @@ export async function readPersistedReadingProgress(
         return null;
       }
 
-      const canonical = (
-        record.canonical
-        && typeof record.canonical === 'object'
-        && !Array.isArray(record.canonical)
+      const position = (
+        record.position
+        && typeof record.position === 'object'
+        && !Array.isArray(record.position)
       )
-        ? record.canonical as Record<string, unknown>
+        ? record.position as Record<string, unknown>
         : null;
+      const locator = (
+        position?.type === 'locator'
+        && position.locator
+        && typeof position.locator === 'object'
+        && !Array.isArray(position.locator)
+      )
+        ? position.locator as Record<string, unknown>
+        : null;
+      const projections = (
+        record.projections
+        && typeof record.projections === 'object'
+        && !Array.isArray(record.projections)
+      )
+        ? record.projections as Record<string, unknown>
+        : null;
+      let canonicalChapterIndex: number | null = null;
+      if (typeof locator?.chapterIndex === 'number') {
+        canonicalChapterIndex = locator.chapterIndex;
+      } else if (typeof position?.chapterIndex === 'number') {
+        canonicalChapterIndex = position.chapterIndex;
+      }
+
+      let canonicalEdge: 'start' | 'end' | null = null;
+      if (locator?.edge === 'start' || locator?.edge === 'end') {
+        canonicalEdge = locator.edge;
+      } else if (position?.edge === 'start' || position?.edge === 'end') {
+        canonicalEdge = position.edge;
+      }
+
+      let persistedPageIndex: number | null = null;
+      if (typeof projections?.pagedPageIndex === 'number') {
+        persistedPageIndex = projections.pagedPageIndex;
+      } else if (typeof locator?.pageIndex === 'number') {
+        persistedPageIndex = locator.pageIndex;
+      }
 
       return {
         canonical: {
-          blockIndex: typeof canonical?.blockIndex === 'number' ? canonical.blockIndex : null,
-          chapterIndex: typeof canonical?.chapterIndex === 'number' ? canonical.chapterIndex : null,
-          edge: canonical?.edge === 'start' || canonical?.edge === 'end' ? canonical.edge : null,
-          kind: typeof canonical?.kind === 'string' ? canonical.kind : null,
-          lineIndex: typeof canonical?.lineIndex === 'number' ? canonical.lineIndex : null,
+          blockIndex: typeof locator?.blockIndex === 'number' ? locator.blockIndex : null,
+          chapterIndex: canonicalChapterIndex,
+          edge: canonicalEdge,
+          kind: typeof locator?.kind === 'string' ? locator.kind : null,
+          lineIndex: typeof locator?.lineIndex === 'number' ? locator.lineIndex : null,
         },
-        chapterProgress: typeof record.chapterProgress === 'number' ? record.chapterProgress : null,
-        contentMode: record.contentMode === 'scroll' || record.contentMode === 'paged'
-          ? record.contentMode
+        chapterProgress: typeof projections?.scrollChapterProgress === 'number'
+          ? projections.scrollChapterProgress
           : null,
-        pageIndex: typeof record.pageIndex === 'number' ? record.pageIndex : null,
+        contentMode: record.mode === 'scroll' || record.mode === 'paged'
+          ? record.mode
+          : null,
+        pageIndex: persistedPageIndex,
         revision: typeof record.revision === 'number' ? record.revision : null,
         updatedAt: typeof record.updatedAt === 'string' ? record.updatedAt : null,
-        viewMode: record.viewMode === 'original' || record.viewMode === 'summary'
-          ? record.viewMode
-          : null,
+        viewMode: 'original',
       } satisfies PersistedReadingProgressSnapshot;
     } finally {
       db.close();
@@ -709,6 +791,117 @@ export async function importEpubToDetailPage(
   };
 }
 
+async function clickReaderViewportRelative(
+  page: Page,
+  position: RelativeViewportPosition,
+): Promise<void> {
+  const viewport = page.getByTestId('reader-viewport');
+  const box = await viewport.boundingBox();
+  if (!box) {
+    throw new Error('Reader viewport is not visible for relative click interaction.');
+  }
+
+  await viewport.click({
+    position: {
+      x: Math.max(1, Math.min(box.width - 1, Math.round(box.width * position.xRatio))),
+      y: Math.max(1, Math.min(box.height - 1, Math.round(box.height * position.yRatio))),
+    },
+  });
+}
+
+async function getFirstVisibleLocator(selectors: string[], page: Page) {
+  for (const selector of selectors) {
+    const locator = page.locator(selector).first();
+    if (await locator.isVisible().catch(() => false)) {
+      return locator;
+    }
+  }
+
+  throw new Error(`Could not find any visible element for selectors: ${selectors.join(', ')}`);
+}
+
+async function getResponsiveReaderExitControl(page: Page) {
+  return getFirstVisibleLocator([
+    'button[title="Exit Reader"]:visible',
+    '[aria-label="Exit Reader"]:visible',
+    'a:has-text("Exit Reader"):visible',
+  ], page);
+}
+
+async function isLocatorInViewport(locator: Locator): Promise<boolean> {
+  return locator.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    return rect.width > 0
+      && rect.height > 0
+      && rect.bottom > 0
+      && rect.right > 0
+      && rect.top < window.innerHeight
+      && rect.left < window.innerWidth;
+  }).catch(() => false);
+}
+
+export async function hideReaderChrome(page: Page): Promise<void> {
+  const exitReaderLink = page.getByRole('link', { name: 'Exit Reader' }).first();
+  const isVisible = await exitReaderLink.isVisible().catch(() => false);
+  if (!isVisible) {
+    return;
+  }
+
+  await page.getByTestId('reader-viewport').click({ position: { x: 400, y: 200 } });
+
+  try {
+    await expect(exitReaderLink).not.toBeVisible({ timeout: 3_000 });
+  } catch {
+    await page.getByTestId('reader-viewport').click({ position: { x: 400, y: 200 } });
+    await expect(exitReaderLink).not.toBeVisible({ timeout: 5_000 });
+  }
+}
+
+export async function revealReaderChromeResponsive(page: Page): Promise<void> {
+  const exitReaderControl = await getResponsiveReaderExitControl(page).catch(() => null);
+  if (exitReaderControl && await isLocatorInViewport(exitReaderControl)) {
+    return;
+  }
+
+  for (const position of RESPONSIVE_CHROME_TOGGLE_CANDIDATES) {
+    await clickReaderViewportRelative(page, position);
+    const visibleControl = await getResponsiveReaderExitControl(page).catch(() => null);
+    const isVisible = visibleControl
+      ? await isLocatorInViewport(visibleControl)
+      : false;
+    if (isVisible) {
+      return;
+    }
+  }
+
+  const exitReaderFallback = await getResponsiveReaderExitControl(page);
+  await expect(exitReaderFallback).toBeInViewport({ timeout: 8_000 });
+}
+
+export async function hideReaderChromeResponsive(page: Page): Promise<void> {
+  const exitReaderControl = await getResponsiveReaderExitControl(page).catch(() => null);
+  const isVisible = exitReaderControl
+    ? await isLocatorInViewport(exitReaderControl)
+    : false;
+  if (!isVisible) {
+    return;
+  }
+
+  for (const position of RESPONSIVE_CHROME_TOGGLE_CANDIDATES) {
+    await clickReaderViewportRelative(page, position);
+    const visibleControl = await getResponsiveReaderExitControl(page).catch(() => null);
+    const isStillVisible = visibleControl
+      ? await isLocatorInViewport(visibleControl)
+      : false;
+    if (!isStillVisible) {
+      return;
+    }
+  }
+
+  const exitReaderFallback = await getResponsiveReaderExitControl(page);
+  await expect(exitReaderFallback).not.toBeInViewport({ timeout: 8_000 });
+}
+
 /**
  * 通过点击阅读器视口的中心区域显现阅读器界面（顶部栏 + 底部工具栏）。
  * 界面初始状态为隐藏（isChromeVisible = false），因此第一次在中心区域（25%–75% x 轴）的点击总会将其切换为可见状态。
@@ -721,7 +914,7 @@ export async function revealReaderChrome(page: Page): Promise<void> {
   await page.getByTestId('reader-viewport').click({ position: { x: 400, y: 200 } });
   // 等待顶部栏动画进入视口（framer-motion 弹性动画）。
   await expect(
-    page.getByRole('link', { name: 'Exit Reader' }),
+    page.getByRole('link', { name: 'Exit Reader' }).first(),
   ).toBeInViewport({ timeout: 8_000 });
 }
 
@@ -781,6 +974,10 @@ export async function clickNextPage(page: Page): Promise<void> {
   await page.getByTestId('reader-viewport').click({ position: { x: 1300, y: 480 } });
 }
 
+export async function clickNextPageResponsive(page: Page): Promise<void> {
+  await clickReaderViewportRelative(page, { xRatio: 0.9, yRatio: 0.5 });
+}
+
 /**
  * 打开目录侧边栏并根据标题点击章节。
  * 显现阅读器界面，因为顶部栏初始时是隐藏的。
@@ -801,6 +998,33 @@ export async function navigateToChapterByTitle(page: Page, chapterTitle: string)
   await expect(page.getByTestId('reader-viewport')).toBeVisible({ timeout: 15_000 });
   // revealReaderChrome() 之前将 isChromeVisible 设置为 true，且在章节选择后保持为 true。
   // 点击视口中心一次以关闭界面（handleContentClick: isChromeVisible=true → setIsChromeVisible(false)），
-  // 以便随后的 waitForReaderBranch('scroll') 检查能够检测到 overflowY='auto'。
+  // 以便后续依赖未锁定视口状态的交互与断言能够稳定运行。
   await page.getByTestId('reader-viewport').click({ position: { x: 400, y: 200 } });
+}
+
+export async function navigateToChapterByTitleResponsive(
+  page: Page,
+  chapterTitle: string,
+): Promise<void> {
+  await revealReaderChromeResponsive(page);
+  const contentsButton = await getFirstVisibleLocator([
+    'button[title="Contents"]:visible',
+    '[title="Contents"]:visible',
+    '[aria-label="Contents"]:visible',
+  ], page);
+  await contentsButton.evaluate((element) => {
+    (element as HTMLButtonElement).click();
+  });
+  const contentsDialog = page.getByRole('dialog').first();
+  await expect(contentsDialog).toBeVisible({ timeout: 8_000 });
+
+  const chapterButton = contentsDialog.getByRole('button', { name: chapterTitle }).first();
+  await chapterButton.evaluate((element) => {
+    (element as HTMLButtonElement).click();
+  });
+
+  await expect(contentsDialog).not.toBeVisible({ timeout: 8_000 });
+  await expect(page.getByRole('heading', { name: chapterTitle }).first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId('reader-viewport')).toBeVisible({ timeout: 15_000 });
+  await hideReaderChromeResponsive(page);
 }

@@ -152,6 +152,16 @@ describe('ReaderViewport', () => {
     expect(container.firstChild).not.toHaveClass('overflow-y-auto');
   });
 
+  it('keeps exposing the scroll branch while scroll interactions are locked', () => {
+    renderViewport({
+      renderableChapter: chapter,
+      isPagedMode: false,
+      interactionLocked: true,
+    });
+
+    expect(screen.getByTestId('reader-viewport')).toHaveAttribute('data-reader-branch', 'scroll');
+  });
+
   it('dismisses blocked wheel interactions while the menu is visible', () => {
     const onBlockedInteraction = vi.fn();
     const { container } = renderViewport({

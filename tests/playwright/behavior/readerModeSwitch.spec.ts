@@ -5,6 +5,7 @@ import { expect, test } from '@playwright/test';
 import {
   disableAnimations,
   enableReaderTrace,
+  exitAndReopenReader,
   importFixtureToDetailPage,
   openReaderFromDetailPage,
   readPersistedReadingProgress,
@@ -296,6 +297,29 @@ async function waitForPagedViewportSnapshot(
   return snapshot;
 }
 
+async function waitForPagedViewportNearPageIndex(
+  page: Page,
+  expectedPageIndex: number,
+  tolerance = 1,
+): Promise<ReaderViewportSnapshot> {
+  let snapshot: ReaderViewportSnapshot | null = null;
+
+  await expect.poll(async () => {
+    snapshot = await readReaderViewportSnapshot(page);
+    return snapshot.branch === 'paged'
+      && snapshot.currentPageIndex !== null
+      && Math.abs(snapshot.currentPageIndex - expectedPageIndex) <= tolerance;
+  }, {
+    timeout: 10_000,
+  }).toBe(true);
+
+  if (!snapshot) {
+    throw new Error('Paged viewport snapshot did not settle near the expected page index.');
+  }
+
+  return snapshot;
+}
+
 function assertCanonicalNearBaseline(
   actual: PersistedReadingProgressSnapshot['canonical'],
   baseline: PersistedReadingProgressSnapshot['canonical'],
@@ -405,8 +429,8 @@ async function selectPagedRoundTripBaseline(
   );
 }
 
-test.describe('reader mode switch regression', () => {
-  test('keeps location stable across repeated scroll and paged round-trips', async ({
+test.describe('阅读模式切换回归', () => {
+  test('多次滚动与翻页往返切换后位置保持稳定', async ({
     page,
   }, testInfo) => {
     test.slow();
@@ -697,7 +721,7 @@ test.describe('reader mode switch regression', () => {
     assertContentAnchorStable(reloadedAnchor, baselineAnchor!, 'final reload');
   });
 
-  test('preserves position across mode switches in multi-chapter book', async ({
+  test('多章节书籍在模式切换后仍保持位置', async ({
     page,
   }, testInfo) => {
     test.slow();
@@ -865,7 +889,7 @@ test.describe('reader mode switch regression', () => {
     );
   });
 
-  test('restores position at chapter boundary', async ({
+  test('在章节边界处可正确恢复位置', async ({
     page,
   }, testInfo) => {
     test.slow();
@@ -957,7 +981,7 @@ test.describe('reader mode switch regression', () => {
     await assertNoTraceProblems(page, testInfo, novelId, 0, 'chapter-boundary-scroll');
   });
 
-  test('keeps location stable with cover page-turn mode', async ({
+  test('封面翻页模式下位置保持稳定', async ({
     page,
   }, testInfo) => {
     test.slow();
@@ -1090,6 +1114,137 @@ test.describe('reader mode switch regression', () => {
       expect(scrollPersistedProgress.contentMode).toBe('scroll');
       expect(scrollPersistedProgress.pageIndex).toBeNull();
       await assertNoTraceProblems(page, testInfo, novelId, iteration, 'cover-scroll');
+    }
+  });
+
+  test('模式切换后退出并重新进入 SPA，位置仍保持稳定', async ({
+    page,
+  }, testInfo) => {
+    test.slow();
+
+    const { novelId } = await importFixtureToDetailPage(page, 'pagedRich');
+    await setReaderPreferences(page, {
+      pageTurnMode: 'scroll',
+    });
+    await openReaderFromDetailPage(page);
+    await enableReaderTrace(page);
+
+    const selectedBaselineCandidate = await selectPagedRoundTripBaseline(page, novelId, testInfo);
+    await resetReaderTrace(page);
+
+    const previousPersistedProgress = await readPersistedReadingProgress(page, novelId);
+    await scrollReaderViewportToProgress(page, selectedBaselineCandidate);
+    const initialPersistedProgress = await waitForScrollPersistenceUpdate(
+      page,
+      novelId,
+      previousPersistedProgress?.revision ?? 0,
+      'waiting for the exit-reopen baseline to persist',
+    );
+    const baselineProgress = initialPersistedProgress.chapterProgress ?? selectedBaselineCandidate;
+    const baselineCanonical = initialPersistedProgress.canonical;
+    const baselineAnchor = await readVisibleContentAnchor(page);
+
+    expect(typeof baselineCanonical.blockIndex).toBe('number');
+    expect(baselineCanonical.blockIndex).toBeGreaterThan(0);
+    expect(baselineAnchor).not.toBeNull();
+
+    const EXIT_REOPEN_ITERATIONS = 3;
+
+    for (let iteration = 0; iteration < EXIT_REOPEN_ITERATIONS; iteration += 1) {
+      await clickToolbarMode(page, 'Two Columns');
+      await waitForReaderBranch(page, 'paged');
+      const pagedPersistedProgress = await waitForPagedProgressPersistence(page, novelId);
+      const pagedSnapshot = await waitForPagedViewportSnapshot(
+        page,
+        pagedPersistedProgress.pageIndex ?? 0,
+      );
+
+      expect(pagedSnapshot.currentPageIndex).toBe(pagedPersistedProgress.pageIndex);
+      assertCanonicalNearBaseline(
+        pagedPersistedProgress.canonical,
+        baselineCanonical,
+        `exit-reopen iteration ${iteration} paged before exit`,
+      );
+
+      await exitAndReopenReader(page);
+      await waitForReaderBranch(page, 'paged');
+
+      const reopenedPagedProgress = await waitForPagedProgressPersistence(page, novelId);
+      const reopenedPagedSnapshot = await waitForPagedViewportNearPageIndex(
+        page,
+        pagedPersistedProgress.pageIndex ?? 0,
+      );
+      expect(reopenedPagedProgress.pageIndex).not.toBeNull();
+      expect(reopenedPagedProgress.pageIndex).toBeGreaterThan(0);
+      expect(reopenedPagedSnapshot.currentPageIndex).not.toBeNull();
+      const reopenedPagedDrift = Math.abs(
+        (reopenedPagedSnapshot.currentPageIndex ?? 0)
+        - (pagedPersistedProgress.pageIndex ?? 0),
+      );
+      expect(
+        reopenedPagedDrift,
+      ).toBeLessThanOrEqual(1);
+      assertCanonicalNearBaseline(
+        reopenedPagedProgress.canonical,
+        baselineCanonical,
+        `exit-reopen iteration ${iteration} paged after reopen`,
+      );
+
+      const reopenedPagedAnchor = await readVisibleContentAnchor(page);
+      assertContentAnchorStable(
+        reopenedPagedAnchor,
+        baselineAnchor!,
+        `exit-reopen iteration ${iteration} paged after reopen`,
+      );
+
+      await clickToolbarMode(page, 'Single Column');
+      await waitForReaderBranch(page, 'scroll');
+      const scrollPersistedProgress = await waitForScrollProgressPersistence(
+        page,
+        novelId,
+        baselineProgress,
+      );
+      assertCanonicalNearBaseline(
+        scrollPersistedProgress.canonical,
+        baselineCanonical,
+        `exit-reopen iteration ${iteration} scroll before exit`,
+      );
+
+      const scrollAnchor = await readVisibleContentAnchor(page);
+      assertContentAnchorStable(
+        scrollAnchor,
+        baselineAnchor!,
+        `exit-reopen iteration ${iteration} scroll before exit`,
+      );
+
+      await exitAndReopenReader(page);
+      await waitForReaderBranch(page, 'scroll');
+
+      const reopenedScrollSnapshot = await expectScrollProgressNearBaseline(
+        page,
+        baselineProgress,
+      );
+      const reopenedScrollProgress = await waitForScrollProgressPersistence(
+        page,
+        novelId,
+        baselineProgress,
+      );
+      assertCanonicalNearBaseline(
+        reopenedScrollProgress.canonical,
+        baselineCanonical,
+        `exit-reopen iteration ${iteration} scroll after reopen`,
+      );
+
+      const reopenedScrollAnchor = await readVisibleContentAnchor(page);
+      assertContentAnchorStable(
+        reopenedScrollAnchor,
+        baselineAnchor!,
+        `exit-reopen iteration ${iteration} scroll after reopen`,
+      );
+
+      expect(reopenedScrollSnapshot.scrollProgress).not.toBeNull();
+      await assertNoTraceProblems(page, testInfo, novelId, iteration, 'exit-reopen');
+      await resetReaderTrace(page);
     }
   });
 });

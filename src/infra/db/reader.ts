@@ -229,7 +229,7 @@ export type ReaderRenderTreeRecord =
   | StaticSummaryShellTreeRecord;
 
 export interface ReadingProgressRecord {
-  id: number;
+  id?: number;
   novelId: number;
   canonical?: CanonicalPositionRecord;
   pageIndex?: number;
@@ -237,10 +237,37 @@ export interface ReadingProgressRecord {
   contentMode?: 'scroll' | 'paged';
   viewMode?: 'original' | 'summary';
   revision?: number;
-  // 为读取/丢弃兼容性而保留的旧版混合模型字段。
-  chapterIndex?: number;
-  mode?: string;
-  locator?: ReaderLocatorRecord;
+  updatedAt: string;
+}
+
+export type ReaderProgressModeRecord = 'scroll' | 'paged';
+
+export type ReaderProgressCaptureQualityRecord = 'precise' | 'approximate';
+
+export type ReaderProgressPositionRecord =
+  | {
+    type: 'locator';
+    locator: ReaderLocatorRecord;
+  }
+  | {
+    type: 'chapter-edge';
+    chapterIndex: number;
+    edge: 'start' | 'end';
+  };
+
+export interface ReaderProgressProjectionRecord {
+  scrollChapterProgress?: number;
+  pagedPageIndex?: number;
+}
+
+export interface ReaderProgressRecord {
+  novelId: number;
+  mode: ReaderProgressModeRecord;
+  activeChapterIndex: number;
+  position: ReaderProgressPositionRecord;
+  projections?: ReaderProgressProjectionRecord;
+  captureQuality: ReaderProgressCaptureQualityRecord;
+  revision?: number;
   updatedAt: string;
 }
 
@@ -265,11 +292,13 @@ export interface ReaderRenderCacheRecord {
 
 export const READER_DB_SCHEMA = {
   readingProgress: '++id, novelId',
+  readerProgress: 'novelId, updatedAt, mode, activeChapterIndex',
   readerRenderCache:
     '++id, [novelId+chapterIndex+variantFamily], [novelId+variantFamily], updatedAt, expiresAt',
 } as const;
 
 export interface ReaderTables {
   readingProgress: EntityTable<ReadingProgressRecord, 'id'>;
+  readerProgress: EntityTable<ReaderProgressRecord, 'novelId'>;
   readerRenderCache: EntityTable<ReaderRenderCacheRecord, 'id'>;
 }

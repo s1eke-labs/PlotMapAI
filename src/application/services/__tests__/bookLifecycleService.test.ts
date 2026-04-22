@@ -248,6 +248,18 @@ describe('bookLifecycleService', () => {
       mode: 'scroll',
       updatedAt: new Date().toISOString(),
     });
+    await db.readerProgress.put({
+      novelId,
+      mode: 'scroll',
+      activeChapterIndex: 0,
+      position: {
+        type: 'chapter-edge',
+        chapterIndex: 0,
+        edge: 'start',
+      },
+      captureQuality: 'approximate',
+      updatedAt: new Date().toISOString(),
+    });
     await db.readerRenderCache.add({
       novelId,
       chapterIndex: 0,
@@ -288,6 +300,7 @@ describe('bookLifecycleService', () => {
     expect(await db.novelImageGalleryEntries.count()).toBe(0);
     expect(await db.analysisJobs.count()).toBe(0);
     expect(await db.chapterAnalyses.count()).toBe(0);
+    expect(await db.readerProgress.count()).toBe(0);
     expect(await db.readingProgress.count()).toBe(0);
     expect(await db.readerRenderCache.count()).toBe(0);
     expect(storage.cache.getJson(CACHE_KEYS.readerBootstrap(novelId))).toBeNull();
@@ -375,6 +388,18 @@ describe('bookLifecycleService', () => {
       novelId,
       chapterIndex: 0,
       mode: 'scroll',
+      updatedAt: new Date().toISOString(),
+    });
+    await db.readerProgress.put({
+      novelId,
+      mode: 'scroll',
+      activeChapterIndex: 0,
+      position: {
+        type: 'chapter-edge',
+        chapterIndex: 0,
+        edge: 'start',
+      },
+      captureQuality: 'approximate',
       updatedAt: new Date().toISOString(),
     });
     await db.readerRenderCache.add({
@@ -487,6 +512,7 @@ describe('bookLifecycleService', () => {
     });
     await expect(db.analysisJobs.count()).resolves.toBe(0);
     await expect(db.chapterAnalyses.count()).resolves.toBe(0);
+    await expect(db.readerProgress.count()).resolves.toBe(0);
     await expect(db.readingProgress.count()).resolves.toBe(0);
     await expect(db.readerRenderCache.count()).resolves.toBe(0);
     await expect(db.coverImages.count()).resolves.toBe(0);
@@ -617,6 +643,18 @@ describe('bookLifecycleService', () => {
       mode: 'scroll',
       updatedAt: new Date().toISOString(),
     });
+    await db.readerProgress.put({
+      novelId,
+      mode: 'scroll',
+      activeChapterIndex: 0,
+      position: {
+        type: 'chapter-edge',
+        chapterIndex: 0,
+        edge: 'start',
+      },
+      captureQuality: 'approximate',
+      updatedAt: new Date().toISOString(),
+    });
 
     vi.mocked(bookImportService.parseBookImport).mockResolvedValue({
       title: 'Broken Reparse',
@@ -687,6 +725,7 @@ describe('bookLifecycleService', () => {
       importFormatVersion: 1,
     });
     await expect(db.analysisJobs.count()).resolves.toBe(1);
+    await expect(db.readerProgress.count()).resolves.toBe(1);
     await expect(db.readingProgress.count()).resolves.toBe(1);
   });
 });

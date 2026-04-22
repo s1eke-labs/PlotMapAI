@@ -25,6 +25,7 @@ describe('db', () => {
       'novelImageGalleryEntries',
       'novels',
       'purificationRules',
+      'readerProgress',
       'readerRenderCache',
       'readingProgress',
       'tocRules',
@@ -159,15 +160,45 @@ describe('db', () => {
   it('can add and retrieve reading progress', async () => {
     await db.readingProgress.add({
       novelId: 1,
-      chapterIndex: 5,
-      mode: 'summary',
+      canonical: {
+        chapterIndex: 5,
+        edge: 'start',
+      },
+      contentMode: 'paged',
+      viewMode: 'summary',
       chapterProgress: 0.5,
       updatedAt: new Date().toISOString(),
     });
     const progress = await db.readingProgress.where('novelId').equals(1).first();
     expect(progress).toBeDefined();
-    expect(progress!.chapterIndex).toBe(5);
-    expect(progress!.mode).toBe('summary');
+    expect(progress!.canonical?.chapterIndex).toBe(5);
+    expect(progress!.viewMode).toBe('summary');
+  });
+
+  it('can add and retrieve reader progress core snapshots', async () => {
+    await db.readerProgress.put({
+      novelId: 1,
+      mode: 'scroll',
+      activeChapterIndex: 5,
+      position: {
+        type: 'chapter-edge',
+        chapterIndex: 5,
+        edge: 'start',
+      },
+      projections: {
+        scrollChapterProgress: 0.5,
+      },
+      captureQuality: 'approximate',
+      updatedAt: new Date().toISOString(),
+    });
+    const progress = await db.readerProgress.get(1);
+    expect(progress).toBeDefined();
+    expect(progress!.activeChapterIndex).toBe(5);
+    expect(progress!.position).toEqual({
+      type: 'chapter-edge',
+      chapterIndex: 5,
+      edge: 'start',
+    });
   });
 
   it('can add analysis jobs', async () => {

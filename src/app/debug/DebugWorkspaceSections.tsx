@@ -489,18 +489,6 @@ export function DebugToolsPage({
           </div>
           <div className="space-y-2">
             <ToolRow
-              label={t('debug.features.readerStrictModeSwitch.label')}
-              secondary={t('debug.features.readerStrictModeSwitch.description')}
-            >
-              <Toggle
-                checked={featureFlags.readerStrictModeSwitch}
-                onChange={(checked) => {
-                  setDebugFeatureEnabled('readerStrictModeSwitch', checked);
-                }}
-                className="mt-1 shrink-0"
-              />
-            </ToolRow>
-            <ToolRow
               label={t('debug.features.readerTelemetry.label')}
               secondary={t('debug.features.readerTelemetry.description')}
             >

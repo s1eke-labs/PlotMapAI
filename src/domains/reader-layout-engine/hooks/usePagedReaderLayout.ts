@@ -201,7 +201,10 @@ export function usePagedReaderLayout({
       hasRestorableTarget
       && pendingRestoreTarget
       && currentPagedLayout
-      && canAttemptPagedRestoreWithoutViewportMeasurement(pendingRestoreTarget)
+      && canAttemptPagedRestoreWithoutViewportMeasurement(
+        pendingRestoreTarget,
+        layoutDerivedPageCount,
+      )
     ) {
       const resolvedTargetPage = resolveTracePagedRestoreTargetPage({
         currentPageIndex,

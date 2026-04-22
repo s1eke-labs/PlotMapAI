@@ -2,10 +2,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import * as debug from '@shared/debug';
 import { db } from '@infra/db';
-import {
-  readReaderBootstrapSnapshot,
-  writeReaderBootstrapSnapshot,
-} from '@infra/storage/readerStateCache';
 
 import {
   flushPersistence,
@@ -14,7 +10,7 @@ import {
   persistStoredReaderState,
   resetReaderSessionStoreForTests,
 } from '../readerSessionStore';
-import * as repository from '../../persistence/repository';
+import * as repository from '../../progress-core/repository';
 
 function createStoredCanonical(chapterIndex: number) {
   return {
@@ -22,20 +18,6 @@ function createStoredCanonical(chapterIndex: number) {
       chapterIndex,
       edge: 'start' as const,
     },
-  };
-}
-
-function createPersistedProgress(
-  chapterIndex: number,
-  overrides: Partial<ReturnType<typeof createStoredCanonical>> = {},
-) {
-  return {
-    revision: 1,
-    state: {
-      ...createStoredCanonical(chapterIndex),
-      ...overrides,
-    },
-    updatedAt: '2026-04-12T00:00:00.000Z',
   };
 }
 
@@ -49,8 +31,7 @@ describe('readerSessionStore persistence', () => {
   });
 
   it('enters error state and throws when DB hydration read fails', async () => {
-    writeReaderBootstrapSnapshot(1, createPersistedProgress(5));
-    vi.spyOn(repository, 'readPersistedReadingProgress').mockRejectedValueOnce(new Error('db read failed'));
+    vi.spyOn(repository, 'readReaderProgressSnapshot').mockRejectedValueOnce(new Error('db read failed'));
 
     await expect(hydrateSession(1, { pageTurnMode: 'scroll' })).rejects.toThrow('db read failed');
 
@@ -61,9 +42,8 @@ describe('readerSessionStore persistence', () => {
     expect(snapshot.chapterIndex).toBe(0);
   });
 
-  it('ignores bootstrap cache when DB has no record and clears stale cache', async () => {
-    writeReaderBootstrapSnapshot(7, createPersistedProgress(4));
-    vi.spyOn(repository, 'readPersistedReadingProgress').mockResolvedValueOnce(null);
+  it('returns default state when DB has no durable record', async () => {
+    vi.spyOn(repository, 'readReaderProgressSnapshot').mockResolvedValueOnce(null);
 
     const hydratedState = await hydrateSession(7, { pageTurnMode: 'scroll' });
 
@@ -74,31 +54,34 @@ describe('readerSessionStore persistence', () => {
       },
       hints: undefined,
     });
-    expect(readReaderBootstrapSnapshot(7)).toBeNull();
     expect(getReaderSessionSnapshot().chapterIndex).toBe(0);
   });
 
-  it('prefers Dexie progress over a conflicting bootstrap mirror during hydration', async () => {
-    writeReaderBootstrapSnapshot(9, createPersistedProgress(4, {
-      hints: {
-        contentMode: 'scroll',
-        viewMode: 'original',
-      },
-    }));
-    vi.spyOn(repository, 'readPersistedReadingProgress').mockResolvedValueOnce({
+  it('hydrates the session from durable Dexie progress', async () => {
+    vi.spyOn(repository, 'readReaderProgressSnapshot').mockResolvedValueOnce({
+      novelId: 9,
       revision: 5,
-      state: {
-        canonical: {
-          chapterIndex: 2,
-          blockIndex: 3,
-          kind: 'text',
+      snapshot: {
+        mode: 'paged',
+        activeChapterIndex: 2,
+        position: {
+          type: 'locator',
+          locator: {
+            chapterIndex: 2,
+            blockIndex: 3,
+            kind: 'text',
+            pageIndex: 7,
+          },
         },
-        hints: {
-          chapterProgress: 0.65,
-          contentMode: 'paged',
-          pageIndex: 7,
-          viewMode: 'summary',
+        projections: {
+          paged: {
+            pageIndex: 7,
+          },
+          scroll: {
+            chapterProgress: 0.65,
+          },
         },
+        captureQuality: 'precise',
       },
       updatedAt: '2026-04-12T00:00:00.000Z',
     });
@@ -115,20 +98,20 @@ describe('readerSessionStore persistence', () => {
         chapterProgress: 0.65,
         contentMode: 'paged',
         pageIndex: 7,
-        viewMode: 'summary',
+        viewMode: 'original',
       },
     });
     expect(getReaderSessionSnapshot()).toMatchObject({
       chapterIndex: 2,
       lastContentMode: 'paged',
-      mode: 'summary',
+      mode: 'paged',
     });
   });
 
   it('marks persistence degraded when DB write fails without rolling back UI state', async () => {
-    vi.spyOn(repository, 'readPersistedReadingProgress').mockResolvedValueOnce(null);
+    vi.spyOn(repository, 'readReaderProgressSnapshot').mockResolvedValueOnce(null);
     const replaceSpy = vi
-      .spyOn(repository, 'replaceReadingProgress')
+      .spyOn(repository, 'replaceReaderProgressSnapshot')
       .mockRejectedValueOnce(new Error('db write failed'));
     const reportErrorSpy = vi.spyOn(debug, 'reportAppError');
 
@@ -146,14 +129,13 @@ describe('readerSessionStore persistence', () => {
     expect(snapshot.persistenceStatus).toBe('degraded');
     expect(snapshot.lastPersistenceFailure).not.toBeNull();
     expect(reportErrorSpy).toHaveBeenCalled();
-    expect(readReaderBootstrapSnapshot(3)).toBeNull();
   });
 
-  it('recovers persistence health and writes cache after a later successful DB write', async () => {
-    vi.spyOn(repository, 'readPersistedReadingProgress').mockResolvedValueOnce(null);
-    const originalReplaceReadingProgress = repository.replaceReadingProgress;
+  it('recovers persistence health after a later successful DB write', async () => {
+    vi.spyOn(repository, 'readReaderProgressSnapshot').mockResolvedValueOnce(null);
+    const originalReplaceReadingProgress = repository.replaceReaderProgressSnapshot;
     const replaceSpy = vi
-      .spyOn(repository, 'replaceReadingProgress')
+      .spyOn(repository, 'replaceReaderProgressSnapshot')
       .mockRejectedValueOnce(new Error('first write failed'))
       .mockImplementationOnce(originalReplaceReadingProgress);
 
@@ -166,7 +148,6 @@ describe('readerSessionStore persistence', () => {
     await flushPersistence();
 
     expect(getReaderSessionSnapshot().persistenceStatus).toBe('degraded');
-    expect(readReaderBootstrapSnapshot(5)).toBeNull();
 
     persistStoredReaderState(createStoredCanonical(6), {
       flush: true,
@@ -178,21 +159,21 @@ describe('readerSessionStore persistence', () => {
     expect(replaceSpy).toHaveBeenCalledTimes(2);
     expect(snapshot.persistenceStatus).toBe('healthy');
     expect(snapshot.lastPersistenceFailure).toBeNull();
-    expect(readReaderBootstrapSnapshot(5)?.progress).toMatchObject({
+    await expect(repository.readReaderProgressSnapshot(5)).resolves.toEqual({
+      novelId: 5,
       revision: 1,
-      state: {
-        canonical: {
+      snapshot: {
+        mode: 'scroll',
+        activeChapterIndex: 6,
+        position: {
+          type: 'chapter-edge',
           chapterIndex: 6,
           edge: 'start',
         },
-        hints: {
-          chapterProgress: undefined,
-          contentMode: 'scroll',
-          pageIndex: undefined,
-          viewMode: 'original',
-        },
+        projections: undefined,
+        captureQuality: 'approximate',
       },
+      updatedAt: expect.any(String),
     });
-    expect(readReaderBootstrapSnapshot(5)?.progress.updatedAt).toEqual(expect.any(String));
   });
 });

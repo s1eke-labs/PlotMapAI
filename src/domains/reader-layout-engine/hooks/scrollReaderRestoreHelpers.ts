@@ -156,7 +156,9 @@ export function resolvePendingScrollTarget(params: {
       return candidateScrollTop;
     }
 
-    const candidateProgress = containerMaxScrollTop > 0 ? candidateScrollTop / containerMaxScrollTop : 0;
+    const candidateProgress = containerMaxScrollTop > 0
+      ? candidateScrollTop / containerMaxScrollTop
+      : 0;
     if (
       Math.abs(candidateProgress - target.chapterProgress)
       > SCROLL_RESTORE_PROGRESS_FALLBACK_TOLERANCE
@@ -167,10 +169,10 @@ export function resolvePendingScrollTarget(params: {
     return candidateScrollTop;
   };
 
-  type ScrollRestoreStepValue = {
+  interface ScrollRestoreStepValue {
     locator: ReaderLocator | null;
     scrollTop: number;
-  };
+  }
 
   if (target.locatorBoundary !== undefined && resolvedLocator === null) {
     const hasResolvedBoundaryLayout = scrollLayouts.has(target.chapterIndex)

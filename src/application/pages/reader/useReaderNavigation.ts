@@ -65,17 +65,11 @@ export function useReaderNavigation({
         chapterIndex: targetIndex,
         pageTarget,
       }),
-      hints: mode === 'summary'
-        ? {
-          chapterProgress: pageTarget === 'end' ? 1 : 0,
-        }
-        : undefined,
     });
   }, [
     beforeChapterChange,
     chapters.length,
     hasUserInteractedRef,
-    mode,
     navigation,
     persistReaderState,
     setChapterIndex,
@@ -121,3 +115,4 @@ export function useReaderNavigation({
     toolbarHasPrev: chapterNavigation.toolbarHasPrev || Boolean(currentChapter?.hasPrev),
   };
 }
+

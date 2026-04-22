@@ -175,6 +175,7 @@ export function usePagedReaderController({
     navigation.setPendingPageTarget(null);
     setPendingPageTarget(null);
   }, [navigation]);
+
   const pagedLayout = usePagedReaderLayout({
     chapterIndex,
     currentChapter,

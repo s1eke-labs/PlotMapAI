@@ -51,6 +51,13 @@ export default function ReaderViewport({
   scrollContentProps,
   summaryContentProps,
 }: ReaderViewportProps) {
+  let branch: 'paged' | 'scroll' | 'summary' = 'scroll';
+  if (isPagedMode) {
+    branch = 'paged';
+  } else if (viewMode === 'summary') {
+    branch = 'summary';
+  }
+
   let content: React.ReactNode = null;
   if (isPagedMode) {
     content = pagedContentProps ? <PagedReaderContent {...pagedContentProps} /> : null;
@@ -86,12 +93,6 @@ export default function ReaderViewport({
       return;
     }
 
-    let branch: 'paged' | 'scroll' | 'summary' = 'scroll';
-    if (isPagedMode) {
-      branch = 'paged';
-    } else if (viewMode === 'summary') {
-      branch = 'summary';
-    }
     const pagedChapter = pagedContentProps?.chapter?.index ?? null;
     const renderChapterIndex = renderableChapter?.index ?? pagedChapter;
 
@@ -109,6 +110,7 @@ export default function ReaderViewport({
       },
     });
   }, [
+    branch,
     isPagedMode,
     isRestoringPosition,
     pagedContentProps?.chapter?.index,
@@ -122,6 +124,7 @@ export default function ReaderViewport({
   return (
     <div
       ref={contentRef}
+      data-reader-branch={branch}
       data-testid="reader-viewport"
       className={cn(
         'h-full w-full relative cursor-pointer',

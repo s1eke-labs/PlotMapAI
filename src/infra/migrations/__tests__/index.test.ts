@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
-import { DB_SCHEMA_MIGRATIONS } from '../dbSchema';
+import { CURRENT_DB_SCHEMA_VERSION, DB_SCHEMA_MIGRATIONS } from '../dbSchema';
 
 describe('db schema registry', () => {
-  it('registers only the current schema baseline', () => {
-    expect(DB_SCHEMA_MIGRATIONS).toHaveLength(1);
-    expect(DB_SCHEMA_MIGRATIONS[0]).toMatchObject({
+  it('registers a migration lineage whose latest entry is the current schema baseline', () => {
+    expect(DB_SCHEMA_MIGRATIONS.length).toBeGreaterThanOrEqual(1);
+    expect(DB_SCHEMA_MIGRATIONS.at(-1)).toMatchObject({
       description: expect.any(String),
       scope: 'db-schema',
-      version: 5,
+      version: CURRENT_DB_SCHEMA_VERSION,
     });
   });
 

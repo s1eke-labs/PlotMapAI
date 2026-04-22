@@ -21,7 +21,8 @@ This file is generated from `scripts/architecture/contracts/table-ownership.json
 | `analysisChunks` | `@domains/analysis` | analysis, application orchestration | `analysisService.*` |
 | `chapterAnalyses` | `@domains/analysis` | analysis, application orchestration | `analysisService.getChapterAnalysis/deleteArtifacts/*` |
 | `analysisOverviews` | `@domains/analysis` | analysis, application orchestration | `analysisService.getOverview/deleteArtifacts/*` |
-| `readingProgress` | `@domains/reader-session` | 阅读器会话，应用层编排 | `readReadingProgress/replaceReadingProgress/deleteReadingProgress` |
+| `readingProgress` | `@domains/reader-session` | 阅读器会话，schema 迁移，应用层编排 | `readReadingProgress/replaceReadingProgress/deleteReadingProgress` |
+| `readerProgress` | `@domains/reader-session` | 阅读器会话新进度内核，schema 迁移，应用层编排 | `readReaderProgressSnapshot/replaceReaderProgressSnapshot/deleteReaderProgressSnapshot` |
 | `readerRenderCache` | `@domains/reader-layout-engine` | 阅读器排版引擎，应用层编排，调试面板诊断 | `排版缓存工具`, `deletePersistedReaderRenderCache` |
 
 ## Data Model Notes

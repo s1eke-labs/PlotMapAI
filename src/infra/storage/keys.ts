@@ -1,3 +1,5 @@
+const READER_BOOTSTRAP_PREFIX = 'reader-bootstrap:' as const;
+
 export const APP_SETTING_KEYS = {
   aiConfig: 'app.aiConfig',
   readerPreferences: 'reader.preferences',
@@ -9,7 +11,8 @@ export const CACHE_KEYS = {
   readerTraceLastDump: 'reader-trace-last-dump',
   installPromptDismissedAt: 'plotmapai_install_prompt_dismissed_at',
   updatePromptDismissed: 'plotmapai_update_prompt_dismissed',
-  readerBootstrap: (novelId: number) => `reader-bootstrap:${novelId}`,
+  readerBootstrapPrefix: READER_BOOTSTRAP_PREFIX,
+  readerBootstrap: (novelId: number) => `${READER_BOOTSTRAP_PREFIX}${novelId}`,
 } as const;
 
 export const SECURE_KEYS = {

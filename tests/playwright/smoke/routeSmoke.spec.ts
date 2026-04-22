@@ -10,15 +10,15 @@ import {
   navigateToSettings,
 } from '../helpers/appHarness';
 
-test.describe('route smoke tests', () => {
-  test('bookshelf page renders', async ({ page }) => {
+test.describe('路由冒烟测试', () => {
+  test('书架页面可正常渲染', async ({ page }) => {
     await navigateToBookshelf(page);
     await assertHeaderVisible(page);
     await expect(page.getByTestId('bookshelf-scroll-container')).toBeVisible();
     await expect(page.getByRole('heading', { level: 1 })).toContainText('My Bookshelf');
   });
 
-  test('settings page renders with three tabs', async ({ page }) => {
+  test('设置页面可渲染并显示三个标签页', async ({ page }) => {
     await navigateToSettings(page);
     await assertHeaderVisible(page);
     await expect(page.getByRole('heading', { level: 1 })).toContainText('Settings');
@@ -27,39 +27,39 @@ test.describe('route smoke tests', () => {
     await expect(page.getByRole('button', { name: 'AI Analysis Settings' })).toBeVisible();
   });
 
-  test('book detail page renders after importing a book', async ({ page }) => {
+  test('导入书籍后书籍详情页面可正常渲染', async ({ page }) => {
     const { title } = await importTestBook(page);
     await assertHeaderVisible(page);
     await expect(page.getByRole('heading', { name: title, level: 1 })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Start Reading' })).toBeVisible();
   });
 
-  test('reader page renders and hides header', async ({ page }) => {
+  test('阅读器页面可正常渲染并隐藏页头', async ({ page }) => {
     const { novelId } = await importTestBook(page);
     await navigateToReader(page, novelId);
     await expect(page.getByTestId('reader-viewport')).toBeVisible({ timeout: 30_000 });
     await assertHeaderHidden(page);
   });
 
-  test('character graph page renders empty state', async ({ page }) => {
+  test('人物关系图页面可渲染空状态', async ({ page }) => {
     const { novelId } = await importTestBook(page);
     await navigateToCharacterGraph(page, novelId);
     await expect(page.getByText('No character graph is available yet.')).toBeVisible();
   });
 
-  test('header logo navigates to bookshelf', async ({ page }) => {
+  test('点击页头 Logo 可返回书架', async ({ page }) => {
     await navigateToSettings(page);
     await page.getByText('PlotMapAI').first().click();
     await expect(page.getByTestId('bookshelf-scroll-container')).toBeVisible();
   });
 
-  test('header settings icon navigates to settings', async ({ page }) => {
+  test('点击页头设置图标可进入设置页', async ({ page }) => {
     await navigateToBookshelf(page);
     await page.locator('a[title="Settings"]').click();
     await expect(page.getByRole('heading', { level: 1 })).toContainText('Settings');
   });
 
-  test('theme toggle changes color scheme', async ({ page }) => {
+  test('主题切换可更新配色方案', async ({ page }) => {
     await navigateToBookshelf(page);
     const shell = page.getByTestId('app-layout-shell');
     const initialBg = await shell.evaluate((el) => getComputedStyle(el).backgroundColor);

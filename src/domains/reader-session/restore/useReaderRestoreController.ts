@@ -19,9 +19,7 @@ import {
 import {
   buildReaderModeSwitchDebugSnapshot,
   captureStrictModeSwitchState,
-  verifyStrictModeRestoreCompletion,
 } from '../mode-switch/readerModeSwitchDebug';
-import { setLastRestoreResult } from '../store/readerSessionStore';
 import { useReaderRestoreResultTracker } from './readerRestoreResultTracker';
 import { useReaderModeSwitchRollback } from '../mode-switch/useReaderModeSwitchRollback';
 import { usePendingRestoreTargetController } from './usePendingRestoreTargetController';
@@ -35,7 +33,7 @@ import {
   type UseReaderRestoreControllerResult,
 } from './readerRestoreControllerTypes';
 import { useSummaryRestoreRunner } from './useSummaryRestoreRunner';
-import { useSummaryProgressPersistence } from '../hooks/useSummaryProgressPersistence';
+import { useStrictModeRestoreVerification } from './useStrictModeRestoreVerification';
 import { debugLog, setDebugSnapshot } from '@shared/debug';
 import {
   traceModeSwitchError,
@@ -124,68 +122,21 @@ export function useReaderRestoreController({
     setPendingRestoreTarget,
     suppressScrollSyncTemporarily,
   });
-  const verifyStrictModeRestoreTarget = useCallback((
-    strictTransaction: NonNullable<ReturnType<typeof getStrictModeSwitchTransaction>>,
-  ) => {
-    const verificationFailure = verifyStrictModeRestoreCompletion({
-      chapterIndex: strictTransaction.chapterIndex,
-      contentElement: viewport.contentRef.current,
-      currentOriginalLocator: layoutQueries.getCurrentOriginalLocator(),
-      currentPageCount: navigation.getPagedState().pageCount,
-      currentPageIndex: navigation.getPagedState().pageIndex,
-      resolvePagedLocatorPageIndex: (locator) => (
-        locator ? layoutQueries.resolvePagedLocatorPageIndex(locator) : null
-      ),
-      resolveScrollLocatorOffset: (locator) => (
-        layoutQueries.resolveScrollLocatorOffset(locator)
-      ),
-      targetMode: strictTransaction.targetMode,
-      targetRestoreTarget: strictTransaction.targetRestoreTarget,
-    });
-    if (verificationFailure) {
-      setLastRestoreResult(verificationFailure.restoreResult);
-      finalizeStrictModeSwitchFailure({
-        chapterIndex: strictTransaction.chapterIndex,
-        message: verificationFailure.message,
-        restoreResult: verificationFailure.restoreResult,
-        sourceMode: strictTransaction.sourceMode,
-        stage: 'restore_target',
-        targetMode: strictTransaction.targetMode,
-      });
-      return true;
-    }
-
-    completeStrictModeSwitchTransaction();
-    return true;
-  }, [
+  const { processStrictModeRestoreSettled } = useStrictModeRestoreVerification({
     completeStrictModeSwitchTransaction,
+    contentRef: viewport.contentRef,
     finalizeStrictModeSwitchFailure,
-    layoutQueries,
-    navigation,
-    viewport.contentRef,
-  ]);
-  const processStrictModeRestoreSettled = useCallback((result: RestoreSettledResult): boolean => {
-    const strictTransaction = getStrictModeSwitchTransaction();
-    if (!strictTransaction?.strict || strictTransaction.stage !== 'restore_target') {
-      return false;
-    }
-
-    if (result === 'completed') {
-      if (strictTransaction.targetMode === 'scroll') {
-        completeStrictModeSwitchTransaction();
-        return true;
-      }
-
-      return verifyStrictModeRestoreTarget(strictTransaction);
-    }
-
-    return handleStrictModeRestoreSettled(result);
-  }, [
-    completeStrictModeSwitchTransaction,
+    getCurrentOriginalLocator: layoutQueries.getCurrentOriginalLocator,
+    getPagedState: navigation.getPagedState,
     getStrictModeSwitchTransaction,
     handleStrictModeRestoreSettled,
-    verifyStrictModeRestoreTarget,
-  ]);
+    resolvePagedLocatorPageIndex: (locator) => (
+      locator ? layoutQueries.resolvePagedLocatorPageIndex(locator) : null
+    ),
+    resolveScrollLocatorOffset: (locator) => (
+      layoutQueries.resolveScrollLocatorOffset(locator)
+    ),
+  });
   const switchMode = useCallback(async (targetMode: ReaderMode): Promise<void> => {
     if (targetMode === mode) return;
 
@@ -463,14 +414,7 @@ export function useReaderRestoreController({
     suppressScrollSyncTemporarily,
     viewportContentRef: viewport.contentRef,
   });
-  const { handleContentScroll } = useSummaryProgressPersistence({
-    chapterIndex,
-    mode,
-    pendingRestoreTargetRef,
-    persistReaderState,
-    isScrollSyncSuppressed: persistence.isScrollSyncSuppressed,
-    viewportContentRef: viewport.contentRef,
-  });
+  const handleContentScroll = useCallback(() => {}, []);
   const handleBeforeChapterChange = useCallback(() => {
     clearPendingRestoreTarget();
     stopRestoreMask();

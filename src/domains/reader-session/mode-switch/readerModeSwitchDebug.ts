@@ -169,6 +169,15 @@ export function verifyStrictModeRestoreCompletion(params: {
       };
     }
 
+    if (
+      areStrictModeLocatorsEquivalent(
+        params.currentOriginalLocator,
+        targetRestoreTarget.locator,
+      )
+    ) {
+      return null;
+    }
+
     if (params.currentPageIndex === expectedPageIndex) {
       return null;
     }

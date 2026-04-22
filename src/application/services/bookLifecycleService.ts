@@ -16,7 +16,10 @@ import {
   deletePersistedReaderRenderCache,
 } from '@domains/reader-layout-engine';
 import { clearReaderImageResourcesForNovel } from '@domains/reader-media';
-import { deleteReadingProgress } from '@domains/reader-session';
+import {
+  deleteLegacyReadingProgress,
+  deleteReaderProgressSnapshot,
+} from '@domains/reader-session';
 import type { ChapterDetectionRule } from '@shared/text-processing';
 import { AppErrorCode, createAppError } from '@shared/errors';
 import { db } from '@infra/db';
@@ -31,6 +34,15 @@ function getRequiredTransaction(): Transaction {
   }
 
   return transaction;
+}
+
+async function clearPersistedReaderArtifacts(
+  novelId: number,
+  transaction: Transaction,
+): Promise<void> {
+  await deleteReaderProgressSnapshot(novelId, transaction);
+  await deleteLegacyReadingProgress(novelId, transaction);
+  await deletePersistedReaderRenderCache(novelId, transaction);
 }
 
 export const bookLifecycleService = {
@@ -120,6 +132,7 @@ export const bookLifecycleService = {
         db.analysisChunks,
         db.analysisOverviews,
         db.chapterAnalyses,
+        db.readerProgress,
         db.readingProgress,
         db.readerRenderCache,
         db.novels,
@@ -132,7 +145,7 @@ export const bookLifecycleService = {
       async () => {
         const transaction = getRequiredTransaction();
         await analysisService.deleteArtifacts(novelId, transaction);
-        await deleteReadingProgress(novelId, transaction);
+        await clearPersistedReaderArtifacts(novelId, transaction);
         await novelRepository.replaceImportedNovel(novelId, {
           title: prepared.title,
           author: prepared.author,
@@ -154,7 +167,6 @@ export const bookLifecycleService = {
         await chapterRichContentRepository.replaceNovelChapterRichContents(novelId, {
           chapters: prepared.chapterRichContents,
         }, transaction);
-        await deletePersistedReaderRenderCache(novelId, transaction);
       },
     );
 
@@ -175,6 +187,7 @@ export const bookLifecycleService = {
         db.analysisChunks,
         db.analysisOverviews,
         db.chapterAnalyses,
+        db.readerProgress,
         db.readingProgress,
         db.readerRenderCache,
         db.novels,
@@ -187,8 +200,7 @@ export const bookLifecycleService = {
       async () => {
         const transaction = getRequiredTransaction();
         await analysisService.deleteArtifacts(novelId, transaction);
-        await deleteReadingProgress(novelId, transaction);
-        await deletePersistedReaderRenderCache(novelId, transaction);
+        await clearPersistedReaderArtifacts(novelId, transaction);
         await chapterRichContentRepository.deleteNovelChapterRichContents(novelId, transaction);
         await bookContentRepository.deleteNovelContent(novelId, transaction);
         await novelRepository.delete(novelId, {

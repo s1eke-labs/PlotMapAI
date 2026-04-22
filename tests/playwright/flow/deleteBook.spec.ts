@@ -5,8 +5,8 @@ import { disableAnimations, importTestBook } from '../helpers/appHarness';
 import { clickDeleteBook, confirmDelete } from '../helpers/bookDetailHarness';
 import { getBookCardCount } from '../helpers/bookshelfHarness';
 
-test.describe('delete book flow', () => {
-  test('import → detail → delete → bookshelf empty', async ({ page }) => {
+test.describe('删除书籍流程', () => {
+  test('导入 → 详情 → 删除 → 书架为空', async ({ page }) => {
     // 1. Import a test book and land on detail page
     await importTestBook(page);
     await expect(page.getByRole('heading', { name: TEST_BOOK_TITLE, level: 1 })).toBeVisible();

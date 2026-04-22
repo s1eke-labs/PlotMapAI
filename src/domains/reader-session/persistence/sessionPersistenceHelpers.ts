@@ -8,9 +8,6 @@ import type {
   ReaderSessionState,
   StoredReaderState,
 } from '@shared/contracts/reader';
-import {
-  readReaderBootstrapSnapshot,
-} from '@infra/storage/readerStateCache';
 import { getPersistedReadingProgressFingerprint } from '@shared/utils/readerPersistedProgress';
 import { createReaderStateModeHints } from '@shared/utils/readerMode';
 import { shouldKeepReaderRestoreMask } from '@shared/utils/readerPosition';
@@ -35,25 +32,8 @@ export interface ReaderSessionCacheShape {
   lastContentMode: ReaderSessionState['lastContentMode'];
 }
 
-function isBrowser(): boolean {
-  return typeof window !== 'undefined';
-}
-
 export function shouldMaskRestore(target: ReaderRestoreTarget | null | undefined): boolean {
   return shouldKeepReaderRestoreMask(target);
-}
-
-export function readLocalSessionState(novelId: number): StoredReaderState | null {
-  if (!isBrowser() || !novelId) {
-    return null;
-  }
-
-  const snapshot = readReaderBootstrapSnapshot(novelId);
-  if (!snapshot) {
-    return null;
-  }
-
-  return buildStoredReaderState(snapshot.progress.state);
 }
 
 export function toStoredReaderState(state: ReaderSessionCacheShape): StoredReaderState {
