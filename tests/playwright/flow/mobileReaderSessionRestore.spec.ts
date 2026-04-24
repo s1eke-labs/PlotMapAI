@@ -10,11 +10,11 @@ import {
   MULTI_CHAPTER_BOOK_TITLE,
 } from '../fixtures/testEpubFile';
 import {
+  activateLocatorResponsive,
   clickNextPageResponsive,
   disableAnimations,
-  exitAndReopenReader,
+  exitAndReopenReaderByUiResponsive,
   exitReaderToDetailPageByUi,
-  exitReaderToDetailPage,
   hideReaderChromeResponsive,
   importEpubToDetailPage,
   navigateToChapterByTitleResponsive,
@@ -49,6 +49,7 @@ interface ReadingMarker {
 
 const MAX_CROSS_CHAPTER_STEPS = 18;
 const SCROLL_PROGRESS_TOLERANCE = 0.04;
+const TOUCH_SCROLL_SETTLE_TIMEOUT_MS = 6_000;
 
 async function waitForViewportScrollable(page: Page): Promise<void> {
   await expect.poll(async () => {
@@ -62,37 +63,71 @@ async function waitForViewportScrollable(page: Page): Promise<void> {
   }).toBeGreaterThan(0);
 }
 
-async function scrollViewportToProgress(page: Page, progress: number): Promise<void> {
-  await waitForViewportScrollable(page);
-  await page.getByTestId('reader-viewport').evaluate((element, nextProgress) => {
-    const viewport = element as HTMLElement;
-    const maxScrollTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
-    viewport.scrollTop = Math.round(maxScrollTop * nextProgress);
-    viewport.dispatchEvent(new Event('scroll'));
-  }, progress);
-}
-
-async function scrollViewportByPixels(page: Page, deltaY: number): Promise<void> {
-  await waitForViewportScrollable(page);
-  await page.getByTestId('reader-viewport').evaluate((element, nextDeltaY) => {
-    const viewport = element as HTMLElement;
-    viewport.scrollTop += nextDeltaY;
-    viewport.dispatchEvent(new Event('scroll'));
-  }, deltaY);
-}
-
-async function wheelScrollViewportByPixels(page: Page, deltaY: number): Promise<void> {
+async function touchScrollViewportByPixels(
+  page: Page,
+  deltaY: number,
+  options: {
+    settle?: boolean;
+  } = {},
+): Promise<ReaderViewportSnapshot> {
   await waitForViewportScrollable(page);
   const viewport = page.getByTestId('reader-viewport');
   const box = await viewport.boundingBox();
   if (!box) {
-    throw new Error('Failed to resolve reader viewport bounding box for wheel scroll.');
+    throw new Error('Failed to resolve reader viewport bounding box for touch scroll.');
+  }
+
+  const direction = Math.sign(deltaY);
+  if (direction === 0) {
+    return readReaderViewportSnapshot(page);
   }
 
   const x = box.x + box.width * 0.5;
-  const y = box.y + Math.min(box.height * 0.55, box.height - 4);
-  await page.mouse.move(x, y);
-  await page.mouse.wheel(0, deltaY);
+  const safeTop = box.y + Math.max(24, box.height * 0.18);
+  const safeBottom = box.y + Math.min(box.height - 24, box.height * 0.82);
+  const maxGestureDistance = Math.max(80, safeBottom - safeTop);
+  const gestureDistance = Math.max(80, Math.min(Math.abs(deltaY), maxGestureDistance));
+  const startY = direction > 0 ? safeBottom : safeTop;
+  const endY = direction > 0 ? startY - gestureDistance : startY + gestureDistance;
+  const session = await page.context().newCDPSession(page);
+
+  try {
+    await session.send('Input.dispatchTouchEvent', {
+      touchPoints: [{ force: 0.5, id: 1, radiusX: 5, radiusY: 5, x, y: startY }],
+      type: 'touchStart',
+    });
+
+    const steps = 8;
+    for (let step = 1; step <= steps; step += 1) {
+      const ratio = step / steps;
+      await session.send('Input.dispatchTouchEvent', {
+        touchPoints: [{
+          force: 0.5,
+          id: 1,
+          radiusX: 5,
+          radiusY: 5,
+          x,
+          y: startY + (endY - startY) * ratio,
+        }],
+        type: 'touchMove',
+      });
+      await page.waitForTimeout(16);
+    }
+
+    await session.send('Input.dispatchTouchEvent', {
+      touchPoints: [],
+      type: 'touchEnd',
+    });
+  } finally {
+    await session.detach();
+  }
+
+  if (options.settle === false) {
+    await page.waitForTimeout(80);
+    return readReaderViewportSnapshot(page);
+  }
+
+  return waitForViewportScrollSettled(page, `Wait for touch scroll by ${deltaY} settling`);
 }
 
 function isScrollProgressWithinTolerance(
@@ -103,46 +138,60 @@ function isScrollProgressWithinTolerance(
   return typeof actual === 'number' && Math.abs(actual - expected) <= tolerance;
 }
 
-async function scrollViewportToProgressByWheelAndWait(
+async function scrollViewportByPixels(page: Page, deltaY: number): Promise<void> {
+  await touchScrollViewportByPixels(page, deltaY);
+}
+
+async function scrollViewportToProgressByTouchAndWait(
   page: Page,
   progress: number,
 ): Promise<ReaderViewportSnapshot> {
   await waitForViewportScrollable(page);
   let snapshot = await readReaderViewportSnapshot(page);
 
-  for (let attempt = 0; attempt < 40; attempt += 1) {
+  for (let attempt = 0; attempt < 60; attempt += 1) {
     const currentProgress = snapshot.scrollProgress ?? 0;
-    const hasReachedTarget = currentProgress >= progress - 0.02;
+    const hasReachedTarget = isScrollProgressWithinTolerance(currentProgress, progress, 0.03);
     if (hasReachedTarget) {
-      const settledSnapshot = await waitForViewportScrollSettled(
-        page,
-        `Wait for wheel scroll settling near ${progress}`,
-      );
-      if ((settledSnapshot.scrollProgress ?? 0) >= progress - 0.02) {
-        return settledSnapshot;
-      }
-      snapshot = settledSnapshot;
-      continue;
+      return waitForViewportScrollSettled(page, `Wait for touch scroll settling near ${progress}`);
     }
 
     const remainingProgress = Math.abs(progress - currentProgress);
     const maxScrollTop = snapshot.maxScrollTop ?? 0;
     const direction = currentProgress < progress ? 1 : -1;
     const deltaY = Math.max(
-      100,
+      90,
       Math.min(
-        900,
-        Math.round(maxScrollTop * Math.min(remainingProgress, 0.2)),
+        720,
+        Math.round(maxScrollTop * Math.min(remainingProgress, 0.16)),
       ),
     );
 
-    await wheelScrollViewportByPixels(page, direction * deltaY);
-    snapshot = await readReaderViewportSnapshot(page);
+    snapshot = await touchScrollViewportByPixels(page, direction * deltaY, { settle: false });
   }
 
   throw new Error(
-    `Expected wheel scroll viewport to reach progress >= ${Math.max(0, progress - 0.02).toFixed(4)}`
+    `Expected touch scroll viewport to reach progress≈${progress.toFixed(4)}`
     + `, lastViewport=${JSON.stringify(snapshot)}`,
+  );
+}
+
+async function scrollViewportToProgress(page: Page, progress: number): Promise<void> {
+  await scrollViewportToProgressByTouchAndWait(page, progress);
+}
+
+async function scrollViewportByTouchAndWaitForRevision(
+  page: Page,
+  novelId: number,
+  previousRevision: number,
+  description: string,
+): Promise<PersistedReadingProgressSnapshot> {
+  await touchScrollViewportByPixels(page, 520);
+  return waitForPersistedReadingProgress(
+    page,
+    novelId,
+    (snapshot) => snapshot !== null && (snapshot.revision ?? 0) > previousRevision,
+    { description, timeout: 15_000 },
   );
 }
 
@@ -175,7 +224,7 @@ async function waitForViewportScrollSettled(
 
     return stableFrames >= 4;
   }, {
-    timeout: 5_000,
+    timeout: TOUCH_SCROLL_SETTLE_TIMEOUT_MS,
     message: description,
   }).toBe(true);
 
@@ -363,9 +412,11 @@ async function readLongBookVisibleParagraphSnippet(
       const viewportRect = viewport.getBoundingClientRect();
       const visibleTop = viewportRect.top;
       const visibleBottom = viewportRect.bottom;
+      const preferredCenter = visibleTop + viewportRect.height * 0.48;
       const candidates = Array.from(
         viewport.querySelectorAll('p, div, li, span, h1, h2, h3, h4, h5, h6'),
       );
+      const matches: Array<{ distance: number; text: string }> = [];
 
       for (const candidate of candidates) {
         if (!(candidate instanceof HTMLElement)) {
@@ -383,11 +434,16 @@ async function readLongBookVisibleParagraphSnippet(
         }
         const match = text.match(/map admitted \d+\./u);
         if (match) {
-          return match[0];
+          const centerY = rect.top + rect.height / 2;
+          matches.push({
+            distance: Math.abs(centerY - preferredCenter),
+            text: match[0],
+          });
         }
       }
 
-      return null;
+      matches.sort((left, right) => left.distance - right.distance);
+      return matches[0]?.text ?? null;
     });
     return snippet;
   }, {
@@ -518,15 +574,13 @@ async function switchReaderBranch(page: Page, branch: 'paged' | 'scroll'): Promi
   const targetModeLabel = branch === 'paged' ? 'Slide' : 'Vertical';
   await revealReaderChromeResponsive(page);
   const pageTurnButton = page.locator('button[title="Page Turn"]:visible').first();
-  await pageTurnButton.evaluate((element) => {
-    (element as HTMLButtonElement).click();
-  });
+  await expect(pageTurnButton).toBeInViewport({ timeout: 8_000 });
+  await activateLocatorResponsive(page, pageTurnButton);
 
   const modeButton = page.locator(`button[title="${targetModeLabel}"]:visible`).first();
   await expect(modeButton).toBeVisible({ timeout: 8_000 });
-  await modeButton.evaluate((element) => {
-    (element as HTMLButtonElement).click();
-  });
+  await expect(modeButton).toBeInViewport({ timeout: 8_000 });
+  await activateLocatorResponsive(page, modeButton);
   await waitForReaderBranch(page, branch);
   await hideReaderChromeResponsive(page);
 }
@@ -539,18 +593,12 @@ async function scrollUntilChapterReached(
   let latestRevision = (await readPersistedReadingProgress(page, novelId))?.revision ?? 0;
 
   for (let step = 0; step < MAX_CROSS_CHAPTER_STEPS; step += 1) {
-    await page.getByTestId('reader-viewport').evaluate((element) => {
-      const viewport = element as HTMLElement;
-      viewport.scrollTop += Math.max(120, Math.round(viewport.clientHeight * 0.85));
-      viewport.dispatchEvent(new Event('scroll'));
-    });
-
     const previousRevision = latestRevision;
-    const persisted = await waitForPersistedReadingProgress(
+    const persisted = await scrollViewportByTouchAndWaitForRevision(
       page,
       novelId,
-      (snapshot) => snapshot !== null && (snapshot.revision ?? 0) > previousRevision,
-      { description: `advance scroll to chapter ${targetChapterIndex}`, timeout: 15_000 },
+      previousRevision,
+      `advance scroll to chapter ${targetChapterIndex}`,
     );
     latestRevision = persisted.revision ?? latestRevision;
 
@@ -589,19 +637,24 @@ async function advancePagedUntilChapterReached(
 }
 
 async function openBookFromBookshelf(page: Page, title: string): Promise<void> {
-  await page.goto('/');
+  const backLink = page.getByRole('link', { name: 'Back' }).first();
+  if (await backLink.isVisible().catch(() => false)) {
+    await activateLocatorResponsive(page, backLink);
+  } else {
+    await page.goto('/');
+  }
   await disableAnimations(page);
-  await page.getByRole('link', { name: title }).click();
+  await activateLocatorResponsive(page, page.getByRole('link', { name: title }).first());
   await disableAnimations(page);
   await expect(page.getByRole('heading', { name: title, level: 1 })).toBeVisible({ timeout: 15_000 });
 }
 
 async function reopenFromBookshelf(page: Page, title: string): Promise<void> {
   await exitReaderToDetailPageByUi(page);
-  await page.getByRole('link', { name: 'Back' }).first().click();
+  await activateLocatorResponsive(page, page.getByRole('link', { name: 'Back' }).first());
   await disableAnimations(page);
   await expect(page.getByTestId('bookshelf-scroll-container')).toBeVisible({ timeout: 15_000 });
-  await page.getByRole('link', { name: title }).click();
+  await activateLocatorResponsive(page, page.getByRole('link', { name: title }).first());
   await disableAnimations(page);
   await expect(page.getByRole('heading', { name: title, level: 1 })).toBeVisible({ timeout: 15_000 });
   await openReaderFromDetailPage(page);
@@ -613,7 +666,7 @@ async function runScrollRestoreRound(
   targetProgress: number,
   previousMarker?: ReadingMarker,
 ): Promise<ReadingMarker> {
-  let viewportSnapshot = await scrollViewportToProgressByWheelAndWait(page, targetProgress);
+  let viewportSnapshot = await scrollViewportToProgressByTouchAndWait(page, targetProgress);
 
   if (previousMarker) {
     const previousScrollProgress = requireScrollProgress(previousMarker, `TC-001 round ${round - 1} marker`);
@@ -625,8 +678,7 @@ async function runScrollRestoreRound(
       ) {
         break;
       }
-      await wheelScrollViewportByPixels(page, extraScrollSteps[attempt]);
-      viewportSnapshot = await readReaderViewportSnapshot(page);
+      viewportSnapshot = await touchScrollViewportByPixels(page, extraScrollSteps[attempt]);
     }
 
     expect(viewportSnapshot.scrollProgress).not.toBeNull();
@@ -721,7 +773,7 @@ async function runPagedRestoreRound(
     );
   }
 
-  await exitAndReopenReader(page);
+  await exitAndReopenReaderByUiResponsive(page);
   await waitForReaderBranch(page, 'paged');
   await expectPagedMarkerRestored(page, novelId, marker, `TC-002 round ${round} paged progress restored`);
   await expectViewportContainsSnippet(page, marker.anchorSnippet);
@@ -756,7 +808,7 @@ test.describe('移动端阅读会话恢复', () => {
     const roundThreeMarker = await runScrollRestoreRound(
       page,
       3,
-      0.78,
+      0.62,
       roundTwoMarker,
     );
 
@@ -811,7 +863,7 @@ test.describe('移动端阅读会话恢复', () => {
     await waitForPagedProgress(page, novelId, 1, 'paged progress persisted after mode switch');
     const pagedMarker = await capturePagedMarker(page, novelId);
 
-    await exitAndReopenReader(page);
+    await exitAndReopenReaderByUiResponsive(page);
     await waitForReaderBranch(page, 'paged');
     await expectPagedMarkerRestored(page, novelId, pagedMarker, 'paged progress restored after reopen');
 
@@ -838,7 +890,7 @@ test.describe('移动端阅读会话恢复', () => {
     await waitForScrollProgress(page, novelId, 0.15, 'scroll progress persisted after mode switch');
     const scrollMarker = await captureMarker(page, novelId, 'scroll');
 
-    await exitAndReopenReader(page);
+    await exitAndReopenReaderByUiResponsive(page);
     await waitForReaderBranch(page, 'scroll');
     await waitForScrollProgress(page, novelId, 0.15, 'scroll progress restored after reopen');
 
@@ -862,7 +914,7 @@ test.describe('移动端阅读会话恢复', () => {
 
     expect(marker.chapterIndex).toBe(1);
 
-    await exitAndReopenReader(page);
+    await exitAndReopenReaderByUiResponsive(page);
     await waitForReaderBranch(page, 'scroll');
     await waitForPersistedReadingProgress(
       page,
@@ -903,7 +955,7 @@ test.describe('移动端阅读会话恢复', () => {
 
     expect(marker.chapterIndex).toBe(1);
 
-    await exitAndReopenReader(page);
+    await exitAndReopenReaderByUiResponsive(page);
     await waitForReaderBranch(page, 'paged');
     await expectPagedMarkerRestored(page, novelId, marker, 'paged chapter 2 restored');
 
@@ -932,12 +984,20 @@ test.describe('移动端阅读会话恢复', () => {
         && snapshot.canonical.chapterIndex === 1,
       { description: 'toc jump persisted to chapter 2', timeout: 15_000 },
     );
-    await scrollViewportToProgress(page, 0.3);
+    await scrollViewportByPixels(page, 260);
+    await waitForPersistedReadingProgress(
+      page,
+      novelId,
+      (snapshot) => snapshot !== null
+        && snapshot.contentMode === 'scroll'
+        && snapshot.canonical.chapterIndex === 1,
+      { description: 'toc jumped chapter remains active after touch scroll', timeout: 15_000 },
+    );
     const marker = await captureMarker(page, novelId, 'scroll');
 
     expect(marker.chapterIndex).toBe(1);
 
-    await exitAndReopenReader(page);
+    await exitAndReopenReaderByUiResponsive(page);
     await waitForReaderBranch(page, 'scroll');
     await waitForPersistedReadingProgress(
       page,
@@ -1021,7 +1081,7 @@ test.describe('移动端阅读会话恢复', () => {
     await waitForScrollProgress(page, novelId, 0.2, 'final scroll progress persisted');
     const finalMarker = await captureMarker(page, novelId, 'scroll');
 
-    await exitAndReopenReader(page);
+    await exitAndReopenReaderByUiResponsive(page);
     await waitForReaderBranch(page, 'scroll');
     await waitForScrollProgress(page, novelId, 0.2, 'final scroll progress restored');
 
@@ -1054,7 +1114,7 @@ test.describe('移动端阅读会话恢复', () => {
     await scrollViewportToProgress(page, 0.35);
     await waitForScrollProgress(page, firstNovelId, 0.1, 'first novel progress persisted');
     const firstMarker = await captureMarker(page, firstNovelId, 'scroll');
-    await exitReaderToDetailPage(page);
+    await exitReaderToDetailPageByUi(page);
 
     const { novelId: secondNovelId } = await importEpubToDetailPage(
       page,
@@ -1071,7 +1131,7 @@ test.describe('移动端阅读会话恢复', () => {
     await scrollViewportToProgress(page, 0.58);
     await waitForScrollProgress(page, secondNovelId, 0.2, 'second novel progress persisted');
     const secondMarker = await captureMarker(page, secondNovelId, 'scroll');
-    await exitReaderToDetailPage(page);
+    await exitReaderToDetailPageByUi(page);
 
     await openBookFromBookshelf(page, firstBook.title);
     await openReaderFromDetailPage(page);
@@ -1119,7 +1179,7 @@ test.describe('移动端阅读会话恢复', () => {
     expect(pagedMarker.chapterIndex).toBe(0);
     expect(finalMarker.chapterIndex).toBe(0);
 
-    await exitAndReopenReader(page);
+    await exitAndReopenReaderByUiResponsive(page);
     await waitForReaderBranch(page, 'scroll');
     await waitForScrollProgress(page, novelId, 0.18, 'final scroll restored for continuity');
 

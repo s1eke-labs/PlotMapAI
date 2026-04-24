@@ -19,6 +19,14 @@ interface RelativeViewportPosition {
   yRatio: number;
 }
 
+interface ResponsiveActivationOptions {
+  position?: {
+    x: number;
+    y: number;
+  };
+  timeout?: number;
+}
+
 const RESPONSIVE_CHROME_TOGGLE_CANDIDATES: RelativeViewportPosition[] = [
   { xRatio: 0.5, yRatio: 0.35 },
   { xRatio: 0.5, yRatio: 0.5 },
@@ -30,6 +38,23 @@ interface ReaderTraceWindow extends Window {
     clear: () => void;
     enable: () => void;
   };
+}
+
+async function hasTouchInput(page: Page): Promise<boolean> {
+  return page.evaluate(() => navigator.maxTouchPoints > 0 || 'ontouchstart' in window);
+}
+
+export async function activateLocatorResponsive(
+  page: Page,
+  locator: Locator,
+  options: ResponsiveActivationOptions = {},
+): Promise<void> {
+  if (await hasTouchInput(page)) {
+    await locator.tap(options);
+    return;
+  }
+
+  await locator.click(options);
 }
 
 interface SeedRichInlineText {
@@ -262,7 +287,7 @@ export async function importFixtureToDetailPage(
 }
 
 export async function openReaderFromDetailPage(page: Page): Promise<void> {
-  await page.getByRole('link', { name: 'Start Reading' }).click();
+  await activateLocatorResponsive(page, page.getByRole('link', { name: 'Start Reading' }).first());
   await expect(page.getByTestId('reader-viewport')).toBeVisible({
     timeout: 30_000,
   });
@@ -798,9 +823,11 @@ async function clickReaderViewportRelative(
   const viewport = page.getByTestId('reader-viewport');
   const box = await viewport.boundingBox();
   if (!box) {
-    throw new Error('Reader viewport is not visible for relative click interaction.');
+    throw new Error('Reader viewport is not visible for relative tap/click interaction.');
   }
 
+  // 阅读器视口用 React onClick 接收移动端兼容点击；Playwright 的 tap 只发 touch 事件，
+  // 在这里不会触发显示/隐藏 chrome 或分页区域点击。
   await viewport.click({
     position: {
       x: Math.max(1, Math.min(box.width - 1, Math.round(box.width * position.xRatio))),
@@ -831,13 +858,32 @@ async function getResponsiveReaderExitControl(page: Page) {
 async function isLocatorInViewport(locator: Locator): Promise<boolean> {
   return locator.evaluate((element) => {
     const rect = element.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
     return rect.width > 0
       && rect.height > 0
-      && rect.bottom > 0
-      && rect.right > 0
-      && rect.top < window.innerHeight
-      && rect.left < window.innerWidth;
+      && centerX >= 0
+      && centerY >= 0
+      && centerX <= window.innerWidth
+      && centerY <= window.innerHeight;
   }).catch(() => false);
+}
+
+async function waitForResponsiveReaderExitControlInViewport(
+  page: Page,
+  timeoutMs: number,
+): Promise<Locator | null> {
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() <= deadline) {
+    const control = await getResponsiveReaderExitControl(page).catch(() => null);
+    if (control && await isLocatorInViewport(control)) {
+      return control;
+    }
+    await page.waitForTimeout(50);
+  }
+
+  return null;
 }
 
 export async function hideReaderChrome(page: Page): Promise<void> {
@@ -858,18 +904,15 @@ export async function hideReaderChrome(page: Page): Promise<void> {
 }
 
 export async function revealReaderChromeResponsive(page: Page): Promise<void> {
-  const exitReaderControl = await getResponsiveReaderExitControl(page).catch(() => null);
-  if (exitReaderControl && await isLocatorInViewport(exitReaderControl)) {
+  const exitReaderControl = await waitForResponsiveReaderExitControlInViewport(page, 100);
+  if (exitReaderControl) {
     return;
   }
 
   for (const position of RESPONSIVE_CHROME_TOGGLE_CANDIDATES) {
     await clickReaderViewportRelative(page, position);
-    const visibleControl = await getResponsiveReaderExitControl(page).catch(() => null);
-    const isVisible = visibleControl
-      ? await isLocatorInViewport(visibleControl)
-      : false;
-    if (isVisible) {
+    const visibleControl = await waitForResponsiveReaderExitControlInViewport(page, 1_400);
+    if (visibleControl) {
       return;
     }
   }
@@ -879,21 +922,15 @@ export async function revealReaderChromeResponsive(page: Page): Promise<void> {
 }
 
 export async function hideReaderChromeResponsive(page: Page): Promise<void> {
-  const exitReaderControl = await getResponsiveReaderExitControl(page).catch(() => null);
-  const isVisible = exitReaderControl
-    ? await isLocatorInViewport(exitReaderControl)
-    : false;
-  if (!isVisible) {
+  const exitReaderControl = await waitForResponsiveReaderExitControlInViewport(page, 100);
+  if (!exitReaderControl) {
     return;
   }
 
   for (const position of RESPONSIVE_CHROME_TOGGLE_CANDIDATES) {
     await clickReaderViewportRelative(page, position);
-    const visibleControl = await getResponsiveReaderExitControl(page).catch(() => null);
-    const isStillVisible = visibleControl
-      ? await isLocatorInViewport(visibleControl)
-      : false;
-    if (!isStillVisible) {
+    const visibleControl = await waitForResponsiveReaderExitControlInViewport(page, 1_000);
+    if (!visibleControl) {
       return;
     }
   }
@@ -923,30 +960,15 @@ export async function revealReaderChrome(page: Page): Promise<void> {
  * 该路径会触发阅读器页面中的退出前刷新逻辑，行为更接近真实用户操作。
  */
 export async function exitReaderToDetailPageByUi(page: Page): Promise<void> {
-  const exitControlSelectors = [
-    'button[title="Exit Reader"]:visible',
-    '[aria-label="Exit Reader"]:visible',
-    'a:has-text("Exit Reader"):visible',
-  ];
-
-  await revealReaderChromeResponsive(page);
-
   let didNavigate = false;
-  for (const selector of exitControlSelectors) {
-    const control = page.locator(selector).first();
-    const isVisible = await control.isVisible().catch(() => false);
-    if (!isVisible) {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    await revealReaderChromeResponsive(page);
+    const control = await waitForResponsiveReaderExitControlInViewport(page, 1_500);
+    if (!control) {
       continue;
     }
 
-    const isInViewport = await isLocatorInViewport(control);
-    if (!isInViewport) {
-      // 某些移动端动画帧下控件会短暂处于视口外；先重试显现 chrome，再触发同一控件点击链路。
-      await revealReaderChromeResponsive(page);
-    }
-    await control.evaluate((element) => {
-      (element as HTMLElement).click();
-    });
+    await activateLocatorResponsive(page, control, { timeout: 8_000 });
 
     didNavigate = await page.getByRole('link', { name: 'Start Reading' }).first()
       .isVisible()
@@ -962,7 +984,7 @@ export async function exitReaderToDetailPageByUi(page: Page): Promise<void> {
 
     const readerViewportVisible = await page.getByTestId('reader-viewport').isVisible().catch(() => false);
     if (readerViewportVisible) {
-      await revealReaderChromeResponsive(page);
+      await hideReaderChromeResponsive(page);
     }
   }
 
@@ -972,6 +994,15 @@ export async function exitReaderToDetailPageByUi(page: Page): Promise<void> {
 
   await disableAnimations(page);
   await expect(page.getByRole('link', { name: 'Start Reading' })).toBeVisible({ timeout: 15_000 });
+}
+
+export async function exitAndReopenReaderByUiResponsive(page: Page): Promise<void> {
+  await exitReaderToDetailPageByUi(page);
+  const startReadingLink = page.getByRole('link', { name: 'Start Reading' }).first();
+  await expect(startReadingLink).toBeVisible({ timeout: 15_000 });
+  await activateLocatorResponsive(page, startReadingLink);
+  await expect(page.getByTestId('reader-viewport')).toBeVisible({ timeout: 30_000 });
+  await disableAnimations(page);
 }
 
 /**
@@ -1012,7 +1043,7 @@ export async function openReaderDirect(page: Page, novelId: number): Promise<voi
 export async function exitAndReopenReader(page: Page): Promise<void> {
   await exitReaderToDetailPage(page);
   // 通过 SPA 导航重新进入，以便阅读器从持久化状态中进行水合。
-  await page.getByRole('link', { name: 'Start Reading' }).click();
+  await activateLocatorResponsive(page, page.getByRole('link', { name: 'Start Reading' }).first());
   await expect(page.getByTestId('reader-viewport')).toBeVisible({ timeout: 30_000 });
   await disableAnimations(page);
 }
@@ -1068,16 +1099,12 @@ export async function navigateToChapterByTitleResponsive(
     '[title="Contents"]:visible',
     '[aria-label="Contents"]:visible',
   ], page);
-  await contentsButton.evaluate((element) => {
-    (element as HTMLButtonElement).click();
-  });
+  await activateLocatorResponsive(page, contentsButton);
   const contentsDialog = page.getByRole('dialog').first();
   await expect(contentsDialog).toBeVisible({ timeout: 8_000 });
 
   const chapterButton = contentsDialog.getByRole('button', { name: chapterTitle }).first();
-  await chapterButton.evaluate((element) => {
-    (element as HTMLButtonElement).click();
-  });
+  await activateLocatorResponsive(page, chapterButton);
 
   await expect(contentsDialog).not.toBeVisible({ timeout: 8_000 });
   await expect(page.getByRole('heading', { name: chapterTitle }).first()).toBeVisible({ timeout: 15_000 });
