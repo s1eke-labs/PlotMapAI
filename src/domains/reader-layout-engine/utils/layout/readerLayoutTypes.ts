@@ -14,18 +14,36 @@ export type ReaderRenderVariant = 'original-scroll' | 'original-paged' | 'summar
 
 export interface ReaderLocator {
   chapterIndex: number;
+  chapterKey?: string;
   blockIndex: number;
+  blockKey?: string;
+  anchorId?: string;
+  imageKey?: string;
   kind: 'heading' | 'text' | 'image';
   lineIndex?: number;
   startCursor?: LayoutCursor;
   endCursor?: LayoutCursor;
   edge?: 'start' | 'end';
   pageIndex?: number;
+  textQuote?: {
+    exact: string;
+    prefix?: string;
+    suffix?: string;
+  };
+  blockTextHash?: string;
+  contentVersion?: number;
+  importFormatVersion?: number;
+  contentHash?: string;
 }
 
 export interface ReaderBlock {
   align?: RichTextAlign;
   anchorId?: string;
+  blockKey?: string;
+  blockTextHash?: string;
+  chapterKey?: string;
+  contentHash?: string;
+  contentVersion?: number;
   chapterIndex: number;
   blockquoteDepth?: number;
   blockIndex: number;
@@ -37,6 +55,7 @@ export interface ReaderBlock {
   listContext?: PaginationListContext;
   text?: string;
   imageKey?: string;
+  importFormatVersion?: number;
   marginBefore: number;
   marginAfter: number;
   originalTag?: string;
@@ -46,6 +65,11 @@ export interface ReaderBlock {
   showListMarker?: boolean;
   sourceBlockType?: RichBlock['type'];
   tableRows?: RichTableCell[][];
+  textQuote?: {
+    exact: string;
+    prefix?: string;
+    suffix?: string;
+  };
   indent?: number;
 }
 
@@ -127,16 +151,22 @@ export interface MeasuredChapterLayout {
 export interface ReaderTextPageItem {
   align?: RichTextAlign;
   anchorId?: string;
+  blockKey?: string;
+  blockTextHash?: string;
   blockquoteDepth?: number;
   blockIndex: number;
   chapterIndex: number;
+  chapterKey?: string;
   container?: PaginationContainer;
   contentHeight: number;
+  contentHash?: string;
+  contentVersion?: number;
   font: string;
   fontSizePx: number;
   headingLevel?: 1 | 2 | 3 | 4 | 5 | 6;
   height: number;
   indent?: number;
+  importFormatVersion?: number;
   key: string;
   kind: 'heading' | 'text';
   lineHeightPx: number;
@@ -153,11 +183,18 @@ export interface ReaderTextPageItem {
   tableRowHeights?: number[];
   tableRows?: RichTableCell[][];
   text: string;
+  textQuote?: {
+    exact: string;
+    prefix?: string;
+    suffix?: string;
+  };
 }
 
 export interface ReaderImagePageItem {
   align?: RichTextAlign;
   anchorId?: string;
+  blockKey?: string;
+  chapterKey?: string;
   blockIndex: number;
   captionFont?: string;
   captionFontSizePx?: number;
@@ -167,11 +204,14 @@ export interface ReaderImagePageItem {
   captionRichLineFragments?: RichInline[][];
   captionSpacing?: number;
   chapterIndex: number;
+  contentHash?: string;
+  contentVersion?: number;
   displayHeight: number;
   displayWidth: number;
   edge: 'start' | 'end';
   height: number;
   imageKey: string;
+  importFormatVersion?: number;
   key: string;
   kind: 'image';
   marginAfter: number;

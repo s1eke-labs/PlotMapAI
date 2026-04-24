@@ -31,19 +31,35 @@ function createMeasuredLine(text: string, lineIndex: number): ReaderMeasuredLine
 }
 
 function createTextMetric({
+  blockKey,
+  blockTextHash,
   blockIndex,
+  contentHash,
+  contentVersion,
   lineCount,
   marginAfter = 0,
   marginBefore = 0,
+  text,
+  textQuote,
   top,
 }: {
+  blockKey?: string;
+  blockTextHash?: string;
   blockIndex: number;
+  contentHash?: string;
+  contentVersion?: number;
   lineCount: number;
   marginAfter?: number;
   marginBefore?: number;
+  text?: string;
+  textQuote?: { exact: string; prefix?: string; suffix?: string };
   top: number;
 }): VirtualBlockMetrics {
   const lineHeightPx = 16;
+  const resolvedText = text ?? Array.from(
+    { length: lineCount },
+    (_, index) => `line-${blockIndex}-${index}`,
+  ).join('');
   const lines = Array.from(
     { length: lineCount },
     (_, index) => createMeasuredLine(`line-${blockIndex}-${index}`, index),
@@ -53,13 +69,18 @@ function createTextMetric({
   return {
     block: {
       blockIndex,
+      blockKey,
+      blockTextHash,
       chapterIndex: 0,
+      contentHash,
+      contentVersion,
       key: `0:text:${blockIndex}`,
       kind: 'text',
       marginAfter,
       marginBefore,
       paragraphIndex: blockIndex,
-      text: lines.map((line) => line.text).join(''),
+      text: resolvedText,
+      textQuote,
     },
     contentHeight,
     font: '400 16px sans-serif',
@@ -314,5 +335,72 @@ describe('readerLocator', () => {
       endIndex: -1,
       startIndex: 0,
     });
+  });
+
+  it('uses blockKey before legacy blockIndex when content versions differ', () => {
+    const measuredLayout = createMeasuredLayout([
+      createTextMetric({
+        blockIndex: 1,
+        contentHash: 'new-hash',
+        contentVersion: 2,
+        lineCount: 1,
+        text: 'inserted paragraph',
+        top: 0,
+      }),
+      createTextMetric({
+        blockIndex: 5,
+        blockKey: 'text:1:target',
+        contentHash: 'new-hash',
+        contentVersion: 2,
+        lineCount: 1,
+        text: 'target paragraph',
+        top: 16,
+      }),
+    ]);
+
+    expect(getOffsetForLocator(measuredLayout, {
+      blockIndex: 1,
+      blockKey: 'text:1:target',
+      chapterIndex: 0,
+      contentHash: 'old-hash',
+      contentVersion: 1,
+      kind: 'text',
+      lineIndex: 0,
+    })).toBe(16);
+  });
+
+  it('falls back to textQuote when block identity drifts', () => {
+    const measuredLayout = createMeasuredLayout([
+      createTextMetric({
+        blockIndex: 1,
+        contentHash: 'new-hash',
+        contentVersion: 2,
+        lineCount: 1,
+        text: 'a repeated phrase',
+        top: 0,
+      }),
+      createTextMetric({
+        blockIndex: 8,
+        contentHash: 'new-hash',
+        contentVersion: 2,
+        lineCount: 1,
+        text: 'prefix target exact suffix',
+        top: 16,
+      }),
+    ]);
+
+    expect(getOffsetForLocator(measuredLayout, {
+      blockIndex: 1,
+      chapterIndex: 0,
+      contentHash: 'old-hash',
+      contentVersion: 1,
+      kind: 'text',
+      lineIndex: 0,
+      textQuote: {
+        exact: 'target exact',
+        prefix: 'prefix ',
+        suffix: ' suffix',
+      },
+    })).toBe(16);
   });
 });

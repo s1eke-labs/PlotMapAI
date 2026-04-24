@@ -24,13 +24,22 @@ function toReaderLocator(record?: import('@infra/db/reader').ReaderLocatorRecord
 
   return {
     chapterIndex: record.chapterIndex,
+    chapterKey: record.chapterKey,
     blockIndex: record.blockIndex,
+    blockKey: record.blockKey,
+    anchorId: record.anchorId,
+    imageKey: record.imageKey,
     pageIndex: record.pageIndex,
     kind: record.kind,
     lineIndex: record.lineIndex,
     startCursor: record.startCursor ? { ...record.startCursor } : undefined,
     endCursor: record.endCursor ? { ...record.endCursor } : undefined,
     edge: record.edge,
+    textQuote: record.textQuote,
+    blockTextHash: record.blockTextHash,
+    contentVersion: record.contentVersion,
+    importFormatVersion: record.importFormatVersion,
+    contentHash: record.contentHash,
   };
 }
 
@@ -44,13 +53,22 @@ function toReaderLocatorRecord(locator?: ReaderLocator | null): import('@infra/d
 
   return {
     chapterIndex: locator.chapterIndex,
+    chapterKey: locator.chapterKey,
     blockIndex: locator.blockIndex,
+    blockKey: locator.blockKey,
+    anchorId: locator.anchorId,
+    imageKey: locator.imageKey,
     pageIndex: locator.pageIndex,
     kind: locator.kind,
     lineIndex: locator.lineIndex,
     startCursor: locator.startCursor ? { ...locator.startCursor } : undefined,
     endCursor: locator.endCursor ? { ...locator.endCursor } : undefined,
     edge: locator.edge,
+    textQuote: locator.textQuote,
+    blockTextHash: locator.blockTextHash,
+    contentVersion: locator.contentVersion,
+    importFormatVersion: locator.importFormatVersion,
+    contentHash: locator.contentHash,
   };
 }
 

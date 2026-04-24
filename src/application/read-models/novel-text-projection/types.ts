@@ -25,7 +25,10 @@ export interface RulesSnapshotData {
 }
 
 export interface ChapterBaseProjection {
+  chapterKey?: string;
+  contentHash?: string;
   contentVersion: number | null;
+  importFormatVersion?: number;
   plainText: string;
   projectedChapter: BookChapter;
   richBlocks: RichBlock[];

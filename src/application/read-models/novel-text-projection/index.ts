@@ -6,6 +6,7 @@ import {
   applyReaderHeadingRules,
   finalizeProjectedBookChapters,
 } from '@application/services/chapterTextProjection';
+import { createReaderChapterContentHash } from '@shared/text-processing';
 
 import {
   getCurrentNovelContentVersion,
@@ -64,6 +65,7 @@ export async function projectNovelTitles(
 
   const projectedTitles = rawChapters.map((chapter) => ({
     index: chapter.chapterIndex,
+    ...(chapter.chapterKey ? { chapterKey: chapter.chapterKey } : {}),
     title: applyReaderHeadingRules(chapter.title, novel.title, rulesSnapshot.rules),
     wordCount: chapter.wordCount,
   }));
@@ -124,22 +126,26 @@ export async function projectNovelChapter(
     return cached;
   }
 
+  const projectedPlainText = applyPlainTextOnlyContent(
+    baseProjection.plainText,
+    novel.title,
+    rulesSnapshot.rules,
+  );
   const projectedChapter: ReaderChapterProjection = {
     index: chapter.chapterIndex,
+    ...(baseProjection.chapterKey ? { chapterKey: baseProjection.chapterKey } : {}),
     title: applyReaderHeadingRules(chapter.title, novel.title, rulesSnapshot.rules),
     wordCount: chapter.wordCount,
     totalChapters: novel.chapterCount,
     hasPrev: chapterIndex > 0,
     hasNext: chapterIndex < novel.chapterCount - 1,
-    plainText: applyPlainTextOnlyContent(
-      baseProjection.plainText,
-      novel.title,
-      rulesSnapshot.rules,
-    ),
+    plainText: projectedPlainText,
     richBlocks: baseProjection.richBlocks,
     contentFormat: 'rich',
     contentVersion: validatedRichContent.contentVersion,
+    importFormatVersion: validatedRichContent.importFormatVersion,
   };
+  projectedChapter.contentHash = createReaderChapterContentHash(projectedChapter);
 
   derivedBucket.chapterContentByKey.set(finalCacheKey, projectedChapter);
   return projectedChapter;

@@ -224,6 +224,12 @@ export function useReaderRestoreController({
             targetMode,
             targetRestoreTarget,
           }),
+          ...(targetMode !== mode
+            ? {
+              pageIndex: undefined,
+              pagedProjection: undefined,
+            }
+            : {}),
         },
       });
       traceModeSwitchTargetResolved({

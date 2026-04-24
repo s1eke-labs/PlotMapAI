@@ -8,7 +8,7 @@ import {
   readReaderProgressSnapshot,
   replaceReaderProgressSnapshot,
 } from '../../progress-core/repository';
-import { resetReaderSessionStoreForTests } from '../../store/readerSessionStore';
+import { resetReaderSessionStoreForTests, setMode } from '../../store/readerSessionStore';
 import { useReaderStatePersistence } from '../useReaderStatePersistence';
 
 const { Wrapper } = createReaderContextWrapper();
@@ -69,10 +69,14 @@ describe('useReaderStatePersistence', () => {
         edge: 'start',
       },
       hints: {
-        chapterProgress: undefined,
         contentMode: 'scroll',
-        pageIndex: undefined,
         viewMode: 'original',
+      },
+      metadata: {
+        captureQuality: 'approximate',
+        capturedAt: expect.any(String),
+        resolverVersion: 1,
+        sourceMode: 'scroll',
       },
     });
 
@@ -93,6 +97,9 @@ describe('useReaderStatePersistence', () => {
         },
         projections: undefined,
         captureQuality: 'approximate',
+        capturedAt: expect.any(String),
+        sourceMode: 'scroll',
+        resolverVersion: 1,
       },
       updatedAt: expect.any(String),
     });
@@ -143,6 +150,9 @@ describe('useReaderStatePersistence', () => {
         pageIndex: 8,
         viewMode: 'original',
       },
+      metadata: {
+        captureQuality: 'precise',
+      },
     });
   });
 
@@ -187,9 +197,7 @@ describe('useReaderStatePersistence', () => {
         edge: 'start',
       },
       hints: {
-        chapterProgress: undefined,
         contentMode: 'scroll',
-        pageIndex: undefined,
         viewMode: 'original',
       },
     });
@@ -216,10 +224,14 @@ describe('useReaderStatePersistence', () => {
         edge: 'start',
       },
       hints: {
-        chapterProgress: undefined,
         contentMode: 'scroll',
-        pageIndex: undefined,
         viewMode: 'original',
+      },
+      metadata: {
+        captureQuality: 'approximate',
+        capturedAt: expect.any(String),
+        resolverVersion: 1,
+        sourceMode: 'scroll',
       },
     });
 
@@ -240,9 +252,73 @@ describe('useReaderStatePersistence', () => {
         },
         projections: undefined,
         captureQuality: 'approximate',
+        capturedAt: expect.any(String),
+        sourceMode: 'scroll',
+        resolverVersion: 1,
       },
       updatedAt: expect.any(String),
     });
+  });
+
+  it('keeps explicit projection clears through the final store merge', async () => {
+    const { result } = renderHook(() => useReaderStatePersistence(1), {
+      wrapper: Wrapper,
+    });
+
+    act(() => {
+      result.current.persistReaderState({
+        canonical: {
+          chapterIndex: 0,
+          blockIndex: 12,
+          kind: 'text',
+        },
+        hints: {
+          chapterProgress: 0.34,
+          contentMode: 'scroll',
+        },
+      });
+    });
+
+    await act(async () => {
+      await result.current.flushReaderState();
+    });
+
+    await expect(readReaderProgressSnapshot(1)).resolves.toMatchObject({
+      snapshot: {
+        projections: {
+          scroll: {
+            chapterProgress: 0.34,
+          },
+        },
+      },
+    });
+
+    act(() => {
+      setMode('paged');
+      result.current.persistReaderState({
+        canonical: {
+          chapterIndex: 0,
+          blockIndex: 24,
+          kind: 'text',
+        },
+        hints: {
+          chapterProgress: undefined,
+          contentMode: 'paged',
+          pageIndex: 4,
+        },
+      });
+    });
+
+    expect(result.current.latestReaderStateRef.current.hints?.chapterProgress).toBeUndefined();
+    expect(result.current.latestReaderStateRef.current.hints?.scrollProjection).toBeUndefined();
+
+    await act(async () => {
+      await result.current.flushReaderState();
+    });
+
+    const persisted = await readReaderProgressSnapshot(1);
+    expect(persisted?.snapshot.projections?.scroll).toBeUndefined();
+    expect(persisted?.snapshot.projections?.paged?.pageIndex).toBe(4);
   });
 
   it('marks user interaction', () => {
@@ -313,9 +389,15 @@ describe('useReaderStatePersistence', () => {
           paged: undefined,
           scroll: {
             chapterProgress: 0.65,
+            capturedAt: expect.any(String),
+            sourceMode: 'scroll',
+            basisCanonicalFingerprint: '{"chapterIndex":3,"edge":"start"}',
           },
         },
         captureQuality: 'approximate',
+        capturedAt: expect.any(String),
+        sourceMode: 'scroll',
+        resolverVersion: 1,
       },
       updatedAt: expect.any(String),
     });

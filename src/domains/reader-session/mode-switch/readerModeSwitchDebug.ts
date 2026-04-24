@@ -13,6 +13,7 @@ import {
 } from '@shared/utils/readerPosition';
 
 import {
+  createCanonicalPositionFingerprint,
   mergeStoredReaderState,
   toCanonicalPositionFromLocator,
 } from '@shared/utils/readerStoredState';
@@ -122,20 +123,35 @@ export function captureStrictModeSwitchState(params: {
       message: buildStrictModeLocatorUnavailableMessage(params.mode),
     };
   }
+  const canonical = toCanonicalPositionFromLocator(activeLocator);
+  const basisCanonicalFingerprint = createCanonicalPositionFingerprint(canonical);
+  const chapterProgress = params.mode === 'paged'
+    ? resolvePagedScrollProgressProjection({
+      activeLocator,
+      latestReaderState: params.latestReaderState,
+    })
+    : params.latestReaderState.hints?.chapterProgress;
 
   return {
     ok: true,
     state: mergeStoredReaderState(params.latestReaderState, {
-      canonical: toCanonicalPositionFromLocator(activeLocator),
+      canonical,
       hints: {
-        chapterProgress: params.mode === 'paged'
-          ? resolvePagedScrollProgressProjection({
-            activeLocator,
-            latestReaderState: params.latestReaderState,
-          })
-          : params.latestReaderState.hints?.chapterProgress,
+        chapterProgress,
         contentMode: params.mode,
         pageIndex: params.mode === 'scroll' ? undefined : activeLocator.pageIndex,
+        pagedProjection: params.mode === 'paged' && typeof activeLocator.pageIndex === 'number'
+          ? {
+            basisCanonicalFingerprint,
+            sourceMode: 'paged',
+          }
+          : undefined,
+        scrollProjection: typeof chapterProgress === 'number'
+          ? {
+            basisCanonicalFingerprint,
+            sourceMode: params.mode,
+          }
+          : undefined,
       },
     }),
   };

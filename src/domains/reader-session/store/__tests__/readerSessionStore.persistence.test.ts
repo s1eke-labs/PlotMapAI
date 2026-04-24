@@ -100,6 +100,9 @@ describe('readerSessionStore persistence', () => {
         pageIndex: 7,
         viewMode: 'original',
       },
+      metadata: {
+        captureQuality: 'precise',
+      },
     });
     expect(getReaderSessionSnapshot()).toMatchObject({
       chapterIndex: 2,
@@ -172,6 +175,8 @@ describe('readerSessionStore persistence', () => {
         },
         projections: undefined,
         captureQuality: 'approximate',
+        capturedAt: expect.any(String),
+        sourceMode: 'scroll',
       },
       updatedAt: expect.any(String),
     });

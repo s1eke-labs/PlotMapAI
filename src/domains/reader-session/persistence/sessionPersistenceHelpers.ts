@@ -28,6 +28,7 @@ export interface ReaderSessionCacheShape {
   chapterIndex: number;
   chapterProgress?: number;
   locator?: ReaderSessionState['locator'];
+  positionMetadata?: ReaderSessionState['positionMetadata'];
   mode: ReaderMode;
   lastContentMode: ReaderSessionState['lastContentMode'];
 }
@@ -43,14 +44,18 @@ export function toStoredReaderState(state: ReaderSessionCacheShape): StoredReade
       chapterIndex: state.chapterIndex,
       edge: 'start' as const,
     };
+  const canUsePagedPageIndex =
+    state.mode === 'paged'
+    && state.positionMetadata?.sourceMode !== 'scroll';
 
   return buildStoredReaderState({
     canonical,
     hints: {
       chapterProgress: clampChapterProgress(state.chapterProgress),
-      pageIndex: clampPageIndex(state.locator?.pageIndex),
+      pageIndex: canUsePagedPageIndex ? clampPageIndex(state.locator?.pageIndex) : undefined,
       ...createReaderStateModeHints(state.mode, state.lastContentMode),
     },
+    metadata: state.positionMetadata,
   });
 }
 
@@ -72,6 +77,7 @@ export function createInitialReaderSessionState(): ReaderSessionState {
     mode: 'scroll',
     chapterIndex,
     chapterProgress: initialStoredState.hints?.chapterProgress,
+    positionMetadata: initialStoredState.metadata,
     locator: toReaderLocatorFromCanonical(
       initialStoredState.canonical,
       initialStoredState.hints?.pageIndex,

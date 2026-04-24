@@ -45,12 +45,28 @@ export type ReaderLifecycleEventType =
 
 export interface CanonicalPosition {
   chapterIndex: number;
+  chapterKey?: string;
   blockIndex?: number;
+  blockKey?: string;
+  anchorId?: string;
+  imageKey?: string;
   kind?: ReaderLocator['kind'];
   lineIndex?: number;
   startCursor?: ReaderLocator['startCursor'];
   endCursor?: ReaderLocator['endCursor'];
   edge?: ReaderLocator['edge'];
+  textQuote?: ReaderLocator['textQuote'];
+  blockTextHash?: string;
+  contentVersion?: number;
+  importFormatVersion?: number;
+  contentHash?: string;
+}
+
+export interface ReaderProjectionMetadata {
+  basisCanonicalFingerprint?: string;
+  capturedAt?: string;
+  layoutKey?: string;
+  sourceMode?: 'scroll' | 'paged';
 }
 
 export interface ReaderStateHints {
@@ -58,11 +74,21 @@ export interface ReaderStateHints {
   pageIndex?: number;
   contentMode?: 'scroll' | 'paged';
   viewMode?: ReaderViewMode;
+  scrollProjection?: ReaderProjectionMetadata;
+  pagedProjection?: ReaderProjectionMetadata;
+}
+
+export interface ReaderPositionMetadata {
+  capturedAt?: string;
+  captureQuality?: 'precise' | 'approximate';
+  resolverVersion?: number;
+  sourceMode?: 'scroll' | 'paged';
 }
 
 export interface StoredReaderState {
   canonical?: CanonicalPosition;
   hints?: ReaderStateHints;
+  metadata?: ReaderPositionMetadata;
 }
 
 export interface PersistedReadingProgress {
@@ -140,6 +166,7 @@ export interface ReaderSessionState {
   chapterIndex: number;
   chapterProgress?: number;
   locator?: ReaderLocator;
+  positionMetadata?: ReaderPositionMetadata;
   restoreStatus: RestoreStatus;
   lifecycleLastEvent: ReaderLifecycleEventType | null;
   lifecycleLoadKey: string | null;

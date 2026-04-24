@@ -22,6 +22,8 @@ export type {
   ReaderNavigationIntent,
   ReaderPersistenceFailure,
   ReaderPersistenceStatus,
+  ReaderPositionMetadata,
+  ReaderProjectionMetadata,
   ReaderRestoreMeasuredError,
   ReaderRestoreMetric,
   ReaderRestoreReason,

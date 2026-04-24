@@ -10,6 +10,7 @@ import { clampProgress, getContainerProgress } from '@shared/utils/readerPositio
 import {
   buildStoredReaderState,
   getStoredChapterIndex,
+  isReaderProjectionFreshForCanonical,
   mergeStoredReaderState,
   toCanonicalPositionFromLocator,
   toReaderLocatorFromCanonical,
@@ -68,7 +69,12 @@ export function toRestoreTargetFromState(params: {
   const normalizedState = buildStoredReaderState(params.state);
   const locator = toReaderLocatorFromCanonical(
     normalizedState.canonical,
-    normalizedState.hints?.pageIndex,
+    isReaderProjectionFreshForCanonical(
+      normalizedState.hints?.pagedProjection,
+      normalizedState.canonical,
+    )
+      ? normalizedState.hints?.pageIndex
+      : undefined,
   );
   const canonicalEdge = normalizedState.canonical?.edge;
   const hasCanonicalBoundary =
@@ -81,7 +87,13 @@ export function toRestoreTargetFromState(params: {
     locatorBoundary: !locator && hasCanonicalBoundary ? canonicalEdge : undefined,
   };
 
-  if (typeof normalizedState.hints?.chapterProgress === 'number') {
+  if (
+    typeof normalizedState.hints?.chapterProgress === 'number'
+    && isReaderProjectionFreshForCanonical(
+      normalizedState.hints?.scrollProjection,
+      normalizedState.canonical,
+    )
+  ) {
     target.chapterProgress = typeof normalizedState.hints?.chapterProgress === 'number'
       ? clampProgress(normalizedState.hints.chapterProgress)
       : undefined;

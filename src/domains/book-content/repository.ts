@@ -63,6 +63,7 @@ async function replaceNovelContentRecords(
   if (payload.chapters.length > 0) {
     await chapterTable.bulkAdd(payload.chapters.map((chapter) => ({
       novelId,
+      ...(chapter.chapterKey ? { chapterKey: chapter.chapterKey } : {}),
       title: chapter.title,
       content: chapter.content,
       chapterIndex: chapter.chapterIndex,
@@ -151,6 +152,7 @@ export const bookContentRepository = {
     return (await db.chapters.where('novelId').equals(novelId).sortBy('chapterIndex'))
       .map((chapter) => ({
         chapterIndex: chapter.chapterIndex,
+        ...(chapter.chapterKey ? { chapterKey: chapter.chapterKey } : {}),
         title: chapter.title,
         content: chapter.content,
         wordCount: chapter.wordCount,
@@ -169,6 +171,7 @@ export const bookContentRepository = {
 
     return {
       chapterIndex: chapter.chapterIndex,
+      ...(chapter.chapterKey ? { chapterKey: chapter.chapterKey } : {}),
       title: chapter.title,
       content: chapter.content,
       wordCount: chapter.wordCount,

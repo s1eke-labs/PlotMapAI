@@ -26,21 +26,41 @@ describe('reader progress core repository', () => {
         type: 'locator',
         locator: {
           chapterIndex: 3,
+          chapterKey: 'epub:ch3:chapter3.xhtml',
           blockIndex: 8,
+          blockKey: 'anchor:intro',
+          anchorId: 'intro',
           kind: 'text',
           lineIndex: 1,
           pageIndex: 5,
+          textQuote: {
+            exact: 'opening line',
+          },
+          blockTextHash: 'hash-block',
+          contentVersion: 2,
+          importFormatVersion: 1,
+          contentHash: 'hash-content',
         },
       },
       projections: {
         paged: {
           pageIndex: 5,
+          capturedAt: '2026-04-24T00:00:00.000Z',
+          sourceMode: 'paged',
+          basisCanonicalFingerprint: 'canonical-a',
+          layoutKey: 'layout-a',
         },
         scroll: {
           chapterProgress: 0.58,
+          capturedAt: '2026-04-24T00:00:00.000Z',
+          sourceMode: 'paged',
+          basisCanonicalFingerprint: 'canonical-a',
         },
       },
       captureQuality: 'precise',
+      capturedAt: '2026-04-24T00:00:00.000Z',
+      sourceMode: 'paged',
+      resolverVersion: 1,
     });
 
     await expect(readReaderProgressSnapshot(7)).resolves.toMatchObject({
@@ -53,21 +73,41 @@ describe('reader progress core repository', () => {
           type: 'locator',
           locator: {
             chapterIndex: 3,
+            chapterKey: 'epub:ch3:chapter3.xhtml',
             blockIndex: 8,
+            blockKey: 'anchor:intro',
+            anchorId: 'intro',
             kind: 'text',
             lineIndex: 1,
             pageIndex: 5,
+            textQuote: {
+              exact: 'opening line',
+            },
+            blockTextHash: 'hash-block',
+            contentVersion: 2,
+            importFormatVersion: 1,
+            contentHash: 'hash-content',
           },
         },
         projections: {
           paged: {
             pageIndex: 5,
+            capturedAt: '2026-04-24T00:00:00.000Z',
+            sourceMode: 'paged',
+            basisCanonicalFingerprint: 'canonical-a',
+            layoutKey: 'layout-a',
           },
           scroll: {
             chapterProgress: 0.58,
+            capturedAt: '2026-04-24T00:00:00.000Z',
+            sourceMode: 'paged',
+            basisCanonicalFingerprint: 'canonical-a',
           },
         },
         captureQuality: 'precise',
+        capturedAt: '2026-04-24T00:00:00.000Z',
+        sourceMode: 'paged',
+        resolverVersion: 1,
       },
     });
   });

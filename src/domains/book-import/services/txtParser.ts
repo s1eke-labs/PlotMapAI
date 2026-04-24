@@ -4,7 +4,7 @@ import type { ChapterDetectionRule } from '@shared/text-processing';
 import type { BookImportProgress } from './progress';
 
 import { debugLog } from '@shared/debug';
-import { projectTxtPlainTextToRichBlocks } from '@shared/text-processing';
+import { createTxtChapterKey, projectTxtPlainTextToRichBlocks } from '@shared/text-processing';
 import { runParseTxtTask } from '../workers/txtClient';
 import type { ParsedTextDocument } from './txt/types';
 
@@ -14,7 +14,12 @@ function mapParsedDocument(document: ParsedTextDocument): ParsedBook {
     author: '',
     description: '',
     coverBlob: null,
-    chapters: document.chapters.map((chapter) => ({
+    chapters: document.chapters.map((chapter, chapterIndex) => ({
+      chapterKey: createTxtChapterKey({
+        chapterIndex,
+        content: chapter.content,
+        title: chapter.title,
+      }),
       title: chapter.title,
       content: chapter.content,
       contentFormat: 'rich',

@@ -16,7 +16,46 @@ import {
   findLastVisibleMetricIndex,
   findNearestMeaningfulMetric,
   pageContainsLocator,
+  scoreLocatorMetricMatch,
 } from './readerLocatorHelpers';
+
+function compactLocatorMetadata(metadata: Partial<ReaderLocator>): Partial<ReaderLocator> {
+  return Object.fromEntries(
+    Object.entries(metadata).filter(([, value]) => value !== undefined),
+  ) as Partial<ReaderLocator>;
+}
+
+function getMetricLocatorMetadata(metric: VirtualBlockMetrics): Partial<ReaderLocator> {
+  return compactLocatorMetadata({
+    anchorId: metric.block.anchorId,
+    blockKey: metric.block.blockKey,
+    blockTextHash: metric.block.blockTextHash,
+    chapterKey: metric.block.chapterKey,
+    contentHash: metric.block.contentHash,
+    contentVersion: metric.block.contentVersion,
+    imageKey: metric.block.imageKey,
+    importFormatVersion: metric.block.importFormatVersion,
+    textQuote: metric.block.textQuote,
+  });
+}
+
+function getItemLocatorMetadata(item: ReaderPageItem): Partial<ReaderLocator> {
+  if (item.kind === 'blank') {
+    return {};
+  }
+
+  return compactLocatorMetadata({
+    anchorId: item.anchorId,
+    blockKey: item.blockKey,
+    blockTextHash: item.kind === 'image' ? undefined : item.blockTextHash,
+    chapterKey: item.chapterKey,
+    contentHash: item.contentHash,
+    contentVersion: item.contentVersion,
+    imageKey: item.kind === 'image' ? item.imageKey : undefined,
+    importFormatVersion: item.importFormatVersion,
+    textQuote: item.kind === 'image' ? undefined : item.textQuote,
+  });
+}
 
 export function createMetricStartLocator(metric: VirtualBlockMetrics): ReaderLocator | null {
   if (metric.block.kind === 'blank') {
@@ -25,6 +64,7 @@ export function createMetricStartLocator(metric: VirtualBlockMetrics): ReaderLoc
 
   if (metric.block.kind === 'image') {
     return {
+      ...getMetricLocatorMetadata(metric),
       blockIndex: metric.block.blockIndex,
       chapterIndex: metric.block.chapterIndex,
       edge: 'start',
@@ -34,6 +74,7 @@ export function createMetricStartLocator(metric: VirtualBlockMetrics): ReaderLoc
 
   const line = metric.lines[0];
   return {
+    ...getMetricLocatorMetadata(metric),
     blockIndex: metric.block.blockIndex,
     chapterIndex: metric.block.chapterIndex,
     endCursor: line?.end,
@@ -50,6 +91,7 @@ export function createMetricEndLocator(metric: VirtualBlockMetrics): ReaderLocat
 
   if (metric.block.kind === 'image') {
     return {
+      ...getMetricLocatorMetadata(metric),
       blockIndex: metric.block.blockIndex,
       chapterIndex: metric.block.chapterIndex,
       edge: 'end',
@@ -59,6 +101,7 @@ export function createMetricEndLocator(metric: VirtualBlockMetrics): ReaderLocat
 
   const line = metric.lines[metric.lines.length - 1];
   return {
+    ...getMetricLocatorMetadata(metric),
     blockIndex: metric.block.blockIndex,
     chapterIndex: metric.block.chapterIndex,
     endCursor: line?.end,
@@ -74,6 +117,7 @@ export function getItemStartLocator(
 ): ReaderLocator | null {
   if (item.kind === 'image') {
     return {
+      ...getItemLocatorMetadata(item),
       blockIndex: item.blockIndex,
       chapterIndex: item.chapterIndex,
       edge: 'start',
@@ -88,6 +132,7 @@ export function getItemStartLocator(
 
   const line = item.lines[0];
   return {
+    ...getItemLocatorMetadata(item),
     blockIndex: item.blockIndex,
     chapterIndex: item.chapterIndex,
     endCursor: line?.end,
@@ -104,6 +149,7 @@ export function getItemEndLocator(
 ): ReaderLocator | null {
   if (item.kind === 'image') {
     return {
+      ...getItemLocatorMetadata(item),
       blockIndex: item.blockIndex,
       chapterIndex: item.chapterIndex,
       edge: 'end',
@@ -118,6 +164,7 @@ export function getItemEndLocator(
 
   const line = item.lines[item.lines.length - 1];
   return {
+    ...getItemLocatorMetadata(item),
     blockIndex: item.blockIndex,
     chapterIndex: item.chapterIndex,
     endCursor: line?.end,
@@ -235,6 +282,7 @@ export function findLocatorForLayoutOffset(
 
   if (matchedMetric.block.kind === 'image') {
     return {
+      ...getMetricLocatorMetadata(matchedMetric),
       blockIndex: matchedMetric.block.blockIndex,
       chapterIndex: matchedMetric.block.chapterIndex,
       edge: clampedOffset - matchedMetric.top > matchedMetric.height / 2 ? 'end' : 'start',
@@ -262,6 +310,7 @@ export function findLocatorForLayoutOffset(
     );
   const line = matchedMetric.lines[lineIndex];
   return {
+    ...getMetricLocatorMetadata(matchedMetric),
     blockIndex: matchedMetric.block.blockIndex,
     chapterIndex: matchedMetric.block.chapterIndex,
     endCursor: line?.end,
@@ -279,9 +328,22 @@ export function getOffsetForLocator(
     return null;
   }
 
-  const metric = layout.metrics.find(
-    (candidate) => candidate.block.blockIndex === locator.blockIndex,
-  );
+  const scoredMetric = layout.metrics
+    .map((candidate) => ({
+      metric: candidate,
+      score: scoreLocatorMetricMatch(locator, candidate),
+    }))
+    .filter((candidate): candidate is { metric: VirtualBlockMetrics; score: number } => (
+      candidate.score !== null
+    ))
+    .sort((left, right) => {
+      if (right.score !== left.score) {
+        return right.score - left.score;
+      }
+      return Math.abs(left.metric.block.blockIndex - locator.blockIndex)
+        - Math.abs(right.metric.block.blockIndex - locator.blockIndex);
+    })[0] ?? null;
+  const metric = scoredMetric?.metric ?? null;
   if (!metric) {
     return null;
   }

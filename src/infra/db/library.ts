@@ -23,6 +23,7 @@ export interface NovelRecord {
 export interface ChapterRecord {
   id: number;
   novelId: number;
+  chapterKey?: string;
   title: string;
   content: string;
   chapterIndex: number;
@@ -32,12 +33,14 @@ export interface ChapterRecord {
 export interface ChapterRichContentRecord {
   id: number;
   novelId: number;
+  chapterKey?: string;
   chapterIndex: number;
   contentRich: RichBlock[];
   contentPlain: string;
   contentFormat: RichContentFormat;
   contentVersion: number;
   importFormatVersion: number;
+  contentHash?: string;
   updatedAt: string;
 }
 

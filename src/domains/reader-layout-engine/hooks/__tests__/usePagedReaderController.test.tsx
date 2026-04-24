@@ -275,6 +275,7 @@ describe('usePagedReaderController', () => {
           kind: 'text',
         }),
         hints: expect.objectContaining({
+          chapterProgress: undefined,
           pageIndex: 1,
           contentMode: 'paged',
         }),

@@ -3,6 +3,7 @@ import type { RichContentFormat } from '../rich-content-projection';
 
 export interface Chapter {
   index: number;
+  chapterKey?: string;
   title: string;
   wordCount: number;
 }
@@ -12,6 +13,8 @@ export interface ChapterContent extends Chapter {
   hasNext: boolean;
   contentFormat: RichContentFormat;
   contentVersion: number;
+  importFormatVersion?: number;
+  contentHash?: string;
   plainText: string;
   richBlocks: RichBlock[];
   totalChapters: number;

@@ -8,6 +8,12 @@ import type {
 } from './readerLayoutTypes';
 
 import { buildChapterBlockSequence } from '@shared/text-processing/chapterBlocks';
+import {
+  createReaderBlockKey,
+  createReaderChapterContentHash,
+  createReaderTextHash,
+  createReaderTextQuote,
+} from '@shared/text-processing';
 import { READER_CONTENT_TOKEN_DEFAULTS } from '@shared/reader-rendering';
 
 import {
@@ -108,6 +114,13 @@ export function buildReaderBlocks(
   const blocks: ReaderBlock[] = [{
     chapterIndex: chapter.index,
     blockIndex: 0,
+    blockKey: createReaderBlockKey({
+      kind: 'heading',
+      paragraphIndex: -1,
+      text: chapter.title,
+    }),
+    blockTextHash: createReaderTextHash(chapter.title),
+    chapterKey: chapter.chapterKey,
     key: `${chapter.index}:heading:0`,
     kind: 'heading',
     text: chapter.title,
@@ -115,6 +128,10 @@ export function buildReaderBlocks(
     marginAfter: READER_CONTENT_TOKEN_DEFAULTS.chapterTitleMarginBottomPx,
     paragraphIndex: -1,
     renderRole: 'plain',
+    textQuote: createReaderTextQuote(chapter.title),
+    contentHash: chapter.contentHash,
+    contentVersion: chapter.contentVersion,
+    importFormatVersion: chapter.importFormatVersion,
   }];
 
   blocks.push(...buildChapterBlockSequence({
@@ -126,6 +143,7 @@ export function buildReaderBlocks(
       return {
         chapterIndex: block.chapterIndex,
         blockIndex: block.blockIndex,
+        chapterKey: chapter.chapterKey,
         key: `${chapter.index}:blank:${block.blockIndex}`,
         kind: 'blank',
         marginBefore: 0,
@@ -138,7 +156,16 @@ export function buildReaderBlocks(
       return {
         chapterIndex: block.chapterIndex,
         blockIndex: block.blockIndex,
+        blockKey: createReaderBlockKey({
+          imageKey: block.imageKey,
+          kind: 'image',
+          paragraphIndex: block.paragraphIndex,
+        }),
+        chapterKey: chapter.chapterKey,
+        contentHash: chapter.contentHash,
+        contentVersion: chapter.contentVersion,
         imageKey: block.imageKey,
+        importFormatVersion: chapter.importFormatVersion,
         key: `${chapter.index}:image:${block.blockIndex}`,
         kind: 'image',
         marginBefore: READER_CONTENT_TOKEN_DEFAULTS.imageBlockMarginPx,
@@ -153,12 +180,23 @@ export function buildReaderBlocks(
     return {
       chapterIndex: block.chapterIndex,
       blockIndex: block.blockIndex,
+      blockKey: createReaderBlockKey({
+        kind: 'text',
+        paragraphIndex: block.paragraphIndex,
+        text: block.text,
+      }),
+      blockTextHash: createReaderTextHash(block.text),
+      chapterKey: chapter.chapterKey,
+      contentHash: chapter.contentHash,
+      contentVersion: chapter.contentVersion,
+      importFormatVersion: chapter.importFormatVersion,
       key: `${chapter.index}:text:${block.blockIndex}`,
       kind: 'text',
       marginBefore: 0,
       marginAfter: block.hasParagraphSpacingAfter ? paragraphSpacing : 0,
       paragraphIndex: block.paragraphIndex,
       renderRole: 'plain',
+      textQuote: createReaderTextQuote(block.text),
       text: block.text,
     };
   }));
@@ -183,23 +221,7 @@ export function createChapterContentHash(
     'contentFormat' | 'contentVersion' | 'index' | 'plainText' | 'richBlocks' | 'title'
   >,
 ): string {
-  const source = `${chapter.index}\u0000${chapter.title}\u0000${chapter.plainText}\u0000${chapter.contentFormat}\u0000${chapter.contentVersion}\u0000${JSON.stringify(chapter.richBlocks)}`;
-  let hashA = 0x811c9dc5;
-  let hashB = 0x01000193;
-  const UINT32_MOD = 0x1_0000_0000;
-
-  const normalizeUint32 = (value: number): number => {
-    const normalized = value % UINT32_MOD;
-    return normalized >= 0 ? normalized : normalized + UINT32_MOD;
-  };
-
-  for (let index = 0; index < source.length; index += 1) {
-    const value = source.charCodeAt(index);
-    hashA = normalizeUint32(Math.imul(hashA, 0x01000193) + value);
-    hashB = normalizeUint32(Math.imul(hashB, 0x27d4eb2d) + value);
-  }
-
-  return `${hashA.toString(16).padStart(8, '0')}${hashB.toString(16).padStart(8, '0')}`;
+  return createReaderChapterContentHash(chapter);
 }
 
 export function getApproximateMaxCharsPerLine(maxWidth: number, fontSizePx: number): number {

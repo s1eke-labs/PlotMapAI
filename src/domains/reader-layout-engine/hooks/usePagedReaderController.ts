@@ -63,6 +63,7 @@ export function usePagedReaderController({
   const userInteractedRef = hasUserInteractedRef;
   const pagedContentRef = useRef<HTMLDivElement | null>(null);
   const lastPersistedPagedPageIndexRef = useRef<number | null>(null);
+  const hasPagedNavigationSinceLastPersistRef = useRef(false);
   const [pageIndex, setPageIndex] = useState(0);
   const [pageCount, setPageCount] = useState(1);
   const [pendingPageTarget, setPendingPageTarget] = useState<PageTarget | null>(null);
@@ -267,6 +268,7 @@ export function usePagedReaderController({
     }
 
     if (pageIndex < effectivePageCount - 1) {
+      hasPagedNavigationSinceLastPersistRef.current = true;
       setPageIndexAndSyncRuntime((previousPageIndex) => previousPageIndex + 1);
       return true;
     }
@@ -299,6 +301,7 @@ export function usePagedReaderController({
     }
 
     if (pageIndex > 0) {
+      hasPagedNavigationSinceLastPersistRef.current = true;
       setPageIndexAndSyncRuntime((previousPageIndex) => previousPageIndex - 1);
       return true;
     }
@@ -387,9 +390,12 @@ export function usePagedReaderController({
       lastPersistedPagedPageIndexRef.current ?? sessionLocator?.pageIndex;
     const nextPageIndex = locator?.pageIndex ?? pageIndex;
     const shouldClearScrollProgress =
-      previousPagedPageIndex !== undefined
-      && previousPagedPageIndex !== null
-      && previousPagedPageIndex !== nextPageIndex;
+      hasPagedNavigationSinceLastPersistRef.current
+      || (
+        previousPagedPageIndex !== undefined
+        && previousPagedPageIndex !== null
+        && previousPagedPageIndex !== nextPageIndex
+      );
     if (!locator) {
       const persistFallbackSnapshot = {
         source: 'usePagedReaderController.persistCurrentPage',
@@ -413,6 +419,7 @@ export function usePagedReaderController({
       },
     });
     lastPersistedPagedPageIndexRef.current = nextPageIndex;
+    hasPagedNavigationSinceLastPersistRef.current = false;
   }, [
     chapterIndex,
     currentChapter,

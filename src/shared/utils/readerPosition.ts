@@ -9,6 +9,7 @@ import type {
 import {
   buildStoredReaderState,
   getStoredChapterIndex,
+  isReaderProjectionFreshForCanonical,
   toCanonicalPositionFromLocator,
   toReaderLocatorFromCanonical,
 } from './readerStoredState';
@@ -217,7 +218,12 @@ export function createRestoreTargetFromPersistedState(
   }).mode;
   const locator = toReaderLocatorFromCanonical(
     normalizedState.canonical,
-    normalizedState.hints?.pageIndex,
+    isReaderProjectionFreshForCanonical(
+      normalizedState.hints?.pagedProjection,
+      normalizedState.canonical,
+    )
+      ? normalizedState.hints?.pageIndex
+      : undefined,
   );
   const canonicalEdge = normalizedState.canonical?.edge;
   const hasCanonicalBoundary =
@@ -233,7 +239,13 @@ export function createRestoreTargetFromPersistedState(
     locatorBoundary,
   };
 
-  if (typeof normalizedState.hints?.chapterProgress === 'number') {
+  if (
+    typeof normalizedState.hints?.chapterProgress === 'number'
+    && isReaderProjectionFreshForCanonical(
+      normalizedState.hints?.scrollProjection,
+      normalizedState.canonical,
+    )
+  ) {
     target.chapterProgress = typeof normalizedState.hints?.chapterProgress === 'number'
       ? clampProgress(normalizedState.hints.chapterProgress)
       : undefined;

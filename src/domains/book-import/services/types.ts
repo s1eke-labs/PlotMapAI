@@ -6,6 +6,7 @@ import type { ChapterDetectionRule, PurifyRule } from '@shared/text-processing';
 import type { BookImportProgress } from './progress';
 
 export interface ParsedChapter {
+  chapterKey?: string;
   title: string;
   content: string;
   contentFormat: RichContentFormat;

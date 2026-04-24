@@ -20,6 +20,7 @@ import {
   clampChapterProgress,
   createDefaultStoredReaderState,
   getStoredChapterIndex,
+  isReaderProjectionFreshForCanonical,
   mergeStoredReaderState,
   toReaderLocatorFromCanonical,
 } from '@shared/utils/readerStoredState';
@@ -188,7 +189,12 @@ function updateStoredReaderState(
   const merged = mergeStoredReaderState(toStoredReaderState(currentState), nextState);
   const nextCanonical = merged.canonical;
   const nextChapterIndex = getStoredChapterIndex(merged);
-  const nextLocator = toReaderLocatorFromCanonical(nextCanonical, merged.hints?.pageIndex);
+  const nextLocator = toReaderLocatorFromCanonical(
+    nextCanonical,
+    isReaderProjectionFreshForCanonical(merged.hints?.pagedProjection, nextCanonical)
+      ? merged.hints?.pageIndex
+      : undefined,
+  );
   const shouldPersistRemote = options.persistRemote ?? true;
 
   readerSessionRuntime.patch({
@@ -196,6 +202,7 @@ function updateStoredReaderState(
     chapterIndex: nextChapterIndex,
     chapterProgress: clampChapterProgress(merged.hints?.chapterProgress),
     locator: nextLocator,
+    positionMetadata: merged.metadata,
     hasUserInteracted: options.markUserInteracted ?? currentState.hasUserInteracted,
   }, {
     bumpRevision: shouldPersistRemote,
@@ -223,6 +230,7 @@ export async function hydrateSession(
     canonical: initialStoredState.canonical,
     chapterIndex: getStoredChapterIndex(initialStoredState),
     chapterProgress: undefined,
+    positionMetadata: initialStoredState.metadata,
     locator: toReaderLocatorFromCanonical(initialStoredState.canonical),
     mode: 'scroll',
     lastContentMode: 'scroll',
@@ -319,7 +327,13 @@ export async function hydrateSession(
     mode: resolvedMode.mode,
     chapterIndex: getStoredChapterIndex(baseState),
     chapterProgress: clampChapterProgress(baseState.hints?.chapterProgress),
-    locator: toReaderLocatorFromCanonical(baseState.canonical, baseState.hints?.pageIndex),
+    locator: toReaderLocatorFromCanonical(
+      baseState.canonical,
+      isReaderProjectionFreshForCanonical(baseState.hints?.pagedProjection, baseState.canonical)
+        ? baseState.hints?.pageIndex
+        : undefined,
+    ),
+    positionMetadata: baseState.metadata,
     lastContentMode: nextLastContentMode,
     pendingRestoreTarget,
     lastRestoreResult: null,

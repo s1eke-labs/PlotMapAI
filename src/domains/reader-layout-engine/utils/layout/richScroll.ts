@@ -5,6 +5,9 @@ import type {
 
 import {
   buildRichPaginationBlockSequence,
+  createReaderBlockKey,
+  createReaderTextHash,
+  createReaderTextQuote,
   getPaginationBlockPlainText,
 } from '@shared/text-processing';
 import { READER_CONTENT_TOKEN_DEFAULTS } from '@shared/reader-rendering';
@@ -22,13 +25,24 @@ export interface RichScrollBlockInsets {
 function toChapterTitleBlock(chapter: ChapterContent): ReaderBlock {
   return {
     blockIndex: 0,
+    blockKey: createReaderBlockKey({
+      kind: 'heading',
+      paragraphIndex: -1,
+      text: chapter.title,
+    }),
+    blockTextHash: createReaderTextHash(chapter.title),
     chapterIndex: chapter.index,
+    chapterKey: chapter.chapterKey,
+    contentHash: chapter.contentHash,
+    contentVersion: chapter.contentVersion,
     headingLevel: 1,
     key: `${chapter.index}:heading:0`,
     kind: 'heading',
     marginAfter: READER_CONTENT_TOKEN_DEFAULTS.chapterTitleMarginBottomPx,
     marginBefore: READER_CONTENT_TOKEN_DEFAULTS.chapterTitleMarginTopPx,
     paragraphIndex: -1,
+    importFormatVersion: chapter.importFormatVersion,
+    textQuote: createReaderTextQuote(chapter.title),
     text: chapter.title,
   };
 }
@@ -110,6 +124,14 @@ export function buildRichScrollReaderBlocks(
 
   const richBlocks = richSequence.map((entry, entryIndex): ReaderBlock => {
     const nextEntry = richSequence[entryIndex + 1] ?? null;
+    const blockPlainText = getPaginationBlockPlainText(entry.block);
+    let blockKind: ReaderBlock['kind'] = 'text';
+    if (entry.block.type === 'image') {
+      blockKind = 'image';
+    } else if (entry.block.type === 'heading') {
+      blockKind = 'heading';
+    }
+
     const sharedFields = {
       align: entry.block.type === 'heading'
         || entry.block.type === 'paragraph'
@@ -118,16 +140,34 @@ export function buildRichScrollReaderBlocks(
         : undefined,
       anchorId: 'anchorId' in entry.block ? entry.block.anchorId : undefined,
       blockIndex: entry.blockIndex,
+      blockKey: createReaderBlockKey({
+        anchorId: 'anchorId' in entry.block ? entry.block.anchorId : undefined,
+        imageKey: entry.block.type === 'image' ? entry.block.key : undefined,
+        kind: blockKind,
+        paragraphIndex: entry.paragraphIndex,
+        sourceBlockType: entry.block.sourceBlockType,
+        text: blockPlainText,
+      }),
+      blockTextHash: entry.block.type === 'image'
+        ? undefined
+        : createReaderTextHash(blockPlainText),
       blockquoteDepth: entry.blockquoteDepth,
       chapterIndex: chapter.index,
+      chapterKey: chapter.chapterKey,
       container: entry.block.type === 'paragraph' || entry.block.type === 'image'
         ? entry.block.container
         : undefined,
+      contentHash: chapter.contentHash,
+      contentVersion: chapter.contentVersion,
+      importFormatVersion: chapter.importFormatVersion,
       key: `${chapter.index}:${entry.block.type}:${entry.blockIndex}`,
       listContext: entry.listContext,
       paragraphIndex: entry.paragraphIndex,
       showListMarker: entry.showListMarker,
       sourceBlockType: entry.block.sourceBlockType,
+      textQuote: entry.block.type === 'image'
+        ? undefined
+        : createReaderTextQuote(blockPlainText),
     } satisfies Partial<ReaderBlock>;
 
     if (entry.block.type === 'heading') {
@@ -139,7 +179,7 @@ export function buildRichScrollReaderBlocks(
         marginAfter: READER_CONTENT_TOKEN_DEFAULTS.headingMarginBottomPx,
         marginBefore: READER_CONTENT_TOKEN_DEFAULTS.headingMarginTopPx,
         richChildren: entry.block.children,
-        text: getPaginationBlockPlainText(entry.block),
+        text: blockPlainText,
       };
     }
 
@@ -176,13 +216,13 @@ export function buildRichScrollReaderBlocks(
         marginBefore: READER_CONTENT_TOKEN_DEFAULTS.tableMarginBeforePx,
         renderRole: 'table',
         tableRows: entry.block.rows,
-        text: getPaginationBlockPlainText(entry.block),
+        text: blockPlainText,
       };
     }
 
     const text = entry.block.type === 'unsupported'
       ? entry.block.fallbackText
-      : getPaginationBlockPlainText(entry.block);
+      : blockPlainText;
     const richChildren = entry.block.type === 'paragraph'
       ? entry.block.children
       : createUnsupportedTextChildren(entry.block.fallbackText);

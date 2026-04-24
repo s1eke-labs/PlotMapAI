@@ -53,9 +53,11 @@ export function buildRichChapterMetadataDigest(
 
   return [
     chapter.chapterIndex,
+    chapter.chapterKey ?? '',
     chapter.contentFormat,
     chapter.contentVersion,
     chapter.importFormatVersion,
+    chapter.contentHash ?? '',
     chapter.updatedAt,
   ].join(':');
 }
@@ -125,10 +127,24 @@ export function buildChapterBaseProjection(params: {
   const projection = buildPostAstPlainProjection(params);
 
   return {
+    ...(
+      params.chapterRichContent?.chapterKey ?? params.chapter.chapterKey
+        ? { chapterKey: params.chapterRichContent?.chapterKey ?? params.chapter.chapterKey }
+        : {}
+    ),
+    ...(params.chapterRichContent?.contentHash
+      ? { contentHash: params.chapterRichContent.contentHash }
+      : {}),
     contentVersion: params.chapterRichContent?.contentVersion ?? null,
+    importFormatVersion: params.chapterRichContent?.importFormatVersion,
     plainText: projection.plainText,
     projectedChapter: {
       chapterIndex: params.chapter.chapterIndex,
+      ...(
+        params.chapterRichContent?.chapterKey ?? params.chapter.chapterKey
+          ? { chapterKey: params.chapterRichContent?.chapterKey ?? params.chapter.chapterKey }
+          : {}
+      ),
       title: params.chapter.title,
       content: projection.plainText,
       wordCount: params.chapter.wordCount,

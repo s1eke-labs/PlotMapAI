@@ -23,6 +23,8 @@ import type { StoredReaderState } from '@shared/contracts/reader';
 import {
   clampChapterProgress,
   clampPageIndex,
+  buildStoredReaderState,
+  createCanonicalPositionFingerprint,
   createDefaultStoredReaderState,
   mergeStoredReaderState,
 } from '@shared/utils/readerStoredState';
@@ -34,6 +36,45 @@ interface PersistReaderStateOptions {
 }
 
 export type { PageTarget, ReaderMode, ReaderNavigationIntent, ReaderRestoreTarget, StoredReaderState } from '@shared/contracts/reader';
+
+function enrichHintsWithProjectionMetadata(
+  hints: StoredReaderState['hints'],
+  params: {
+    basisCanonicalFingerprint: string;
+    capturedAt: string | undefined;
+    sourceMode: 'scroll' | 'paged';
+  },
+): StoredReaderState['hints'] {
+  if (!hints) {
+    return hints;
+  }
+
+  const nextHints: NonNullable<StoredReaderState['hints']> = { ...hints };
+  delete nextHints.pagedProjection;
+  delete nextHints.scrollProjection;
+
+  if (hints.pagedProjection) {
+    nextHints.pagedProjection = hints.pagedProjection;
+  } else if (params.sourceMode === 'paged' && typeof hints.pageIndex === 'number') {
+    nextHints.pagedProjection = {
+      basisCanonicalFingerprint: params.basisCanonicalFingerprint,
+      capturedAt: params.capturedAt,
+      sourceMode: params.sourceMode,
+    };
+  }
+
+  if (hints.scrollProjection) {
+    nextHints.scrollProjection = hints.scrollProjection;
+  } else if (params.sourceMode === 'scroll' && typeof hints.chapterProgress === 'number') {
+    nextHints.scrollProjection = {
+      basisCanonicalFingerprint: params.basisCanonicalFingerprint,
+      capturedAt: params.capturedAt,
+      sourceMode: params.sourceMode,
+    };
+  }
+
+  return nextHints;
+}
 
 export function useReaderStatePersistence(novelId: number): {
   latestReaderStateRef: React.MutableRefObject<StoredReaderState>;
@@ -52,19 +93,32 @@ export function useReaderStatePersistence(novelId: number): {
   const lastContentMode = useReaderSessionSelector((state) => state.lastContentMode);
   const chapterProgress = useReaderSessionSelector((state) => state.chapterProgress);
   const locator = useReaderSessionSelector((state) => state.locator);
-  const storedState = useMemo<StoredReaderState>(() => ({
+  const positionMetadata = useReaderSessionSelector((state) => state.positionMetadata);
+  const storedState = useMemo<StoredReaderState>(() => buildStoredReaderState({
     canonical,
-    hints: {
-      chapterProgress: clampChapterProgress(chapterProgress),
-      pageIndex: clampPageIndex(locator?.pageIndex),
-      ...createReaderStateModeHints(mode, lastContentMode),
-    },
+    hints: enrichHintsWithProjectionMetadata(
+      {
+        chapterProgress: clampChapterProgress(chapterProgress),
+        pageIndex: mode === 'paged' && positionMetadata?.sourceMode !== 'scroll'
+          ? clampPageIndex(locator?.pageIndex)
+          : undefined,
+        ...createReaderStateModeHints(mode, lastContentMode),
+      },
+      {
+        basisCanonicalFingerprint: createCanonicalPositionFingerprint(canonical),
+        capturedAt: positionMetadata?.capturedAt,
+        sourceMode: positionMetadata?.sourceMode
+          ?? (mode === 'paged' ? 'paged' : 'scroll'),
+      },
+    ),
+    metadata: positionMetadata,
   }), [
     canonical,
     chapterProgress,
     lastContentMode,
     locator,
     mode,
+    positionMetadata,
   ]);
   const snapshot = useMemo(() => ({
     novelId: sessionNovelId,
@@ -109,12 +163,38 @@ export function useReaderStatePersistence(novelId: number): {
       if (novelId) {
         setSessionNovelId(novelId);
       }
+      const sourceMode = nextState.hints?.contentMode ?? lastContentMode;
+      const capturedAt = nextState.metadata?.capturedAt ?? new Date().toISOString();
+      const basisCanonicalFingerprint = createCanonicalPositionFingerprint(nextState.canonical);
+      const enrichedHints = enrichHintsWithProjectionMetadata(nextState.hints, {
+        basisCanonicalFingerprint,
+        capturedAt,
+        sourceMode,
+      });
+      const enrichedNextState: StoredReaderState = nextState.metadata
+        ? {
+          ...nextState,
+          hints: enrichedHints,
+        }
+        : {
+          ...nextState,
+          hints: enrichedHints,
+          metadata: {
+            capturedAt,
+            captureQuality: typeof nextState.canonical?.blockIndex === 'number'
+              ? 'precise'
+              : 'approximate',
+            resolverVersion: 1,
+            sourceMode,
+          },
+        };
       const mergedState = mergeStoredReaderState(
         latestReaderStateRef.current,
-        nextState,
+        enrichedNextState,
       );
+      latestReaderStateRef.current = mergedState;
       persistStoredReaderState(
-        mergedState,
+        enrichedNextState,
         {
           flush: options?.flush,
           persistRemote: options?.persistRemote,
@@ -122,7 +202,7 @@ export function useReaderStatePersistence(novelId: number): {
       );
       latestReaderStateRef.current = getStoredReaderStateSnapshot();
     },
-    [canPersistForCurrentNovel, novelId],
+    [canPersistForCurrentNovel, lastContentMode, novelId],
   );
 
   const loadPersistedReaderState = useCallback(async (): Promise<StoredReaderState> => {

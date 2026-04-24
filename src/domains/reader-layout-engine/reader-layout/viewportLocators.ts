@@ -56,6 +56,30 @@ function clampAnchorRatio(anchorRatio: number): number {
   return anchorRatio;
 }
 
+function compactLocatorMetadata(metadata: Partial<ReaderLocator>): Partial<ReaderLocator> {
+  return Object.fromEntries(
+    Object.entries(metadata).filter(([, value]) => value !== undefined),
+  ) as Partial<ReaderLocator>;
+}
+
+function getPageItemLocatorMetadata(item: ReaderPageItem): Partial<ReaderLocator> {
+  if (item.kind === 'blank') {
+    return {};
+  }
+
+  return compactLocatorMetadata({
+    anchorId: item.anchorId,
+    blockKey: item.blockKey,
+    blockTextHash: item.kind === 'image' ? undefined : item.blockTextHash,
+    chapterKey: item.chapterKey,
+    contentHash: item.contentHash,
+    contentVersion: item.contentVersion,
+    imageKey: item.kind === 'image' ? item.imageKey : undefined,
+    importFormatVersion: item.importFormatVersion,
+    textQuote: item.kind === 'image' ? undefined : item.textQuote,
+  });
+}
+
 function toPageItemStartLocator(
   item: ReaderPageItem,
   pageIndex: number,
@@ -66,6 +90,7 @@ function toPageItemStartLocator(
 
   if (item.kind === 'image') {
     return {
+      ...getPageItemLocatorMetadata(item),
       chapterIndex: item.chapterIndex,
       blockIndex: item.blockIndex,
       kind: 'image',
@@ -76,6 +101,7 @@ function toPageItemStartLocator(
 
   const firstLine = item.lines[0];
   return {
+    ...getPageItemLocatorMetadata(item),
     chapterIndex: item.chapterIndex,
     blockIndex: item.blockIndex,
     kind: item.kind,
@@ -96,6 +122,7 @@ function toPageItemEndLocator(
 
   if (item.kind === 'image') {
     return {
+      ...getPageItemLocatorMetadata(item),
       chapterIndex: item.chapterIndex,
       blockIndex: item.blockIndex,
       kind: 'image',
@@ -106,6 +133,7 @@ function toPageItemEndLocator(
 
   const lastLine = item.lines[item.lines.length - 1];
   return {
+    ...getPageItemLocatorMetadata(item),
     chapterIndex: item.chapterIndex,
     blockIndex: item.blockIndex,
     kind: item.kind,
@@ -134,6 +162,7 @@ function sampleTextPageItemLocator(
   const sampledLine = item.lines[lineOffset];
 
   return {
+    ...getPageItemLocatorMetadata(item),
     chapterIndex: item.chapterIndex,
     blockIndex: item.blockIndex,
     kind: item.kind,
@@ -158,6 +187,7 @@ function samplePageItemLocator(
     const contentOffset = offsetWithinItem - item.marginBefore;
 
     return {
+      ...getPageItemLocatorMetadata(item),
       chapterIndex: item.chapterIndex,
       blockIndex: item.blockIndex,
       kind: 'image',

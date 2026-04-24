@@ -19,6 +19,17 @@ export type {
 } from './chapterBlocks';
 export { computeHash } from './hash';
 export {
+  createEpubChapterKey,
+  createReaderBlockKey,
+  createReaderChapterContentHash,
+  createReaderTextHash,
+  createReaderTextQuote,
+  createTxtChapterKey,
+  normalizeReaderAnchorText,
+  scoreReaderTextQuoteMatch,
+} from './readerPositionIdentity';
+export type { ReaderTextQuote } from './readerPositionIdentity';
+export {
   buildChapterImageGalleryEntries,
   sortChapterImageGalleryEntries,
 } from './imageGallery';

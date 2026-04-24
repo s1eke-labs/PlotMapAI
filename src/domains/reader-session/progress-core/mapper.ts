@@ -37,29 +37,55 @@ function normalizePageIndex(value: number | undefined): number | undefined {
   return Math.max(0, Math.floor(value));
 }
 
+function normalizeString(value: string | undefined): string | undefined {
+  return typeof value === 'string' && value.length > 0 ? value : undefined;
+}
+
+function normalizeSourceMode(value: unknown): 'scroll' | 'paged' | undefined {
+  return value === 'scroll' || value === 'paged' ? value : undefined;
+}
+
 function toReaderLocatorRecord(locator: ReaderLocator): ReaderLocatorRecord {
   return {
     chapterIndex: locator.chapterIndex,
+    chapterKey: normalizeString(locator.chapterKey),
     blockIndex: locator.blockIndex,
+    blockKey: normalizeString(locator.blockKey),
+    anchorId: normalizeString(locator.anchorId),
+    imageKey: normalizeString(locator.imageKey),
     kind: locator.kind,
     lineIndex: locator.lineIndex,
     startCursor: locator.startCursor ? { ...locator.startCursor } : undefined,
     endCursor: locator.endCursor ? { ...locator.endCursor } : undefined,
     edge: locator.edge,
     pageIndex: normalizePageIndex(locator.pageIndex),
+    textQuote: locator.textQuote,
+    blockTextHash: normalizeString(locator.blockTextHash),
+    contentVersion: locator.contentVersion,
+    importFormatVersion: locator.importFormatVersion,
+    contentHash: normalizeString(locator.contentHash),
   };
 }
 
 function toReaderLocator(locator: ReaderLocatorRecord): ReaderLocator {
   return {
     chapterIndex: locator.chapterIndex,
+    chapterKey: normalizeString(locator.chapterKey),
     blockIndex: locator.blockIndex,
+    blockKey: normalizeString(locator.blockKey),
+    anchorId: normalizeString(locator.anchorId),
+    imageKey: normalizeString(locator.imageKey),
     kind: locator.kind,
     lineIndex: locator.lineIndex,
     startCursor: locator.startCursor ? { ...locator.startCursor } : undefined,
     endCursor: locator.endCursor ? { ...locator.endCursor } : undefined,
     edge: locator.edge,
     pageIndex: normalizePageIndex(locator.pageIndex),
+    textQuote: locator.textQuote,
+    blockTextHash: normalizeString(locator.blockTextHash),
+    contentVersion: locator.contentVersion,
+    importFormatVersion: locator.importFormatVersion,
+    contentHash: normalizeString(locator.contentHash),
   };
 }
 
@@ -125,7 +151,14 @@ export function toReaderProgressProjectionRecord(
 
   return {
     pagedPageIndex,
+    pagedCapturedAt: normalizeString(projection?.paged?.capturedAt),
+    pagedSourceMode: projection?.paged?.sourceMode,
+    pagedBasisCanonicalFingerprint: normalizeString(projection?.paged?.basisCanonicalFingerprint),
+    pagedLayoutKey: normalizeString(projection?.paged?.layoutKey),
     scrollChapterProgress,
+    scrollCapturedAt: normalizeString(projection?.scroll?.capturedAt),
+    scrollSourceMode: projection?.scroll?.sourceMode,
+    scrollBasisCanonicalFingerprint: normalizeString(projection?.scroll?.basisCanonicalFingerprint),
   };
 }
 
@@ -142,10 +175,35 @@ export function toReaderProgressProjection(
   return {
     paged: pagedPageIndex === undefined
       ? undefined
-      : { pageIndex: pagedPageIndex },
+      : {
+        pageIndex: pagedPageIndex,
+        ...(normalizeString(record?.pagedCapturedAt)
+          ? { capturedAt: normalizeString(record?.pagedCapturedAt) }
+          : {}),
+        ...(normalizeSourceMode(record?.pagedSourceMode)
+          ? { sourceMode: normalizeSourceMode(record?.pagedSourceMode) }
+          : {}),
+        ...(normalizeString(record?.pagedBasisCanonicalFingerprint)
+          ? { basisCanonicalFingerprint: normalizeString(record?.pagedBasisCanonicalFingerprint) }
+          : {}),
+        ...(normalizeString(record?.pagedLayoutKey)
+          ? { layoutKey: normalizeString(record?.pagedLayoutKey) }
+          : {}),
+      },
     scroll: scrollChapterProgress === undefined
       ? undefined
-      : { chapterProgress: scrollChapterProgress },
+      : {
+        chapterProgress: scrollChapterProgress,
+        ...(normalizeString(record?.scrollCapturedAt)
+          ? { capturedAt: normalizeString(record?.scrollCapturedAt) }
+          : {}),
+        ...(normalizeSourceMode(record?.scrollSourceMode)
+          ? { sourceMode: normalizeSourceMode(record?.scrollSourceMode) }
+          : {}),
+        ...(normalizeString(record?.scrollBasisCanonicalFingerprint)
+          ? { basisCanonicalFingerprint: normalizeString(record?.scrollBasisCanonicalFingerprint) }
+          : {}),
+      },
   };
 }
 
@@ -170,6 +228,13 @@ export function toReaderProgressRecord(params: {
     position: toReaderProgressPositionRecord(params.snapshot.position),
     projections: toReaderProgressProjectionRecord(params.snapshot.projections),
     captureQuality: params.snapshot.captureQuality,
+    ...(normalizeString(params.snapshot.capturedAt)
+      ? { capturedAt: normalizeString(params.snapshot.capturedAt) }
+      : {}),
+    ...(params.snapshot.sourceMode ? { sourceMode: params.snapshot.sourceMode } : {}),
+    ...(typeof params.snapshot.resolverVersion === 'number'
+      ? { resolverVersion: params.snapshot.resolverVersion }
+      : {}),
     revision: params.revision,
     updatedAt: params.updatedAt,
   };
@@ -204,6 +269,15 @@ export function toPersistedReaderProgressSnapshot(
       position,
       projections: toReaderProgressProjection(record.projections),
       captureQuality: record.captureQuality,
+      ...(normalizeString(record.capturedAt)
+        ? { capturedAt: normalizeString(record.capturedAt) }
+        : {}),
+      ...(normalizeSourceMode(record.sourceMode)
+        ? { sourceMode: normalizeSourceMode(record.sourceMode) }
+        : {}),
+      ...(typeof record.resolverVersion === 'number'
+        ? { resolverVersion: record.resolverVersion }
+        : {}),
     },
     updatedAt: record.updatedAt,
   };

@@ -97,6 +97,7 @@ export function buildProjectedBookChapter(params: {
 
   return {
     chapterIndex: params.chapter.chapterIndex,
+    chapterKey: params.chapterRichContent?.chapterKey ?? params.chapter.chapterKey,
     title: params.chapter.title,
     content: projection.plainText,
     wordCount: params.chapter.wordCount,

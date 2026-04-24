@@ -28,9 +28,16 @@ export type ReaderProgressPosition =
 export interface ReaderProgressProjection {
   scroll?: {
     chapterProgress?: number;
+    capturedAt?: string;
+    sourceMode?: ReaderProgressMode;
+    basisCanonicalFingerprint?: string;
   };
   paged?: {
     pageIndex?: number;
+    capturedAt?: string;
+    sourceMode?: ReaderProgressMode;
+    basisCanonicalFingerprint?: string;
+    layoutKey?: string;
   };
 }
 
@@ -40,6 +47,9 @@ export interface ReaderProgressSnapshot {
   position: ReaderProgressPosition;
   projections?: ReaderProgressProjection;
   captureQuality: ReaderProgressCaptureQuality;
+  capturedAt?: string;
+  sourceMode?: ReaderProgressMode;
+  resolverVersion?: number;
 }
 
 export interface PersistedReaderProgressSnapshot {

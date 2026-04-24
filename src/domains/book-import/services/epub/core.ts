@@ -7,6 +7,7 @@ import type { ManifestItem } from './types';
 
 import {
   computeHash,
+  createEpubChapterKey,
   projectPlainTextToRichBlocks,
   purify,
   stripLeadingChapterTitle,
@@ -208,6 +209,11 @@ export async function parseEpubCore(
     }
 
     if (chapter) {
+      chapter.chapterKey = createEpubChapterKey({
+        chapterIndex: chapters.length,
+        hrefBase,
+        manifestId: item.id,
+      });
       emitProgress(onProgress, {
         current: index + 1,
         detail: chapter.title,

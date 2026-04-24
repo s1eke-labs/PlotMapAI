@@ -1,12 +1,24 @@
 import type {
   CanonicalPosition,
   ReaderLocator,
+  ReaderPositionMetadata,
+  ReaderProjectionMetadata,
   ReaderViewMode,
   StoredReaderState,
 } from '@shared/contracts/reader';
 
 function hasOwn<T extends object>(obj: T, key: string): boolean {
   return Object.prototype.hasOwnProperty.call(obj, key);
+}
+
+function compactUndefined<T extends Record<string, unknown>>(value: T): T {
+  const compacted = { ...value };
+  for (const key of Object.keys(compacted)) {
+    if (compacted[key] === undefined) {
+      delete compacted[key];
+    }
+  }
+  return compacted;
 }
 
 function isValidLocatorKind(value: unknown): value is NonNullable<CanonicalPosition['kind']> {
@@ -70,17 +82,28 @@ function buildLegacyHints(
   pageIndex: number | undefined,
   contentMode: NonNullable<NonNullable<StoredReaderState['hints']>['contentMode']> | undefined,
   viewMode: ReaderViewMode | undefined,
+  scrollProjection?: ReaderProjectionMetadata,
+  pagedProjection?: ReaderProjectionMetadata,
 ): StoredReaderState['hints'] {
-  if (chapterProgress === undefined && pageIndex === undefined && !contentMode && !viewMode) {
+  if (
+    chapterProgress === undefined
+    && pageIndex === undefined
+    && !contentMode
+    && !viewMode
+    && !scrollProjection
+    && !pagedProjection
+  ) {
     return undefined;
   }
 
-  return {
+  return compactUndefined({
     chapterProgress,
     pageIndex,
     contentMode,
     viewMode,
-  };
+    scrollProjection,
+    pagedProjection,
+  });
 }
 
 export function clampChapterProgress(value: number | undefined): number | undefined {
@@ -94,6 +117,111 @@ export function clampPageIndex(value: number | undefined): number | undefined {
   if (typeof value !== 'number' || Number.isNaN(value)) return undefined;
   if (value < 0) return 0;
   return Math.floor(value);
+}
+
+function sanitizeOptionalString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.length > 0 ? value : undefined;
+}
+
+function sanitizeTextQuote(raw: unknown): ReaderLocator['textQuote'] | undefined {
+  if (!raw || typeof raw !== 'object') {
+    return undefined;
+  }
+
+  const parsed = raw as Record<string, unknown>;
+  const exact = sanitizeOptionalString(parsed.exact);
+  if (!exact) {
+    return undefined;
+  }
+
+  return compactUndefined({
+    exact,
+    prefix: sanitizeOptionalString(parsed.prefix),
+    suffix: sanitizeOptionalString(parsed.suffix),
+  });
+}
+
+function sanitizeProjectionMetadata(raw: unknown): ReaderProjectionMetadata | undefined {
+  if (!raw || typeof raw !== 'object') {
+    return undefined;
+  }
+
+  const parsed = raw as Record<string, unknown>;
+  const sourceMode: ReaderProjectionMetadata['sourceMode'] =
+    parsed.sourceMode === 'scroll' || parsed.sourceMode === 'paged'
+      ? parsed.sourceMode
+      : undefined;
+  const metadata: ReaderProjectionMetadata = compactUndefined({
+    basisCanonicalFingerprint: sanitizeOptionalString(parsed.basisCanonicalFingerprint),
+    capturedAt: sanitizeOptionalString(parsed.capturedAt),
+    layoutKey: sanitizeOptionalString(parsed.layoutKey),
+    sourceMode,
+  });
+
+  return Object.values(metadata).some((value) => value !== undefined)
+    ? metadata
+    : undefined;
+}
+
+function sanitizePositionMetadata(raw: unknown): ReaderPositionMetadata | undefined {
+  if (!raw || typeof raw !== 'object') {
+    return undefined;
+  }
+
+  const parsed = raw as Record<string, unknown>;
+  const captureQuality: ReaderPositionMetadata['captureQuality'] =
+    parsed.captureQuality === 'precise' || parsed.captureQuality === 'approximate'
+      ? parsed.captureQuality
+      : undefined;
+  const sourceMode: ReaderPositionMetadata['sourceMode'] =
+    parsed.sourceMode === 'scroll' || parsed.sourceMode === 'paged'
+      ? parsed.sourceMode
+      : undefined;
+  const metadata: ReaderPositionMetadata = compactUndefined({
+    capturedAt: sanitizeOptionalString(parsed.capturedAt),
+    captureQuality,
+    resolverVersion: typeof parsed.resolverVersion === 'number'
+      ? parsed.resolverVersion
+      : undefined,
+    sourceMode,
+  });
+
+  return Object.values(metadata).some((value) => value !== undefined)
+    ? metadata
+    : undefined;
+}
+
+function copyLocatorMetadata(
+  source: Pick<
+    ReaderLocator,
+    | 'anchorId'
+    | 'blockKey'
+    | 'blockTextHash'
+    | 'chapterKey'
+    | 'contentHash'
+    | 'contentVersion'
+    | 'imageKey'
+    | 'importFormatVersion'
+    | 'textQuote'
+  >,
+): Omit<CanonicalPosition, 'chapterIndex' | 'blockIndex' | 'kind' | 'lineIndex' | 'startCursor' | 'endCursor' | 'edge'> {
+  return compactUndefined({
+    anchorId: source.anchorId,
+    blockKey: source.blockKey,
+    blockTextHash: source.blockTextHash,
+    chapterKey: source.chapterKey,
+    contentHash: source.contentHash,
+    contentVersion: source.contentVersion,
+    imageKey: source.imageKey,
+    importFormatVersion: source.importFormatVersion,
+    textQuote: source.textQuote
+      ? {
+        exact: source.textQuote.exact,
+        prefix: source.textQuote.prefix,
+        suffix: source.textQuote.suffix,
+      }
+      : undefined,
+  });
 }
 
 export function sanitizeCanonicalPosition(raw: unknown): CanonicalPosition | undefined {
@@ -110,9 +238,13 @@ export function sanitizeCanonicalPosition(raw: unknown): CanonicalPosition | und
     chapterIndex: parsed.chapterIndex,
   };
 
+  canonical.chapterKey = sanitizeOptionalString(parsed.chapterKey);
   if (typeof parsed.blockIndex === 'number') {
     canonical.blockIndex = parsed.blockIndex;
   }
+  canonical.blockKey = sanitizeOptionalString(parsed.blockKey);
+  canonical.anchorId = sanitizeOptionalString(parsed.anchorId);
+  canonical.imageKey = sanitizeOptionalString(parsed.imageKey);
   if (isValidLocatorKind(parsed.kind)) {
     canonical.kind = parsed.kind;
   }
@@ -152,8 +284,19 @@ export function sanitizeCanonicalPosition(raw: unknown): CanonicalPosition | und
   if (parsed.edge === 'start' || parsed.edge === 'end') {
     canonical.edge = parsed.edge;
   }
+  canonical.textQuote = sanitizeTextQuote(parsed.textQuote);
+  canonical.blockTextHash = sanitizeOptionalString(parsed.blockTextHash);
+  canonical.contentVersion = typeof parsed.contentVersion === 'number'
+    ? parsed.contentVersion
+    : undefined;
+  canonical.importFormatVersion = typeof parsed.importFormatVersion === 'number'
+    ? parsed.importFormatVersion
+    : undefined;
+  canonical.contentHash = sanitizeOptionalString(parsed.contentHash);
 
-  return canonical;
+  return compactUndefined(
+    canonical as unknown as Record<string, unknown>,
+  ) as unknown as CanonicalPosition;
 }
 
 export function sanitizeLocator(raw: unknown): ReaderLocator | undefined {
@@ -177,9 +320,13 @@ export function sanitizeLocator(raw: unknown): ReaderLocator | undefined {
     ? parsed.endCursor as Record<string, unknown>
     : null;
 
-  return {
+  return compactUndefined({
     blockIndex: parsed.blockIndex,
+    blockKey: sanitizeOptionalString(parsed.blockKey),
     chapterIndex: parsed.chapterIndex,
+    chapterKey: sanitizeOptionalString(parsed.chapterKey),
+    anchorId: sanitizeOptionalString(parsed.anchorId),
+    imageKey: sanitizeOptionalString(parsed.imageKey),
     edge: parsed.edge === 'start' || parsed.edge === 'end' ? parsed.edge : undefined,
     endCursor: endCursor
       && typeof endCursor.segmentIndex === 'number'
@@ -192,6 +339,13 @@ export function sanitizeLocator(raw: unknown): ReaderLocator | undefined {
     kind: parsed.kind,
     lineIndex: typeof parsed.lineIndex === 'number' ? parsed.lineIndex : undefined,
     pageIndex: typeof parsed.pageIndex === 'number' ? parsed.pageIndex : undefined,
+    textQuote: sanitizeTextQuote(parsed.textQuote),
+    blockTextHash: sanitizeOptionalString(parsed.blockTextHash),
+    contentVersion: typeof parsed.contentVersion === 'number' ? parsed.contentVersion : undefined,
+    importFormatVersion: typeof parsed.importFormatVersion === 'number'
+      ? parsed.importFormatVersion
+      : undefined,
+    contentHash: sanitizeOptionalString(parsed.contentHash),
     startCursor: startCursor
       && typeof startCursor.segmentIndex === 'number'
       && typeof startCursor.graphemeIndex === 'number'
@@ -200,7 +354,7 @@ export function sanitizeLocator(raw: unknown): ReaderLocator | undefined {
         segmentIndex: startCursor.segmentIndex,
       }
       : undefined,
-  };
+  }) as ReaderLocator;
 }
 
 export function toCanonicalPositionFromLocator(
@@ -210,15 +364,16 @@ export function toCanonicalPositionFromLocator(
     return undefined;
   }
 
-  return {
+  return compactUndefined({
     chapterIndex: locator.chapterIndex,
+    ...copyLocatorMetadata(locator),
     blockIndex: locator.blockIndex,
     kind: locator.kind,
     lineIndex: locator.lineIndex,
     startCursor: locator.startCursor ? { ...locator.startCursor } : undefined,
     endCursor: locator.endCursor ? { ...locator.endCursor } : undefined,
     edge: locator.edge,
-  };
+  }) as CanonicalPosition;
 }
 
 export function toReaderLocatorFromCanonical(
@@ -229,16 +384,31 @@ export function toReaderLocatorFromCanonical(
     return undefined;
   }
 
-  return {
+  return compactUndefined({
     chapterIndex: canonical.chapterIndex,
+    chapterKey: canonical.chapterKey,
     blockIndex: canonical.blockIndex,
+    blockKey: canonical.blockKey,
+    anchorId: canonical.anchorId,
+    imageKey: canonical.imageKey,
     kind: canonical.kind,
     lineIndex: canonical.lineIndex,
     startCursor: canonical.startCursor ? { ...canonical.startCursor } : undefined,
     endCursor: canonical.endCursor ? { ...canonical.endCursor } : undefined,
     edge: canonical.edge,
     pageIndex: clampPageIndex(pageIndexHint),
-  };
+    textQuote: canonical.textQuote
+      ? {
+        exact: canonical.textQuote.exact,
+        prefix: canonical.textQuote.prefix,
+        suffix: canonical.textQuote.suffix,
+      }
+      : undefined,
+    blockTextHash: canonical.blockTextHash,
+    contentVersion: canonical.contentVersion,
+    importFormatVersion: canonical.importFormatVersion,
+    contentHash: canonical.contentHash,
+  }) as ReaderLocator;
 }
 
 function normalizeHints(raw: unknown): StoredReaderState['hints'] {
@@ -253,23 +423,36 @@ function normalizeHints(raw: unknown): StoredReaderState['hints'] {
   const pageIndex = clampPageIndex(
     typeof parsed.pageIndex === 'number' ? parsed.pageIndex : undefined,
   );
-  const contentMode = parsed.contentMode === 'scroll' || parsed.contentMode === 'paged'
-    ? parsed.contentMode
-    : undefined;
-  const viewMode = isViewMode(parsed.viewMode)
-    ? parsed.viewMode
-    : undefined;
+  const contentMode: NonNullable<StoredReaderState['hints']>['contentMode'] =
+    parsed.contentMode === 'scroll' || parsed.contentMode === 'paged'
+      ? parsed.contentMode
+      : undefined;
+  const viewMode: NonNullable<StoredReaderState['hints']>['viewMode'] =
+    isViewMode(parsed.viewMode)
+      ? parsed.viewMode
+      : undefined;
+  const scrollProjection = sanitizeProjectionMetadata(parsed.scrollProjection);
+  const pagedProjection = sanitizeProjectionMetadata(parsed.pagedProjection);
 
-  if (chapterProgress === undefined && pageIndex === undefined && !contentMode && !viewMode) {
+  if (
+    chapterProgress === undefined
+    && pageIndex === undefined
+    && !contentMode
+    && !viewMode
+    && !scrollProjection
+    && !pagedProjection
+  ) {
     return undefined;
   }
 
-  return {
+  return compactUndefined({
     chapterProgress,
     pageIndex,
     contentMode,
     viewMode,
-  };
+    scrollProjection,
+    pagedProjection,
+  });
 }
 
 export function sanitizeStoredReaderState(raw: unknown): StoredReaderState | null {
@@ -305,6 +488,7 @@ export function sanitizeStoredReaderState(raw: unknown): StoredReaderState | nul
   return buildStoredReaderState({
     canonical,
     hints,
+    metadata: sanitizePositionMetadata(parsed.metadata),
   });
 }
 
@@ -360,9 +544,12 @@ export function buildStoredReaderState(
     legacyViewMode,
   );
 
+  const metadata = sanitizePositionMetadata(state?.metadata ?? legacyState?.metadata);
+
   return {
     canonical,
     hints,
+    ...(metadata ? { metadata } : {}),
   };
 }
 
@@ -394,6 +581,10 @@ export function mergeStoredReaderState(
     && hasOwn(rawOverrideHints as Record<string, unknown>, 'contentMode');
   const hasViewModeOverride = hasOverrideHints
     && hasOwn(rawOverrideHints as Record<string, unknown>, 'viewMode');
+  const hasScrollProjectionOverride = hasOverrideHints
+    && hasOwn(rawOverrideHints as Record<string, unknown>, 'scrollProjection');
+  const hasPagedProjectionOverride = hasOverrideHints
+    && hasOwn(rawOverrideHints as Record<string, unknown>, 'pagedProjection');
 
   let nextChapterProgress: number | undefined;
   if (hasChapterProgressOverride) {
@@ -415,16 +606,40 @@ export function mergeStoredReaderState(
   const nextViewMode = hasViewModeOverride
     ? overrideHints?.viewMode
     : baseHints?.viewMode;
+  let nextScrollProjection: ReaderProjectionMetadata | undefined;
+  if (hasChapterProgressOverride && nextChapterProgress === undefined) {
+    nextScrollProjection = undefined;
+  } else if (hasScrollProjectionOverride) {
+    nextScrollProjection = sanitizeProjectionMetadata(overrideHints?.scrollProjection);
+  } else if (!chapterChanged) {
+    nextScrollProjection = baseHints?.scrollProjection;
+  }
+
+  let nextPagedProjection: ReaderProjectionMetadata | undefined;
+  if (hasPageIndexOverride && nextPageIndex === undefined) {
+    nextPagedProjection = undefined;
+  } else if (hasPagedProjectionOverride) {
+    nextPagedProjection = sanitizeProjectionMetadata(overrideHints?.pagedProjection);
+  } else if (!chapterChanged) {
+    nextPagedProjection = baseHints?.pagedProjection;
+  }
   const nextHints = buildLegacyHints(
     nextChapterProgress,
     nextPageIndex,
     nextContentMode,
     nextViewMode,
+    nextScrollProjection,
+    nextPagedProjection,
+  );
+  const overrideMetadata = sanitizePositionMetadata(overrideState.metadata);
+  const nextMetadata = overrideMetadata ?? (
+    chapterChanged ? undefined : canonicalBaseState.metadata
   );
 
   return buildStoredReaderState({
     canonical: nextCanonical,
     hints: nextHints,
+    metadata: nextMetadata,
   });
 }
 
@@ -436,4 +651,21 @@ export function createDefaultStoredReaderState(): StoredReaderState {
     },
     hints: undefined,
   };
+}
+
+export function createCanonicalPositionFingerprint(
+  canonical: CanonicalPosition | null | undefined,
+): string {
+  return JSON.stringify(sanitizeCanonicalPosition(canonical) ?? null);
+}
+
+export function isReaderProjectionFreshForCanonical(
+  projection: ReaderProjectionMetadata | null | undefined,
+  canonical: CanonicalPosition | null | undefined,
+): boolean {
+  if (!projection?.basisCanonicalFingerprint) {
+    return true;
+  }
+
+  return projection.basisCanonicalFingerprint === createCanonicalPositionFingerprint(canonical);
 }

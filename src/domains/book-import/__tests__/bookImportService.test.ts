@@ -67,6 +67,7 @@ describe('bookImportService', () => {
         contentFormat: 'plain',
         contentVersion: 1,
         importFormatVersion: 2,
+        contentHash: expect.any(String),
       },
       {
         chapterIndex: 1,
@@ -75,6 +76,7 @@ describe('bookImportService', () => {
         contentFormat: 'plain',
         contentVersion: 1,
         importFormatVersion: 2,
+        contentHash: expect.any(String),
       },
     ]);
   });
@@ -188,6 +190,7 @@ describe('bookImportService', () => {
         contentFormat: 'rich',
         contentVersion: 1,
         importFormatVersion: 1,
+        contentHash: expect.any(String),
       },
     ]);
   });
@@ -282,6 +285,7 @@ describe('bookImportService', () => {
         contentFormat: 'plain',
         contentVersion: 1,
         importFormatVersion: 2,
+        contentHash: expect.any(String),
       },
       {
         chapterIndex: 1,
@@ -290,6 +294,7 @@ describe('bookImportService', () => {
         contentFormat: 'plain',
         contentVersion: 1,
         importFormatVersion: 2,
+        contentHash: expect.any(String),
       },
     ]);
   });

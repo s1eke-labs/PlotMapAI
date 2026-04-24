@@ -253,6 +253,7 @@ describe('parseEpubCore', () => {
 
     expect(result.chapters).toEqual([
       {
+        chapterKey: 'epub:ch1:ch1.xhtml',
         title: 'Chapter 1',
         content: 'Body paragraph.',
         contentFormat: 'rich',
@@ -341,6 +342,7 @@ describe('parseEpubCore', () => {
 
     expect(result.chapters).toEqual([
       {
+        chapterKey: 'epub:ch1:ch1.xhtml',
         title: 'Section 1',
         content: 'bar body\n\nLegend text',
         contentFormat: 'rich',
@@ -499,6 +501,7 @@ describe('parseEpubCore', () => {
     }
 
     expect(result.chapters).toEqual([{
+      chapterKey: 'epub:ch1:ch1.xhtml',
       title: 'ch1.xhtml',
       content: 'Worker rich content.\n\n---',
       contentFormat: 'rich',
@@ -567,6 +570,7 @@ describe('parseEpubCore', () => {
     }
 
     expect(result.chapters).toEqual([{
+      chapterKey: 'epub:ch1:ch1.xhtml',
       title: 'ch1.xhtml',
       content: 'Fallback paragraph.',
       contentFormat: 'rich',

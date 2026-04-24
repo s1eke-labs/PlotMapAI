@@ -10,6 +10,7 @@ import { AppErrorCode, createAppError, toAppError } from '@shared/errors';
 import {
   buildRichPaginationBlockSequence,
   buildChapterImageGalleryEntries,
+  createReaderChapterContentHash,
   normalizeImportedChapters,
   sortChapterImageGalleryEntries,
 } from '@shared/text-processing';
@@ -28,10 +29,12 @@ function resolveImportFormatVersion(fileType: string): number {
 }
 
 export interface PreparedChapterRichContent {
+  chapterKey?: string;
   chapterIndex: number;
   contentFormat: RichContentFormat;
   contentVersion: number;
   importFormatVersion: number;
+  contentHash: string;
   plainText: string;
   richBlocks: RichBlock[];
 }
@@ -175,18 +178,31 @@ export const bookImportService = {
     const totalWords = normalizedChapters.reduce((sum, chapter) => sum + chapter.content.length, 0);
     const chapters = normalizedChapters.map((chapter, chapterIndex) => ({
       chapterIndex,
+      ...(chapter.chapterKey ? { chapterKey: chapter.chapterKey } : {}),
       title: chapter.title,
       content: chapter.content,
       wordCount: chapter.content.length,
     }));
-    const chapterRichContents = normalizedChapters.map((chapter, chapterIndex) => ({
-      chapterIndex,
-      richBlocks: chapter.richBlocks,
-      plainText: chapter.content,
-      contentFormat: chapter.contentFormat,
-      contentVersion: INITIAL_CHAPTER_CONTENT_VERSION,
-      importFormatVersion,
-    }));
+    const chapterRichContents = normalizedChapters.map((chapter, chapterIndex) => {
+      const contentVersion = INITIAL_CHAPTER_CONTENT_VERSION;
+      return {
+        chapterIndex,
+        ...(chapter.chapterKey ? { chapterKey: chapter.chapterKey } : {}),
+        richBlocks: chapter.richBlocks,
+        plainText: chapter.content,
+        contentFormat: chapter.contentFormat,
+        contentVersion,
+        importFormatVersion,
+        contentHash: createReaderChapterContentHash({
+          index: chapterIndex,
+          title: chapter.title,
+          plainText: chapter.content,
+          richBlocks: chapter.richBlocks,
+          contentFormat: chapter.contentFormat,
+          contentVersion,
+        }),
+      };
+    });
 
     const imageGalleryEntries = sortChapterImageGalleryEntries(
       normalizedChapters.flatMap((chapter, chapterIndex) => {

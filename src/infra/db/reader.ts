@@ -10,7 +10,11 @@ import type {
 
 export interface ReaderLocatorRecord {
   chapterIndex: number;
+  chapterKey?: string;
   blockIndex: number;
+  blockKey?: string;
+  anchorId?: string;
+  imageKey?: string;
   kind: 'heading' | 'text' | 'image';
   lineIndex?: number;
   startCursor?: {
@@ -23,11 +27,24 @@ export interface ReaderLocatorRecord {
   };
   edge?: 'start' | 'end';
   pageIndex?: number;
+  textQuote?: {
+    exact: string;
+    prefix?: string;
+    suffix?: string;
+  };
+  blockTextHash?: string;
+  contentVersion?: number;
+  importFormatVersion?: number;
+  contentHash?: string;
 }
 
 export interface CanonicalPositionRecord {
   chapterIndex: number;
+  chapterKey?: string;
   blockIndex?: number;
+  blockKey?: string;
+  anchorId?: string;
+  imageKey?: string;
   kind?: 'heading' | 'text' | 'image';
   lineIndex?: number;
   startCursor?: {
@@ -39,6 +56,15 @@ export interface CanonicalPositionRecord {
     graphemeIndex: number;
   };
   edge?: 'start' | 'end';
+  textQuote?: {
+    exact: string;
+    prefix?: string;
+    suffix?: string;
+  };
+  blockTextHash?: string;
+  contentVersion?: number;
+  importFormatVersion?: number;
+  contentHash?: string;
 }
 
 export interface ReaderLayoutCursorRecord {
@@ -82,6 +108,11 @@ export interface StaticTextLineRecord {
 export interface StaticReaderBlockRecord {
   align?: RichTextAlign;
   anchorId?: string;
+  blockKey?: string;
+  blockTextHash?: string;
+  chapterKey?: string;
+  contentHash?: string;
+  contentVersion?: number;
   blockquoteDepth?: number;
   chapterIndex: number;
   blockIndex: number;
@@ -100,6 +131,12 @@ export interface StaticReaderBlockRecord {
   tableRows?: RichTableCell[][];
   text?: string;
   imageKey?: string;
+  importFormatVersion?: number;
+  textQuote?: {
+    exact: string;
+    prefix?: string;
+    suffix?: string;
+  };
   marginBefore: number;
   marginAfter: number;
   paragraphIndex: number;
@@ -135,8 +172,13 @@ export interface StaticScrollChapterTreeRecord {
 export interface StaticTextPageItemRecord {
   align?: RichTextAlign;
   anchorId?: string;
+  blockKey?: string;
+  blockTextHash?: string;
+  chapterKey?: string;
   blockquoteDepth?: number;
   chapterIndex: number;
+  contentHash?: string;
+  contentVersion?: number;
   blockIndex: number;
   container?: PaginationContainer;
   contentHeight: number;
@@ -145,6 +187,7 @@ export interface StaticTextPageItemRecord {
   height: number;
   headingLevel?: 1 | 2 | 3 | 4 | 5 | 6;
   indent?: number;
+  importFormatVersion?: number;
   key: string;
   kind: 'heading' | 'text';
   lineHeightPx: number;
@@ -161,11 +204,18 @@ export interface StaticTextPageItemRecord {
   tableRowHeights?: number[];
   tableRows?: RichTableCell[][];
   text?: string;
+  textQuote?: {
+    exact: string;
+    prefix?: string;
+    suffix?: string;
+  };
 }
 
 export interface StaticImagePageItemRecord {
   align?: RichTextAlign;
   anchorId?: string;
+  blockKey?: string;
+  chapterKey?: string;
   captionFont?: string;
   captionFontSizePx?: number;
   captionHeight?: number;
@@ -174,12 +224,15 @@ export interface StaticImagePageItemRecord {
   captionRichLineFragments?: RichInline[][];
   captionSpacing?: number;
   chapterIndex: number;
+  contentHash?: string;
+  contentVersion?: number;
   blockIndex: number;
   displayHeight: number;
   displayWidth: number;
   edge: 'start' | 'end';
   height: number;
   imageKey: string;
+  importFormatVersion?: number;
   key: string;
   kind: 'image';
   marginAfter: number;
@@ -257,7 +310,14 @@ export type ReaderProgressPositionRecord =
 
 export interface ReaderProgressProjectionRecord {
   scrollChapterProgress?: number;
+  scrollCapturedAt?: string;
+  scrollSourceMode?: ReaderProgressModeRecord;
+  scrollBasisCanonicalFingerprint?: string;
   pagedPageIndex?: number;
+  pagedCapturedAt?: string;
+  pagedSourceMode?: ReaderProgressModeRecord;
+  pagedBasisCanonicalFingerprint?: string;
+  pagedLayoutKey?: string;
 }
 
 export interface ReaderProgressRecord {
@@ -267,6 +327,9 @@ export interface ReaderProgressRecord {
   position: ReaderProgressPositionRecord;
   projections?: ReaderProgressProjectionRecord;
   captureQuality: ReaderProgressCaptureQualityRecord;
+  capturedAt?: string;
+  sourceMode?: ReaderProgressModeRecord;
+  resolverVersion?: number;
   revision?: number;
   updatedAt: string;
 }

@@ -8,6 +8,7 @@ import { resolveLastContentMode } from '@shared/utils/readerMode';
 import {
   buildStoredReaderState,
   clampPageIndex,
+  createCanonicalPositionFingerprint,
   toCanonicalPositionFromLocator,
   toReaderLocatorFromCanonical,
 } from '@shared/utils/readerStoredState';
@@ -28,7 +29,11 @@ function normalizeReaderProgressSnapshot(
         type: 'locator',
         locator: {
           chapterIndex: snapshot.position.locator.chapterIndex,
+          chapterKey: snapshot.position.locator.chapterKey,
           blockIndex: snapshot.position.locator.blockIndex,
+          blockKey: snapshot.position.locator.blockKey,
+          anchorId: snapshot.position.locator.anchorId,
+          imageKey: snapshot.position.locator.imageKey,
           kind: snapshot.position.locator.kind,
           lineIndex: snapshot.position.locator.lineIndex,
           startCursor: snapshot.position.locator.startCursor
@@ -39,6 +44,13 @@ function normalizeReaderProgressSnapshot(
             : undefined,
           edge: snapshot.position.locator.edge,
           pageIndex: clampPageIndex(snapshot.position.locator.pageIndex),
+          textQuote: snapshot.position.locator.textQuote
+            ? { ...snapshot.position.locator.textQuote }
+            : undefined,
+          blockTextHash: snapshot.position.locator.blockTextHash,
+          contentVersion: snapshot.position.locator.contentVersion,
+          importFormatVersion: snapshot.position.locator.importFormatVersion,
+          contentHash: snapshot.position.locator.contentHash,
         },
       }
       : {
@@ -49,21 +61,79 @@ function normalizeReaderProgressSnapshot(
     projections: {
       paged: snapshot.projections?.paged?.pageIndex === undefined
         ? undefined
-        : { pageIndex: clampPageIndex(snapshot.projections.paged.pageIndex) },
+        : {
+          pageIndex: clampPageIndex(snapshot.projections.paged.pageIndex),
+          capturedAt: snapshot.projections.paged.capturedAt,
+          sourceMode: snapshot.projections.paged.sourceMode,
+          basisCanonicalFingerprint: snapshot.projections.paged.basisCanonicalFingerprint,
+          layoutKey: snapshot.projections.paged.layoutKey,
+        },
       scroll: typeof snapshot.projections?.scroll?.chapterProgress === 'number'
-        ? { chapterProgress: snapshot.projections.scroll.chapterProgress }
+        ? {
+          chapterProgress: snapshot.projections.scroll.chapterProgress,
+          capturedAt: snapshot.projections.scroll.capturedAt,
+          sourceMode: snapshot.projections.scroll.sourceMode,
+          basisCanonicalFingerprint: snapshot.projections.scroll.basisCanonicalFingerprint,
+        }
         : undefined,
     },
     captureQuality: snapshot.captureQuality,
+    capturedAt: snapshot.capturedAt,
+    sourceMode: snapshot.sourceMode,
+    resolverVersion: snapshot.resolverVersion,
   };
+}
+
+function normalizeReaderProgressSnapshotForFingerprint(
+  snapshot: ReaderProgressSnapshot,
+): ReaderProgressSnapshot {
+  const normalized = normalizeReaderProgressSnapshot(snapshot);
+  return {
+    ...normalized,
+    capturedAt: undefined,
+    projections: {
+      paged: normalized.projections?.paged
+        ? {
+          ...normalized.projections.paged,
+          capturedAt: undefined,
+        }
+        : undefined,
+      scroll: normalized.projections?.scroll
+        ? {
+          ...normalized.projections.scroll,
+          capturedAt: undefined,
+        }
+        : undefined,
+    },
+  };
+}
+
+function getPositionCanonicalFingerprint(position: ReaderProgressSnapshot['position']): string {
+  if (position.type === 'locator') {
+    return createCanonicalPositionFingerprint(toCanonicalPositionFromLocator(position.locator));
+  }
+
+  return createCanonicalPositionFingerprint({
+    chapterIndex: position.chapterIndex,
+    edge: position.edge,
+  });
 }
 
 export function createReaderProgressSnapshotFromSessionState(
   state: ReaderSessionState,
 ): ReaderProgressSnapshot {
   const mode = resolveLastContentMode(state.mode, state.lastContentMode);
-  const locator = state.locator
+  const rawLocator = state.locator
     ?? toReaderLocatorFromCanonical(state.canonical, undefined);
+  const shouldStripLocatorPageIndex =
+    mode === 'scroll'
+    || state.positionMetadata?.sourceMode === 'scroll';
+  const locator = rawLocator && shouldStripLocatorPageIndex
+    ? {
+      ...rawLocator,
+      pageIndex: undefined,
+    }
+    : rawLocator;
   const chapterEdge: PageTarget = state.canonical?.edge === 'end' ? 'end' : 'start';
   const position = locator
     ? {
@@ -75,20 +145,36 @@ export function createReaderProgressSnapshotFromSessionState(
       chapterIndex: state.canonical?.chapterIndex ?? state.chapterIndex,
       edge: chapterEdge,
     };
+  const capturedAt = state.positionMetadata?.capturedAt ?? new Date().toISOString();
+  const sourceMode = state.positionMetadata?.sourceMode ?? mode;
+  const basisCanonicalFingerprint = getPositionCanonicalFingerprint(position);
 
   return normalizeReaderProgressSnapshot({
     mode,
     activeChapterIndex: state.chapterIndex,
     position,
     projections: {
-      paged: clampPageIndex(state.locator?.pageIndex) === undefined
+      paged: mode !== 'paged' || clampPageIndex(locator?.pageIndex) === undefined
         ? undefined
-        : { pageIndex: clampPageIndex(state.locator?.pageIndex) },
+        : {
+          pageIndex: clampPageIndex(locator?.pageIndex),
+          capturedAt,
+          sourceMode,
+          basisCanonicalFingerprint,
+        },
       scroll: typeof state.chapterProgress === 'number'
-        ? { chapterProgress: state.chapterProgress }
+        ? {
+          chapterProgress: state.chapterProgress,
+          capturedAt,
+          sourceMode,
+          basisCanonicalFingerprint,
+        }
         : undefined,
     },
     captureQuality: position.type === 'locator' ? 'precise' : 'approximate',
+    capturedAt,
+    sourceMode,
+    resolverVersion: state.positionMetadata?.resolverVersion,
   });
 }
 
@@ -112,7 +198,28 @@ export function toStoredReaderStateFromReaderProgressSnapshot(
       chapterProgress: snapshot.projections?.scroll?.chapterProgress,
       contentMode: snapshot.mode,
       pageIndex,
+      pagedProjection: snapshot.projections?.paged
+        ? {
+          capturedAt: snapshot.projections.paged.capturedAt,
+          sourceMode: snapshot.projections.paged.sourceMode,
+          basisCanonicalFingerprint: snapshot.projections.paged.basisCanonicalFingerprint,
+          layoutKey: snapshot.projections.paged.layoutKey,
+        }
+        : undefined,
+      scrollProjection: snapshot.projections?.scroll
+        ? {
+          capturedAt: snapshot.projections.scroll.capturedAt,
+          sourceMode: snapshot.projections.scroll.sourceMode,
+          basisCanonicalFingerprint: snapshot.projections.scroll.basisCanonicalFingerprint,
+        }
+        : undefined,
       viewMode: 'original',
+    },
+    metadata: {
+      capturedAt: snapshot.capturedAt,
+      captureQuality: snapshot.captureQuality,
+      resolverVersion: snapshot.resolverVersion,
+      sourceMode: snapshot.sourceMode,
     },
   });
 }
@@ -139,5 +246,5 @@ export function getReaderProgressSnapshotFingerprint(
     snapshot = createReaderProgressSnapshotFromSessionState(state);
   }
 
-  return JSON.stringify(normalizeReaderProgressSnapshot(snapshot));
+  return JSON.stringify(normalizeReaderProgressSnapshotForFingerprint(snapshot));
 }

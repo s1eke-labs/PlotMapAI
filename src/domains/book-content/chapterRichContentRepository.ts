@@ -9,22 +9,26 @@ import { db } from '@infra/db';
 
 export interface StoredChapterRichContent {
   chapterIndex: number;
+  chapterKey?: string;
   richBlocks: RichBlock[];
   plainText: string;
   contentFormat: RichContentFormat;
   contentVersion: number;
   importFormatVersion: number;
+  contentHash?: string;
   updatedAt: string;
 }
 
 export interface ReplaceNovelChapterRichContentsPayload {
   chapters: Array<{
     chapterIndex: number;
+    chapterKey?: string;
     richBlocks: RichBlock[];
     plainText: string;
     contentFormat: RichContentFormat;
     contentVersion: number;
     importFormatVersion: number;
+    contentHash?: string;
   }>;
 }
 
@@ -41,11 +45,13 @@ function mapChapterRichContentRecord(
 ): StoredChapterRichContent {
   return {
     chapterIndex: record.chapterIndex,
+    ...(record.chapterKey ? { chapterKey: record.chapterKey } : {}),
     richBlocks: record.contentRich,
     plainText: record.contentPlain,
     contentFormat: record.contentFormat,
     contentVersion: record.contentVersion,
     importFormatVersion: record.importFormatVersion,
+    ...(record.contentHash ? { contentHash: record.contentHash } : {}),
     updatedAt: record.updatedAt,
   };
 }
@@ -67,11 +73,13 @@ async function replaceNovelChapterRichContentRecords(
   await chapterRichContentTable.bulkAdd(payload.chapters.map((chapter) => ({
     novelId,
     chapterIndex: chapter.chapterIndex,
+    ...(chapter.chapterKey ? { chapterKey: chapter.chapterKey } : {}),
     contentRich: chapter.richBlocks,
     contentPlain: chapter.plainText,
     contentFormat: chapter.contentFormat,
     contentVersion: chapter.contentVersion,
     importFormatVersion: chapter.importFormatVersion,
+    ...(chapter.contentHash ? { contentHash: chapter.contentHash } : {}),
     updatedAt,
   } satisfies Omit<ChapterRichContentRecord, 'id'>)));
 }
