@@ -2,6 +2,7 @@ import type { ChapterContent } from '@shared/contracts/reader';
 import type { ReaderImageDimensions } from '@domains/reader-media';
 import type {
   ReaderLayoutSignature,
+  ReaderTextLayoutEngine,
   ReaderRenderVariant,
   ReaderTypographyMetrics,
   StaticChapterRenderTree,
@@ -143,6 +144,7 @@ export function buildStaticRenderManifest(params: {
   layoutSignature: ReaderLayoutSignature;
   novelId: number;
   preferRichScrollRendering?: boolean;
+  textLayoutEngine?: ReaderTextLayoutEngine;
   typography: ReaderTypographyMetrics;
   variantFamily: ReaderRenderVariant;
 }): ReaderRenderCacheManifestEntry {
@@ -162,6 +164,7 @@ export function buildStaticRenderManifest(params: {
       imageDimensionsByKey: params.imageDimensionsByKey,
       layoutSignature: params.layoutSignature,
       preferRichScrollRendering: params.preferRichScrollRendering,
+      textLayoutEngine: params.textLayoutEngine,
       typography: params.typography,
       variantFamily: params.variantFamily,
     }),

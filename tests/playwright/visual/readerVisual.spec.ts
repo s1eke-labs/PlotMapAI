@@ -83,6 +83,40 @@ test.describe('阅读器视觉回归', () => {
     await expect(page.getByTestId('reader-viewport')).toHaveScreenshot('11-scroll-paper-semantic-top.png');
   });
 
+  test('文本策略富文本首屏渲染稳定', async ({ page }) => {
+    await importFixtureToDetailPage(page, 'textPolicyShowcase');
+    await openReaderFromDetailPage(page);
+
+    await expect(page.getByTestId('reader-viewport')).toHaveScreenshot('14-scroll-text-policy-top.png');
+  });
+
+  test('窄栏翻页标题按测量行渲染稳定', async ({ page }) => {
+    await importFixtureToDetailPage(page, 'textPolicyShowcase');
+    await setReaderPreferences(page, {
+      fontSize: 20,
+      lineSpacing: 1.6,
+      pageTurnMode: 'slide',
+      paragraphSpacing: 12,
+      readerTheme: 'paper',
+    }, {
+      reload: true,
+    });
+    await openReaderFromDetailPage(page);
+
+    await expect(page.getByTestId('paged-reader-interactive')).toHaveScreenshot('15-paged-text-policy-heading.png');
+  });
+
+  test('文本策略图注与表格富文本行渲染稳定', async ({ page }) => {
+    await importFixtureToDetailPage(page, 'textPolicyShowcase');
+    await openReaderFromDetailPage(page);
+    await waitForReaderViewportImages(page);
+
+    await page.getByText('节点 Node').first().scrollIntoViewIfNeeded();
+    await expect(page.getByText('https://example.test/table/superlongtoken')).toBeVisible();
+
+    await expect(page.getByTestId('reader-viewport')).toHaveScreenshot('16-scroll-text-policy-caption-table.png');
+  });
+
   test('夜间翻页主题下诗歌块通过标准富文本管线渲染正确', async ({ page }) => {
     const { novelId } = await importFixtureToDetailPage(page, 'analysisLinked');
     await seedChapterRichContent(page, {

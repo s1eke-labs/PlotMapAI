@@ -9,17 +9,21 @@ describe('readerRenderCache', () => {
     vi.resetModules();
   });
 
-  it('builds manifest summaries without invoking pretext measurement', async () => {
+  it('builds manifest summaries with stats without materializing pretext lines', async () => {
     const layoutWithLines = vi.fn(() => {
       throw new Error('manifest build should not invoke layoutWithLines');
     });
-    const prepareWithSegments = vi.fn(() => {
-      throw new Error('manifest build should not invoke prepareWithSegments');
-    });
+    const measureLineStats = vi.fn((prepared: { text: string }, maxWidth: number) => ({
+      lineCount: Math.max(1, Math.ceil(prepared.text.length / 24)),
+      maxLineWidth: Math.min(maxWidth, prepared.text.length * 8),
+    }));
+    const prepareWithSegments = vi.fn((text: string) => ({ text }));
 
     vi.doMock('@chenglou/pretext', () => ({
       layoutWithLines,
+      measureLineStats,
       prepareWithSegments,
+      setLocale: vi.fn(),
     }));
 
     const {
@@ -118,7 +122,66 @@ describe('readerRenderCache', () => {
       pageCount: expect.any(Number),
     }));
     expect(pagedManifest.queryManifest.pageCount).toBeGreaterThan(0);
-    expect(prepareWithSegments).not.toHaveBeenCalled();
+    expect(prepareWithSegments).toHaveBeenCalled();
+    expect(measureLineStats).toHaveBeenCalled();
+    expect(layoutWithLines).not.toHaveBeenCalled();
+
+    resetReaderLayoutPretextCacheForTests();
+  });
+
+  it('falls back to approximate manifest estimates when pretext stats fail', async () => {
+    const layoutWithLines = vi.fn(() => {
+      throw new Error('manifest fallback should not invoke layoutWithLines');
+    });
+    const measureLineStats = vi.fn(() => {
+      throw new Error('forced stats failure');
+    });
+    const prepareWithSegments = vi.fn((text: string) => ({ text }));
+
+    vi.doMock('@chenglou/pretext', () => ({
+      layoutWithLines,
+      measureLineStats,
+      prepareWithSegments,
+      setLocale: vi.fn(),
+    }));
+
+    const {
+      createReaderLayoutSignature,
+      createReaderTypographyMetrics,
+      resetReaderLayoutPretextCacheForTests,
+    } = await import('../../layout/readerLayout');
+    const { buildStaticRenderManifest } = await import('../readerRenderCache');
+
+    const manifest = buildStaticRenderManifest({
+      chapter: {
+        index: 0,
+        title: 'Fallback Stats',
+        plainText: 'Fallback paragraph for stats failure.',
+        richBlocks: [],
+        contentFormat: 'plain' as const,
+        contentVersion: 1,
+        hasNext: false,
+        hasPrev: false,
+        totalChapters: 1,
+        wordCount: 20,
+      },
+      imageDimensionsByKey: new Map(),
+      layoutSignature: createReaderLayoutSignature({
+        columnCount: 1,
+        columnGap: 0,
+        fontSize: 18,
+        lineSpacing: 1.6,
+        pageHeight: 800,
+        paragraphSpacing: 16,
+        textWidth: 420,
+      }),
+      novelId: 9,
+      typography: createReaderTypographyMetrics(18, 1.6, 16, 420),
+      variantFamily: 'original-scroll',
+    });
+
+    expect(manifest.queryManifest.lineCount).toBeGreaterThan(0);
+    expect(measureLineStats).toHaveBeenCalled();
     expect(layoutWithLines).not.toHaveBeenCalled();
 
     resetReaderLayoutPretextCacheForTests();
@@ -462,7 +525,12 @@ describe('readerRenderCache', () => {
             width: prepared.widths.reduce((total, width) => total + width, 0),
           }],
         }),
+        measureLineStats: (prepared: ReturnType<typeof prepareWithSegments>) => ({
+          lineCount: 1,
+          maxLineWidth: prepared.widths.reduce((total, width) => total + width, 0),
+        }),
         prepareWithSegments,
+        setLocale: vi.fn(),
       };
     });
 

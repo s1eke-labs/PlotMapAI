@@ -5,7 +5,9 @@ import type { ReaderTextPrepareOptions } from '../layout/readerTextPolicy';
 
 import {
   layoutWithLines,
+  measureLineStats as measurePretextLineStats,
   prepareWithSegments,
+  setLocale as setPretextLocale,
 } from '@chenglou/pretext';
 
 import { getApproximateMaxCharsPerLine } from '../layout/readerLayoutShared';
@@ -42,6 +44,11 @@ export interface ReaderRichTextLayoutResult {
   richLineFragments: RichInline[][];
 }
 
+export interface ReaderTextLineStats {
+  lineCount: number;
+  maxLineWidth: number;
+}
+
 export interface ReaderTextLayoutEngine {
   layoutLines: (params: {
     font: string;
@@ -51,6 +58,13 @@ export interface ReaderTextLayoutEngine {
     prepareOptions?: ReaderTextPrepareOptions;
     text: string;
   }) => ReaderMeasuredLine[];
+  measureLineStats?: (params: {
+    font: string;
+    fontSizePx: number;
+    maxWidth: number;
+    prepareOptions?: ReaderTextPrepareOptions;
+    text: string;
+  }) => ReaderTextLineStats | null;
   layoutRichLines?: (params: {
     font: string;
     fontSizePx: number;
@@ -235,6 +249,33 @@ function measurePreparedTextBlock(params: {
   return fallbackLayoutLines(params.text, params.maxWidth, params.fontSizePx, prepareOptions);
 }
 
+function measurePreparedTextStats(params: {
+  font: string;
+  fontSizePx: number;
+  maxWidth: number;
+  prepareOptions?: ReaderTextPrepareOptions;
+  text: string;
+}): ReaderTextLineStats | null {
+  if (params.maxWidth <= 0 || params.text.length === 0) {
+    return {
+      lineCount: 0,
+      maxLineWidth: 0,
+    };
+  }
+
+  const prepareOptions = params.prepareOptions ?? DEFAULT_READER_TEXT_PREPARE_OPTIONS;
+  const prepared = createPreparedTextBlock(params.text, params.font, prepareOptions);
+  if (!prepared.prepared) {
+    return null;
+  }
+
+  try {
+    return measurePretextLineStats(prepared.prepared, params.maxWidth);
+  } catch {
+    return null;
+  }
+}
+
 function getBrowserTextMeasureRoot(): HTMLDivElement | null {
   if (typeof window === 'undefined' || typeof document === 'undefined' || !document.body) {
     return null;
@@ -316,6 +357,9 @@ export const browserReaderTextLayoutEngine: ReaderTextLayoutEngine = {
   layoutLines(params) {
     return measurePreparedTextBlock(params);
   },
+  measureLineStats(params) {
+    return measurePreparedTextStats(params);
+  },
   layoutRichLines(params) {
     return layoutRichTextWithPretext({
       baseFont: params.font,
@@ -373,9 +417,18 @@ export function getReaderLayoutPretextCacheSizeForTests(): number {
   return PRETEXT_CACHE.size + getRichTextLayoutCacheSizeForTests();
 }
 
-export function resetReaderLayoutPretextCacheForTests(): void {
+function resetReaderTextLayoutCaches(): void {
   PRETEXT_CACHE.clear();
   resetRichTextLayoutCacheForTests();
+}
+
+export function setReaderTextLayoutLocale(locale?: string): void {
+  setPretextLocale(locale);
+  resetReaderTextLayoutCaches();
+}
+
+export function resetReaderLayoutPretextCacheForTests(): void {
+  resetReaderTextLayoutCaches();
   browserTextMeasureRoot?.remove();
   browserTextMeasureRoot = null;
 }

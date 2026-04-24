@@ -9,6 +9,7 @@ export {
   createReaderTypographyMetrics,
   getReaderLayoutPretextCacheSizeForTests,
   resetReaderLayoutPretextCacheForTests,
+  setReaderTextLayoutLocale,
 } from '../measurement/readerTextMeasurement';
 export {
   measurePagedReaderChapterLayout,
@@ -73,6 +74,7 @@ export type {
 } from './readerLayoutTypes';
 export type {
   ReaderRichTextLayoutResult,
+  ReaderTextLineStats,
   ReaderTextPrepareOptions,
   ReaderTextLayoutEngine,
   ReaderTextWhiteSpace,
