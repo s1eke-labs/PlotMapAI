@@ -10,7 +10,6 @@ import { ReaderFlowBlockText } from './ReaderFlowBlockText';
 import type { RenderImageItem, RenderTextItem } from './readerFlowBlockShared';
 
 interface ReaderFlowBlockProps {
-  chapterTitle?: string;
   imageRenderMode: 'paged' | 'scroll';
   item: StaticReaderNode;
   novelId: number;
@@ -139,7 +138,6 @@ function resolveRenderTextItem(item: StaticReaderNode): RenderTextItem | null {
 }
 
 export default function ReaderFlowBlock({
-  chapterTitle,
   imageRenderMode,
   item,
   novelId,
@@ -172,7 +170,6 @@ export default function ReaderFlowBlock({
 
   return (
     <ReaderFlowBlockText
-      chapterTitle={chapterTitle}
       positionStyle={positionStyle}
       textItem={textItem}
     />

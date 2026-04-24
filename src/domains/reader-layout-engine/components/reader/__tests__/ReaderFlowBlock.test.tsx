@@ -1,7 +1,10 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { READER_CONTENT_CLASS_NAMES } from '@shared/reader-rendering';
+import {
+  READER_CONTENT_CLASS_NAMES,
+  READER_CONTENT_TOKEN_DEFAULTS,
+} from '@shared/reader-rendering';
 
 const useReaderImageResourceMock = vi.hoisted(() => vi.fn());
 
@@ -163,7 +166,6 @@ describe('ReaderFlowBlock', () => {
   it('renders heading fragments as a single h2 node', () => {
     render(
       <ReaderFlowBlock
-        chapterTitle="Chapter One"
         imageRenderMode="paged"
         novelId={1}
         item={{
@@ -202,20 +204,21 @@ describe('ReaderFlowBlock', () => {
 
     const fragment = screen.getByRole('heading', { level: 2 });
     expect(fragment).toHaveAttribute('data-testid', 'reader-flow-text-fragment');
-    expect(fragment.textContent).toBe('Chapter One');
+    expect(fragment.textContent).toBe('Chapter\nOne');
     expect(fragment.children).toHaveLength(0);
     expect(fragment).toHaveClass(
       READER_CONTENT_CLASS_NAMES.block,
       READER_CONTENT_CLASS_NAMES.blockHeading,
     );
+    expect(fragment).toHaveStyle({
+      letterSpacing: `${READER_CONTENT_TOKEN_DEFAULTS.headingLetterSpacingEm}em`,
+      whiteSpace: 'pre',
+    });
   });
 
-  it('prefers the original heading text when line fragments are incomplete', () => {
-    const rawTitle = '第36章 命途的起点，以及【记忆】的游戏';
-
+  it('renders heading text from measured lines when source text differs', () => {
     render(
       <ReaderFlowBlock
-        chapterTitle={rawTitle}
         imageRenderMode="paged"
         novelId={1}
         item={{
@@ -253,10 +256,10 @@ describe('ReaderFlowBlock', () => {
     );
 
     const fragment = screen.getByRole('heading', { level: 2 });
-    expect(fragment.textContent).toBe(rawTitle);
+    expect(fragment.textContent).toBe('第36章\n忆】的游戏');
     expect(fragment).toHaveStyle({
-      overflowWrap: 'anywhere',
-      whiteSpace: 'pre-wrap',
+      letterSpacing: `${READER_CONTENT_TOKEN_DEFAULTS.headingLetterSpacingEm}em`,
+      whiteSpace: 'pre',
     });
   });
 

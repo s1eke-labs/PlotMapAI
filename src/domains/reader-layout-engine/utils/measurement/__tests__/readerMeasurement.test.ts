@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { READER_CONTENT_TOKEN_DEFAULTS } from '@shared/reader-rendering';
 import { createFakeReaderTextLayoutEngine } from '../../../test/createFakeReaderTextLayoutEngine';
 import {
   createReaderTypographyMetrics,
@@ -333,6 +334,67 @@ describe('readerMeasurement', () => {
 
     const textMetric = measuredLayout.metrics.find((metric) => metric.block.kind === 'text');
     expect(textMetric?.lines.at(-1)?.end.graphemeIndex).toBe(10);
+
+    resetCache();
+  });
+
+  it('passes project text policy options into pretext prepare calls', async () => {
+    const prepareWithSegments = vi.fn((text: string) => ({ text }));
+    vi.doMock('@chenglou/pretext', () => ({
+      layoutWithLines: (prepared: { text: string }, maxWidth: number) => ({
+        height: 24,
+        lineCount: 1,
+        lines: [{
+          end: {
+            graphemeIndex: prepared.text.length,
+            segmentIndex: 0,
+          },
+          start: {
+            graphemeIndex: 0,
+            segmentIndex: 0,
+          },
+          text: prepared.text,
+          width: maxWidth,
+        }],
+      }),
+      prepareWithSegments,
+    }));
+
+    const {
+      createReaderTypographyMetrics: createTypography,
+      measureReaderChapterLayout: measureLayout,
+      resetReaderLayoutPretextCacheForTests: resetCache,
+    } = await import('../../layout/readerLayout');
+
+    const typography = createTypography(20, 1.5, 12, 480);
+    measureLayout({
+      index: 0,
+      title: 'Chapter Heading',
+      plainText: 'Body paragraph',
+      richBlocks: [],
+      contentFormat: 'plain',
+      contentVersion: 1,
+      wordCount: 10,
+      totalChapters: 1,
+      hasPrev: false,
+      hasNext: false,
+    }, 320, typography, new Map());
+
+    const headingCall = prepareWithSegments.mock.calls.find(([text]) => text === 'Chapter Heading');
+    const bodyCall = prepareWithSegments.mock.calls.find(([text]) => text === 'Body paragraph');
+
+    expect(headingCall?.[2]).toMatchObject({
+      whiteSpace: 'normal',
+      wordBreak: 'normal',
+    });
+    expect(headingCall?.[2].letterSpacing).toBeCloseTo(
+      READER_CONTENT_TOKEN_DEFAULTS.headingLetterSpacingEm * typography.headingFontSize,
+    );
+    expect(bodyCall?.[2]).toEqual({
+      letterSpacing: 0,
+      whiteSpace: 'normal',
+      wordBreak: 'normal',
+    });
 
     resetCache();
   });

@@ -21,6 +21,10 @@ import {
 } from '../layout/richScroll';
 import { getRichInlinePlainText } from '@shared/text-processing';
 import { createRichLineFragments } from '../typography/richLineFragments';
+import {
+  createHeadingTextPrepareOptions,
+  DEFAULT_READER_TEXT_PREPARE_OPTIONS,
+} from '../layout/readerTextPolicy';
 
 import { measureCaptionLines, measureTableRows } from './readerBlockMeasurement';
 import { browserReaderTextLayoutEngine } from './readerTextMeasurement';
@@ -56,6 +60,9 @@ export function measureReaderBlocks(params: {
       const maxWidth = params.richAware
         ? getRichScrollHorizontalTextWidth(block, params.width)
         : params.width;
+      const prepareOptions = block.kind === 'heading'
+        ? createHeadingTextPrepareOptions(fontSizePx)
+        : DEFAULT_READER_TEXT_PREPARE_OPTIONS;
 
       if (block.renderRole === 'table' && block.tableRows) {
         const tableMetrics = measureTableRows({
@@ -106,6 +113,7 @@ export function measureReaderBlocks(params: {
             inlines: block.richChildren,
             lineHeightPx,
             maxWidth,
+            prepareOptions,
           })
           : null;
         const lines = richLayout?.lines ?? params.textLayoutEngine.layoutLines({
@@ -113,6 +121,7 @@ export function measureReaderBlocks(params: {
           fontSizePx,
           lineHeightPx,
           maxWidth,
+          prepareOptions,
           text: block.text ?? '',
         });
         const contentHeight = lines.length * lineHeightPx;

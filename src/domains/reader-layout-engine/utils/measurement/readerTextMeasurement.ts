@@ -1,6 +1,7 @@
 import type { PreparedTextWithSegments } from '@chenglou/pretext';
 import type { RichInline } from '@shared/contracts';
 import type { ReaderMeasuredLine, ReaderTypographyMetrics } from '../layout/readerLayoutTypes';
+import type { ReaderTextPrepareOptions } from '../layout/readerTextPolicy';
 
 import {
   layoutWithLines,
@@ -8,6 +9,12 @@ import {
 } from '@chenglou/pretext';
 
 import { getApproximateMaxCharsPerLine } from '../layout/readerLayoutShared';
+import {
+  DEFAULT_READER_TEXT_PREPARE_OPTIONS,
+  normalizeReaderTextPrepareOptions,
+  serializeReaderTextPrepareOptions,
+  toPretextPrepareOptions,
+} from '../layout/readerTextPolicy';
 import {
   getRichTextLayoutCacheSizeForTests,
   layoutRichTextWithPretext,
@@ -24,6 +31,7 @@ const PRETEXT_CACHE = new Map<string, PreparedTextWithSegments | null>();
 interface PreparedTextBlock {
   font: string;
   prepared: PreparedTextWithSegments | null;
+  prepareOptions: ReaderTextPrepareOptions;
   text: string;
 }
 
@@ -40,6 +48,7 @@ export interface ReaderTextLayoutEngine {
     fontSizePx: number;
     lineHeightPx: number;
     maxWidth: number;
+    prepareOptions?: ReaderTextPrepareOptions;
     text: string;
   }) => ReaderMeasuredLine[];
   layoutRichLines?: (params: {
@@ -48,8 +57,15 @@ export interface ReaderTextLayoutEngine {
     inlines: RichInline[];
     lineHeightPx: number;
     maxWidth: number;
+    prepareOptions?: ReaderTextPrepareOptions;
   }) => ReaderRichTextLayoutResult | null;
 }
+
+export type {
+  ReaderTextPrepareOptions,
+  ReaderTextWhiteSpace,
+  ReaderTextWordBreak,
+} from '../layout/readerTextPolicy';
 
 function getPreparedTextFromCache(key: string): PreparedTextWithSegments | null | undefined {
   const prepared = PRETEXT_CACHE.get(key);
@@ -80,59 +96,109 @@ function setPreparedTextInCache(key: string, prepared: PreparedTextWithSegments 
 function createPreparedTextBlock(
   text: string,
   font: string,
+  prepareOptions?: ReaderTextPrepareOptions,
 ): PreparedTextBlock {
-  const key = `${font}\u0000${text}`;
+  const normalizedOptions = normalizeReaderTextPrepareOptions(prepareOptions);
+  const key = `${font}\u0000${serializeReaderTextPrepareOptions(normalizedOptions)}\u0000${text}`;
   let prepared = getPreparedTextFromCache(key);
   if (prepared === undefined) {
-    prepared = prepareText(text, font);
+    prepared = prepareText(text, font, normalizedOptions);
     setPreparedTextInCache(key, prepared);
   }
 
   return {
     font,
     prepared,
+    prepareOptions: normalizedOptions,
     text,
   };
 }
 
-function prepareText(text: string, font: string): PreparedTextWithSegments | null {
+function prepareText(
+  text: string,
+  font: string,
+  prepareOptions: ReaderTextPrepareOptions,
+): PreparedTextWithSegments | null {
   try {
-    return prepareWithSegments(text, font);
+    return prepareWithSegments(text, font, toPretextPrepareOptions(prepareOptions));
   } catch {
     return null;
   }
+}
+
+function createFallbackMeasuredLine(params: {
+  fontSizePx: number;
+  index: number;
+  maxWidth: number;
+  startOffset: number;
+  text: string;
+}): ReaderMeasuredLine {
+  return {
+    end: {
+      graphemeIndex: params.startOffset + params.text.length,
+      segmentIndex: 0,
+    },
+    lineIndex: params.index,
+    start: {
+      graphemeIndex: params.startOffset,
+      segmentIndex: 0,
+    },
+    text: params.text,
+    width: Math.min(params.maxWidth, params.text.length * params.fontSizePx * 0.55),
+  };
 }
 
 function fallbackLayoutLines(
   text: string,
   maxWidth: number,
   fontSizePx: number,
+  prepareOptions?: ReaderTextPrepareOptions,
 ): ReaderMeasuredLine[] {
   if (!text) {
     return [];
   }
 
   const maxCharsPerLine = getApproximateMaxCharsPerLine(maxWidth, fontSizePx);
-  const chunks: string[] = [];
-  let cursor = 0;
-  while (cursor < text.length) {
-    chunks.push(text.slice(cursor, cursor + maxCharsPerLine));
-    cursor += maxCharsPerLine;
+  const normalizedOptions = normalizeReaderTextPrepareOptions(prepareOptions);
+  const lines: ReaderMeasuredLine[] = [];
+
+  const appendWrappedText = (chunkText: string, startOffset: number) => {
+    if (chunkText.length === 0) {
+      lines.push(createFallbackMeasuredLine({
+        fontSizePx,
+        index: lines.length,
+        maxWidth,
+        startOffset,
+        text: '',
+      }));
+      return;
+    }
+
+    let cursor = 0;
+    while (cursor < chunkText.length) {
+      const chunk = chunkText.slice(cursor, cursor + maxCharsPerLine);
+      lines.push(createFallbackMeasuredLine({
+        fontSizePx,
+        index: lines.length,
+        maxWidth,
+        startOffset: startOffset + cursor,
+        text: chunk,
+      }));
+      cursor += maxCharsPerLine;
+    }
+  };
+
+  if (normalizedOptions.whiteSpace === 'pre-wrap') {
+    let offset = 0;
+    for (const lineText of text.split('\n')) {
+      appendWrappedText(lineText, offset);
+      offset += lineText.length + 1;
+    }
+    return lines;
   }
 
-  return chunks.map((chunk, index) => ({
-    end: {
-      graphemeIndex: Math.min((index + 1) * maxCharsPerLine, text.length),
-      segmentIndex: 0,
-    },
-    lineIndex: index,
-    start: {
-      graphemeIndex: index * maxCharsPerLine,
-      segmentIndex: 0,
-    },
-    text: chunk,
-    width: Math.min(maxWidth, chunk.length * fontSizePx * 0.55),
-  }));
+  appendWrappedText(text, 0);
+  return lines;
 }
 
 function measurePreparedTextBlock(params: {
@@ -140,13 +206,15 @@ function measurePreparedTextBlock(params: {
   fontSizePx: number;
   lineHeightPx: number;
   maxWidth: number;
+  prepareOptions?: ReaderTextPrepareOptions;
   text: string;
 }): ReaderMeasuredLine[] {
   if (params.maxWidth <= 0) {
     return [];
   }
 
-  const prepared = createPreparedTextBlock(params.text, params.font);
+  const prepareOptions = params.prepareOptions ?? DEFAULT_READER_TEXT_PREPARE_OPTIONS;
+  const prepared = createPreparedTextBlock(params.text, params.font, prepareOptions);
   if (prepared.prepared) {
     try {
       return layoutWithLines(prepared.prepared, params.maxWidth, params.lineHeightPx)
@@ -155,11 +223,16 @@ function measurePreparedTextBlock(params: {
           lineIndex: index,
         }));
     } catch {
-      return fallbackLayoutLines(params.text, params.maxWidth, params.fontSizePx);
+      return fallbackLayoutLines(
+        params.text,
+        params.maxWidth,
+        params.fontSizePx,
+        prepareOptions,
+      );
     }
   }
 
-  return fallbackLayoutLines(params.text, params.maxWidth, params.fontSizePx);
+  return fallbackLayoutLines(params.text, params.maxWidth, params.fontSizePx, prepareOptions);
 }
 
 function getBrowserTextMeasureRoot(): HTMLDivElement | null {
@@ -201,14 +274,21 @@ export function measureTextHeightWithBrowserLayout(params: {
   fontSizePx: number;
   lineHeightPx: number;
   maxWidth: number;
+  prepareOptions?: ReaderTextPrepareOptions;
   text: string;
   whiteSpace?: 'normal' | 'pre-wrap';
+  wordBreak?: 'normal' | 'keep-all';
 }): number | null {
   const root = getBrowserTextMeasureRoot();
   if (!root || params.maxWidth <= 0 || params.text.length === 0) {
     return null;
   }
 
+  const prepareOptions = normalizeReaderTextPrepareOptions({
+    ...params.prepareOptions,
+    whiteSpace: params.whiteSpace ?? params.prepareOptions?.whiteSpace,
+    wordBreak: params.wordBreak ?? params.prepareOptions?.wordBreak,
+  });
   const probe = document.createElement('div');
   probe.style.boxSizing = 'border-box';
   probe.style.display = 'block';
@@ -217,11 +297,12 @@ export function measureTextHeightWithBrowserLayout(params: {
   probe.style.lineHeight = `${params.lineHeightPx}px`;
   probe.style.maxWidth = `${params.maxWidth}px`;
   probe.style.width = `${params.maxWidth}px`;
+  probe.style.letterSpacing = `${prepareOptions.letterSpacingPx}px`;
   probe.style.margin = '0';
   probe.style.padding = '0';
-  probe.style.whiteSpace = params.whiteSpace ?? 'normal';
+  probe.style.whiteSpace = prepareOptions.whiteSpace;
   probe.style.overflowWrap = 'break-word';
-  probe.style.wordBreak = 'normal';
+  probe.style.wordBreak = prepareOptions.wordBreak;
 
   writeMeasuredTextContent(probe, params.text);
   root.appendChild(probe);
@@ -242,6 +323,7 @@ export const browserReaderTextLayoutEngine: ReaderTextLayoutEngine = {
       inlines: params.inlines,
       lineHeightPx: params.lineHeightPx,
       maxWidth: params.maxWidth,
+      prepareOptions: params.prepareOptions,
     });
   },
 };

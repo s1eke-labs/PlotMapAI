@@ -113,7 +113,6 @@ export function PagedPageFrame({
                   >
                     {column.items.map((item) => (
                       <ReaderFlowBlock
-                        chapterTitle={chapter.title}
                         key={item.key}
                         imageRenderMode="paged"
                         item={item}

@@ -20,6 +20,11 @@ import {
   buildRichScrollReaderBlocks,
   shouldUseRichScrollBlocks,
 } from './richScroll';
+import {
+  DEFAULT_READER_TEXT_LAYOUT_POLICY_KEY,
+  READER_TEXT_LAYOUT_POLICY_VERSION,
+  RICH_TEXT_STRATEGY_VERSION,
+} from './readerTextPolicy';
 
 const DEFAULT_IMAGE_ASPECT_RATIO = 4 / 3;
 const TEXT_FALLBACK_WIDTH_RATIO = 0.55;
@@ -80,6 +85,9 @@ export function createReaderLayoutSignature({
   pageHeight,
   paragraphSpacing,
   textWidth,
+  textLayoutPolicyKey,
+  textLayoutPolicyVersion,
+  richTextStrategyVersion,
 }: ReaderLayoutSignature): ReaderLayoutSignature {
   return {
     columnCount,
@@ -88,21 +96,30 @@ export function createReaderLayoutSignature({
     lineSpacing,
     pageHeight,
     paragraphSpacing,
+    richTextStrategyVersion: richTextStrategyVersion ?? RICH_TEXT_STRATEGY_VERSION,
     textWidth,
+    textLayoutPolicyKey: textLayoutPolicyKey ?? DEFAULT_READER_TEXT_LAYOUT_POLICY_KEY,
+    textLayoutPolicyVersion: textLayoutPolicyVersion ?? READER_TEXT_LAYOUT_POLICY_VERSION,
   };
 }
 
 export function serializeReaderLayoutSignature(signature: ReaderLayoutSignature): string {
+  const normalized = createReaderLayoutSignature(signature);
   return [
-    signature.textWidth,
-    signature.pageHeight,
-    signature.columnCount,
-    signature.columnGap,
-    signature.fontSize,
-    signature.lineSpacing,
-    signature.paragraphSpacing,
+    normalized.textWidth,
+    normalized.pageHeight,
+    normalized.columnCount,
+    normalized.columnGap,
+    normalized.fontSize,
+    normalized.lineSpacing,
+    normalized.paragraphSpacing,
   ]
     .map((value) => (Number.isFinite(value) ? value.toFixed(3) : '0'))
+    .concat([
+      normalized.textLayoutPolicyKey ?? DEFAULT_READER_TEXT_LAYOUT_POLICY_KEY,
+      `${normalized.textLayoutPolicyVersion ?? READER_TEXT_LAYOUT_POLICY_VERSION}`,
+      `${normalized.richTextStrategyVersion ?? RICH_TEXT_STRATEGY_VERSION}`,
+    ])
     .join('|');
 }
 

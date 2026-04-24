@@ -1,6 +1,9 @@
 import type { CSSProperties } from 'react';
 
-import { READER_CONTENT_CLASS_NAMES } from '@shared/reader-rendering';
+import {
+  READER_CONTENT_CLASS_NAMES,
+  READER_CONTENT_TOKEN_DEFAULTS,
+} from '@shared/reader-rendering';
 import { cn } from '@shared/utils/cn';
 
 import {
@@ -22,13 +25,11 @@ import {
 } from './readerFlowBlockShared';
 
 interface ReaderFlowBlockTextProps {
-  chapterTitle?: string;
   positionStyle?: CSSProperties;
   textItem: RenderTextItem;
 }
 
 export function ReaderFlowBlockText({
-  chapterTitle,
   positionStyle,
   textItem,
 }: ReaderFlowBlockTextProps) {
@@ -57,12 +58,7 @@ export function ReaderFlowBlockText({
   const hasRichLineFragments = Boolean(
     textItem.richLineFragments?.some((line) => line.length > 0),
   );
-  let renderedText = serializedText;
-  if (textItem.kind === 'heading') {
-    renderedText = textItem.blockIndex === 0
-      ? chapterTitle ?? textItem.text
-      : textItem.text;
-  }
+  const renderedText = serializedText;
 
   if (textItem.renderRole === 'hr') {
     return (
@@ -184,12 +180,12 @@ export function ReaderFlowBlockText({
           )}
           style={{
             ...textStyle,
+            letterSpacing: `${READER_CONTENT_TOKEN_DEFAULTS.headingLetterSpacingEm}em`,
             overflow: 'hidden',
-            overflowWrap: 'anywhere',
-            whiteSpace: hasRichLineFragments ? undefined : 'pre-wrap',
+            whiteSpace: hasRichLineFragments ? undefined : 'pre',
           }}
         >
-          {hasRichLineFragments && textItem.blockIndex !== 0
+          {hasRichLineFragments
             ? renderRichLineFragments(
               textItem.richLineFragments ?? [],
               `${textItem.blockIndex}:heading`,

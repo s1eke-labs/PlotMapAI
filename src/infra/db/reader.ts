@@ -51,6 +51,9 @@ export interface ReaderLayoutSignatureRecord {
   fontSize: number;
   lineSpacing: number;
   paragraphSpacing: number;
+  textLayoutPolicyKey?: string;
+  textLayoutPolicyVersion?: number;
+  richTextStrategyVersion?: number;
 }
 
 export interface ReaderRenderQueryManifestRecord {

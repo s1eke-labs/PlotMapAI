@@ -1,7 +1,7 @@
-import type { LayoutCursor, LayoutLine } from '@chenglou/pretext';
 import type {
   PaginationContainer,
   PaginationListContext,
+  ReaderLayoutCursor as SharedReaderLayoutCursor,
   RichBlock,
   RichInline,
   RichTableCell,
@@ -12,6 +12,8 @@ export const PAGED_VIEWPORT_TOP_PADDING_PX = 16;
 
 export type ReaderRenderVariant = 'original-scroll' | 'original-paged' | 'summary-shell';
 
+export type ReaderLayoutCursor = SharedReaderLayoutCursor;
+
 export interface ReaderLocator {
   chapterIndex: number;
   chapterKey?: string;
@@ -21,8 +23,8 @@ export interface ReaderLocator {
   imageKey?: string;
   kind: 'heading' | 'text' | 'image';
   lineIndex?: number;
-  startCursor?: LayoutCursor;
-  endCursor?: LayoutCursor;
+  startCursor?: ReaderLayoutCursor;
+  endCursor?: ReaderLayoutCursor;
   edge?: 'start' | 'end';
   pageIndex?: number;
   textQuote?: {
@@ -91,6 +93,9 @@ export interface ReaderLayoutSignature {
   fontSize: number;
   lineSpacing: number;
   paragraphSpacing: number;
+  textLayoutPolicyKey?: string;
+  textLayoutPolicyVersion?: number;
+  richTextStrategyVersion?: number;
 }
 
 export interface ReaderViewportMetrics {
@@ -110,8 +115,12 @@ export interface ReaderImageLayoutConstraints {
   maxImageWidth?: number;
 }
 
-export interface ReaderMeasuredLine extends LayoutLine {
+export interface ReaderMeasuredLine {
+  end: ReaderLayoutCursor;
   lineIndex: number;
+  start: ReaderLayoutCursor;
+  text: string;
+  width: number;
 }
 
 export interface VirtualBlockMetrics {

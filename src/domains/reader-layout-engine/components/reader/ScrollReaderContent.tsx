@@ -103,7 +103,6 @@ export default function ScrollReaderContent({
               >
                 {visibleMetrics.map((metric) => (
                   <ReaderFlowBlock
-                    chapterTitle={chapter.title}
                     key={metric.block.key}
                     imageRenderMode="scroll"
                     item={metric}

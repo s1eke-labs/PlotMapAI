@@ -49,6 +49,7 @@ export type {
   ReaderBlock,
   ReaderImageLayoutConstraints,
   ReaderImagePageItem,
+  ReaderLayoutCursor,
   ReaderLayoutSignature,
   ReaderLocator,
   ReaderMeasuredLine,
@@ -72,5 +73,8 @@ export type {
 } from './readerLayoutTypes';
 export type {
   ReaderRichTextLayoutResult,
+  ReaderTextPrepareOptions,
   ReaderTextLayoutEngine,
+  ReaderTextWhiteSpace,
+  ReaderTextWordBreak,
 } from '../measurement/readerTextMeasurement';
