@@ -76,3 +76,26 @@ export {
 } from '@shared/reader-rendering';
 export type { ReaderImageActivationPayload, ReaderImageGalleryEntry } from '@shared/contracts/reader';
 export { preloadReaderImageResources } from '@domains/reader-media';
+export {
+  buildNovelFlowIndex,
+  createChapterFlowManifestFromRenderCacheRecord,
+  createChapterFlowManifestFromScrollTree,
+  isChapterFlowManifestCompatible,
+  mergeChapterFlowManifests,
+  resolveGlobalOffsetPosition,
+  resolveGlobalPagePosition,
+  resolveLocatorGlobalOffset,
+  resolveLocatorGlobalPageIndex,
+  toGlobalOffset,
+  toGlobalPageIndex,
+} from '../utils/flow-index/novelFlowIndex';
+export type {
+  ChapterFlowBlockSummary,
+  ChapterFlowManifest,
+  ChapterFlowManifestIdentity,
+  ChapterFlowManifestStatus,
+  GlobalPagedPosition,
+  GlobalScrollPosition,
+  NovelFlowChapterEntry,
+  NovelFlowIndex,
+} from '../utils/flow-index/novelFlowIndex';
