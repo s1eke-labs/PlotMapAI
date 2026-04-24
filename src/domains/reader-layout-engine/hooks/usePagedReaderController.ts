@@ -230,6 +230,7 @@ export function usePagedReaderController({
         pageTarget,
       }),
       hints: {
+        chapterProgress: undefined,
         contentMode: 'paged',
       },
     });
@@ -397,6 +398,7 @@ export function usePagedReaderController({
         edge: 'start',
       },
       hints: {
+        chapterProgress: undefined,
         pageIndex: locator?.pageIndex ?? pageIndex,
         contentMode: 'paged',
       },

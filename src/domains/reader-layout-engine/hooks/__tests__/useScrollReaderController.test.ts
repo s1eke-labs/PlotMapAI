@@ -1,7 +1,7 @@
 import type { Dispatch, ReactNode, RefObject, SetStateAction } from 'react';
 import type { ChapterContent } from '@shared/contracts/reader';
 import type { ReaderContextValue } from '@test/readerRuntimeTestUtils';
-import type { ChapterChangeSource, ReaderRestoreTarget } from '@shared/contracts/reader';
+import type { ChapterChangeSource, ReaderLocator, ReaderRestoreTarget } from '@shared/contracts/reader';
 
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -1176,6 +1176,106 @@ describe('useScrollReaderController', () => {
       expect(clearPendingRestoreTarget).toHaveBeenCalled();
       expect(stopRestoreMask).toHaveBeenCalled();
       expect(contextValue.chapterChangeSourceRef.current).toBeNull();
+    } finally {
+      animationFrames.restore();
+    }
+  });
+
+  it('persists actual scroll progress after restoring from a paged locator', async () => {
+    const animationFrames = createAnimationFrameController();
+    const contentRef = {
+      current: makeContainer({
+        clientHeight: 600,
+        scrollHeight: 5000,
+      }),
+    };
+    const clearPendingRestoreTarget = vi.fn();
+    const stopRestoreMask = vi.fn();
+    const onRestoreSettled = vi.fn();
+    const currentChapter = createChapter(
+      1,
+      3,
+      'Paragraph 1\nParagraph 2\nParagraph 3\nParagraph 4',
+    );
+    const targetLocator: ReaderLocator = {
+      chapterIndex: 1,
+      blockIndex: 10,
+      kind: 'text',
+      lineIndex: 0,
+      pageIndex: 3,
+    };
+    const progressTarget: ReaderRestoreTarget = {
+      chapterIndex: 1,
+      chapterProgress: 0.12,
+      locator: targetLocator,
+      mode: 'scroll',
+    };
+    const contextValue = createReaderContextValue({
+      chapterIndex: 1,
+      contentRef,
+      chapterCacheRef: {
+        current: new Map([[currentChapter.index, currentChapter]]),
+      },
+      restoreSettledHandlerRef: {
+        current: onRestoreSettled,
+      },
+    });
+    const props = createHookProps({
+      currentChapter,
+      pendingRestoreTarget: progressTarget,
+      pendingRestoreTargetRef: {
+        current: progressTarget,
+      },
+      clearPendingRestoreTarget,
+      stopRestoreMask,
+      harness: contextValue,
+    });
+
+    try {
+      const { result } = renderHook(
+        () => useScrollReaderController(props),
+        {
+          wrapper: ({ children }: { children: ReactNode }) => ReaderContextProvider({
+            value: contextValue.contextValue,
+            children,
+          }),
+        },
+      );
+
+      act(() => {
+        result.current.handleScrollChapterElement(1, makeChapterElement({
+          offsetHeight: 2000,
+          offsetTop: 1000,
+        }));
+      });
+      contextValue.resolveScrollLocatorOffsetRef.current = () => 1700;
+      contextValue.getCurrentOriginalLocatorRef.current = () => targetLocator;
+
+      for (let index = 0; index < 8 && onRestoreSettled.mock.calls.length === 0; index += 1) {
+        await animationFrames.flushNextAnimationFrame();
+      }
+
+      const expectedScrollTop = Math.round(
+        1700 - contentRef.current.clientHeight * SCROLL_READING_ANCHOR_RATIO,
+      );
+      const expectedChapterProgress = (expectedScrollTop - 1000) / (2000 - 600);
+      const persistedState = contextValue.persistReaderState.mock.calls.at(-1)?.[0];
+
+      expect(contentRef.current.scrollTop).toBe(expectedScrollTop);
+      expect(onRestoreSettled).toHaveBeenCalledWith('completed');
+      expect(persistedState).toMatchObject({
+        canonical: {
+          chapterIndex: 1,
+          blockIndex: 10,
+          kind: 'text',
+          lineIndex: 0,
+        },
+        hints: {
+          contentMode: 'scroll',
+          pageIndex: undefined,
+        },
+      });
+      expect(persistedState?.hints?.chapterProgress).toBeCloseTo(expectedChapterProgress, 4);
     } finally {
       animationFrames.restore();
     }

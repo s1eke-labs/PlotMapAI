@@ -90,6 +90,8 @@ export function captureReaderStateSnapshot(params: {
         canonical: toCanonicalPositionFromLocator(params.currentPagedLocator),
         hints: {
           ...nextState.hints,
+          chapterProgress: undefined,
+          contentMode: 'paged',
           pageIndex: params.currentPagedLocator.pageIndex,
         },
       });

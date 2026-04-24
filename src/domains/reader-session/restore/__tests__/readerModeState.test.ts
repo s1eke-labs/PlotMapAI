@@ -157,4 +157,52 @@ describe('captureReaderStateSnapshot', () => {
       lineIndex: 1,
     });
   });
+
+  it('clears stale scroll progress when capturing a paged locator', () => {
+    const currentPagedLocator: ReaderLocator = {
+      chapterIndex: 0,
+      blockIndex: 34,
+      kind: 'text',
+      lineIndex: 0,
+      pageIndex: 5,
+    };
+    const previousState: StoredReaderState = {
+      canonical: {
+        chapterIndex: 0,
+        blockIndex: 12,
+        kind: 'text',
+        lineIndex: 0,
+      },
+      hints: {
+        chapterProgress: 0.22,
+        contentMode: 'scroll',
+        viewMode: 'original',
+      },
+    };
+
+    const nextState = captureReaderStateSnapshot({
+      chapterIndex: 0,
+      currentAnchor: null,
+      currentOriginalLocator: null,
+      currentPagedLocator,
+      latestReaderState: previousState,
+      mode: 'paged',
+      navigationSource: null,
+      storedReaderState: previousState,
+      viewportContentElement: null,
+    });
+
+    expect(nextState.canonical).toEqual({
+      chapterIndex: 0,
+      blockIndex: 34,
+      kind: 'text',
+      lineIndex: 0,
+    });
+    expect(nextState.hints).toMatchObject({
+      contentMode: 'paged',
+      pageIndex: 5,
+      viewMode: 'original',
+    });
+    expect(nextState.hints?.chapterProgress).toBeUndefined();
+  });
 });

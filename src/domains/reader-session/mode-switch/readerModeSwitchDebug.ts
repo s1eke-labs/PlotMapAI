@@ -102,6 +102,9 @@ export function captureStrictModeSwitchState(params: {
     state: mergeStoredReaderState(params.latestReaderState, {
       canonical: toCanonicalPositionFromLocator(activeLocator),
       hints: {
+        chapterProgress: params.mode === 'paged'
+          ? undefined
+          : params.latestReaderState.hints?.chapterProgress,
         contentMode: params.mode,
         pageIndex: params.mode === 'scroll' ? undefined : activeLocator.pageIndex,
       },

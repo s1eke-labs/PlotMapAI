@@ -333,6 +333,7 @@ describe('usePagedReaderController', () => {
         edge: 'start',
       },
       hints: {
+        chapterProgress: undefined,
         contentMode: 'paged',
       },
     });

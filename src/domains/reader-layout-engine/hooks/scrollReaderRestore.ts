@@ -2,6 +2,7 @@ import type {
   ReaderLocator,
   ReaderRestoreResult,
   ReaderRestoreTarget,
+  StoredReaderState,
 } from '@shared/contracts/reader';
 import type { UseScrollReaderRestoreParams } from './scrollReaderRestoreTypes';
 
@@ -10,6 +11,7 @@ import { useEffect } from 'react';
 import { debugLog, setDebugSnapshot } from '@shared/debug';
 import {
   canSkipReaderRestore,
+  getChapterLocalProgress,
   getScrollTopForChapterProgress,
 } from '@shared/utils/readerPosition';
 import {
@@ -99,6 +101,17 @@ export function useScrollReaderRestore(params: UseScrollReaderRestoreParams): vo
       resolvedLocator: ReaderLocator | null | undefined,
     ) => {
       recordRestoreResult(completedResult, activeTarget);
+      const container = viewportContentRef.current;
+      const restoredChapterIndex =
+        resolvedLocator?.chapterIndex
+        ?? activeTarget?.locator?.chapterIndex
+        ?? activeTarget?.chapterIndex
+        ?? chapterIndex;
+      const restoredChapterElement = scrollChapterElementsRef.current.get(restoredChapterIndex)
+        ?? null;
+      const restoredChapterProgress = container && restoredChapterElement
+        ? getChapterLocalProgress(container, restoredChapterElement)
+        : undefined;
       const completedSnapshot = {
         source: 'scrollReaderRestore',
         mode: 'scroll',
@@ -108,15 +121,22 @@ export function useScrollReaderRestore(params: UseScrollReaderRestoreParams): vo
         target: activeTarget ?? null,
       };
       setDebugSnapshot('reader-position-restore', completedSnapshot);
+      const restoredState: StoredReaderState = {
+        hints: {
+          chapterProgress: restoredChapterProgress,
+          pageIndex: undefined,
+          contentMode: 'scroll',
+        },
+      };
       if (resolvedLocator) {
-        persistReaderState({
-          canonical: toCanonicalPositionFromLocator(resolvedLocator),
-          hints: {
-            pageIndex: undefined,
-            contentMode: 'scroll',
-          },
-        });
+        restoredState.canonical = toCanonicalPositionFromLocator(resolvedLocator);
+      } else if (activeTarget?.locatorBoundary) {
+        restoredState.canonical = {
+          chapterIndex: restoredChapterIndex,
+          edge: activeTarget.locatorBoundary,
+        };
       }
+      persistReaderState(restoredState);
       navigation.setChapterChangeSource(null);
       retainFocusedWindowAfterRestore(chapterIndex);
       clearPendingRestoreTarget();
@@ -200,8 +220,10 @@ export function useScrollReaderRestore(params: UseScrollReaderRestoreParams): vo
 
       const currentLocator = layoutQueries.getCurrentOriginalLocator();
       const container = viewportContentRef.current;
+      const hasPagedLocatorTarget = typeof activeTarget?.locator?.pageIndex === 'number';
       const shouldPreferProgressStability = Boolean(
         activeTarget
+        && !hasPagedLocatorTarget
         && typeof activeTarget.chapterProgress === 'number',
       );
       const targetChapterIndex = activeTarget?.locator?.chapterIndex ?? activeTarget?.chapterIndex;
@@ -244,6 +266,7 @@ export function useScrollReaderRestore(params: UseScrollReaderRestoreParams): vo
       if (
         container
         && activeTarget
+        && shouldPreferProgressStability
         && typeof activeTarget.chapterProgress === 'number'
       ) {
         navigation.setChapterChangeSource('restore');

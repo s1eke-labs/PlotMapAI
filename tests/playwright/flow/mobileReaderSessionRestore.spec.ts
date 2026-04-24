@@ -383,6 +383,15 @@ function requireScrollProgress(marker: ReadingMarker, context: string): number {
   return marker.scrollProgress;
 }
 
+function requireMapAdmittedNumber(snippet: string, context: string): number {
+  const match = snippet.match(/map admitted (\d+)\./u);
+  if (!match) {
+    throw new Error(`${context}: failed to read map-admitted paragraph number from '${snippet}'.`);
+  }
+
+  return Number(match[1]);
+}
+
 async function readVisibleAnchorOrThrow(
   page: Page,
   description: string,
@@ -561,6 +570,12 @@ async function expectViewportNotContainsSnippet(page: Page, snippet: string): Pr
     .isVisible()
     .catch(() => false);
   expect(isVisible).toBe(false);
+}
+
+async function expectViewportDoesNotShowSnippet(page: Page, snippet: string): Promise<void> {
+  await expect(
+    page.getByTestId('reader-viewport').getByText(snippet, { exact: false }).first(),
+  ).not.toBeInViewport({ timeout: 5_000 });
 }
 
 async function advancePagedPages(page: Page, pageCount: number): Promise<void> {
@@ -1162,27 +1177,62 @@ test.describe('移动端阅读会话恢复', () => {
     await scrollViewportToProgress(page, 0.34);
     await waitForScrollProgress(page, novelId, 0.12, 'initial scroll persisted for continuity');
     const scrollMarker = await captureMarker(page, novelId, 'scroll');
+    const scrollSnippet = await readLongBookVisibleParagraphSnippet(
+      page,
+      'TC-012 capture initial scroll paragraph',
+    );
+    const scrollParagraphNumber = requireMapAdmittedNumber(scrollSnippet, 'TC-012 initial scroll');
 
     await switchReaderBranch(page, 'paged');
-    await expectViewportContainsSnippet(page, scrollMarker.anchorSnippet);
-    await advancePagedPages(page, 1);
-    await waitForPagedProgress(page, novelId, 1, 'paged progress persisted for continuity');
+    await expectViewportContainsSnippet(page, scrollSnippet);
+    await advancePagedPages(page, 3);
+    await waitForPagedProgress(page, novelId, 3, 'paged progress persisted for continuity');
     const pagedMarker = await captureMarker(page, novelId, 'paged');
+    const pagedSnippet = await readLongBookVisibleParagraphSnippet(
+      page,
+      'TC-012 capture advanced paged paragraph',
+    );
+    const pagedParagraphNumber = requireMapAdmittedNumber(pagedSnippet, 'TC-012 advanced paged');
+    expect(pagedParagraphNumber).toBeGreaterThan(scrollParagraphNumber + 2);
 
     await switchReaderBranch(page, 'scroll');
-    await expectViewportContainsSnippet(page, pagedMarker.anchorSnippet);
+    const restoredFromPagedSnippet = await readLongBookVisibleParagraphSnippet(
+      page,
+      'TC-012 capture restored scroll paragraph after paged switch',
+    );
+    const restoredFromPagedParagraphNumber = requireMapAdmittedNumber(
+      restoredFromPagedSnippet,
+      'TC-012 restored scroll after paged switch',
+    );
+    expect(restoredFromPagedParagraphNumber).toBeGreaterThanOrEqual(pagedParagraphNumber - 2);
+    expect(restoredFromPagedParagraphNumber).toBeGreaterThan(scrollParagraphNumber + 2);
+    await expectViewportDoesNotShowSnippet(page, scrollSnippet);
+    const restoredFromPagedMarker = await captureMarker(page, novelId, 'scroll');
     await scrollViewportByPixels(page, 420);
     await waitForScrollProgress(page, novelId, 0.18, 'final scroll persisted for continuity');
     const finalMarker = await captureMarker(page, novelId, 'scroll');
+    const finalSnippet = await readLongBookVisibleParagraphSnippet(
+      page,
+      'TC-012 capture final scroll paragraph',
+    );
+    const finalParagraphNumber = requireMapAdmittedNumber(finalSnippet, 'TC-012 final scroll');
 
     expect(scrollMarker.chapterIndex).toBe(0);
     expect(pagedMarker.chapterIndex).toBe(0);
+    expect(restoredFromPagedMarker.chapterIndex).toBe(0);
+    expect(restoredFromPagedMarker.contentMode).toBe('scroll');
     expect(finalMarker.chapterIndex).toBe(0);
 
     await exitAndReopenReaderByUiResponsive(page);
     await waitForReaderBranch(page, 'scroll');
     await waitForScrollProgress(page, novelId, 0.18, 'final scroll restored for continuity');
 
-    await expectViewportContainsSnippet(page, finalMarker.anchorSnippet);
+    const reopenedSnippet = await readLongBookVisibleParagraphSnippet(
+      page,
+      'TC-012 capture reopened final scroll paragraph',
+    );
+    expect(
+      requireMapAdmittedNumber(reopenedSnippet, 'TC-012 reopened final scroll'),
+    ).toBeGreaterThanOrEqual(finalParagraphNumber - 2);
   });
 });
