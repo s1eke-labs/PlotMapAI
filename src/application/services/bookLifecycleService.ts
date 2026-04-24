@@ -17,7 +17,6 @@ import {
 } from '@domains/reader-layout-engine';
 import { clearReaderImageResourcesForNovel } from '@domains/reader-media';
 import {
-  deleteLegacyReadingProgress,
   deleteReaderProgressSnapshot,
 } from '@domains/reader-session';
 import type { ChapterDetectionRule } from '@shared/text-processing';
@@ -41,7 +40,6 @@ async function clearPersistedReaderArtifacts(
   transaction: Transaction,
 ): Promise<void> {
   await deleteReaderProgressSnapshot(novelId, transaction);
-  await deleteLegacyReadingProgress(novelId, transaction);
   await deletePersistedReaderRenderCache(novelId, transaction);
 }
 
@@ -133,7 +131,6 @@ export const bookLifecycleService = {
         db.analysisOverviews,
         db.chapterAnalyses,
         db.readerProgress,
-        db.readingProgress,
         db.readerRenderCache,
         db.novels,
         db.coverImages,
@@ -188,7 +185,6 @@ export const bookLifecycleService = {
         db.analysisOverviews,
         db.chapterAnalyses,
         db.readerProgress,
-        db.readingProgress,
         db.readerRenderCache,
         db.novels,
         db.coverImages,

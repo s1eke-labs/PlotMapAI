@@ -228,8 +228,7 @@ export function solveModeRestoreTarget(params: {
   targetMode: ReaderMode;
 }): ReaderRestoreTarget {
   const currentChapterIndex =
-    params.currentReaderState.canonicalV2?.chapterIndex
-    ?? params.currentReaderState.canonical?.chapterIndex
+    params.currentReaderState.canonical?.chapterIndex
     ?? params.chapterIndex;
 
   if (params.targetMode === 'summary') {

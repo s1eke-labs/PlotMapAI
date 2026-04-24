@@ -29,6 +29,12 @@ const LEGACY_READER_DB_SCHEMA_V5 = {
   readerRenderCache: READER_DB_SCHEMA.readerRenderCache,
 } as const;
 
+const LEGACY_READER_DB_SCHEMA_V7 = {
+  readingProgress: '++id, novelId',
+  readerProgress: READER_DB_SCHEMA.readerProgress,
+  readerRenderCache: READER_DB_SCHEMA.readerRenderCache,
+} as const;
+
 const LEGACY_BASELINE_SCHEMA = {
   ...LEGACY_LIBRARY_DB_SCHEMA,
   ...SETTINGS_DB_SCHEMA,
@@ -40,8 +46,15 @@ const MANAGED_V6_SCHEMA = {
   ...LIBRARY_DB_SCHEMA,
   ...SETTINGS_DB_SCHEMA,
   ...ANALYSIS_DB_SCHEMA,
-  readingProgress: READER_DB_SCHEMA.readingProgress,
+  readingProgress: '++id, novelId',
   readerRenderCache: READER_DB_SCHEMA.readerRenderCache,
+} as const;
+
+const MANAGED_V7_SCHEMA = {
+  ...LIBRARY_DB_SCHEMA,
+  ...SETTINGS_DB_SCHEMA,
+  ...ANALYSIS_DB_SCHEMA,
+  ...LEGACY_READER_DB_SCHEMA_V7,
 } as const;
 
 function createLegacyDatabase(version: number): Promise<void> {
@@ -165,6 +178,54 @@ async function createVersionSixDatabaseWithReaderProgress(): Promise<number> {
   return novelId as number;
 }
 
+async function createVersionSevenDatabaseWithReaderProgress(): Promise<number> {
+  const legacyDb = new Dexie(PLOTMAPAI_DB_NAME);
+  legacyDb.version(7).stores(MANAGED_V7_SCHEMA);
+  await legacyDb.open();
+
+  const novelId = await legacyDb.table('novels').add({
+    author: '',
+    chapterCount: 1,
+    coverPath: '',
+    createdAt: '2026-04-04T00:00:00.000Z',
+    description: '',
+    fileHash: 'managed-v7-hash',
+    fileType: 'txt',
+    originalEncoding: 'utf-8',
+    originalFilename: 'managed-v7.txt',
+    tags: [],
+    title: 'Managed V7 Novel',
+    totalWords: 100,
+  });
+  await legacyDb.table('readingProgress').add({
+    novelId,
+    canonical: {
+      chapterIndex: 4,
+      edge: 'start',
+    },
+    chapterProgress: 0.55,
+    contentMode: 'paged',
+    viewMode: 'summary',
+    revision: 3,
+    updatedAt: '2026-04-04T00:00:00.000Z',
+  });
+  await legacyDb.table('readerProgress').put({
+    novelId,
+    mode: 'scroll',
+    activeChapterIndex: 2,
+    position: {
+      type: 'chapter-edge',
+      chapterIndex: 2,
+      edge: 'start',
+    },
+    captureQuality: 'approximate',
+    updatedAt: '2026-04-04T00:00:00.000Z',
+  });
+
+  legacyDb.close();
+  return novelId as number;
+}
+
 function readObjectStoreNames(): Promise<string[]> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(PLOTMAPAI_DB_NAME);
@@ -187,10 +248,10 @@ describe('prepareDatabase', () => {
     mockReportAppError.mockReset();
   });
 
-  it('opens the formal v7 baseline schema in a fresh environment', async () => {
+  it('opens the formal v8 baseline schema in a fresh environment', async () => {
     await prepareDatabase();
 
-    expect(db.verno).toBe(7);
+    expect(db.verno).toBe(8);
     expect(db.tables.map((table) => table.name).sort()).toEqual([
       'analysisChunks',
       'analysisJobs',
@@ -206,7 +267,6 @@ describe('prepareDatabase', () => {
       'purificationRules',
       'readerProgress',
       'readerRenderCache',
-      'readingProgress',
       'tocRules',
     ]);
   });
@@ -221,8 +281,8 @@ describe('prepareDatabase', () => {
     await expect(readObjectStoreNames()).resolves.toContain('legacyStore');
     expect(mockDebugLog).toHaveBeenCalledWith('Storage', 'Database recovery required', expect.objectContaining({
       databaseName: PLOTMAPAI_DB_NAME,
-      expectedNativeVersion: 70,
-      targetVersion: 7,
+      expectedNativeVersion: 80,
+      targetVersion: 8,
     }));
     expect(mockReportAppError).toHaveBeenCalledTimes(1);
   });
@@ -236,20 +296,35 @@ describe('prepareDatabase', () => {
     await resetDatabaseForRecovery();
     await prepareDatabase();
 
-    expect(db.verno).toBe(7);
+    expect(db.verno).toBe(8);
     expect(db.tables.some((table) => table.name === 'legacyStore')).toBe(false);
     expect(db.tables.some((table) => table.name === 'novels')).toBe(true);
   });
 
-  it('migrates v6 databases to v7 and clears legacy reader progress only', async () => {
-    const novelId = await createVersionSixDatabaseWithReaderProgress();
+  it('migrates v7 databases to v8 and drops only legacy reader progress storage', async () => {
+    const novelId = await createVersionSevenDatabaseWithReaderProgress();
 
     await prepareDatabase();
 
-    expect(db.verno).toBe(7);
+    expect(db.verno).toBe(8);
     await expect(db.novels.get(novelId)).resolves.toBeDefined();
-    await expect(db.readingProgress.get(novelId)).resolves.toBeUndefined();
-    await expect(db.readerProgress.get(novelId)).resolves.toBeUndefined();
+    await expect(db.readerProgress.get(novelId)).resolves.toMatchObject({
+      activeChapterIndex: 2,
+    });
+    await expect(readObjectStoreNames()).resolves.not.toContain('readingProgress');
+  });
+
+  it('requires explicit recovery for legacy v6 databases', async () => {
+    await createVersionSixDatabaseWithReaderProgress();
+
+    await expect(prepareDatabase()).rejects.toMatchObject({
+      code: AppErrorCode.DATABASE_RECOVERY_REQUIRED,
+      details: expect.objectContaining({
+        installedNativeVersion: 60,
+        recognizedNativeVersion: false,
+        targetVersion: 8,
+      }),
+    });
   });
 
   it('requires explicit recovery for legacy v1 databases', async () => {
@@ -260,7 +335,7 @@ describe('prepareDatabase', () => {
       details: expect.objectContaining({
         installedNativeVersion: 10,
         recognizedNativeVersion: false,
-        targetVersion: 7,
+        targetVersion: 8,
       }),
     });
   });
@@ -273,7 +348,7 @@ describe('prepareDatabase', () => {
       details: expect.objectContaining({
         installedNativeVersion: 20,
         recognizedNativeVersion: false,
-        targetVersion: 7,
+        targetVersion: 8,
       }),
     });
   });

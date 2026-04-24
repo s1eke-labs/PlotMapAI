@@ -10,6 +10,14 @@ import { useReaderLifecycleController } from '@application/pages/reader/useReade
 import { buildStoredReaderState, resetReaderSessionStoreForTests } from '@domains/reader-session';
 import type { ReaderRestoreTarget, StoredReaderState } from '@shared/contracts/reader';
 
+type StoredStateFixtureOverrides = StoredReaderState & {
+  chapterIndex?: number;
+  chapterProgress?: number;
+  lastContentMode?: 'scroll' | 'paged';
+  mode?: 'scroll' | 'paged' | 'summary';
+  pageIndex?: number;
+};
+
 function createDeferred<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void;
   let reject!: (reason?: unknown) => void;
@@ -21,14 +29,30 @@ function createDeferred<T>() {
   return { promise, resolve, reject };
 }
 
-function createStoredState(overrides: StoredReaderState = {}): StoredReaderState {
+function createStoredState(overrides: StoredStateFixtureOverrides = {}): StoredReaderState {
+  const {
+    chapterIndex = 1,
+    chapterProgress,
+    lastContentMode = 'scroll',
+    mode = 'scroll',
+    pageIndex,
+    ...storedOverrides
+  } = overrides;
+  const contentMode = mode === 'summary' ? lastContentMode : mode;
+
   return buildStoredReaderState({
-    chapterIndex: 1,
-    mode: 'scroll',
-    chapterProgress: undefined,
-    lastContentMode: 'scroll',
-    locator: undefined,
-    ...overrides,
+    canonical: storedOverrides.canonical ?? {
+      chapterIndex,
+      edge: 'start',
+    },
+    hints: {
+      chapterProgress,
+      contentMode,
+      pageIndex,
+      viewMode: mode === 'summary' ? 'summary' : 'original',
+      ...storedOverrides.hints,
+    },
+    metadata: storedOverrides.metadata,
   });
 }
 

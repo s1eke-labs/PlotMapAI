@@ -27,7 +27,6 @@ describe('db', () => {
       'purificationRules',
       'readerProgress',
       'readerRenderCache',
-      'readingProgress',
       'tocRules',
     ]);
   });
@@ -155,24 +154,6 @@ describe('db', () => {
 
     expect(entries).toHaveLength(1);
     expect(entries[0].imageKey).toBe('cover');
-  });
-
-  it('can add and retrieve reading progress', async () => {
-    await db.readingProgress.add({
-      novelId: 1,
-      canonical: {
-        chapterIndex: 5,
-        edge: 'start',
-      },
-      contentMode: 'paged',
-      viewMode: 'summary',
-      chapterProgress: 0.5,
-      updatedAt: new Date().toISOString(),
-    });
-    const progress = await db.readingProgress.where('novelId').equals(1).first();
-    expect(progress).toBeDefined();
-    expect(progress!.canonical?.chapterIndex).toBe(5);
-    expect(progress!.viewMode).toBe('summary');
   });
 
   it('can add and retrieve reader progress core snapshots', async () => {

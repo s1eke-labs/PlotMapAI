@@ -242,12 +242,6 @@ describe('bookLifecycleService', () => {
       chunkIndex: 0,
       updatedAt: new Date().toISOString(),
     });
-    await db.readingProgress.add({
-      novelId,
-      chapterIndex: 0,
-      mode: 'scroll',
-      updatedAt: new Date().toISOString(),
-    });
     await db.readerProgress.put({
       novelId,
       mode: 'scroll',
@@ -301,7 +295,6 @@ describe('bookLifecycleService', () => {
     expect(await db.analysisJobs.count()).toBe(0);
     expect(await db.chapterAnalyses.count()).toBe(0);
     expect(await db.readerProgress.count()).toBe(0);
-    expect(await db.readingProgress.count()).toBe(0);
     expect(await db.readerRenderCache.count()).toBe(0);
     expect(storage.cache.getJson(CACHE_KEYS.readerBootstrap(novelId))).toBeNull();
     expect(invalidateNovelTextProjectionCache).toHaveBeenCalledWith(novelId);
@@ -382,12 +375,6 @@ describe('bookLifecycleService', () => {
       relationships: [],
       tags: [],
       chunkIndex: 0,
-      updatedAt: new Date().toISOString(),
-    });
-    await db.readingProgress.add({
-      novelId,
-      chapterIndex: 0,
-      mode: 'scroll',
       updatedAt: new Date().toISOString(),
     });
     await db.readerProgress.put({
@@ -513,7 +500,6 @@ describe('bookLifecycleService', () => {
     await expect(db.analysisJobs.count()).resolves.toBe(0);
     await expect(db.chapterAnalyses.count()).resolves.toBe(0);
     await expect(db.readerProgress.count()).resolves.toBe(0);
-    await expect(db.readingProgress.count()).resolves.toBe(0);
     await expect(db.readerRenderCache.count()).resolves.toBe(0);
     await expect(db.coverImages.count()).resolves.toBe(0);
     await expect(db.chapterImages.toArray()).resolves.toEqual([
@@ -637,12 +623,6 @@ describe('bookLifecycleService', () => {
       lastHeartbeat: null,
       updatedAt: new Date().toISOString(),
     });
-    await db.readingProgress.add({
-      novelId,
-      chapterIndex: 0,
-      mode: 'scroll',
-      updatedAt: new Date().toISOString(),
-    });
     await db.readerProgress.put({
       novelId,
       mode: 'scroll',
@@ -726,6 +706,5 @@ describe('bookLifecycleService', () => {
     });
     await expect(db.analysisJobs.count()).resolves.toBe(1);
     await expect(db.readerProgress.count()).resolves.toBe(1);
-    await expect(db.readingProgress.count()).resolves.toBe(1);
   });
 });

@@ -38,35 +38,6 @@ export interface ReaderLocatorRecord {
   contentHash?: string;
 }
 
-export interface CanonicalPositionRecord {
-  chapterIndex: number;
-  chapterKey?: string;
-  blockIndex?: number;
-  blockKey?: string;
-  anchorId?: string;
-  imageKey?: string;
-  kind?: 'heading' | 'text' | 'image';
-  lineIndex?: number;
-  startCursor?: {
-    segmentIndex: number;
-    graphemeIndex: number;
-  };
-  endCursor?: {
-    segmentIndex: number;
-    graphemeIndex: number;
-  };
-  edge?: 'start' | 'end';
-  textQuote?: {
-    exact: string;
-    prefix?: string;
-    suffix?: string;
-  };
-  blockTextHash?: string;
-  contentVersion?: number;
-  importFormatVersion?: number;
-  contentHash?: string;
-}
-
 export interface ReaderLayoutCursorRecord {
   segmentIndex: number;
   graphemeIndex: number;
@@ -281,18 +252,6 @@ export type ReaderRenderTreeRecord =
   | StaticPagedChapterTreeRecord
   | StaticSummaryShellTreeRecord;
 
-export interface ReadingProgressRecord {
-  id?: number;
-  novelId: number;
-  canonical?: CanonicalPositionRecord;
-  pageIndex?: number;
-  chapterProgress?: number;
-  contentMode?: 'scroll' | 'paged';
-  viewMode?: 'original' | 'summary';
-  revision?: number;
-  updatedAt: string;
-}
-
 export type ReaderProgressModeRecord = 'scroll' | 'paged';
 
 export type ReaderProgressCaptureQualityRecord = 'precise' | 'approximate';
@@ -354,14 +313,12 @@ export interface ReaderRenderCacheRecord {
 }
 
 export const READER_DB_SCHEMA = {
-  readingProgress: '++id, novelId',
   readerProgress: 'novelId, updatedAt, mode, activeChapterIndex',
   readerRenderCache:
     '++id, [novelId+chapterIndex+variantFamily], [novelId+variantFamily], updatedAt, expiresAt',
 } as const;
 
 export interface ReaderTables {
-  readingProgress: EntityTable<ReadingProgressRecord, 'id'>;
   readerProgress: EntityTable<ReaderProgressRecord, 'novelId'>;
   readerRenderCache: EntityTable<ReaderRenderCacheRecord, 'id'>;
 }

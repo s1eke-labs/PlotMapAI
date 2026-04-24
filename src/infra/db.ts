@@ -28,7 +28,11 @@ const KNOWN_NATIVE_DATABASE_VERSIONS = new Set(
   DB_SCHEMA_MIGRATIONS.map((migration) => toNativeDatabaseVersion(migration.version)),
 );
 const KNOWN_STORE_SIGNATURES = new Set(
-  DB_SCHEMA_MIGRATIONS.map((migration) => Object.keys(migration.stores).sort().join('|')),
+  DB_SCHEMA_MIGRATIONS.map((migration) => Object.entries(migration.stores)
+    .filter(([, schema]) => schema !== null)
+    .map(([storeName]) => storeName)
+    .sort()
+    .join('|')),
 );
 
 function isLegacyDatabaseVersionError(error: unknown): boolean {

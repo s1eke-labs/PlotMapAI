@@ -15,7 +15,6 @@ export type {
   CanonicalPositionV2,
   ChapterChangeSource,
   PageTarget,
-  PersistedReadingProgress,
   ReaderLocatorBoundary,
   ReaderLifecycleEvent,
   ReaderLifecycleEventType,

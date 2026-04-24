@@ -196,20 +196,6 @@
       ]
     },
     {
-      "name": "readingProgress",
-      "ownerDomain": "reader-session",
-      "allowedDirectAccessSummary": "阅读器会话，schema 迁移，应用层编排",
-      "allowedDirectAccessPaths": [
-        "src/infra/migrations/dbSchema.ts",
-        "src/domains/reader-session/**/*.ts",
-        "src/domains/reader-session/**/*.tsx"
-      ],
-      "allowedApplicationPaths": ["src/application/services/bookLifecycleService.ts"],
-      "publicApi": [
-        "readReadingProgress/replaceReadingProgress/deleteReadingProgress"
-      ]
-    },
-    {
       "name": "readerProgress",
       "ownerDomain": "reader-session",
       "allowedDirectAccessSummary": "阅读器会话新进度内核，schema 迁移，应用层编排",

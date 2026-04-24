@@ -199,10 +199,16 @@ describe('novelRepository', () => {
       novelId: id,
       order: 0,
     });
-    await db.readingProgress.add({
-      chapterIndex: 3,
+    await db.readerProgress.put({
+      activeChapterIndex: 3,
+      captureQuality: 'approximate',
       mode: 'scroll',
       novelId: id,
+      position: {
+        type: 'chapter-edge',
+        chapterIndex: 3,
+        edge: 'start',
+      },
       updatedAt: new Date().toISOString(),
     });
     await db.readerRenderCache.add({
@@ -238,7 +244,7 @@ describe('novelRepository', () => {
     await expect(db.coverImages.count()).resolves.toBe(0);
     await expect(db.chapterImages.count()).resolves.toBe(1);
     await expect(db.novelImageGalleryEntries.count()).resolves.toBe(1);
-    await expect(db.readingProgress.count()).resolves.toBe(1);
+    await expect(db.readerProgress.count()).resolves.toBe(1);
     await expect(db.readerRenderCache.count()).resolves.toBe(1);
   });
 

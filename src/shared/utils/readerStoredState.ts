@@ -27,59 +27,13 @@ function isValidLocatorKind(value: unknown): value is NonNullable<CanonicalPosit
   return value === 'heading' || value === 'text' || value === 'image';
 }
 
-function isContentMode(
-  value: unknown,
-): value is NonNullable<NonNullable<StoredReaderState['hints']>['contentMode']> {
-  return value === 'scroll' || value === 'paged';
-}
-
 function isViewMode(
   value: unknown,
 ): value is NonNullable<NonNullable<StoredReaderState['hints']>['viewMode']> {
   return value === 'original' || value === 'summary';
 }
 
-function toChapterBoundaryCanonical(
-  chapterIndex: number | undefined,
-): CanonicalPosition | undefined {
-  if (typeof chapterIndex !== 'number') {
-    return undefined;
-  }
-
-  return {
-    chapterIndex,
-    edge: 'start',
-  };
-}
-
-function resolveLegacyContentMode(
-  source: Record<string, unknown>,
-): NonNullable<NonNullable<StoredReaderState['hints']>['contentMode']> | undefined {
-  if (isContentMode(source.mode)) {
-    return source.mode;
-  }
-  if (isContentMode(source.lastContentMode)) {
-    return source.lastContentMode;
-  }
-  return undefined;
-}
-
-function resolveLegacyViewMode(
-  source: Record<string, unknown>,
-): ReaderViewMode | undefined {
-  if (isViewMode(source.viewMode)) {
-    return source.viewMode;
-  }
-  if (source.mode === 'summary') {
-    return 'summary';
-  }
-  if (isContentMode(source.mode)) {
-    return 'original';
-  }
-  return undefined;
-}
-
-function buildLegacyHints(
+function buildHints(
   chapterProgress: number | undefined,
   pageIndex: number | undefined,
   contentMode: NonNullable<NonNullable<StoredReaderState['hints']>['contentMode']> | undefined,
@@ -431,7 +385,7 @@ export function sanitizeCanonicalPositionV2(raw: unknown): CanonicalPositionV2 |
   }
 
   if (parsed.type !== 'block-anchor' || typeof parsed.chapterIndex !== 'number') {
-    return toCanonicalPositionV2FromCanonical(sanitizeCanonicalPosition(parsed));
+    return undefined;
   }
 
   if (!isValidLocatorKind(parsed.kind)) {
@@ -755,111 +709,26 @@ function normalizeHints(raw: unknown): StoredReaderState['hints'] {
   });
 }
 
-export function sanitizeStoredReaderState(raw: unknown): StoredReaderState | null {
-  if (!raw || typeof raw !== 'object') {
-    return null;
-  }
-
-  const parsed = raw as Record<string, unknown>;
-  const legacyLocator = sanitizeLocator(parsed.locator);
-  const legacyChapterIndex = typeof parsed.chapterIndex === 'number' ? parsed.chapterIndex : undefined;
-  const parsedCanonicalV2 = sanitizeCanonicalPositionV2(parsed.canonicalV2);
-  const canonical = sanitizeCanonicalPosition(parsed.canonical)
-    ?? toCanonicalPositionFromCanonicalV2(parsedCanonicalV2)
-    ?? toCanonicalPositionFromLocator(legacyLocator)
-    ?? toChapterBoundaryCanonical(legacyChapterIndex);
-
-  const normalizedHints = normalizeHints(parsed.hints);
-  const legacyChapterProgress = clampChapterProgress(
-    typeof parsed.chapterProgress === 'number' ? parsed.chapterProgress : undefined,
-  );
-  const legacyPageIndex = clampPageIndex(
-    typeof parsed.pageIndex === 'number'
-      ? parsed.pageIndex
-      : legacyLocator?.pageIndex,
-  );
-  const legacyContentMode = resolveLegacyContentMode(parsed);
-  const legacyViewMode = resolveLegacyViewMode(parsed);
-  const hints = normalizedHints ?? buildLegacyHints(
-    legacyChapterProgress,
-    legacyPageIndex,
-    legacyContentMode,
-    legacyViewMode,
-  );
-
-  return buildStoredReaderState({
-    canonical,
-    canonicalV2: parsedCanonicalV2,
-    hints,
-    metadata: sanitizePositionMetadata(parsed.metadata),
-  });
-}
-
 export function getStoredChapterIndex(
   state: StoredReaderState | null | undefined,
 ): number {
-  if (typeof state?.canonicalV2?.chapterIndex === 'number') {
-    return state.canonicalV2.chapterIndex;
-  }
-
   if (typeof state?.canonical?.chapterIndex === 'number') {
     return state.canonical.chapterIndex;
   }
 
-  const legacy = state as Record<string, unknown> | null | undefined;
-  if (typeof legacy?.chapterIndex === 'number') {
-    return legacy.chapterIndex;
-  }
-
-  const locator = sanitizeLocator(legacy?.locator);
-  return locator?.chapterIndex ?? 0;
+  return 0;
 }
 
 export function buildStoredReaderState(
   state: StoredReaderState | null | undefined,
 ): StoredReaderState {
-  const legacyState = state as Record<string, unknown> | null | undefined;
-  const legacyLocator = sanitizeLocator(legacyState?.locator);
-  const legacyChapterIndex = typeof legacyState?.chapterIndex === 'number'
-    ? legacyState.chapterIndex
-    : undefined;
-  const parsedCanonicalV2 = sanitizeCanonicalPositionV2(state?.canonicalV2);
   const canonical = sanitizeCanonicalPosition(state?.canonical)
-    ?? toCanonicalPositionFromCanonicalV2(parsedCanonicalV2)
-    ?? toCanonicalPositionFromLocator(legacyLocator)
-    ?? toChapterBoundaryCanonical(legacyChapterIndex)
     ?? createDefaultStoredReaderState().canonical;
-  const normalizedHints = normalizeHints(state?.hints);
-  const legacyChapterProgress = clampChapterProgress(
-    typeof legacyState?.chapterProgress === 'number'
-      ? legacyState.chapterProgress
-      : undefined,
-  );
-  const legacyPageIndex = clampPageIndex(
-    typeof legacyState?.pageIndex === 'number'
-      ? legacyState.pageIndex
-      : legacyLocator?.pageIndex,
-  );
-  const legacyContentMode = resolveLegacyContentMode(
-    legacyState ?? {},
-  );
-  const legacyViewMode = resolveLegacyViewMode(
-    legacyState ?? {},
-  );
-  const hints = normalizedHints ?? buildLegacyHints(
-    legacyChapterProgress,
-    legacyPageIndex,
-    legacyContentMode,
-    legacyViewMode,
-  );
-
-  const metadata = sanitizePositionMetadata(state?.metadata ?? legacyState?.metadata);
-
-  const canonicalV2 = parsedCanonicalV2 ?? toCanonicalPositionV2FromCanonical(canonical);
+  const hints = normalizeHints(state?.hints);
+  const metadata = sanitizePositionMetadata(state?.metadata);
 
   return {
     canonical,
-    ...(state?.canonicalV2 ? { canonicalV2 } : {}),
     hints,
     ...(metadata ? { metadata } : {}),
   };
@@ -874,12 +743,8 @@ export function mergeStoredReaderState(
     return canonicalBaseState;
   }
 
-  const overrideCanonicalV2 = sanitizeCanonicalPositionV2(overrideState.canonicalV2);
-  const overrideCanonical = sanitizeCanonicalPosition(overrideState.canonical)
-    ?? toCanonicalPositionFromCanonicalV2(overrideCanonicalV2);
+  const overrideCanonical = sanitizeCanonicalPosition(overrideState.canonical);
   const nextCanonical = overrideCanonical ?? canonicalBaseState.canonical;
-  const nextCanonicalV2 = overrideCanonicalV2
-    ?? toCanonicalPositionV2FromCanonical(nextCanonical);
   const chapterChanged =
     nextCanonical?.chapterIndex !== canonicalBaseState.canonical?.chapterIndex;
 
@@ -939,7 +804,7 @@ export function mergeStoredReaderState(
   } else if (!chapterChanged) {
     nextPagedProjection = baseHints?.pagedProjection;
   }
-  const nextHints = buildLegacyHints(
+  const nextHints = buildHints(
     nextChapterProgress,
     nextPageIndex,
     nextContentMode,
@@ -954,7 +819,6 @@ export function mergeStoredReaderState(
 
   return buildStoredReaderState({
     canonical: nextCanonical,
-    ...(overrideState.canonicalV2 ? { canonicalV2: nextCanonicalV2 } : {}),
     hints: nextHints,
     metadata: nextMetadata,
   });

@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import { db } from '@infra/db';
 import { APP_SETTING_KEYS, CACHE_KEYS, storage } from '@infra/storage';
-import { readReaderBootstrapSnapshot } from '@infra/storage/readerStateCache';
 
 import {
   ensureReaderAppearanceHydrated,
@@ -71,7 +70,7 @@ describe('readerAppearanceStore', () => {
   it('does not mirror the theme into the reader bootstrap snapshot', () => {
     setReaderAppearanceTheme('green');
 
-    expect(readReaderBootstrapSnapshot(12)).toBeNull();
+    expect(storage.cache.getJson(CACHE_KEYS.readerBootstrap(12))).toBeNull();
   });
 
   it('resets back to the cached theme for tests', () => {

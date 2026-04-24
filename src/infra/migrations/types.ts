@@ -16,6 +16,6 @@ export interface MigrationMetadata {
 
 export interface DbSchemaMigration extends MigrationMetadata {
   scope: 'db-schema';
-  stores: Record<string, string>;
+  stores: Record<string, string | null>;
   upgrade?: (transaction: Transaction) => Promise<void>;
 }

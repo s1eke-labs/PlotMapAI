@@ -63,7 +63,7 @@ describe('readerStoredState canonical metadata', () => {
     });
   });
 
-  it('normalizes legacy canonical positions into CanonicalPositionV2', () => {
+  it('converts runtime canonical positions into CanonicalPositionV2', () => {
     const position = toCanonicalPositionV2FromCanonical({
       chapterIndex: 2,
       chapterKey: 'epub:item:chapter.xhtml',
@@ -95,6 +95,35 @@ describe('readerStoredState canonical metadata', () => {
       blockIndex: 5,
       kind: 'text',
       pageIndex: 3,
+    });
+  });
+
+  it('does not accept retired untyped V1 shapes as CanonicalPositionV2 input', () => {
+    expect(sanitizeCanonicalPositionV2({
+      chapterIndex: 2,
+      blockIndex: 5,
+      kind: 'text',
+    })).toBeUndefined();
+  });
+
+  it('ignores retired top-level stored-state fallback fields', () => {
+    const state = buildStoredReaderState({
+      chapterIndex: 7,
+      locator: {
+        chapterIndex: 6,
+        blockIndex: 2,
+        kind: 'text',
+      },
+      pageIndex: 3,
+      mode: 'paged',
+    } as unknown as Parameters<typeof buildStoredReaderState>[0]);
+
+    expect(state).toEqual({
+      canonical: {
+        chapterIndex: 0,
+        edge: 'start',
+      },
+      hints: undefined,
     });
   });
 

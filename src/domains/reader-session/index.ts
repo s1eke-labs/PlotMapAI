@@ -42,7 +42,6 @@ export {
   getStoredChapterIndex,
   mergeStoredReaderState,
   sanitizeCanonicalPosition,
-  sanitizeStoredReaderState,
   toCanonicalPositionFromLocator,
   toReaderLocatorFromCanonical,
 } from '@shared/utils/readerStoredState';
@@ -51,9 +50,6 @@ export {
   readReaderProgressSnapshot,
   replaceReaderProgressSnapshot,
 } from './progress-core/repository';
-export {
-  deleteLegacyReadingProgress,
-} from './persistence/repository';
 export {
   dispatchReaderLifecycleEvent,
   flushPersistence,
@@ -69,4 +65,3 @@ export {
 } from './restore/useReaderRestoreController';
 export { useReaderSession } from './hooks/useReaderSession';
 export { useReaderStatePersistence } from './hooks/useReaderStatePersistence';
-

@@ -16,6 +16,26 @@ import {
   shouldKeepReaderRestoreMask,
 } from '../readerPosition';
 
+function createStoredState(params: {
+  chapterIndex: number;
+  chapterProgress?: number;
+  mode: 'scroll' | 'paged' | 'summary';
+}) {
+  const contentMode = params.mode === 'summary' ? 'scroll' : params.mode;
+
+  return {
+    canonical: {
+      chapterIndex: params.chapterIndex,
+      edge: 'start' as const,
+    },
+    hints: {
+      chapterProgress: params.chapterProgress,
+      contentMode,
+      viewMode: params.mode === 'summary' ? 'summary' as const : 'original' as const,
+    },
+  };
+}
+
 describe('readerPosition', () => {
   it('clamps invalid progress values into the 0..1 range', () => {
     expect(clampProgress(undefined)).toBe(0);
@@ -176,10 +196,10 @@ describe('readerPosition', () => {
 
   it('creates hydrate restore targets only for persisted positions that need restoration', () => {
     expect(createRestoreTargetFromPersistedState(null)).toBeNull();
-    expect(createRestoreTargetFromPersistedState({
+    expect(createRestoreTargetFromPersistedState(createStoredState({
       chapterIndex: 2,
       mode: 'scroll',
-    })).toEqual({
+    }))).toEqual({
       chapterIndex: 2,
       mode: 'scroll',
       position: {
@@ -190,11 +210,11 @@ describe('readerPosition', () => {
       locatorBoundary: 'start',
       locator: undefined,
     });
-    expect(createRestoreTargetFromPersistedState({
+    expect(createRestoreTargetFromPersistedState(createStoredState({
       chapterIndex: 2,
       mode: 'scroll',
       chapterProgress: 0,
-    })).toEqual({
+    }))).toEqual({
       chapterIndex: 2,
       chapterProgress: 0,
       mode: 'scroll',
@@ -206,11 +226,11 @@ describe('readerPosition', () => {
       locatorBoundary: 'start',
       locator: undefined,
     });
-    expect(createRestoreTargetFromPersistedState({
+    expect(createRestoreTargetFromPersistedState(createStoredState({
       chapterIndex: 2,
       mode: 'scroll',
       chapterProgress: 0.4,
-    })).toEqual({
+    }))).toEqual({
       chapterIndex: 2,
       chapterProgress: 0.4,
       mode: 'scroll',
@@ -222,11 +242,11 @@ describe('readerPosition', () => {
       locatorBoundary: 'start',
       locator: undefined,
     });
-    expect(createRestoreTargetFromPersistedState({
+    expect(createRestoreTargetFromPersistedState(createStoredState({
       chapterIndex: 2,
       mode: 'paged',
       chapterProgress: 1,
-    })).toEqual({
+    }))).toEqual({
       chapterIndex: 2,
       chapterProgress: 1,
       mode: 'paged',
@@ -238,11 +258,11 @@ describe('readerPosition', () => {
       locatorBoundary: 'start',
       locator: undefined,
     });
-    expect(createRestoreTargetFromPersistedState({
+    expect(createRestoreTargetFromPersistedState(createStoredState({
       chapterIndex: 2,
       mode: 'summary',
       chapterProgress: 1,
-    })).toEqual({
+    }))).toEqual({
       chapterIndex: 2,
       mode: 'summary',
       chapterProgress: 1,

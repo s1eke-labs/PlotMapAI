@@ -117,15 +117,8 @@ export interface ReaderPositionMetadata {
 
 export interface StoredReaderState {
   canonical?: CanonicalPosition;
-  canonicalV2?: CanonicalPositionV2;
   hints?: ReaderStateHints;
   metadata?: ReaderPositionMetadata;
-}
-
-export interface PersistedReadingProgress {
-  state: StoredReaderState;
-  revision: number;
-  updatedAt: string;
 }
 
 export interface ReaderRestoreTarget {

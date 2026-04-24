@@ -1,14 +1,12 @@
 import { reportAppError } from '@shared/debug';
 import { AppErrorCode } from '@shared/errors';
 import type {
-  PersistedReadingProgress,
   ReaderMode,
   ReaderPersistenceFailure,
   ReaderRestoreTarget,
   ReaderSessionState,
   StoredReaderState,
 } from '@shared/contracts/reader';
-import { getPersistedReadingProgressFingerprint } from '@shared/utils/readerPersistedProgress';
 import { createReaderStateModeHints } from '@shared/utils/readerMode';
 import { shouldKeepReaderRestoreMask } from '@shared/utils/readerPosition';
 
@@ -57,14 +55,6 @@ export function toStoredReaderState(state: ReaderSessionCacheShape): StoredReade
     },
     metadata: state.positionMetadata,
   });
-}
-
-export function getReaderSessionProgressFingerprint(
-  state: PersistedReadingProgress | ReaderSessionCacheShape | StoredReaderState,
-): string {
-  return getPersistedReadingProgressFingerprint(
-    'novelId' in state ? toStoredReaderState(state) : state,
-  );
 }
 
 export function createInitialReaderSessionState(): ReaderSessionState {
