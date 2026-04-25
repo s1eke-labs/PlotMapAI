@@ -16,6 +16,7 @@ import { cn } from '@shared/utils/cn';
 import {
   ReaderFlowBlock,
 } from '../../layout-core/internal';
+import ReaderPageHeader from './ReaderPageHeader';
 
 interface ScrollReaderChapter {
   chapter: ChapterContent;
@@ -43,6 +44,21 @@ interface ScrollReaderContentProps {
   visibleBlockRangeByChapter?: ReadonlyMap<number, VisibleBlockRange>;
 }
 
+function resolveVisibleMetrics(
+  layout: StaticScrollChapterTree,
+  visibleRange: VisibleBlockRange | undefined,
+): StaticScrollChapterTree['metrics'] {
+  if (!visibleRange) {
+    return layout.metrics;
+  }
+
+  if (visibleRange.endIndex < visibleRange.startIndex) {
+    return layout.metrics;
+  }
+
+  return layout.metrics.slice(visibleRange.startIndex, visibleRange.endIndex + 1);
+}
+
 export default function ScrollReaderContent({
   chapters,
   headerBgClassName,
@@ -68,18 +84,13 @@ export default function ScrollReaderContent({
 
   return (
     <div
-      className={cn(rootClassName, 'relative mx-auto w-full max-w-[1200px] px-4 sm:px-8 md:px-12')}
+      className={cn(rootClassName, 'relative w-full')}
       style={rootStyle}
     >
       <div className="relative pt-6" style={{ height: contentHeight }}>
         {chapters.map(({ chapter, flowEntry, index, layout }) => {
           const visibleRange = visibleBlockRangeByChapter?.get(index);
-          let visibleMetrics = layout.metrics;
-          if (visibleRange) {
-            visibleMetrics = visibleRange.endIndex >= visibleRange.startIndex
-              ? layout.metrics.slice(visibleRange.startIndex, visibleRange.endIndex + 1)
-              : [];
-          }
+          const visibleMetrics = resolveVisibleMetrics(layout, visibleRange);
 
           return (
             <div
@@ -90,48 +101,42 @@ export default function ScrollReaderContent({
                 top: flowEntry?.scrollStart ?? 0,
               }}
             >
-              <div
-                className={cn(
-                  READER_CONTENT_CLASS_NAMES.chapterHeader,
-                  'pointer-events-none absolute left-0 right-0 top-0 z-10 -mx-4 border-b border-border-color/20 px-4 py-3 backdrop-blur-sm sm:-mx-8 sm:px-8 md:-mx-12 md:px-12',
-                  headerBgClassName,
-                )}
-              >
-                <h1 className={cn(
-                  'break-words whitespace-normal text-sm font-medium leading-snug transition-colors',
-                  textClassName,
-                  readerTheme === 'auto' ? 'text-text-secondary' : 'opacity-60',
-                )}
-                >
-                  {chapter.title}
-                </h1>
+              <div className="pointer-events-none sticky top-0 z-10 h-0">
+                <ReaderPageHeader
+                  headerBgClassName={headerBgClassName}
+                  readerTheme={readerTheme}
+                  textClassName={textClassName}
+                  title={chapter.title}
+                />
               </div>
 
-              <div
-                data-testid="scroll-reader-content-body"
-                ref={(element) => onChapterBodyElement?.(index, element)}
-                className={cn(
-                  READER_CONTENT_CLASS_NAMES.content,
-                  'mx-auto w-full max-w-[920px]',
-                )}
-                style={{ height: layout.totalHeight, position: 'relative' }}
-              >
-                {visibleMetrics.map((metric) => (
-                  <ReaderFlowBlock
-                    key={metric.block.key}
-                    imageRenderMode="scroll"
-                    item={metric}
-                    novelId={novelId}
-                    onImageActivate={onImageActivate}
-                    onRegisterImageElement={onRegisterImageElement}
-                    positionStyle={{
-                      left: 0,
-                      position: 'absolute',
-                      right: 0,
-                      top: metric.top,
-                    }}
-                  />
-                ))}
+              <div className="mx-auto w-full max-w-[1200px] px-4 sm:px-8 md:px-12">
+                <div
+                  data-testid="scroll-reader-content-body"
+                  ref={(element) => onChapterBodyElement?.(index, element)}
+                  className={cn(
+                    READER_CONTENT_CLASS_NAMES.content,
+                    'mx-auto w-full max-w-[920px]',
+                  )}
+                  style={{ height: layout.totalHeight, position: 'relative' }}
+                >
+                  {visibleMetrics.map((metric) => (
+                    <ReaderFlowBlock
+                      key={metric.block.key}
+                      imageRenderMode="scroll"
+                      item={metric}
+                      novelId={novelId}
+                      onImageActivate={onImageActivate}
+                      onRegisterImageElement={onRegisterImageElement}
+                      positionStyle={{
+                        left: 0,
+                        position: 'absolute',
+                        right: 0,
+                        top: metric.top,
+                      }}
+                    />
+                  ))}
+                </div>
               </div>
             </div>
           );

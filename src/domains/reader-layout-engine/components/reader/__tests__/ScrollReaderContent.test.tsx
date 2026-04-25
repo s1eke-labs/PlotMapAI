@@ -273,7 +273,18 @@ describe('ScrollReaderContent', () => {
       />,
     );
 
-    expect(screen.getByRole('heading', { name: 'Chapter 1', level: 1 })).toBeInTheDocument();
+    const pageHeaderTitle = screen.getByRole('heading', { name: 'Chapter 1', level: 1 });
+    const pageHeader = pageHeaderTitle.closest(`.${READER_CONTENT_CLASS_NAMES.chapterHeader}`);
+    const scrollRoot = screen.getByTestId('scroll-reader-content-body').closest('.pm-reader');
+
+    expect(pageHeaderTitle).toBeInTheDocument();
+    expect(pageHeader).toBeInTheDocument();
+    expect(pageHeader).toHaveClass('w-full');
+    expect(pageHeader).not.toHaveClass('-mx-4');
+    expect(pageHeader?.parentElement).toHaveClass('sticky', 'top-0');
+    expect(scrollRoot).toHaveClass('w-full');
+    expect(scrollRoot).not.toHaveClass('max-w-[1200px]');
+    expect(screen.queryByText('1 / 1')).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Chapter 1', level: 2 })).toBeInTheDocument();
     expect(screen.getByText('Text')).toBeInTheDocument();
     expect(screen.getByTestId('scroll-reader-content-body')).toBeInTheDocument();
@@ -443,7 +454,7 @@ describe('ScrollReaderContent', () => {
     expect(screen.getByTestId('scroll-reader-content-body')).not.toHaveClass('font-serif');
   });
 
-  it('allows sticky chapter titles to wrap instead of truncating long titles', () => {
+  it('matches the paged header treatment for long sticky chapter titles', () => {
     const { chapter, layout } = createScrollChapterLayout('Text');
     const longTitle = 'Chapter 1 with a very long title that should wrap instead of truncating';
 
@@ -468,9 +479,9 @@ describe('ScrollReaderContent', () => {
     );
 
     const stickyTitle = screen.getByRole('heading', { name: longTitle, level: 1 });
-    expect(stickyTitle).toHaveClass('break-words');
-    expect(stickyTitle).toHaveClass('whitespace-normal');
-    expect(stickyTitle).not.toHaveClass('truncate');
+    expect(stickyTitle).toHaveClass('truncate');
+    expect(stickyTitle).toHaveClass('min-w-0');
+    expect(stickyTitle).toHaveClass('flex-1');
   });
 
   it('renders only the windowed block range when one is provided', () => {
@@ -501,6 +512,35 @@ describe('ScrollReaderContent', () => {
     const fragments = container.querySelectorAll('[data-testid="reader-flow-text-fragment"]');
     expect(fragments).toHaveLength(1);
     expect(fragments[0]?.children).toHaveLength(0);
+  });
+
+  it('falls back to the full chapter when the windowed block range is temporarily empty', () => {
+    const { chapter, layout } = createScrollChapterLayout('First paragraph\nSecond paragraph');
+
+    const { container } = render(
+      <ScrollReaderContent
+        chapters={[{
+          index: 0,
+          chapter,
+          layout,
+        }]}
+        novelId={1}
+        readerTheme="auto"
+        rootClassName="pm-reader pm-reader--scroll pm-reader--theme-auto"
+        rootStyle={{}}
+        textClassName=""
+        headerBgClassName=""
+        onChapterElement={() => {}}
+        visibleBlockRangeByChapter={new Map([
+          [0, { startIndex: 0, endIndex: -1 }],
+        ])}
+      />,
+    );
+
+    expect(screen.getByText('First paragraph')).toBeInTheDocument();
+    expect(screen.getByText('Second paragraph')).toBeInTheDocument();
+    expect(container.querySelectorAll('[data-testid="reader-flow-text-fragment"]').length)
+      .toBeGreaterThan(1);
   });
 
   it('renders rich blocks in scroll mode and keeps image activation aligned to block indices', async () => {

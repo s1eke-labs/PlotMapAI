@@ -456,6 +456,7 @@ export function useScrollReaderController({
     novelFlowIndex,
     setScrollModeChapters,
     stopRestoreMask,
+    syncViewportState,
     viewportContentRef: viewport.contentRef,
   });
 

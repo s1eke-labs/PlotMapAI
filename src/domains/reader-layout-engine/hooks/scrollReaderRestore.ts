@@ -59,6 +59,7 @@ export function useScrollReaderRestore(params: UseScrollReaderRestoreParams): vo
     novelFlowIndex,
     setScrollModeChapters,
     stopRestoreMask,
+    syncViewportState,
     viewportContentRef,
   } = params;
 
@@ -72,7 +73,6 @@ export function useScrollReaderRestore(params: UseScrollReaderRestoreParams): vo
       return;
     }
 
-    const currentRetryAttempt = getRestoreAttempt(pendingTarget);
     if (canSkipReaderRestore(pendingTarget)) {
       const skippedSnapshot = {
         source: 'scrollReaderRestore',
@@ -85,7 +85,7 @@ export function useScrollReaderRestore(params: UseScrollReaderRestoreParams): vo
       setDebugSnapshot('reader-position-restore', skippedSnapshot);
       debugLog('Reader', 'scroll restore skipped because target is missing', skippedSnapshot);
       recordRestoreResult(
-        buildSkippedNoTargetResult(chapterIndex, currentRetryAttempt + 1),
+        buildSkippedNoTargetResult(chapterIndex, getRestoreAttempt(pendingTarget) + 1),
         pendingTarget,
       );
       navigation.setChapterChangeSource(null);
@@ -169,10 +169,7 @@ export function useScrollReaderRestore(params: UseScrollReaderRestoreParams): vo
       actualOffset: number | null,
       tolerance: number,
     ) => {
-      const measuredError = (
-        typeof expectedOffset === 'number'
-        && typeof actualOffset === 'number'
-      )
+      const measuredError = typeof expectedOffset === 'number' && typeof actualOffset === 'number'
         ? {
           metric: 'scroll_px' as const,
           delta: Math.abs(actualOffset - expectedOffset),
@@ -286,6 +283,7 @@ export function useScrollReaderRestore(params: UseScrollReaderRestoreParams): vo
         navigation.setChapterChangeSource('restore');
         persistence.suppressScrollSyncTemporarily();
         container.scrollTop = progressExpectedScrollTop;
+        syncViewportState({ force: true });
       }
 
       if (shouldPreferProgressStability) {
@@ -416,6 +414,7 @@ export function useScrollReaderRestore(params: UseScrollReaderRestoreParams): vo
           persistence.suppressScrollSyncTemporarily();
           const nextContainer = container;
           nextContainer.scrollTop = scrollTop;
+          syncViewportState({ force: true });
           return restoreStepSuccess({
             locator,
             expectedScrollTop: scrollTop,
@@ -527,6 +526,7 @@ export function useScrollReaderRestore(params: UseScrollReaderRestoreParams): vo
     novelFlowIndex,
     setScrollModeChapters,
     stopRestoreMask,
+    syncViewportState,
     viewportContentRef,
   ]);
 }

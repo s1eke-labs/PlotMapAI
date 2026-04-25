@@ -41,5 +41,6 @@ export interface UseScrollReaderRestoreParams {
   novelFlowIndex: NovelFlowIndex | null;
   setScrollModeChapters: Dispatch<SetStateAction<number[]>>;
   stopRestoreMask: () => void;
+  syncViewportState: (options?: { force?: boolean }) => void;
   viewportContentRef: RefObject<HTMLDivElement | null>;
 }

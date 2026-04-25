@@ -1113,6 +1113,7 @@ describe('useScrollReaderController', () => {
           ),
         ),
       );
+      expect(scrollModeState.syncViewportState).toHaveBeenCalledWith({ force: true });
       expect(clearPendingRestoreTarget).toHaveBeenCalled();
       expect(stopRestoreMask).toHaveBeenCalled();
     } finally {
@@ -1293,8 +1294,10 @@ describe('useScrollReaderController', () => {
       await animationFrames.flushNextAnimationFrame();
 
       expect(contentRef.current.scrollTop).toBe(expectedScrollTop);
+      expect(scrollModeState.syncViewportState).toHaveBeenCalledWith({ force: true });
 
       contextValue.suppressScrollSyncTemporarilyRef.current.mockClear();
+      scrollModeState.syncViewportState.mockClear();
 
       act(() => {
         contentRef.current.scrollTop = 0;
@@ -1304,6 +1307,7 @@ describe('useScrollReaderController', () => {
 
       expect(contentRef.current.scrollTop).toBe(expectedScrollTop);
       expect(contextValue.suppressScrollSyncTemporarilyRef.current).toHaveBeenCalledTimes(1);
+      expect(scrollModeState.syncViewportState).toHaveBeenCalledWith({ force: true });
 
       for (let index = 0; index < 4 && onRestoreSettled.mock.calls.length === 0; index += 1) {
         await animationFrames.flushNextAnimationFrame();
@@ -1731,6 +1735,7 @@ describe('useScrollReaderController', () => {
       });
 
       scrollModeState.setScrollViewportTop(900);
+      contentRef.current.scrollTop = 900;
       Object.defineProperty(chapterBodyElement, 'getBoundingClientRect', {
         configurable: true,
         value: () => new DOMRect(0, -820, 560, 2400),

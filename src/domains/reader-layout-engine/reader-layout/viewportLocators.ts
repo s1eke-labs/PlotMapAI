@@ -508,6 +508,7 @@ export function calculateVisibleScrollBlockRanges(params: {
 
   const nextRanges = new Map<number, ReturnType<typeof findVisibleBlockRange>>();
   const overscanPx = Math.max(240, Math.round(viewportHeight * 0.75));
+  const viewportScrollTop = params.contentElement.scrollTop ?? params.scrollViewportTop;
   for (const renderableChapter of params.renderableScrollLayouts) {
     const chapterBodyElement = params.scrollChapterBodyElements.get(renderableChapter.index);
     const chapterGlobalOffset = renderableChapter.flowEntry?.scrollStart;
@@ -517,7 +518,7 @@ export function calculateVisibleScrollBlockRanges(params: {
         findVisibleBlockRangeFromBlockSummaries(
           renderableChapter.flowEntry.blockSummaries,
           renderableChapter.layout.totalHeight,
-          params.scrollViewportTop - chapterGlobalOffset,
+          viewportScrollTop - chapterGlobalOffset,
           viewportHeight,
           overscanPx,
         ),
@@ -532,7 +533,7 @@ export function calculateVisibleScrollBlockRanges(params: {
     const chapterBodyRect = chapterBodyElement.getBoundingClientRect();
     const offsetTop = Number.isFinite(viewportRect.top) && Number.isFinite(chapterBodyRect.top)
       ? viewportRect.top - chapterBodyRect.top
-      : params.scrollViewportTop - (chapterGlobalOffset ?? chapterBodyElement.offsetTop);
+      : viewportScrollTop - (chapterGlobalOffset ?? chapterBodyElement.offsetTop);
     nextRanges.set(
       renderableChapter.index,
       findVisibleBlockRange(
