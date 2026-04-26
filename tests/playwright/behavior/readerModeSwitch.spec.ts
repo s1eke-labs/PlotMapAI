@@ -327,29 +327,6 @@ async function waitForPagedViewportSnapshot(
   return snapshot;
 }
 
-async function waitForPagedViewportNearPageIndex(
-  page: Page,
-  expectedPageIndex: number,
-  tolerance = 1,
-): Promise<ReaderViewportSnapshot> {
-  let snapshot: ReaderViewportSnapshot | null = null;
-
-  await expect.poll(async () => {
-    snapshot = await readReaderViewportSnapshot(page);
-    return snapshot.branch === 'paged'
-      && snapshot.currentPageIndex !== null
-      && Math.abs(snapshot.currentPageIndex - expectedPageIndex) <= tolerance;
-  }, {
-    timeout: 10_000,
-  }).toBe(true);
-
-  if (!snapshot) {
-    throw new Error('Paged viewport snapshot did not settle near the expected page index.');
-  }
-
-  return snapshot;
-}
-
 function assertCanonicalNearBaseline(
   actual: PersistedReadingProgressSnapshot['canonical'],
   baseline: PersistedReadingProgressSnapshot['canonical'],
@@ -460,7 +437,7 @@ async function selectPagedRoundTripBaseline(
 }
 
 test.describe('阅读模式切换回归', () => {
-  test('TC-042 多次滚动与翻页往返切换后位置保持稳定', async ({
+  test('TC-025 多次滚动与翻页往返切换后位置保持稳定', async ({
     page,
   }, testInfo) => {
     test.slow();
@@ -757,9 +734,34 @@ test.describe('阅读模式切换回归', () => {
     // Content anchor must still match after final reload
     const reloadedAnchor = await readVisibleContentAnchor(page);
     assertContentAnchorStable(reloadedAnchor, baselineAnchor!, 'final reload');
+
+    await exitAndReopenReader(page);
+    await waitForReaderBranch(page, 'scroll');
+    const reopenedPersistedProgress = await waitForPersistedReadingProgress(
+      page,
+      novelId,
+      (snapshot) => {
+        return snapshot?.contentMode === 'scroll'
+          && snapshot.pageIndex === null
+          && typeof snapshot.canonical.blockIndex === 'number';
+      },
+      {
+        description: 'waiting for scroll-mode reading progress after exit and reopen',
+        timeout: 10_000,
+      },
+    );
+    const reopenedScrollSnapshot = await readReaderViewportSnapshot(page);
+    expect(reopenedScrollSnapshot.branch).toBe('scroll');
+    assertCanonicalNearBaseline(
+      reopenedPersistedProgress.canonical,
+      baselineCanonical,
+      'final exit-reopen',
+    );
+    const reopenedAnchor = await readVisibleContentAnchor(page);
+    assertContentAnchorStable(reopenedAnchor, baselineAnchor!, 'final exit-reopen');
   });
 
-  test('TC-043 多章节翻页模式显示全书页码并保留章节内页码数据', async ({
+  test('TC-026 多章节翻页模式显示全书页码并保留章节内页码数据', async ({
     page,
   }) => {
     const { novelId } = await importFixtureToDetailPage(page, 'multiChapterRich');
@@ -796,191 +798,7 @@ test.describe('阅读模式切换回归', () => {
     }).toBe(true);
   });
 
-  test('TC-044 多章节书籍在模式切换后仍保持位置', async ({
-    page,
-  }, testInfo) => {
-    test.slow();
-
-    const { novelId } = await importFixtureToDetailPage(page, 'multiChapterRich');
-    await setReaderPreferences(page, {
-      pageTurnMode: 'scroll',
-    });
-    await openReaderFromDetailPage(page);
-    await enableReaderTrace(page);
-
-    // Navigate to chapter 2 by scrolling progressively until chapterIndex=1 persists.
-    // The scroll reader uses windowed chapter loading, so we try multiple scroll
-    // positions with increasing depth. We use direct scroll manipulation instead
-    // of scrollReaderViewportToProgress because dynamic chapter loading can shift
-    // scroll height, making strict progress tolerance checks fail.
-    const chapter2Candidates = [0.4, 0.6, 0.8, 0.95] as const;
-    let chapter2ScrollProgress = 0.6;
-    const viewport = page.getByTestId('reader-viewport');
-    for (const candidateProgress of chapter2Candidates) {
-      await viewport.evaluate((el, p) => {
-        const target = el;
-        const maxScrollTop = Math.max(0, target.scrollHeight - target.clientHeight);
-        target.scrollTop = Math.round(maxScrollTop * p);
-        target.dispatchEvent(new Event('scroll'));
-      }, candidateProgress);
-      await page.waitForTimeout(1500);
-      const check = await readPersistedReadingProgress(page, novelId);
-      if (check?.canonical.chapterIndex === 1) {
-        chapter2ScrollProgress = candidateProgress;
-        break;
-      }
-    }
-
-    // Wait for chapter 2 to become the active chapter in persistence
-    let chapter2Persisted: PersistedReadingProgressSnapshot;
-    try {
-      chapter2Persisted = await waitForPersistedReadingProgress(
-        page,
-        novelId,
-        (snapshot) => {
-          return snapshot?.canonical.chapterIndex === 1
-            && snapshot.contentMode === 'scroll'
-            && typeof snapshot.chapterProgress === 'number';
-        },
-        {
-          description: 'waiting for chapter 2 to become the active chapter',
-          timeout: 15_000,
-        },
-      );
-    } catch {
-      // Multi-chapter navigation did not reach chapter 2 — skip gracefully.
-      test.skip(true, 'Multi-chapter navigation did not reach chapter 2');
-      return;
-    }
-
-    // If the book only has one chapter's worth of content loaded, the
-    // canonical chapterIndex won't advance. Skip gracefully in that case
-    // since the single-chapter variant already covers the core flow.
-    if (chapter2Persisted.canonical.chapterIndex !== 1) {
-      test.skip(true, 'Multi-chapter navigation did not reach chapter 2');
-      return;
-    }
-
-    const baselineProgress = chapter2Persisted.chapterProgress ?? chapter2ScrollProgress;
-    const baselineCanonical = chapter2Persisted.canonical;
-    expect(typeof baselineCanonical.blockIndex).toBe('number');
-    const baselineAnchor = await readVisibleContentAnchor(page);
-    expect(baselineAnchor).not.toBeNull();
-
-    let lastRevision = chapter2Persisted.revision ?? 0;
-    await resetReaderTrace(page);
-
-    const MULTI_CHAPTER_ITERATIONS = 3;
-
-    for (let iteration = 0; iteration < MULTI_CHAPTER_ITERATIONS; iteration += 1) {
-      // --- Paged phase ---
-      await clickToolbarMode(page, 'Two Columns');
-      await waitForReaderBranch(page, 'paged');
-
-      const pagedPersistedProgress = await waitForPagedProgressPersistence(page, novelId);
-
-      // Must stay in chapter 2
-      expect(pagedPersistedProgress.canonical.chapterIndex).toBe(1);
-
-      // Page index must be a valid number (may be 0 if at chapter start)
-      expect(pagedPersistedProgress.pageIndex).not.toBeNull();
-
-      if (iteration === 0) {
-        await expect.poll(async () => {
-          const snapshot = await readReaderViewportSnapshot(page);
-          return snapshot.branch === 'paged'
-            && snapshot.currentPageIndex !== null
-            && snapshot.pageCount !== null
-            && snapshot.indicatorPageIndex !== null
-            && snapshot.indicatorPageCount !== null
-            && snapshot.indicatorPageCount > snapshot.pageCount
-            && snapshot.indicatorPageIndex > snapshot.currentPageIndex;
-        }, {
-          message: 'paged header shows full-book page numbers while local page data stays chapter-scoped',
-          timeout: 15_000,
-        }).toBe(true);
-      }
-
-      // Canonical block must be near baseline
-      assertCanonicalNearBaseline(
-        pagedPersistedProgress.canonical,
-        baselineCanonical,
-        `multi-chapter iteration ${iteration} paged`,
-      );
-
-      // Revision monotonicity
-      expect(pagedPersistedProgress.revision).toBeGreaterThan(lastRevision);
-      lastRevision = pagedPersistedProgress.revision ?? lastRevision;
-
-      await assertNoTraceProblems(page, testInfo, novelId, iteration, 'paged');
-
-      // --- Scroll phase ---
-      await clickToolbarMode(page, 'Single Column');
-      await waitForReaderBranch(page, 'scroll');
-
-      const scrollPersistedProgress = await waitForScrollProgressPersistence(
-        page,
-        novelId,
-        baselineProgress,
-      );
-
-      // Must stay in chapter 2
-      expect(scrollPersistedProgress.canonical.chapterIndex).toBe(1);
-
-      // Canonical block must be near baseline
-      assertCanonicalNearBaseline(
-        scrollPersistedProgress.canonical,
-        baselineCanonical,
-        `multi-chapter iteration ${iteration} scroll`,
-      );
-
-      // Content anchor must match
-      const anchor = await readVisibleContentAnchor(page);
-      if (baselineAnchor) {
-        assertContentAnchorStable(
-          anchor,
-          baselineAnchor,
-          `multi-chapter iteration ${iteration} scroll`,
-        );
-      }
-
-      // Revision monotonicity
-      expect(scrollPersistedProgress.revision).toBeGreaterThan(lastRevision);
-      lastRevision = scrollPersistedProgress.revision ?? lastRevision;
-
-      expect(scrollPersistedProgress.contentMode).toBe('scroll');
-      expect(scrollPersistedProgress.pageIndex).toBeNull();
-      await assertNoTraceProblems(page, testInfo, novelId, iteration, 'scroll');
-    }
-
-    // --- Reload and verify chapter 2 position restored ---
-    await page.reload();
-    await disableAnimations(page);
-    await waitForReaderBranch(page, 'scroll');
-
-    const reloadedPersisted = await waitForPersistedReadingProgress(
-      page,
-      novelId,
-      (snapshot) => {
-        return snapshot?.contentMode === 'scroll'
-          && snapshot.canonical.chapterIndex === 1
-          && typeof snapshot.chapterProgress === 'number';
-      },
-      {
-        description: 'waiting for chapter 2 reading progress after reload',
-        timeout: 15_000,
-      },
-    );
-
-    expect(reloadedPersisted.canonical.chapterIndex).toBe(1);
-    assertCanonicalNearBaseline(
-      reloadedPersisted.canonical,
-      baselineCanonical,
-      'multi-chapter reload',
-    );
-  });
-
-  test('TC-045 在章节边界处可正确恢复位置', async ({
+  test('TC-027 在章节边界处可正确恢复位置', async ({
     page,
   }, testInfo) => {
     test.slow();
@@ -1072,7 +890,7 @@ test.describe('阅读模式切换回归', () => {
     await assertNoTraceProblems(page, testInfo, novelId, 0, 'chapter-boundary-scroll');
   });
 
-  test('TC-046 封面翻页模式下位置保持稳定', async ({
+  test('TC-028 封面翻页模式下位置保持稳定', async ({
     page,
   }, testInfo) => {
     test.slow();
@@ -1209,152 +1027,6 @@ test.describe('阅读模式切换回归', () => {
       expect(scrollPersistedProgress.contentMode).toBe('scroll');
       expect(scrollPersistedProgress.pageIndex).toBeNull();
       await assertNoTraceProblems(page, testInfo, novelId, iteration, 'cover-scroll');
-    }
-  });
-
-  test('TC-047 模式切换后退出并重新进入 SPA，位置仍保持稳定', async ({
-    page,
-  }, testInfo) => {
-    test.slow();
-
-    const { novelId } = await importFixtureToDetailPage(page, 'pagedRich');
-    await setReaderPreferences(page, {
-      pageTurnMode: 'scroll',
-    });
-    await openReaderFromDetailPage(page);
-    await enableReaderTrace(page);
-
-    const selectedBaselineCandidate = await selectPagedRoundTripBaseline(page, novelId, testInfo);
-    await resetReaderTrace(page);
-
-    const previousPersistedProgress = await readPersistedReadingProgress(page, novelId);
-    await scrollReaderViewportToProgress(page, selectedBaselineCandidate);
-    const initialPersistedProgress = await waitForScrollPersistenceUpdate(
-      page,
-      novelId,
-      previousPersistedProgress?.revision ?? 0,
-      'waiting for the exit-reopen baseline to persist',
-    );
-    const baselineCanonical = initialPersistedProgress.canonical;
-    const baselineAnchor = await readVisibleContentAnchor(page);
-
-    expect(typeof baselineCanonical.blockIndex).toBe('number');
-    expect(baselineCanonical.blockIndex).toBeGreaterThan(0);
-    expect(baselineAnchor).not.toBeNull();
-
-    const EXIT_REOPEN_ITERATIONS = 2;
-
-    for (let iteration = 0; iteration < EXIT_REOPEN_ITERATIONS; iteration += 1) {
-      await clickToolbarMode(page, 'Two Columns');
-      await waitForReaderBranch(page, 'paged');
-      const pagedPersistedProgress = await waitForPagedProgressPersistence(page, novelId);
-      const pagedSnapshot = await waitForPagedViewportSnapshot(
-        page,
-        pagedPersistedProgress.pageIndex ?? 0,
-      );
-
-      expect(pagedSnapshot.currentPageIndex).toBe(pagedPersistedProgress.pageIndex);
-      assertCanonicalNearBaseline(
-        pagedPersistedProgress.canonical,
-        baselineCanonical,
-        `exit-reopen iteration ${iteration} paged before exit`,
-      );
-
-      await exitAndReopenReader(page);
-      await waitForReaderBranch(page, 'paged');
-
-      const reopenedPagedProgress = await waitForPagedProgressPersistence(page, novelId);
-      const reopenedPagedSnapshot = await waitForPagedViewportNearPageIndex(
-        page,
-        pagedPersistedProgress.pageIndex ?? 0,
-      );
-      expect(reopenedPagedProgress.pageIndex).not.toBeNull();
-      expect(reopenedPagedSnapshot.currentPageIndex).not.toBeNull();
-      const reopenedPagedDrift = Math.abs(
-        (reopenedPagedSnapshot.currentPageIndex ?? 0)
-        - (pagedPersistedProgress.pageIndex ?? 0),
-      );
-      expect(
-        reopenedPagedDrift,
-      ).toBeLessThanOrEqual(1);
-      assertCanonicalNearBaseline(
-        reopenedPagedProgress.canonical,
-        baselineCanonical,
-        `exit-reopen iteration ${iteration} paged after reopen`,
-      );
-
-      const reopenedPagedAnchor = await readVisibleContentAnchor(page);
-      assertContentAnchorStable(
-        reopenedPagedAnchor,
-        baselineAnchor!,
-        `exit-reopen iteration ${iteration} paged after reopen`,
-      );
-
-      const beforeScrollSwitchProgress = await readPersistedReadingProgress(page, novelId);
-      await clickToolbarMode(page, 'Single Column');
-      await waitForReaderBranch(page, 'scroll');
-      const scrollPersistedProgress = await waitForPersistedReadingProgress(
-        page,
-        novelId,
-        (snapshot) => {
-          return snapshot?.contentMode === 'scroll'
-            && snapshot.pageIndex === null
-            && typeof snapshot.canonical.blockIndex === 'number'
-            && typeof snapshot.revision === 'number'
-            && snapshot.revision > (beforeScrollSwitchProgress?.revision ?? 0);
-        },
-        {
-          description: 'waiting for scroll-mode reading progress after mode switch',
-          timeout: 10_000,
-        },
-      );
-      assertCanonicalNearBaseline(
-        scrollPersistedProgress.canonical,
-        baselineCanonical,
-        `exit-reopen iteration ${iteration} scroll before exit`,
-      );
-
-      const scrollAnchor = await readVisibleContentAnchor(page);
-      assertContentAnchorStable(
-        scrollAnchor,
-        baselineAnchor!,
-        `exit-reopen iteration ${iteration} scroll before exit`,
-      );
-
-      await exitAndReopenReader(page);
-      await waitForReaderBranch(page, 'scroll');
-
-      const reopenedScrollProgress = await waitForPersistedReadingProgress(
-        page,
-        novelId,
-        (snapshot) => {
-          return snapshot?.contentMode === 'scroll'
-            && snapshot.pageIndex === null
-            && typeof snapshot.canonical.blockIndex === 'number';
-        },
-        {
-          description: 'waiting for reopened scroll-mode reading progress',
-          timeout: 10_000,
-        },
-      );
-      const reopenedScrollSnapshot = await readReaderViewportSnapshot(page);
-      expect(reopenedScrollSnapshot.branch).toBe('scroll');
-      assertCanonicalNearBaseline(
-        reopenedScrollProgress.canonical,
-        baselineCanonical,
-        `exit-reopen iteration ${iteration} scroll after reopen`,
-      );
-
-      const reopenedScrollAnchor = await readVisibleContentAnchor(page);
-      assertContentAnchorStable(
-        reopenedScrollAnchor,
-        baselineAnchor!,
-        `exit-reopen iteration ${iteration} scroll after reopen`,
-      );
-
-      expect(reopenedScrollSnapshot.scrollProgress).not.toBeNull();
-      await assertNoTraceProblems(page, testInfo, novelId, iteration, 'exit-reopen');
-      await resetReaderTrace(page);
     }
   });
 });

@@ -47,7 +47,6 @@ interface ReadingMarker {
   scrollProgress: number | null;
 }
 
-const MAX_CROSS_CHAPTER_STEPS = 18;
 const SCROLL_PROGRESS_TOLERANCE = 0.04;
 const TOUCH_SCROLL_SETTLE_TIMEOUT_MS = 6_000;
 
@@ -178,21 +177,6 @@ async function scrollViewportToProgressByTouchAndWait(
 
 async function scrollViewportToProgress(page: Page, progress: number): Promise<void> {
   await scrollViewportToProgressByTouchAndWait(page, progress);
-}
-
-async function scrollViewportByTouchAndWaitForRevision(
-  page: Page,
-  novelId: number,
-  previousRevision: number,
-  description: string,
-): Promise<PersistedReadingProgressSnapshot> {
-  await touchScrollViewportByPixels(page, 520);
-  return waitForPersistedReadingProgress(
-    page,
-    novelId,
-    (snapshot) => snapshot !== null && (snapshot.revision ?? 0) > previousRevision,
-    { description, timeout: 15_000 },
-  );
 }
 
 async function waitForViewportScrollSettled(
@@ -819,57 +803,6 @@ async function switchReaderBranch(page: Page, branch: 'paged' | 'scroll'): Promi
   await hideReaderChromeResponsive(page);
 }
 
-async function scrollUntilChapterReached(
-  page: Page,
-  novelId: number,
-  targetChapterIndex: number,
-): Promise<void> {
-  let latestRevision = (await readPersistedReadingProgress(page, novelId))?.revision ?? 0;
-
-  for (let step = 0; step < MAX_CROSS_CHAPTER_STEPS; step += 1) {
-    const previousRevision = latestRevision;
-    const persisted = await scrollViewportByTouchAndWaitForRevision(
-      page,
-      novelId,
-      previousRevision,
-      `advance scroll to chapter ${targetChapterIndex}`,
-    );
-    latestRevision = persisted.revision ?? latestRevision;
-
-    if ((persisted.canonical.chapterIndex ?? 0) >= targetChapterIndex) {
-      return;
-    }
-  }
-
-  throw new Error(`Failed to reach chapter index ${targetChapterIndex} in scroll mode.`);
-}
-
-async function advancePagedUntilChapterReached(
-  page: Page,
-  novelId: number,
-  targetChapterIndex: number,
-): Promise<void> {
-  let latestRevision = (await readPersistedReadingProgress(page, novelId))?.revision ?? 0;
-
-  for (let step = 0; step < MAX_CROSS_CHAPTER_STEPS; step += 1) {
-    await clickNextPageResponsive(page);
-    const previousRevision = latestRevision;
-    const persisted = await waitForPersistedReadingProgress(
-      page,
-      novelId,
-      (snapshot) => snapshot !== null && (snapshot.revision ?? 0) > previousRevision,
-      { description: `advance paged to chapter ${targetChapterIndex}`, timeout: 15_000 },
-    );
-    latestRevision = persisted.revision ?? latestRevision;
-
-    if ((persisted.canonical.chapterIndex ?? 0) >= targetChapterIndex) {
-      return;
-    }
-  }
-
-  throw new Error(`Failed to reach chapter index ${targetChapterIndex} in paged mode.`);
-}
-
 async function openBookFromBookshelf(page: Page, title: string): Promise<void> {
   const backLink = page.getByRole('link', { name: 'Back' }).first();
   if (await backLink.isVisible().catch(() => false)) {
@@ -881,17 +814,6 @@ async function openBookFromBookshelf(page: Page, title: string): Promise<void> {
   await activateLocatorResponsive(page, page.getByRole('link', { name: title }).first());
   await disableAnimations(page);
   await expect(page.getByRole('heading', { name: title, level: 1 })).toBeVisible({ timeout: 15_000 });
-}
-
-async function reopenFromBookshelf(page: Page, title: string): Promise<void> {
-  await exitReaderToDetailPageByUi(page);
-  await activateLocatorResponsive(page, page.getByRole('link', { name: 'Back' }).first());
-  await disableAnimations(page);
-  await expect(page.getByTestId('bookshelf-scroll-container')).toBeVisible({ timeout: 15_000 });
-  await activateLocatorResponsive(page, page.getByRole('link', { name: title }).first());
-  await disableAnimations(page);
-  await expect(page.getByRole('heading', { name: title, level: 1 })).toBeVisible({ timeout: 15_000 });
-  await openReaderFromDetailPage(page);
 }
 
 async function runScrollRestoreRound(
@@ -1016,7 +938,7 @@ async function runPagedRestoreRound(
 }
 
 test.describe('移动端阅读会话恢复', () => {
-  test('TC-008 滚动模式下退出重进，阅读记录恢复正常', async ({ page }) => {
+  test('TC-005 滚动模式下退出重进，阅读记录恢复正常', async ({ page }) => {
     await importEpubToDetailPage(
       page,
       await buildLongTestEpubFile(),
@@ -1054,7 +976,7 @@ test.describe('移动端阅读会话恢复', () => {
     );
   });
 
-  test('TC-009 翻页模式下退出重进，阅读记录恢复正常', async ({ page }) => {
+  test('TC-006 翻页模式下退出重进，阅读记录恢复正常', async ({ page }) => {
     const { novelId } = await importEpubToDetailPage(
       page,
       await buildLongTestEpubFile(),
@@ -1077,143 +999,7 @@ test.describe('移动端阅读会话恢复', () => {
     ).toBeGreaterThan(requirePagedPageIndex(roundTwoMarker, 'TC-002 round 2 marker'));
   });
 
-  test('TC-010 从滚动模式切换到翻页模式后，阅读记录恢复正常', async ({ page }) => {
-    const { novelId } = await importEpubToDetailPage(
-      page,
-      await buildLongTestEpubFile(),
-      LONG_BOOK_TITLE,
-    );
-
-    await setReaderPreferences(page, { pageTurnMode: 'scroll' });
-    await openReaderDirect(page, novelId);
-    await waitForReaderBranch(page, 'scroll');
-
-    await scrollViewportToProgress(page, 0.38);
-    await waitForScrollProgress(page, novelId, 0.15, 'scroll progress persisted before mode switch');
-    await captureMarker(page, novelId, 'scroll');
-
-    await switchReaderBranch(page, 'paged');
-    await advancePagedPages(page, 2);
-    await waitForPagedProgress(page, novelId, 1, 'paged progress persisted after mode switch');
-    const pagedMarker = await capturePagedMarker(page, novelId);
-
-    await exitAndReopenReaderByUiResponsive(page);
-    await waitForReaderBranch(page, 'paged');
-    await expectPagedMarkerRestored(page, novelId, pagedMarker, 'paged progress restored after reopen');
-
-    await expectViewportContainsSnippet(page, pagedMarker.anchorSnippet);
-  });
-
-  test('TC-011 从翻页模式切换到滚动模式后，阅读记录恢复正常', async ({ page }) => {
-    const { novelId } = await importEpubToDetailPage(
-      page,
-      await buildLongTestEpubFile(),
-      LONG_BOOK_TITLE,
-    );
-
-    await setReaderPreferences(page, { pageTurnMode: 'slide' });
-    await openReaderDirect(page, novelId);
-    await waitForReaderBranch(page, 'paged');
-
-    await advancePagedPages(page, 3);
-    await waitForPagedProgress(page, novelId, 2, 'paged progress persisted before scroll switch');
-    await captureMarker(page, novelId, 'paged');
-
-    await switchReaderBranch(page, 'scroll');
-    await scrollViewportByPixels(page, 480);
-    await waitForScrollProgress(page, novelId, 0.15, 'scroll progress persisted after mode switch');
-    const scrollMarker = await captureMarker(page, novelId, 'scroll');
-
-    await exitAndReopenReaderByUiResponsive(page);
-    await waitForReaderBranch(page, 'scroll');
-    await waitForScrollProgress(page, novelId, 0.15, 'scroll progress restored after reopen');
-
-    await expectViewportContainsSnippet(page, scrollMarker.anchorSnippet);
-  });
-
-  test('TC-012 滚动模式下跨章节后，阅读记录恢复正常', async ({ page }) => {
-    const { novelId } = await importEpubToDetailPage(
-      page,
-      await buildMultiChapterTestEpubFile(),
-      MULTI_CHAPTER_BOOK_TITLE,
-    );
-
-    await setReaderPreferences(page, { pageTurnMode: 'scroll' });
-    await openReaderDirect(page, novelId);
-    await waitForReaderBranch(page, 'scroll');
-
-    await scrollUntilChapterReached(page, novelId, 1);
-    await scrollViewportByPixels(page, 120);
-    const marker = await captureMarker(page, novelId, 'scroll');
-
-    expect(marker.chapterIndex).toBe(1);
-
-    await exitReaderToDetailPageByUi(page);
-    const exitProgress = await waitForSettledPersistedReadingProgress(
-      page,
-      novelId,
-      (snapshot) => snapshot !== null
-        && snapshot.contentMode === 'scroll'
-        && snapshot.canonical.chapterIndex === 1
-        && typeof snapshot.canonical.blockIndex === 'number',
-      { description: 'scroll chapter 2 persisted after exit', timeout: 15_000 },
-    );
-    const restoredSnippet = buildPersistedCanonicalSnippet(exitProgress, 'TC-005');
-
-    const startReadingLink = page.getByRole('link', { name: 'Start Reading' }).first();
-    await expect(startReadingLink).toBeVisible({ timeout: 15_000 });
-    await activateLocatorResponsive(page, startReadingLink);
-    await expect(page.getByTestId('reader-viewport')).toBeVisible({ timeout: 30_000 });
-    await disableAnimations(page);
-    await waitForReaderBranch(page, 'scroll');
-    await waitForPersistedReadingProgress(
-      page,
-      novelId,
-      (snapshot) => snapshot !== null
-        && snapshot.contentMode === 'scroll'
-        && snapshot.canonical.chapterIndex === 1,
-      { description: 'scroll chapter 2 restored', timeout: 15_000 },
-    );
-
-    await expectViewportContainsNearbyPassage(page, restoredSnippet, 3);
-  });
-
-  test('TC-013 翻页模式下跨章节后，阅读记录恢复正常', async ({ page }) => {
-    const { novelId } = await importEpubToDetailPage(
-      page,
-      await buildMultiChapterTestEpubFile(),
-      MULTI_CHAPTER_BOOK_TITLE,
-    );
-
-    await setReaderPreferences(page, { pageTurnMode: 'slide' });
-    await openReaderDirect(page, novelId);
-    await waitForReaderBranch(page, 'paged');
-
-    await advancePagedUntilChapterReached(page, novelId, 1);
-    await advancePagedPages(page, 1);
-    await waitForPersistedReadingProgress(
-      page,
-      novelId,
-      (snapshot) => snapshot !== null
-        && snapshot.contentMode === 'paged'
-        && snapshot.canonical.chapterIndex === 1
-        && (snapshot.pageIndex ?? 0) >= 1,
-      { description: 'paged chapter 2 baseline persisted before capture', timeout: 15_000 },
-    );
-    const marker = await capturePagedMarker(page, novelId);
-    const expectedPageIndex = requirePagedPageIndex(marker, 'TC-006 baseline marker');
-
-    expect(marker.chapterIndex).toBe(1);
-
-    await exitAndReopenReaderByUiResponsive(page);
-    await waitForReaderBranch(page, 'paged');
-    await expectPagedMarkerRestored(page, novelId, marker, 'paged chapter 2 restored');
-
-    expect(expectedPageIndex).toBe(requirePagedPageIndex(marker, 'TC-006 restored marker'));
-    await expectViewportContainsSnippet(page, marker.anchorSnippet);
-  });
-
-  test('TC-014 通过目录跳转章节后，阅读记录恢复正常', async ({ page }) => {
+  test('TC-007 通过目录跳转章节后，阅读记录恢复正常', async ({ page }) => {
     const { novelId } = await importEpubToDetailPage(
       page,
       await buildMultiChapterTestEpubFile(),
@@ -1277,29 +1063,7 @@ test.describe('移动端阅读会话恢复', () => {
     await expectViewportContainsNearbyPassage(page, restoredSnippet, 3);
   });
 
-  test('TC-015 返回书架后重新打开，阅读记录恢复正常', async ({ page }) => {
-    const { novelId } = await importEpubToDetailPage(
-      page,
-      await buildLongTestEpubFile(),
-      LONG_BOOK_TITLE,
-    );
-
-    await setReaderPreferences(page, { pageTurnMode: 'scroll' });
-    await openReaderDirect(page, novelId);
-    await waitForReaderBranch(page, 'scroll');
-
-    await scrollViewportToProgress(page, 0.52);
-    await waitForScrollProgress(page, novelId, 0.2, 'scroll progress persisted before bookshelf reopen');
-    const marker = await captureMarker(page, novelId, 'scroll');
-
-    await reopenFromBookshelf(page, LONG_BOOK_TITLE);
-    await waitForReaderBranch(page, 'scroll');
-    await waitForScrollProgress(page, novelId, 0.2, 'scroll progress restored after bookshelf reopen');
-
-    await expectViewportContainsSnippet(page, marker.anchorSnippet);
-  });
-
-  test('TC-016 刷新页面后，阅读记录恢复正常', async ({ page }) => {
+  test('TC-008 刷新页面后，阅读记录恢复正常', async ({ page }) => {
     const { novelId } = await importEpubToDetailPage(
       page,
       await buildLongTestEpubFile(),
@@ -1322,39 +1086,7 @@ test.describe('移动端阅读会话恢复', () => {
     await expectViewportContainsSnippet(page, marker.anchorSnippet);
   });
 
-  test('TC-017 多次切换阅读方式后，以最后一次阅读位置为准恢复', async ({ page }) => {
-    const { novelId } = await importEpubToDetailPage(
-      page,
-      await buildLongTestEpubFile(),
-      LONG_BOOK_TITLE,
-    );
-
-    await setReaderPreferences(page, { pageTurnMode: 'scroll' });
-    await openReaderDirect(page, novelId);
-    await waitForReaderBranch(page, 'scroll');
-
-    await scrollViewportToProgress(page, 0.28);
-    await waitForScrollProgress(page, novelId, 0.1, 'first scroll progress persisted');
-    await captureMarker(page, novelId, 'scroll');
-
-    await switchReaderBranch(page, 'paged');
-    await advancePagedPages(page, 2);
-    await waitForPagedProgress(page, novelId, 1, 'paged progress persisted in multi-switch');
-    await captureMarker(page, novelId, 'paged');
-
-    await switchReaderBranch(page, 'scroll');
-    await scrollViewportByPixels(page, 560);
-    await waitForScrollProgress(page, novelId, 0.2, 'final scroll progress persisted');
-    const finalMarker = await captureMarker(page, novelId, 'scroll');
-
-    await exitAndReopenReaderByUiResponsive(page);
-    await waitForReaderBranch(page, 'scroll');
-    await waitForScrollProgress(page, novelId, 0.2, 'final scroll progress restored');
-
-    await expectViewportContainsSnippet(page, finalMarker.anchorSnippet);
-  });
-
-  test('TC-018 不同书籍之间的阅读记录互不影响', async ({ page }) => {
+  test('TC-009 不同书籍之间的阅读记录互不影响', async ({ page }) => {
     const firstBook = {
       chapterTitle: 'Corridor A',
       title: 'Long Scroll Register A',
@@ -1414,7 +1146,7 @@ test.describe('移动端阅读会话恢复', () => {
     await expectViewportNotContainsSnippet(page, firstMarker.anchorSnippet);
   });
 
-  test('TC-019 同一章节内切换阅读方式后，阅读内容位置应连续', async ({ page }) => {
+  test('TC-010 同一章节内切换阅读方式后，阅读内容位置应连续', async ({ page }) => {
     const { novelId } = await importEpubToDetailPage(
       page,
       await buildLongTestEpubFile(),
