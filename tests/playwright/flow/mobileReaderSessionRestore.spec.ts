@@ -50,6 +50,15 @@ interface ReadingMarker {
 const SCROLL_PROGRESS_TOLERANCE = 0.04;
 const TOUCH_SCROLL_SETTLE_TIMEOUT_MS = 6_000;
 
+function readNovelIdFromReaderUrl(url: string): number {
+  const match = url.match(/\/(?:reader|novel)\/(\d+)/u);
+  if (!match) {
+    throw new Error(`Unable to resolve novel id from url: ${url}`);
+  }
+
+  return Number.parseInt(match[1], 10);
+}
+
 async function waitForViewportScrollable(page: Page): Promise<void> {
   await expect.poll(async () => {
     return page.getByTestId('reader-viewport').evaluate((element) => {
@@ -818,6 +827,7 @@ async function openBookFromBookshelf(page: Page, title: string): Promise<void> {
 
 async function runScrollRestoreRound(
   page: Page,
+  novelId: number,
   round: number,
   targetProgress: number,
   previousMarker?: ReadingMarker,
@@ -845,6 +855,19 @@ async function runScrollRestoreRound(
 
   expect(viewportSnapshot.scrollProgress).not.toBeNull();
   const expectedExitProgress = viewportSnapshot.scrollProgress!;
+  const persistedBeforeExit = await waitForPersistedReadingProgress(
+    page,
+    novelId,
+    (snapshot) => snapshot !== null
+      && snapshot.contentMode === 'scroll'
+      && isScrollProgressWithinTolerance(snapshot.chapterProgress ?? null, expectedExitProgress),
+    {
+      description: `TC-001 round ${round} scroll progress persisted before exit`,
+      timeout: 15_000,
+    },
+  );
+  expect(persistedBeforeExit.chapterProgress).not.toBeNull();
+  const savedProgressBeforeExit = expectedExitProgress;
   const anchorSnippetBeforeExit = await readLongBookVisibleParagraphSnippet(
     page,
     `TC-001 round ${round} capture visible paragraph`,
@@ -855,7 +878,6 @@ async function runScrollRestoreRound(
     page.getByRole('link', { name: 'Start Reading' }).first(),
     `TC-001 round ${round} detail page visible before reopen`,
   ).toBeVisible({ timeout: 15_000 });
-  const savedProgressBeforeExit = expectedExitProgress;
   const marker: ReadingMarker = {
     anchorOffsetTop: null,
     anchorSnippet: anchorSnippetBeforeExit,
@@ -954,15 +976,19 @@ test.describe('移动端阅读会话恢复', () => {
       await waitForReaderBranch(page, 'scroll');
     }
 
-    const roundOneMarker = await runScrollRestoreRound(page, 1, 0.22);
+    const novelId = readNovelIdFromReaderUrl(page.url());
+
+    const roundOneMarker = await runScrollRestoreRound(page, novelId, 1, 0.22);
     const roundTwoMarker = await runScrollRestoreRound(
       page,
+      novelId,
       2,
       0.42,
       roundOneMarker,
     );
     const roundThreeMarker = await runScrollRestoreRound(
       page,
+      novelId,
       3,
       0.62,
       roundTwoMarker,
